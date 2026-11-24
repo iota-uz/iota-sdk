@@ -72,9 +72,9 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 	}
 	behavior := string(spec.Behavior)
 	if m.x.ie.unavailable[node.Type] {
-		if ref, _ := node.Params[catalog.ConnectionParam].(string); strings.HasPrefix(ref, catalog.PlatformPrefix) {
-			// The node names the platform credential, and the tenant's administrator switched it off after
-			// the run started.
+		// The node names the platform credential, or the platform credential is the one it would use, and
+		// the tenant's administrator has not enabled it or switched it off after the run started.
+		if ref, _ := node.Params[catalog.ConnectionParam].(string); strings.HasPrefix(ref, catalog.PlatformPrefix) || m.x.ie.platformOff[node.Type] {
 			return behavior, m.nodeFailed(ctx, tok, node.ID, behavior, 0, nil, StepError{Code: catalog.CallUnavailable, Message: platformOffMessage})
 		}
 		return behavior, m.nodeFailed(ctx, tok, node.ID, behavior, 0, nil, StepError{Code: CodeConnectionUnavailable,

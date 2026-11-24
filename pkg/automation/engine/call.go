@@ -37,6 +37,19 @@ const (
 	CodeInvalidInput   = "invalid_input"
 )
 
+// paramTimeout is the deadline a call's params ask for: `timeout` (a duration such as 30s, or
+// milliseconds) or, for a node that names it so, `timeout_ms` (milliseconds).
+func paramTimeout(params map[string]any) (time.Duration, bool) {
+	for _, name := range []string{"timeout", "timeout_ms"} {
+		if v, set := params[name]; set && v != nil {
+			if ms, ok := graph.DurationMs(v); ok {
+				return time.Duration(ms) * time.Millisecond, true
+			}
+		}
+	}
+	return 0, false
+}
+
 // platformOffMessage is why a call that names the platform credential cannot run: its tenant's
 // administrator has not enabled it, or switched it off.
 const platformOffMessage = "the platform key is not enabled for the tenant (платформенный ключ не включён)"
@@ -348,8 +361,8 @@ func (c *CallRunner) Begin(ctx context.Context, tx pgx.Tx, run StepContext, node
 	}
 	limits := c.r.cfg.CallLimits
 	timeout := limits.DefaultTimeout
-	if ms, ok := graph.DurationMs(params["timeout"]); ok {
-		timeout = time.Duration(ms) * time.Millisecond
+	if t, ok := paramTimeout(params); ok {
+		timeout = t
 	}
 	if timeout > limits.MaxTimeout {
 		timeout = limits.MaxTimeout
@@ -376,6 +389,11 @@ func (c *CallRunner) Begin(ctx context.Context, tx pgx.Tx, run StepContext, node
 	if kinds := view.NodeRequires[node.Type]; len(kinds) > 0 {
 		ref, kind, err := catalog.ResolveConnection(view.Connections, kinds, params[catalog.ConnectionParam])
 		if err != nil {
+			if named, _ := params[catalog.ConnectionParam].(string); strings.HasPrefix(named, catalog.PlatformPrefix) {
+				// The node names the platform credential and the tenant has no access to it now (a tenant
+				// connection of the kind keeps the node type in the catalog, so the step was entered).
+				return WaitSpec{}, &StepError{Code: catalog.CallUnavailable, Message: platformOffMessage}
+			}
 			return WaitSpec{}, &StepError{Code: CodeConnectionUnavailable, Message: "the connection of " + node.ID + " is not available"}
 		}
 		req.Connection, req.ConnectorKind = ref.ID, string(kind)
@@ -892,17 +910,17 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, prior int, 
 		var ce *catalog.CallError
 		if errors.As(err, &ce) {
 			msg := masker.Mask(ce.Message)
-			ce = &catalog.CallError{Code: callCode(ce.Code, masker), Message: ce.Message, Retryable: ce.Retryable}
+			ce = &catalog.CallError{Code: callCode(ce.Code, masker), Message: ce.Message, Retryable: ce.Retryable, RetryAfter: ce.RetryAfter}
 			switch {
 			case ce.Code == catalog.CallOutcomeUnknown:
 				return x.unknown(msg)
 			case ce.Code == catalog.CallRateLimited:
-				return x.repeat(prior+a.Attempt, 0, limits, CodeRateLimited, msg)
+				return x.repeat(prior+a.Attempt, ce.RetryAfter, limits, CodeRateLimited, msg)
 			case clientRefusal(ce.Code):
 				// A refusal of the request itself: repeating it gives the same answer.
 				return callRecord{Kind: "failed", Code: ce.Code, Message: msg}, nil
 			case ce.Retryable && idempotent:
-				return x.repeat(prior+a.Attempt, 0, limits, ce.Code, msg)
+				return x.repeat(prior+a.Attempt, ce.RetryAfter, limits, ce.Code, msg)
 			}
 			return callRecord{Kind: "failed", Code: ce.Code, Message: msg, Retryable: ce.Retryable}, nil
 		}

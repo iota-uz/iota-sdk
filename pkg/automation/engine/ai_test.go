@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -129,7 +130,7 @@ func newAIEnv(t *testing.T) *aiEnv {
 	ae.dir = connectors.NewDirectory(ae.reg)
 	tr := ae.provider.transport()
 	require.NoError(t, ae.dir.Register(openai.New(openai.WithTransport(tr), openai.WithDefaultModel(defaultLLMModel))))
-	require.NoError(t, ae.dir.Register(jev.New(jev.WithTransport(tr), jev.WithDefaultModel("openai/gpt-4o-mini-2024-07-18"))))
+	require.NoError(t, ae.dir.Register(jev.New(jev.WithTransport(tr), jev.WithDefaultModel("typesafe/jev-1.14"))))
 	return ae
 }
 
@@ -272,10 +273,22 @@ const jevGraph = `{"name": "Route", "triggers": [{"id": "created", "event": "acm
   {"from": {"node": "bad", "outcome": "done"}, "to": "fin"}, {"from": {"node": "bad", "outcome": "failed"}, "to": "fin"}
  ]}`
 
+// decisionBody is OpenRouter's Decisions API answering a choice: the probability of the choice is also the
+// provider's confidence.
 func decisionBody(choice string, refund, exchange float64) func(map[string]any) (int, string) {
 	return func(map[string]any) (int, string) {
-		b, _ := json.Marshal(map[string]any{"choice": choice, "probabilities": map[string]float64{"refund": refund, "exchange": exchange}})
-		return completion(string(b), 80, 12)
+		conf := refund
+		if choice == "exchange" {
+			conf = exchange
+		}
+		b, _ := json.Marshal(map[string]any{
+			"model": "typesafe/jev-1.14-20261014", "provider": "TypeSafe",
+			"answers": map[string]any{"decision": map[string]any{
+				"type": "choice", "choice": choice, "probabilities": map[string]float64{"refund": refund, "exchange": exchange}, "confidence": conf,
+			}},
+			"usage": map[string]any{"input_tokens": 80, "output_tokens": 12},
+		})
+		return http.StatusOK, string(b)
 	}
 }
 
@@ -290,7 +303,7 @@ func TestJevTakesTheOutcomeOfTheChoiceAndOfTheConfidence(t *testing.T) {
 	require.NoError(t, ae.db.QueryRow(context.Background(),
 		`SELECT graph->'nodes'->0->'params'->>'model', graph->'nodes'->0->'params'->>'prompt' FROM automation.versions WHERE tenant_id = $1 AND automation_id = $2 AND version = 1`,
 		ae.tenant, am.ID).Scan(&model, &prompt))
-	assert.Equal(t, "openai/gpt-4o-mini-2024-07-18", model)
+	assert.Equal(t, "typesafe/jev-1.14", model)
 	assert.Contains(t, prompt, "When in doubt, choose the safest option", "the default instruction is saved with the node")
 
 	ae.provider.reply = decisionBody("refund", 0.7, 0.3)
@@ -302,16 +315,16 @@ func TestJevTakesTheOutcomeOfTheChoiceAndOfTheConfidence(t *testing.T) {
 	assert.Equal(t, []string{"pick:choice exchange"}, ae.effects(run.RunID))
 
 	ae.provider.reply = func(map[string]any) (int, string) {
-		return http.StatusOK, `{"choices":[{"finish_reason":"stop","message":{"content":null,"refusal":"no"}}],"usage":{"prompt_tokens":5,"completion_tokens":1}}`
+		return http.StatusOK, `{"model":"typesafe/jev-1.14","answers":{"decision":{"type":"refusal"}},"usage":{"input_tokens":5,"output_tokens":1}}`
 	}
 	run = ae.runUntilDone(p, "o-3", "wrong size")
 	assert.Equal(t, []string{"bad:failed rejected"}, ae.effects(run.RunID))
 
-	// The input has values of different types, the list beside the strings; the request carries it
-	// serialized with sorted keys.
+	// The input has values of different types, the list beside the strings; the request carries it as the
+	// state of the decision.
 	req := ae.provider.requests()[0]
-	user := req["messages"].([]any)[1].(map[string]any)["content"].(string)
-	assert.Contains(t, user, "{\n  \"amount\": 1,\n  \"note\": \"wrong size\",\n  \"tags\": [\n    \"a\",\n    \"b\"\n  ]\n}")
+	assert.Equal(t, map[string]any{"amount": float64(1), "note": "wrong size", "tags": []any{"a", "b"}}, req["state"])
+	assert.Equal(t, "typesafe/jev-1.14", req["model"])
 	assert.Equal(t, 3, ae.count(`SELECT count(*) FROM automation.connector_usage WHERE kind = 'jev' AND unit = 'token_in'`))
 }
 
@@ -321,7 +334,7 @@ func TestAIDryRunCachedDoesNotCallTheProviderAgain(t *testing.T) {
 	ae.connect(catalog.KindJEV, connectors.Credentials{"provider": "openrouter", "api_key": "sk-or-key-1234"})
 	ae.connect(catalog.KindOpenAI, connectors.Credentials{"api_key": "sk-tenant-key-1234", "base_url": ae.provider.srv.URL})
 	ae.provider.reply = func(body map[string]any) (int, string) {
-		if strings.Contains(string(mustJSON(body)), `"probabilities"`) {
+		if _, decides := body["questions"]; decides {
 			return decisionBody("exchange", 0.05, 0.95)(body)
 		}
 		return completion(`{"label":"vip","score":4}`, 10, 2)
@@ -423,4 +436,113 @@ func (e *env) sum(sql string, args ...any) int64 {
 	var n int64
 	require.NoError(e.t, e.db.QueryRow(context.Background(), sql, args...).Scan(&n))
 	return n
+}
+
+// The platform key is what a graph that names no connection runs on while it is the only one; switched off
+// before the run reaches the node, the node ends with unavailable, not connection_unavailable.
+func TestImplicitPlatformKeyRevokedEndsWithUnavailable(t *testing.T) {
+	ae := newAIEnv(t)
+	ae.provider.reply = func(map[string]any) (int, string) { return completion(`{"label":"vip","score":4}`, 30, 5) }
+	p := ae.proc()
+	ctx := context.Background()
+	require.NoError(t, ae.grants.SetEnabled(ctx, ae.tenant, catalog.KindOpenAI, true, 1))
+	ae.create(p, ae.human(), llmGraph) // no connection param
+	run := ae.runUntilDone(p, "o-1", "x")
+	assert.Equal(t, []string{"ok:ok vip 4"}, ae.effects(run.RunID))
+
+	require.NoError(t, ae.grants.SetEnabled(ctx, ae.tenant, catalog.KindOpenAI, false, 1))
+	before := len(ae.provider.requests())
+	run = ae.runUntilDone(p, "o-2", "x")
+	effects := ae.effects(run.RunID)
+	require.Len(t, effects, 1)
+	assert.True(t, strings.HasPrefix(effects[0], "bad:failed unavailable: "), effects[0])
+	assert.Contains(t, effects[0], "platform key is not enabled")
+	assert.Len(t, ae.provider.requests(), before)
+}
+
+// A graph that names the platform key keeps naming it when the tenant has a connection of its own: the
+// node type stays in the catalog, and the revoked key still ends with unavailable.
+func TestNamedPlatformKeyRevokedWithATenantConnection(t *testing.T) {
+	ae := newAIEnv(t)
+	ae.connect(catalog.KindOpenAI, connectors.Credentials{"api_key": "sk-tenant-key-1234", "base_url": ae.provider.srv.URL})
+	ae.provider.reply = func(map[string]any) (int, string) { return completion(`{"label":"vip","score":4}`, 30, 5) }
+	p := ae.proc()
+	ctx := context.Background()
+	require.NoError(t, ae.grants.SetEnabled(ctx, ae.tenant, catalog.KindOpenAI, true, 1))
+	named := strings.Replace(llmGraph, `"type": "ai.llm", "params": {`, `"type": "ai.llm", "params": {"connection": "platform:openai", `, 1)
+	ae.create(p, ae.human(), named)
+	run := ae.runUntilDone(p, "o-1", "x")
+	assert.Equal(t, []string{"ok:ok vip 4"}, ae.effects(run.RunID))
+
+	require.NoError(t, ae.grants.SetEnabled(ctx, ae.tenant, catalog.KindOpenAI, false, 1))
+	run = ae.runUntilDone(p, "o-2", "x")
+	effects := ae.effects(run.RunID)
+	require.Len(t, effects, 1)
+	assert.True(t, strings.HasPrefix(effects[0], "bad:failed unavailable: "), effects[0])
+	assert.Contains(t, effects[0], "platform key is not enabled")
+}
+
+// A 5xx with Retry-After is repeated no sooner than that, and keeps unavailable when the attempts run out.
+func TestServerErrorRetryAfterIsKeptByTheEngine(t *testing.T) {
+	ae := newAIEnv(t)
+	ae.connect(catalog.KindOpenAI, connectors.Credentials{"api_key": "sk-tenant-key-1234", "base_url": ae.provider.srv.URL})
+	var at []time.Time
+	ae.provider.reply = func(map[string]any) (int, string) {
+		at = append(at, time.Now())
+		return http.StatusServiceUnavailable, `{"error":{"message":"overloaded"}}`
+	}
+	p := ae.env.proc(func(c *engine.Config) {
+		c.Credentials = ae.store
+		c.Connectors = ae.dir
+		c.CallLimits.BackoffBase = 5 * time.Millisecond
+		c.CallLimits.MaxAttempts = 2
+	})
+	ae.provider.srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "1")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		ae.provider.mu.Lock()
+		at = append(at, time.Now())
+		ae.provider.mu.Unlock()
+	})
+	ae.create(p, ae.human(), llmGraph)
+	run := ae.runUntilDone(p, "o-1", "x")
+	effects := ae.effects(run.RunID)
+	require.Len(t, effects, 1)
+	assert.True(t, strings.HasPrefix(effects[0], "bad:failed unavailable: "), effects[0])
+	ae.provider.mu.Lock()
+	defer ae.provider.mu.Unlock()
+	require.Len(t, at, 2)
+	assert.GreaterOrEqual(t, at[1].Sub(at[0]), time.Second, "the repeat waited for the provider's Retry-After")
+}
+
+// Testing an AI node shows the rendered prompt and input it sent, and never the connection's key; its
+// timeout_ms is the deadline.
+func TestTestNodeShowsTheRenderedRequest(t *testing.T) {
+	ae := newAIEnv(t)
+	ae.connect(catalog.KindJEV, connectors.Credentials{"provider": "openrouter", "api_key": "sk-or-key-1234"})
+	ae.connect(catalog.KindOpenAI, connectors.Credentials{"api_key": "sk-tenant-key-1234", "base_url": ae.provider.srv.URL})
+	ae.provider.reply = decisionBody("exchange", 0.05, 0.95)
+	p := ae.proc()
+	au := p.rt.Authoring()
+	ctx := context.Background()
+	event := map[string]json.RawMessage{"event": json.RawMessage(`{"kind": "acme.order.created.v1", "amount": 7, "note": "wrong size", "secret": ""}`)}
+	res, err := au.TestNode(ctx, ae.human(), engine.TestNodeInput{Graph: json.RawMessage(jevGraph), NodeID: "cls",
+		Subject: &engine.SubjectRef{Entity: "acme.order", Key: "o-1"}, Context: event})
+	require.NoError(t, err)
+	require.Nil(t, res.Error)
+	assert.Equal(t, "exchange", res.Outcome)
+	assert.Contains(t, string(res.Request), `"note":"wrong size"`, "the classifier input, rendered")
+	assert.Contains(t, string(res.Request), `"amount":7`)
+	assert.NotContains(t, string(res.Request), "sk-or-key-1234")
+	assert.NotContains(t, string(res.Output), "sk-or-key-1234")
+
+	llm := strings.Replace(llmGraph, `"params": {"prompt"`, `"params": {"timeout_ms": 1000, "prompt"`, 1)
+	ae.provider.srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { time.Sleep(3 * time.Second) })
+	started := time.Now()
+	res, err = au.TestNode(ctx, ae.human(), engine.TestNodeInput{Graph: json.RawMessage(llm), NodeID: "llm",
+		Subject: &engine.SubjectRef{Entity: "acme.order", Key: "o-1"}, Context: event})
+	require.NoError(t, err)
+	require.NotNil(t, res.Error)
+	assert.Contains(t, string(res.Request), "Summarize: wrong size", "the rendered prompt, also of a call that failed")
+	assert.Less(t, time.Since(started), 2500*time.Millisecond, "timeout_ms is the deadline")
 }

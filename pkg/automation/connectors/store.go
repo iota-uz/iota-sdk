@@ -148,6 +148,27 @@ func (s *store) Connected(ctx context.Context, tenantID uuid.UUID) (map[catalog.
 	return out, nil
 }
 
+// PlatformWithheld implements catalog.PlatformOffers: the kinds with a platform credential that the tenant
+// cannot use now.
+func (s *store) PlatformWithheld(ctx context.Context, tenantID uuid.UUID) (map[catalog.ConnectorKind]bool, error) {
+	const op = serrors.Op("automation.connectors.Store.PlatformWithheld")
+	out := map[catalog.ConnectorKind]bool{}
+	pc, ok := s.platform.(PlatformCatalog)
+	if !ok {
+		return out, nil
+	}
+	for _, kind := range pc.Kinds() {
+		available, err := s.platformAvailable(ctx, tenantID, pc, kind)
+		if err != nil {
+			return nil, serrors.Wrap(op, err)
+		}
+		if !available {
+			out[kind] = true
+		}
+	}
+	return out, nil
+}
+
 func (s *store) platformAvailable(ctx context.Context, tenantID uuid.UUID, pc PlatformCatalog, kind catalog.ConnectorKind) (bool, error) {
 	if _, _, ok := s.platform.Platform(kind); !ok {
 		return false, nil

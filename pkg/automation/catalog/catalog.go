@@ -173,6 +173,10 @@ type CallError struct {
 	Code      string
 	Message   string // no secrets
 	Retryable bool
+	// RetryAfter is the delay the provider asked for with a Retryable failure (a 503 with Retry-After):
+	// the engine waits at least that long before it repeats an idempotent call, and keeps Code if the
+	// attempts run out.
+	RetryAfter time.Duration
 }
 
 func (e *CallError) Error() string { return e.Code + ": " + e.Message }
@@ -213,6 +217,13 @@ type ConnectorContribution interface {
 // Refs of a kind are in order of preference: tenant connections before the platform credential.
 type Availability interface {
 	Connected(ctx context.Context, tenantID uuid.UUID) (map[ConnectorKind][]ConnectionRef, error)
+}
+
+// PlatformOffers is an optional part of Availability: the kinds the application offers by platform
+// credential that the tenant cannot use now (an opt_in credential its administrator has not enabled, or
+// has switched off). View.PlatformWithheld is built from it.
+type PlatformOffers interface {
+	PlatformWithheld(ctx context.Context, tenantID uuid.UUID) (map[ConnectorKind]bool, error)
 }
 
 // ConnectionRef is a working connection: a UUID, or "platform:<kind>" for the platform credential.

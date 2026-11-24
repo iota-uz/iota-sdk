@@ -9,16 +9,16 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 )
 
-// Bounds of the timeout param (the engine reads it: the call's deadline).
+// Bounds of the timeout_ms param: the engine reads it as the deadline of the call (repeats included).
 const (
 	MinTimeout     = time.Second
 	MaxTimeout     = 5 * time.Minute
 	DefaultTimeout = time.Minute
 )
 
-// TimeoutSchema is the JSON Schema property of the reserved timeout param: 60s, 2m or milliseconds.
-const TimeoutSchema = `{"type": ["string", "integer"], "pattern": "^[1-9][0-9]{0,5}(s|m)$", "x-max-ms": 300000, "default": "60s",
-      "description": "the deadline of the call, repeats of a provider's failure included: 1s to 5m (60s, 2m, or milliseconds)"}`
+// TimeoutSchema is the JSON Schema property of the timeout_ms param: milliseconds, 1000 to 300000.
+const TimeoutSchema = `{"type": "integer", "minimum": 1000, "maximum": 300000, "default": 60000,
+      "description": "the deadline of the call in milliseconds, repeats of a provider's failure included: 1000 to 300000"}`
 
 // Spec is a ParamsSpec by JSON Schema with checks the schema cannot say: it runs Check on the params the
 // schema accepted.
@@ -52,11 +52,12 @@ func Issue(param, code, format string, args ...any) graph.Issue {
 	return graph.Issue{Path: []any{param}, Code: code, Message: fmt.Sprintf(format, args...)}
 }
 
-// CheckTimeout refuses a timeout under MinTimeout (the schema bounds it above).
+// CheckTimeout refuses a timeout_ms outside MinTimeout..MaxTimeout.
 func CheckTimeout(params map[string]any) []graph.Issue {
-	if v, ok := params["timeout"]; ok && v != nil {
-		if ms, ok := graph.DurationMs(v); !ok || time.Duration(ms)*time.Millisecond < MinTimeout || time.Duration(ms)*time.Millisecond > MaxTimeout {
-			return []graph.Issue{Issue("timeout", "", "a timeout is 1s to 5m")}
+	if v, ok := params["timeout_ms"]; ok && v != nil {
+		ms, ok := Int(v)
+		if d := time.Duration(ms) * time.Millisecond; !ok || d < MinTimeout || d > MaxTimeout {
+			return []graph.Issue{Issue("timeout_ms", "", "timeout_ms is 1000 to 300000")}
 		}
 	}
 	return nil

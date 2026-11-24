@@ -43,16 +43,16 @@ func TestGraphValidation(t *testing.T) {
 
 func TestGraphImages(t *testing.T) {
 	v := aitest.View(t, openai.New())
-	assert.Empty(t, aitest.Validate(t, v, llmGraph(`{"prompt":"what is it","model":"gpt-4o","images":"event.upload_ids"}`)))
+	assert.Empty(t, aitest.Validate(t, v, llmGraph(`{"prompt":"what is it","model":"gpt-4o-2024-08-06","images":"event.upload_ids"}`)))
 
-	errs := aitest.Validate(t, v, llmGraph(`{"prompt":"what is it","model":"gpt-3.5-turbo","images":"event.upload_ids"}`))
+	errs := aitest.Validate(t, v, llmGraph(`{"prompt":"what is it","model":"gpt-3.5-turbo-0125","images":"event.upload_ids"}`))
 	require.Len(t, errs, 1)
 	assert.Equal(t, "nodes[0].params.images", errs[0].Path)
 	assert.Equal(t, "model_no_vision", errs[0].Code)
 
 	// The images expression is a list.
-	assert.NotEmpty(t, aitest.Validate(t, v, llmGraph(`{"prompt":"x","model":"gpt-4o","images":"event.title"}`)))
-	assert.NotEmpty(t, aitest.Validate(t, v, llmGraph(`{"prompt":"x","model":"gpt-4o","images":"event.nope"}`)))
+	assert.NotEmpty(t, aitest.Validate(t, v, llmGraph(`{"prompt":"x","model":"gpt-4o-2024-08-06","images":"event.title"}`)))
+	assert.NotEmpty(t, aitest.Validate(t, v, llmGraph(`{"prompt":"x","model":"gpt-4o-2024-08-06","images":"event.nope"}`)))
 }
 
 func TestGraphJSONOutputIsTypedBySchema(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/internal/aichat"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/internal/aitest"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/jev"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
@@ -69,10 +71,27 @@ func callErr(t *testing.T, err error) *catalog.CallError {
 	return ce
 }
 
+// decision is the answer of a chat model (the openai provider).
 func decision(choice string, probs map[string]float64) string {
 	b, _ := json.Marshal(map[string]any{"choice": choice, "probabilities": probs})
 	return aitest.Chat(string(b), 120, 18)
 }
+
+// typesafe is the answer of OpenRouter's Decisions API; confidence is the provider's own (nil: left out).
+func typesafe(choice string, probs map[string]float64, confidence *float64) string {
+	answer := map[string]any{"type": "choice", "choice": choice, "probabilities": probs}
+	if confidence != nil {
+		answer["confidence"] = *confidence
+	}
+	b, _ := json.Marshal(map[string]any{
+		"id": "gen-dec-1", "model": "typesafe/jev-1.14-20261014", "provider": "TypeSafe",
+		"answers": map[string]any{"decision": answer},
+		"usage":   map[string]any{"input_tokens": 120, "output_tokens": 18, "cost": 0.0042},
+	})
+	return string(b)
+}
+
+func f(v float64) *float64 { return &v }
 
 func creds(provider string) map[string]string { return map[string]string{"provider": provider} }
 
@@ -105,7 +124,7 @@ func TestParams(t *testing.T) {
 	}
 	two := `[{"value":"a","description":"A"},{"value":"b","description":"B"}]`
 	assert.Empty(t, parse(`{"input":"{}","choices":`+two+`}`))
-	assert.Empty(t, parse(`{"input":"{}","choices":`+two+`,"min_confidence":0.9,"model":"gpt-4o-2024-08-06","timeout":"90s"}`))
+	assert.Empty(t, parse(`{"input":"{}","choices":`+two+`,"min_confidence":0.9,"model":"gpt-4o-2024-08-06","timeout_ms":90000}`))
 
 	many := make([]string, 101)
 	for i := range many {
@@ -128,7 +147,11 @@ func TestParams(t *testing.T) {
 		"confidence over 1":  `{"input":"{}","choices":` + two + `,"min_confidence":1.1}`,
 		"confidence under 0": `{"input":"{}","choices":` + two + `,"min_confidence":-0.1}`,
 		"alias":              `{"input":"{}","choices":` + two + `,"model":"gpt-4o-latest"}`,
-		"timeout":            `{"input":"{}","choices":` + two + `,"timeout":"10m"}`,
+		"timeout":            `{"input":"{}","choices":` + two + `,"timeout_ms":300001}`,
+		"rolling":            `{"input":"{}","choices":` + two + `,"model":"gpt-4o"}`,
+		"latest version":     `{"input":"{}","choices":` + two + `,"model":"~typesafe/jev-latest"}`,
+		"latest":             `{"input":"{}","choices":` + two + `,"model":"typesafe/jev-latest"}`,
+		"string timeout":     `{"input":"{}","choices":` + two + `,"timeout":"60s"}`,
 		"empty prompt":       `{"input":"{}","choices":` + two + `,"prompt":""}`,
 		"unknown":            `{"input":"{}","choices":` + two + `,"images":"x"}`,
 	} {
@@ -137,53 +160,86 @@ func TestParams(t *testing.T) {
 }
 
 func TestDefaultsAreAppliedAndPinned(t *testing.T) {
-	n, _ := newNode(t, jev.WithDefaultModel("openai/gpt-4o-mini-2024-07-18"))
+	n, _ := newNode(t, jev.WithDefaultModel("typesafe/jev-1.14"))
 	p := parsed(t, n, map[string]any{"input": "{}", "choices": choices(t)})
 	assert.Equal(t, json.Number("0.6"), p["min_confidence"], "min_confidence defaults to 0.6")
 	assert.Equal(t, jev.DefaultPrompt, p["prompt"])
 	assert.Contains(t, jev.DefaultPrompt, "When in doubt, choose the safest option")
-	assert.Equal(t, "60s", p["timeout"])
+	assert.Equal(t, json.Number("60000"), p["timeout_ms"])
 
 	cn := n.(catalog.CompletedNode)
 	raw := map[string]any{"input": "{}", "choices": choices(t)}
 	done := cn.CompleteParams(raw)
-	assert.Equal(t, "openai/gpt-4o-mini-2024-07-18", done["model"])
+	assert.Equal(t, "typesafe/jev-1.14", done["model"])
 	assert.Equal(t, jev.DefaultPrompt, done["prompt"])
 	assert.NotContains(t, raw, "model")
 	assert.NotContains(t, raw, "prompt")
 	assert.Equal(t, done, cn.CompleteParams(done))
-	kept := cn.CompleteParams(map[string]any{"model": "gpt-4o", "prompt": "my rules"})
-	assert.Equal(t, "gpt-4o", kept["model"])
+	kept := cn.CompleteParams(map[string]any{"model": "gpt-4o-2024-08-06", "prompt": "my rules"})
+	assert.Equal(t, "gpt-4o-2024-08-06", kept["model"])
 	assert.Equal(t, "my rules", kept["prompt"])
 	assert.Equal(t, "", cn.CompleteParams(map[string]any{"prompt": ""})["prompt"], "an empty prompt is refused, not replaced")
 }
 
 func TestDefaultModelOfAConfiguration(t *testing.T) {
-	assert.Equal(t, "openai/gpt-4o-mini", jev.DefaultModel(nil))
-	assert.Equal(t, "openai/gpt-4o-mini", jev.DefaultModel(&jevconfig.Config{}))
-	assert.Equal(t, "gpt-4o-mini", jev.DefaultModel(&jevconfig.Config{Provider: "openai"}))
-	assert.Equal(t, "anthropic/claude-3.5-haiku", jev.DefaultModel(&jevconfig.Config{Provider: "openai", DefaultModel: " anthropic/claude-3.5-haiku "}))
+	assert.Equal(t, "typesafe/jev-1.14", jev.DefaultModel(nil))
+	assert.Equal(t, "typesafe/jev-1.14", jev.DefaultModel(&jevconfig.Config{}))
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", jev.DefaultModel(&jevconfig.Config{Provider: "openai"}))
+	assert.Equal(t, "typesafe/jev-1.13", jev.DefaultModel(&jevconfig.Config{DefaultModel: " typesafe/jev-1.13 "}))
+	for _, m := range []string{jev.DefaultModelOpenRouter, jev.DefaultModelOpenAI} {
+		assert.NoError(t, aichat.CheckModel(m), "the shipped default %s is pinned", m)
+	}
 }
 
-func TestDecisionAndOutcomes(t *testing.T) {
-	probs := map[string]float64{"refund": 0.7, "exchange": 0.2, "other": 0.1}
-	srv := aitest.New(t, aitest.Reply{Body: decision("refund", probs)})
-	n, _ := newNode(t, jev.WithTransport(srv.Transport()), jev.WithDefaultModel("openai/gpt-4o-mini"))
-	usage := &aitest.Usage{}
+func openrouterNode(t *testing.T, srv *aitest.Server, opts ...jev.Option) catalog.CallNode {
+	t.Helper()
+	n, _ := newNode(t, append([]jev.Option{jev.WithTransport(srv.Transport())}, opts...)...)
+	return n
+}
 
-	in := aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), usage)
+func openaiNode(t *testing.T, srv *aitest.Server, opts ...jev.Option) catalog.CallNode {
+	t.Helper()
+	return openrouterNode(t, srv, append([]jev.Option{jev.WithDefaultModel(jev.DefaultModelOpenAI)}, opts...)...)
+}
+
+// OpenRouter decides with TypeSafe Jev through its Decisions API; the node routes by the provider's own
+// confidence.
+func TestOpenRouterDecidesWithTypeSafeJev(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: typesafe("refund", map[string]float64{"refund": 0.8, "exchange": 0.15, "other": 0.05}, f(0.7))})
+	n := openrouterNode(t, srv)
+	usage := &aitest.Usage{}
+	in := aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, map[string]any{"prompt": "Decide for the customer"}), usage)
+	in.Params["model"] = "typesafe/jev-1.14"
 	res, err := n.Execute(context.Background(), in)
 	require.NoError(t, err)
-	assert.Equal(t, "refund", res.Outcome, "0.7 is over the default 0.6")
-	assert.Equal(t, "refund", res.Output["choice"])
-	assert.InDelta(t, 0.7, res.Output["confidence"], 1e-9)
-	assert.Equal(t, "openrouter", res.Output["provider"])
-	assert.Equal(t, "test-model-2025-01-01", res.Output["model"])
-	got := res.Output["probabilities"].(map[string]any)
-	assert.InDelta(t, 0.7, got["refund"], 1e-9)
-	assert.Len(t, got, 3)
-	assert.Equal(t, map[string]any{"input_tokens": int64(120), "output_tokens": int64(18), "cost_usd": nil}, res.Output["usage"])
 
+	req := srv.Requests()[0]
+	assert.Equal(t, "openrouter.ai", req.Host())
+	assert.Equal(t, "/api/alpha/decisions", req.Path)
+	assert.Equal(t, "POST", req.Method)
+	assert.Equal(t, "Bearer sk-test-key-123456", req.Header.Get("Authorization"))
+	body := req.JSON(t)
+	assert.Equal(t, "typesafe/jev-1.14", body["model"], "the pinned Jev version")
+	assert.Equal(t, map[string]any{
+		"count": float64(2), "labels": []any{"shoes", "urgent"}, "meta": map[string]any{"a": "1", "b": "2"}, "title": "Wrong size", "urgent": true,
+	}, body["state"], "the input is the state, whatever the types of its values")
+	q := body["questions"].(map[string]any)["decision"].(map[string]any)
+	assert.Equal(t, "choice", q["type"])
+	assert.Equal(t, "Decide for the customer", q["instructions"])
+	assert.Equal(t, map[string]any{
+		"refund": "The customer asks for money back.", "exchange": "The customer wants another item.", "other": "Anything else.",
+	}, q["criteria"])
+	assert.NotContains(t, body, "messages", "no chat completion")
+
+	// Routing is by the provider's confidence (0.7), not by the probability of the choice (0.8).
+	assert.Equal(t, "refund", res.Outcome)
+	assert.InDelta(t, 0.7, res.Output["confidence"], 1e-9)
+	assert.Equal(t, "refund", res.Output["choice"])
+	assert.Equal(t, "openrouter", res.Output["provider"])
+	assert.Equal(t, "typesafe/jev-1.14-20261014", res.Output["model"], "the snapshot that answered")
+	probs := res.Output["probabilities"].(map[string]any)
+	assert.InDelta(t, 0.8, probs["refund"], 1e-9)
+	assert.Equal(t, map[string]any{"input_tokens": int64(120), "output_tokens": int64(18), "cost_usd": 0.0042}, res.Output["usage"])
 	assert.EqualValues(t, 120, usage.Total("token_in"))
 	assert.EqualValues(t, 18, usage.Total("token_out"))
 	for _, e := range usage.Entries {
@@ -191,25 +247,136 @@ func TestDecisionAndOutcomes(t *testing.T) {
 		assert.Equal(t, in.Connection.ID, e.ConnectionID)
 	}
 
-	// MinConfidence 0.9 and a confidence of 0.7: low_confidence, and the choice is still in the output.
-	p := base(t, n, map[string]any{"min_confidence": 0.9})
-	res, err = n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openrouter"), p, nil))
+	// min_confidence 0.9 against a confidence of 0.7: low_confidence, and the choice stays in the output.
+	in = aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, map[string]any{"min_confidence": 0.9}), nil)
+	in.Params["model"] = "typesafe/jev-1.14"
+	res, err = n.Execute(context.Background(), in)
 	require.NoError(t, err)
 	assert.Equal(t, "low_confidence", res.Outcome)
 	assert.Equal(t, "refund", res.Output["choice"])
 	assert.InDelta(t, 0.7, res.Output["confidence"], 1e-9)
 
-	// At the floor exactly the choice is taken.
-	p = base(t, n, map[string]any{"min_confidence": 0.7})
-	res, err = n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openrouter"), p, nil))
+	// The floor itself takes the choice.
+	in = aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, map[string]any{"min_confidence": 0.7}), nil)
+	in.Params["model"] = "typesafe/jev-1.14"
+	res, err = n.Execute(context.Background(), in)
 	require.NoError(t, err)
 	assert.Equal(t, "refund", res.Outcome)
+}
+
+func TestOpenRouterWithoutAConfidenceUsesTheChoicesProbability(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: typesafe("exchange", map[string]float64{"refund": 0.1, "exchange": 0.85, "other": 0.05}, nil)})
+	n := openrouterNode(t, srv)
+	in := aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), nil)
+	in.Params["model"] = "typesafe/jev-1.14"
+	res, err := n.Execute(context.Background(), in)
+	require.NoError(t, err)
+	assert.Equal(t, "exchange", res.Outcome)
+	assert.InDelta(t, 0.85, res.Output["confidence"], 1e-9)
+}
+
+// OpenRouter takes a pinned TypeSafe Jev version; a chat model there, or a Jev version on OpenAI, is a
+// refused call before any request.
+func TestModelMustFitTheProviderOfTheConnection(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: typesafe("refund", map[string]float64{"refund": 1, "exchange": 0, "other": 0}, nil)})
+	n := openrouterNode(t, srv)
+	for provider, model := range map[string]string{
+		"openrouter": "gpt-4o-mini-2024-07-18", "openai": "typesafe/jev-1.14",
+	} {
+		in := aitest.Input(jev.Kind, srv, creds(provider), base(t, n, nil), nil)
+		in.Params["model"] = model
+		_, err := n.Execute(context.Background(), in)
+		assert.Equal(t, catalog.CallInvalidRequest, callErr(t, err).Code, provider+" "+model)
+	}
+	assert.Empty(t, srv.Requests())
+}
+
+func TestOpenRouterAnswersOutsideTheChoicesAreOneInvalidRequest(t *testing.T) {
+	good := map[string]float64{"refund": 0.5, "exchange": 0.3, "other": 0.2}
+	for name, body := range map[string]string{
+		"unknown choice":      typesafe("complaint", good, f(0.9)),
+		"empty choice":        typesafe("", good, f(0.9)),
+		"missing probability": typesafe("refund", map[string]float64{"refund": 0.5, "exchange": 0.5}, f(0.9)),
+		"extra probability":   typesafe("refund", map[string]float64{"refund": 0.4, "exchange": 0.2, "other": 0.2, "x": 0.2}, f(0.9)),
+		"over one":            typesafe("a", map[string]float64{"refund": 2, "exchange": 1, "other": 0}, f(0.9)),
+		"negative":            typesafe("refund", map[string]float64{"refund": 1.5, "exchange": -0.3, "other": -0.2}, f(0.9)),
+		"does not sum":        typesafe("refund", map[string]float64{"refund": 0.5, "exchange": 0.1, "other": 0.1}, f(0.9)),
+		"all zero":            typesafe("refund", map[string]float64{"refund": 0, "exchange": 0, "other": 0}, f(0.9)),
+		"confidence over one": typesafe("refund", good, f(1.2)),
+		"confidence negative": typesafe("refund", good, f(-0.1)),
+		"no probabilities":    typesafe("refund", nil, f(0.9)),
+		"no decision":         `{"model":"typesafe/jev-1.14","answers":{},"usage":{"input_tokens":9,"output_tokens":1}}`,
+		"wrong type":          `{"model":"typesafe/jev-1.14","answers":{"decision":{"type":"score","score":3}},"usage":{"input_tokens":9,"output_tokens":1}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := aitest.New(t, aitest.Reply{Body: body})
+			n := openrouterNode(t, srv)
+			usage := &aitest.Usage{}
+			in := aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), usage)
+			in.Params["model"] = "typesafe/jev-1.14"
+			_, err := n.Execute(context.Background(), in)
+			ce := callErr(t, err)
+			assert.Equal(t, catalog.CallInvalidRequest, ce.Code)
+			assert.False(t, ce.Retryable)
+			assert.Len(t, srv.Requests(), 1, "exactly one request")
+		})
+	}
+}
+
+func TestOpenRouterFailures(t *testing.T) {
+	cases := []struct {
+		name      string
+		reply     aitest.Reply
+		code      string
+		retryable bool
+		after     time.Duration
+	}{
+		{"unauthorized", aitest.Reply{Status: 401, Body: `{"error":{"code":401,"message":"Missing Authentication header"}}`}, catalog.CallUnauthorized, false, 0},
+		{"no credit", aitest.Reply{Status: 402, Body: `{"error":{"code":402,"message":"Insufficient credits"}}`}, catalog.CallUnavailable, false, 0},
+		{"bad request", aitest.Reply{Status: 400, Body: `{"error":{"code":400,"message":"Invalid request parameters"}}`}, catalog.CallInvalidRequest, false, 0},
+		{"too large", aitest.Reply{Status: 413, Body: `{"error":{"code":413,"message":"Request payload too large"}}`}, catalog.CallInvalidRequest, false, 0},
+		{"rate limited", aitest.Reply{Status: 429, Body: `{"error":{"code":429,"message":"Rate limit exceeded"}}`}, catalog.CallRateLimited, true, 0},
+		{"unavailable keeps the delay", aitest.Reply{Status: 503, Header: map[string]string{"Retry-After": "16"}, Body: `{}`}, catalog.CallUnavailable, true, 16 * time.Second},
+		{"timed out", aitest.Reply{Status: 524, Body: `{"error":{"code":524,"message":"Request timed out"}}`}, catalog.CallUnavailable, true, 0},
+		{"overloaded", aitest.Reply{Status: 529, Body: `{}`}, catalog.CallUnavailable, true, 0},
+		{"refusal", aitest.Reply{Body: `{"model":"typesafe/jev-1.14","answers":{"decision":{"type":"refusal"}},"usage":{"input_tokens":9,"output_tokens":1}}`}, catalog.CallRejected, false, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := aitest.New(t, tc.reply)
+			n := openrouterNode(t, srv)
+			usage := &aitest.Usage{}
+			in := aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), usage)
+			in.Params["model"] = "typesafe/jev-1.14"
+			_, err := n.Execute(context.Background(), in)
+			ce := callErr(t, err)
+			assert.Equal(t, tc.code, ce.Code)
+			assert.Equal(t, tc.retryable, ce.Retryable)
+			assert.Equal(t, tc.after, ce.RetryAfter)
+			assert.Len(t, srv.Requests(), 1)
+			if tc.name == "refusal" {
+				assert.EqualValues(t, 9, usage.Total("token_in"), "the tokens of a refusal were spent")
+			} else {
+				assert.Empty(t, usage.Entries)
+			}
+		})
+	}
+}
+
+func TestRetryAfterOf429IsGivenToTheEngine(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Status: 429, Header: map[string]string{"Retry-After": "3"}, Body: `{}`})
+	n := openrouterNode(t, srv)
+	in := aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), nil)
+	in.Params["model"] = "typesafe/jev-1.14"
+	res, err := n.Execute(context.Background(), in)
+	require.NoError(t, err)
+	assert.EqualValues(t, 3e9, res.RetryAfter)
 }
 
 func TestTheEngineTakesTheOutcomeOfTheAnswer(t *testing.T) {
 	// The outcome the engine derives from the output (graph.Interpreter.CallOutcome) is the node's own.
 	v := aitest.View(t, jev.New())
-	doc := aitest.Graph("ai.jev", `{"input":"{'title': event.title}","choices":`+choicesJSON+`,"min_confidence":0.9,"model":"gpt-4o"}`,
+	doc := aitest.Graph("ai.jev", `{"input":"{'title': event.title}","choices":`+choicesJSON+`,"min_confidence":0.9,"model":"typesafe/jev-1.14"}`,
 		[]string{"refund", "exchange", "other", "low_confidence", "failed"})
 	in := aitest.Interpreter(t, v, doc)
 
@@ -223,20 +390,27 @@ func TestTheEngineTakesTheOutcomeOfTheAnswer(t *testing.T) {
 	assert.NotNil(t, st, "a choice outside the choices is no outcome")
 }
 
-func TestRequestShape(t *testing.T) {
+// --- the openai provider: a chat model in strict structured output ---
+
+func TestOpenAIProvider(t *testing.T) {
 	srv := aitest.New(t, aitest.Reply{Body: decision("other", map[string]float64{"refund": 0.1, "exchange": 0.1, "other": 0.8})})
-	n, _ := newNode(t, jev.WithTransport(srv.Transport()))
-	_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, map[string]any{"prompt": "Decide for {{ event.title }}"}), nil))
+	n := openaiNode(t, srv)
+	usage := &aitest.Usage{}
+	res, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, map[string]any{"prompt": "Decide for {{ event.title }}"}), usage))
 	require.NoError(t, err)
+	assert.Equal(t, "openai", res.Output["provider"])
+	assert.Equal(t, "other", res.Outcome)
+	assert.InDelta(t, 0.8, res.Output["confidence"], 1e-9, "the probability of the choice")
+	assert.EqualValues(t, 120, usage.Total("token_in"))
 
 	req := srv.Requests()[0]
-	assert.Equal(t, "openrouter.ai", req.Host())
-	assert.Equal(t, "/api/v1/chat/completions", req.Path)
+	assert.Equal(t, "api.openai.com", req.Host())
 	body := req.JSON(t)
-	assert.Equal(t, "openai/gpt-4o-mini", body["model"])
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", body["model"])
 	assert.EqualValues(t, 0, body["temperature"])
-	assert.Equal(t, map[string]any{"include": true}, body["usage"], "OpenRouter reports the cost")
-	assert.Equal(t, map[string]any{"require_parameters": true}, body["provider"])
+	assert.Contains(t, body, "max_completion_tokens")
+	assert.NotContains(t, body, "usage")
+	assert.NotContains(t, body, "provider")
 	msgs := body["messages"].([]any)
 	require.Len(t, msgs, 2)
 	system := msgs[0].(map[string]any)["content"].(string)
@@ -257,52 +431,34 @@ func TestRequestShape(t *testing.T) {
 	assert.Equal(t, []any{"refund", "exchange", "other"}, probs["required"])
 }
 
-func TestOpenAIProvider(t *testing.T) {
-	srv := aitest.New(t, aitest.Reply{Body: decision("other", map[string]float64{"refund": 0.1, "exchange": 0.1, "other": 0.8})})
-	n, _ := newNode(t, jev.WithTransport(srv.Transport()))
-	res, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, nil), nil))
+func TestOpenAIOutcomes(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Body: decision("refund", map[string]float64{"refund": 0.7, "exchange": 0.2, "other": 0.1})})
+	n := openaiNode(t, srv)
+	res, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, map[string]any{"min_confidence": 0.9}), nil))
 	require.NoError(t, err)
-	assert.Equal(t, "openai", res.Output["provider"])
-	req := srv.Requests()[0]
-	assert.Equal(t, "api.openai.com", req.Host())
-	body := req.JSON(t)
-	assert.Equal(t, "gpt-4o-mini", body["model"], "the vendor prefix of an OpenRouter id is dropped")
-	assert.Contains(t, body, "max_completion_tokens")
-	assert.NotContains(t, body, "usage", "OpenAI takes no usage option")
-	assert.NotContains(t, body, "provider")
+	assert.Equal(t, "low_confidence", res.Outcome)
+	assert.Equal(t, "refund", res.Output["choice"])
 }
 
 func TestReasoningModelsGetNoTemperature(t *testing.T) {
 	srv := aitest.New(t, aitest.Reply{Body: decision("other", map[string]float64{"refund": 0, "exchange": 0, "other": 1})})
-	n, _ := newNode(t, jev.WithTransport(srv.Transport()))
+	n := openaiNode(t, srv)
 	_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, map[string]any{"model": "o3-2025-04-16"}), nil))
 	require.NoError(t, err)
 	assert.NotContains(t, srv.Requests()[0].JSON(t), "temperature")
 }
 
-func TestProbabilitiesAreNormalized(t *testing.T) {
-	// Percentages, or numbers that do not sum to 1, become probabilities of one.
-	srv := aitest.New(t, aitest.Reply{Body: decision("exchange", map[string]float64{"refund": 10, "exchange": 80, "other": 10})})
-	n, _ := newNode(t, jev.WithTransport(srv.Transport()))
-	res, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), nil))
-	require.NoError(t, err)
-	assert.Equal(t, "exchange", res.Outcome)
-	var sum float64
-	for _, v := range res.Output["probabilities"].(map[string]any) {
-		sum += v.(float64)
-	}
-	assert.InDelta(t, 1, sum, 1e-9)
-	assert.InDelta(t, 0.8, res.Output["confidence"], 1e-9)
-}
-
-func TestAnswersOutsideTheChoicesAreOneInvalidRequest(t *testing.T) {
+func TestOpenAIAnswersOutsideTheChoicesAreOneInvalidRequest(t *testing.T) {
 	good := map[string]float64{"refund": 0.5, "exchange": 0.3, "other": 0.2}
 	for name, body := range map[string]string{
 		"unknown choice":      decision("complaint", good),
 		"empty choice":        decision("", good),
 		"missing probability": decision("refund", map[string]float64{"refund": 0.5, "exchange": 0.5}),
-		"extra probability":   decision("refund", map[string]float64{"refund": 0.5, "exchange": 0.2, "other": 0.2, "x": 0.1}),
+		"extra probability":   decision("refund", map[string]float64{"refund": 0.4, "exchange": 0.2, "other": 0.2, "x": 0.2}),
+		"a above one":         decision("refund", map[string]float64{"refund": 2, "exchange": 1, "other": 0}),
+		"percentages":         decision("refund", map[string]float64{"refund": 80, "exchange": 10, "other": 10}),
 		"negative":            decision("refund", map[string]float64{"refund": 1.5, "exchange": -0.3, "other": -0.2}),
+		"does not sum":        decision("refund", map[string]float64{"refund": 0.2, "exchange": 0.1, "other": 0.1}),
 		"all zero":            decision("refund", map[string]float64{"refund": 0, "exchange": 0, "other": 0}),
 		"not json":            aitest.Chat("refund", 10, 1),
 		"not an object":       aitest.Chat(`["refund"]`, 10, 1),
@@ -311,9 +467,9 @@ func TestAnswersOutsideTheChoicesAreOneInvalidRequest(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			srv := aitest.New(t, aitest.Reply{Body: body})
-			n, _ := newNode(t, jev.WithTransport(srv.Transport()))
+			n := openaiNode(t, srv)
 			usage := &aitest.Usage{}
-			_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), usage))
+			_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, nil), usage))
 			ce := callErr(t, err)
 			assert.Equal(t, catalog.CallInvalidRequest, ce.Code)
 			assert.False(t, ce.Retryable)
@@ -323,17 +479,16 @@ func TestAnswersOutsideTheChoicesAreOneInvalidRequest(t *testing.T) {
 	}
 }
 
-func TestProviderFailures(t *testing.T) {
+func TestOpenAIFailures(t *testing.T) {
 	cases := []struct {
 		name      string
 		reply     aitest.Reply
 		code      string
 		retryable bool
 	}{
-		{"unauthorized", aitest.Reply{Status: 401, Body: aitest.APIError("No auth credentials found", "", "401")}, catalog.CallUnauthorized, false},
+		{"unauthorized", aitest.Reply{Status: 401, Body: aitest.APIError("bad key", "", "401")}, catalog.CallUnauthorized, false},
 		{"rate limited", aitest.Reply{Status: 429, Body: aitest.APIError("slow", "", "429")}, catalog.CallRateLimited, true},
 		{"unavailable", aitest.Reply{Status: 502, Body: `bad gateway`}, catalog.CallUnavailable, true},
-		{"no credit", aitest.Reply{Status: 402, Body: aitest.APIError("Insufficient credits", "", "402")}, catalog.CallUnavailable, false},
 		{"context", aitest.Reply{Status: 400, Body: aitest.APIError("too long", "invalid_request_error", "context_length_exceeded")}, catalog.CallInvalidRequest, false},
 		{"refusal", aitest.Reply{Body: `{"choices":[{"finish_reason":"stop","message":{"content":null,"refusal":"no"}}],"usage":{"prompt_tokens":4,"completion_tokens":1}}`}, catalog.CallRejected, false},
 		{"cut off", aitest.Reply{Body: `{"choices":[{"finish_reason":"length","message":{"content":"{\"choice\":"}}],"usage":{"prompt_tokens":4,"completion_tokens":4000}}`}, catalog.CallInvalidRequest, false},
@@ -341,8 +496,8 @@ func TestProviderFailures(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := aitest.New(t, tc.reply)
-			n, _ := newNode(t, jev.WithTransport(srv.Transport()))
-			_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), &aitest.Usage{}))
+			n := openaiNode(t, srv)
+			_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, nil), &aitest.Usage{}))
 			ce := callErr(t, err)
 			assert.Equal(t, tc.code, ce.Code)
 			assert.Equal(t, tc.retryable, ce.Retryable)
@@ -351,57 +506,46 @@ func TestProviderFailures(t *testing.T) {
 	}
 }
 
-func TestRetryAfterIsGivenToTheEngine(t *testing.T) {
-	srv := aitest.New(t, aitest.Reply{Status: 429, Header: map[string]string{"Retry-After": "3"}, Body: `{}`})
-	n, _ := newNode(t, jev.WithTransport(srv.Transport()))
-	usage := &aitest.Usage{}
-	res, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), usage))
-	require.NoError(t, err)
-	assert.EqualValues(t, 3e9, res.RetryAfter)
-	assert.Empty(t, usage.Entries)
-}
-
 func TestBadCallsAreRefusedBeforeAnyRequest(t *testing.T) {
-	srv := aitest.New(t, aitest.Reply{Body: decision("refund", map[string]float64{"refund": 1, "exchange": 0, "other": 0})})
-	n, _ := newNode(t, jev.WithTransport(srv.Transport()))
+	srv := aitest.New(t, aitest.Reply{Body: typesafe("refund", map[string]float64{"refund": 1, "exchange": 0, "other": 0}, nil)})
+	n := openrouterNode(t, srv)
+	run := func(p map[string]any, c map[string]string) error {
+		p["model"] = "typesafe/jev-1.14"
+		_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, c, p, nil))
+		return err
+	}
 
 	notMap := base(t, n, nil)
 	notMap["input"] = "just a string"
-	_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openrouter"), notMap, nil))
-	ce := callErr(t, err)
+	ce := callErr(t, run(notMap, creds("openrouter")))
 	assert.Equal(t, catalog.CallInvalidRequest, ce.Code)
 	assert.Contains(t, ce.Message, "map")
 
 	list := base(t, n, nil)
 	list["input"] = []any{"a"}
-	_, err = n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openrouter"), list, nil))
-	assert.Equal(t, catalog.CallInvalidRequest, callErr(t, err).Code)
+	assert.Equal(t, catalog.CallInvalidRequest, callErr(t, run(list, creds("openrouter"))).Code)
 
 	blank := base(t, n, nil)
 	blank["prompt"] = " \n"
-	_, err = n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openrouter"), blank, nil))
-	assert.Contains(t, callErr(t, err).Message, "prompt")
+	assert.Contains(t, callErr(t, run(blank, creds("openrouter"))).Message, "prompt")
 
-	_, err = n.Execute(context.Background(), aitest.Input(jev.Kind, srv, map[string]string{"provider": "openrouter", "api_key": ""}, base(t, n, nil), nil))
-	assert.Equal(t, catalog.CallUnauthorized, callErr(t, err).Code)
-
-	_, err = n.Execute(context.Background(), aitest.Input(jev.Kind, srv, map[string]string{"provider": "anthropic"}, base(t, n, nil), nil))
-	assert.Equal(t, catalog.CallInvalidRequest, callErr(t, err).Code)
+	assert.Equal(t, catalog.CallUnauthorized, callErr(t, run(base(t, n, nil), map[string]string{"provider": "openrouter", "api_key": ""})).Code)
+	assert.Equal(t, catalog.CallInvalidRequest, callErr(t, run(base(t, n, nil), map[string]string{"provider": "anthropic"})).Code)
 
 	reserved := base(t, n, nil)
 	reserved["choices"] = []any{
 		map[string]any{"value": "failed", "description": "x"}, map[string]any{"value": "b", "description": "y"},
 	}
-	_, err = n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openrouter"), reserved, nil))
-	assert.Equal(t, catalog.CallInvalidRequest, callErr(t, err).Code)
+	assert.Equal(t, catalog.CallInvalidRequest, callErr(t, run(reserved, creds("openrouter"))).Code)
 	assert.Empty(t, srv.Requests())
 }
 
 func TestUnauthorizedMarksTheConnection(t *testing.T) {
 	srv := aitest.New(t, aitest.Reply{Status: 401, Body: `{}`})
 	set := &statuses{}
-	n, _ := newNode(t, jev.WithTransport(srv.Transport()), jev.WithConnectionStatus(set))
+	n := openrouterNode(t, srv, jev.WithConnectionStatus(set))
 	in := aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), nil)
+	in.Params["model"] = "typesafe/jev-1.14"
 	_, err := n.Execute(context.Background(), in)
 	assert.Equal(t, catalog.CallUnauthorized, callErr(t, err).Code)
 	assert.Equal(t, []string{in.Connection.ID}, set.ids)
@@ -422,7 +566,7 @@ func TestGraphAcceptsAMixedInputAndTypesTheChoice(t *testing.T) {
 	v := aitest.View(t, jev.New())
 	outcomes := []string{"refund", "exchange", "other", "low_confidence", "failed"}
 	node := func(input string) string {
-		return aitest.Graph("ai.jev", `{"input":"`+input+`","choices":`+choicesJSON+`,"model":"gpt-4o"}`, outcomes)
+		return aitest.Graph("ai.jev", `{"input":"`+input+`","choices":`+choicesJSON+`,"model":"gpt-4o-2024-08-06"}`, outcomes)
 	}
 	// {title: string, labels: list<string>}: a list beside a string is not a type error.
 	assert.Empty(t, aitest.Validate(t, v, node(`{'title': event.title, 'labels': event.labels}`)))
@@ -465,7 +609,7 @@ func TestGraphTypesTheOutput(t *testing.T) {
 	v := aitest.View(t, jev.New())
 	doc := func(expression string) string {
 		return aitest.Doc(
-			`{"id":"n1","type":"ai.jev","params":{"input":"{'a': 1}","choices":`+choicesJSON+`,"model":"gpt-4o"}},{"id":"check","type":"branch","params":{"expression":"`+expression+`"}}`,
+			`{"id":"n1","type":"ai.jev","params":{"input":"{'a': 1}","choices":`+choicesJSON+`,"model":"typesafe/jev-1.14"}},{"id":"check","type":"branch","params":{"expression":"`+expression+`"}}`,
 			`{"from":{"node":"t","outcome":"fired"},"to":"n1"},`+
 				`{"from":{"node":"n1","outcome":"refund"},"to":"check"},{"from":{"node":"n1","outcome":"exchange"},"to":"ignore"},{"from":{"node":"n1","outcome":"other"},"to":"ignore"},`+
 				`{"from":{"node":"n1","outcome":"low_confidence"},"to":"ignore"},{"from":{"node":"n1","outcome":"failed"},"to":"ignore"},`+
@@ -495,10 +639,10 @@ func TestDecisionKey(t *testing.T) {
 	}
 	k := key(nil, nil)
 	assert.Equal(t, k, key(nil, nil))
-	assert.Equal(t, k, key(map[string]any{"model": "openai/gpt-4o-mini", "min_confidence": 0.6}, nil), "defaults are the same call")
+	assert.Equal(t, k, key(map[string]any{"model": "typesafe/jev-1.14", "min_confidence": 0.6}, nil), "defaults are the same call")
 	for name, other := range map[string]string{
 		"prompt":         key(map[string]any{"prompt": "other rules"}, nil),
-		"model":          key(map[string]any{"model": "openai/gpt-4o"}, nil),
+		"model":          key(map[string]any{"model": "typesafe/jev-1.13"}, nil),
 		"min confidence": key(map[string]any{"min_confidence": 0.9}, nil),
 		"input":          key(nil, func(p map[string]any) { p["input"] = map[string]any{"title": "other"} }),
 		"input value":    key(nil, func(p map[string]any) { p["input"].(map[string]any)["count"] = json.Number("3") }),
@@ -508,6 +652,14 @@ func TestDecisionKey(t *testing.T) {
 	} {
 		assert.NotEqual(t, k, other, name)
 	}
+	// A decision of one connection or provider is not another's.
+	withConn := func(provider, conn string) string {
+		k, ok := dn.DecisionKey(catalog.CallInput{Params: base(t, n, nil), Credentials: catalog.Credentials{"provider": provider}, Connection: &catalog.ConnectionInfo{ID: conn}})
+		require.True(t, ok)
+		return k
+	}
+	assert.NotEqual(t, withConn("openrouter", "c1"), withConn("openrouter", "c2"))
+	assert.NotEqual(t, withConn("openrouter", "c1"), withConn("openai", "c1"))
 	// The order of the keys of the input does not matter.
 	assert.Equal(t,
 		key(nil, func(p map[string]any) { p["input"] = map[string]any{"a": "1", "b": []any{"x", "y"}} }),

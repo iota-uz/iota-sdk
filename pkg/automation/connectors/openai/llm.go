@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/openaiconfig"
 )
 
 // Formats of the node's answer.
@@ -41,9 +42,9 @@ const (
 // and user prompts (templates; the prompt is not empty once rendered), the answer's format, the JSON
 // Schema of a JSON answer, the bounds of the answer and the deadline of the call.
 //
-// Timeout is the engine's reserved timeout param: a duration (60s, 2m) or milliseconds, 1s to 5m, default
-// 60s. Images is a CEL expression of the list of upload ids (at most 8, 5 MB each) sent with the prompt; the
-// model must take images.
+// TimeoutMs is the deadline of the call in milliseconds, repeats included (the engine reads it), 1000 to
+// 300000, default 60000. Images are the upload ids (at most 8, 5 MB each) sent with the prompt: a list, or
+// a CEL expression of one; the model must take images.
 type LLMParams struct {
 	Connection  string
 	Model       string
@@ -53,8 +54,8 @@ type LLMParams struct {
 	Schema      json.RawMessage
 	MaxTokens   int
 	Temperature *float64
-	Timeout     string
-	Images      string
+	TimeoutMs   int
+	Images      any // []string, or a CEL expression of one
 }
 
 // LLMOutput is nodes.<id>.output of a node that took its done outcome. JSON is typed from Schema.
@@ -77,8 +78,11 @@ const llmParamsSchema = `{
     "schema":      {"type": "object", "description": "the JSON Schema of the answer, for format json"},
     "max_tokens":  {"type": "integer", "minimum": 1, "maximum": 32000, "default": 2000},
     "temperature": {"type": "number", "minimum": 0, "maximum": 2},
-    "timeout":     ` + aichat.TimeoutSchema + `,
-    "images":      {"type": "string", "maxLength": 2000, "description": "a CEL expression of the list of upload ids (at most 8, 5 MB each)"}
+    "timeout_ms":  ` + aichat.TimeoutSchema + `,
+    "images":      {"description": "the upload ids to send with the prompt (at most 8, 5 MB each): a list, or a CEL expression of one",
+                    "oneOf": [
+                      {"type": "array", "maxItems": 8, "items": {"type": "string", "minLength": 1, "maxLength": 64}},
+                      {"type": "string", "minLength": 1, "maxLength": 2000}]}
   },
   "additionalProperties": false
 }`
@@ -141,11 +145,17 @@ func (n *llmNode) check(p map[string]any) []graph.Issue {
 	return issues
 }
 
-// hasImages reports whether the images param names any: an expression that is not blank or an empty list.
+// hasImages reports whether the images param names any: a list that is not empty, or an expression that is
+// not blank or an empty list.
 func hasImages(p map[string]any) bool {
-	s, _ := p["images"].(string)
-	s = strings.TrimSpace(s)
-	return s != "" && s != "[]"
+	switch x := p["images"].(type) {
+	case []any:
+		return len(x) > 0
+	case string:
+		s := strings.TrimSpace(x)
+		return s != "" && s != "[]"
+	}
+	return false
 }
 
 func (n *llmNode) Spec() graph.NodeSpec {
@@ -206,6 +216,8 @@ func (n *llmNode) DecisionKey(in catalog.CallInput) (string, bool) {
 	if r.temperature != nil {
 		params["temperature"] = *r.temperature
 	}
+	// The model ids belong to an endpoint: the answer of one endpoint is not the answer of another.
+	params["endpoint"], params["connection"] = endpointIdentity(in), connectionID(in)
 	return engine.DecisionKey(r.prompt, map[string]any{"system": r.system, "images": r.images}, r.model, params)
 }
 
@@ -288,6 +300,23 @@ func (n *llmNode) read(p map[string]any) (llmCall, error) {
 		}
 	}
 	return r, nil
+}
+
+// endpointIdentity is the effective API of a call: the connection's base URL, or OpenAI's.
+func endpointIdentity(in catalog.CallInput) string {
+	if u := strings.TrimRight(strings.TrimSpace(in.Credentials["base_url"]), "/"); u != "" {
+		return u
+	}
+	return openaiconfig.DefaultBaseURL
+}
+
+// connectionID is the non-secret identity of the connection a call runs with: a tenant's own key and the
+// platform key may reach different accounts.
+func connectionID(in catalog.CallInput) string {
+	if in.Connection == nil {
+		return ""
+	}
+	return in.Connection.ID
 }
 
 func invalid(msg string) error {
@@ -377,7 +406,9 @@ func (n *llmNode) checkJSON(resp aichat.Response, s *aichat.Schema) (any, error)
 	if err != nil {
 		return nil, fmt.Errorf("the answer is not JSON: %w", err)
 	}
-	value = s.Unwrap(value)
+	if value, err = s.Unwrap(value); err != nil {
+		return nil, err
+	}
 	raw, err := json.Marshal(value)
 	if err != nil {
 		return nil, errors.New("the answer is not JSON")

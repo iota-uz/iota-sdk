@@ -14,8 +14,8 @@ import (
 // DefaultBaseURL is the API the connector uses when BaseURL is empty.
 const DefaultBaseURL = "https://api.openai.com/v1"
 
-// DefaultModel is the model an LLM node without a model gets when DefaultModel is empty.
-const DefaultModel = "gpt-4o-mini"
+// DefaultModel is the pinned snapshot an LLM node without a model gets when DefaultModel is empty.
+const DefaultModel = "gpt-4o-mini-2024-07-18"
 
 // Config holds the platform OpenAI key of automations.
 //
@@ -27,7 +27,7 @@ type Config struct {
 	// BaseURL is an OpenAI-compatible endpoint (https only); empty: DefaultBaseURL.
 	BaseURL string `koanf:"baseurl"`
 	// DefaultModel is the exact model id written into an LLM node saved without a model; empty:
-	// DefaultModel. An alias (latest) is refused.
+	// DefaultModel. An alias (latest) or a rolling id (gpt-4o-mini without a date) is refused.
 	DefaultModel string `koanf:"defaultmodel"`
 }
 

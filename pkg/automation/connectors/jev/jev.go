@@ -2,8 +2,11 @@
 // one of the given choices for an input and takes the graph along the outcome of the choice, with the
 // confidence of the choice deciding whether to trust it.
 //
-// A connection's provider decides: "openrouter" (a model of OpenRouter) or "openai". The node itself is
-// the same, so each node has one connector it requires and its type is registered once.
+// A connection's provider decides: "openrouter" asks OpenRouter's Decisions API, which serves a pinned version
+// of TypeSafe Jev (typesafe/jev-1.14) and answers with a typed choice, a probability per choice and its own
+// confidence, which the node routes by; "openai" asks a chat model for the choice and the probabilities in
+// strict structured output. The node itself is the same, so each node has one connector it requires and its
+// type is registered once.
 //
 // The node has an outcome per choice, low_confidence (the confidence is below the node's min_confidence;
 // the chosen value is still in output.choice) and failed (the provider failed, refused, or answered
@@ -48,10 +51,11 @@ const (
 	OpenAIBaseURL     = "https://api.openai.com/v1"
 )
 
-// Default models of a node saved without one, by the provider of the platform credential.
+// Default models of a node saved without one, by the provider of the platform credential: a pinned
+// TypeSafe Jev version of OpenRouter's Decisions API, or a dated snapshot of an OpenAI chat model.
 const (
-	DefaultModelOpenRouter = "openai/gpt-4o-mini"
-	DefaultModelOpenAI     = "gpt-4o-mini"
+	DefaultModelOpenRouter = "typesafe/jev-1.14"
+	DefaultModelOpenAI     = "gpt-4o-mini-2024-07-18"
 )
 
 // Credentials are the fields of a connection (the form of Descriptor.Credentials); at run time they are a
@@ -92,7 +96,7 @@ func newOptions(opts []Option) options {
 }
 
 // WithDefaultModel is the exact model id an ai.jev node saved without a model gets (the platform's
-// automation.jev.defaultmodel; default openai/gpt-4o-mini, the OpenRouter id). It is written into the
+// automation.jev.defaultmodel; default typesafe/jev-1.14, the pinned TypeSafe Jev version). It is written into the
 // version when the graph is saved, so changing it later does not change a saved graph. It must be an id of
 // the provider of the connections that use it.
 func WithDefaultModel(model string) Option {

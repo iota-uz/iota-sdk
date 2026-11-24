@@ -14,9 +14,10 @@ const maxModelLen = 128
 
 var modelIDRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/@+\-]*$`)
 
-// CheckModel reports why s cannot be the model of a saved node: it is not an id, or it is an alias.
-// A model is saved as an exact id because changing the model of a node is a new version of the graph; an
-// alias follows the provider's newest model and would change the saved graph by itself.
+// CheckModel reports why s cannot be the model of a saved node: it is not an id, it is an alias, or it
+// is a model of a provider that rolls its ids (see Rolling). A model is saved as an exact id because
+// changing the model of a node is a new version of the graph; an alias follows the provider's newest
+// model and would change the saved graph by itself.
 func CheckModel(s string) error {
 	switch {
 	case s == "":
@@ -25,13 +26,15 @@ func CheckModel(s string) error {
 		return fmt.Errorf("a model is an exact model id: letters, digits and . _ - : / @ +, at most %d characters", maxModelLen)
 	case IsAlias(s):
 		return fmt.Errorf("%q is an alias: it follows the provider's newest model, so a saved graph would change its model by itself; name an exact model id", s)
+	case Rolling(s):
+		return fmt.Errorf("%q is a rolling id: the provider moves it to newer snapshots, so a saved graph would change its model by itself; name a dated snapshot such as %s-YYYY-MM-DD", s, s)
 	}
 	return nil
 }
 
 // IsAlias reports whether a model id follows the provider's newest model instead of naming one: a
-// "latest" segment (gpt-4o-latest, chatgpt-4o-latest, claude-latest) or one of OpenRouter's routers
-// (openrouter/auto), which pick the model per request.
+// "latest" segment (gpt-4o-latest, chatgpt-4o-latest, claude-latest, typesafe/jev-latest), a "~" alias
+// of OpenRouter or one of its routers (openrouter/auto).
 func IsAlias(id string) bool {
 	l := strings.ToLower(id)
 	if strings.HasPrefix(l, "openrouter/") || strings.HasPrefix(l, "~") {
@@ -45,39 +48,45 @@ func IsAlias(id string) bool {
 	return false
 }
 
-// VisionModel reports whether the model takes images, by the id's family. The providers' model lists do
-// not carry this for every endpoint, and the check runs when a graph is saved, with no request: an
-// application with another list replaces it (the connectors' WithVision option).
+var (
+	snapshotRe = regexp.MustCompile(`-(\d{4}-\d{2}-\d{2}|\d{4})$`) // a dated snapshot, or OpenAI's 0613
+	// openAIFamily is the ids OpenAI serves: its own, or OpenRouter's openai/<id>.
+	openAIFamily = regexp.MustCompile(`^(openai/)?(gpt-|chatgpt-|o[0-9]|text-|omni-|davinci|babbage)`)
+)
+
+// Rolling reports whether id is an id of OpenAI that the provider moves to newer snapshots (gpt-4o,
+// gpt-4o-mini, o3): OpenAI pins a model with its dated snapshot (gpt-4o-mini-2024-07-18), so an id of its
+// family without a date is not pinned. An id of any other family is taken as the provider's own: a
+// compatible endpoint names its models as it pleases.
+func Rolling(id string) bool {
+	l := strings.ToLower(id)
+	if !openAIFamily.MatchString(l) {
+		return false
+	}
+	// A model of the family OpenAI ships with its own fixed number (a preview, a 0613) is pinned too.
+	return !snapshotRe.MatchString(l)
+}
+
+// vision lists the models known to take images, by their exact base id; a snapshot adds -YYYY-MM-DD. The
+// providers' own model lists do not carry the modality for every endpoint, and the check runs when a graph
+// is saved, with no request: an application with metadata of its own replaces it (WithVision).
+var vision = regexp.MustCompile(`^(openai/)?(` +
+	`gpt-4o|gpt-4o-mini|chatgpt-4o|gpt-4\.1|gpt-4\.1-mini|gpt-4\.1-nano|gpt-4\.5-preview|gpt-4-turbo|gpt-4-vision-preview|` +
+	`gpt-5|gpt-5-mini|gpt-5-nano|gpt-5\.[0-9]+|o1|o3|o4-mini)` +
+	`(-\d{4}-\d{2}-\d{2})?$|^(anthropic/)claude-(3|3\.5|3\.7|opus-4|sonnet-4|haiku-4|opus-4\.[0-9]|sonnet-4\.[0-9]|haiku-4\.[0-9])(-(opus|sonnet|haiku))?(-\d{8}|-\d{4}-\d{2}-\d{2})?$|` +
+	`^google/gemini-[0-9][0-9a-z.\-]*$`)
+
+// VisionModel reports whether the model takes images: a model of the verified list above. A model that only
+// shares a prefix with one (gpt-4o-mini-transcribe, gpt-4o-audio-preview, gpt-4o-realtime-preview, whose
+// input is audio or text) is not on it.
 func VisionModel(id string) bool {
 	l := strings.ToLower(id)
-	vendor, name := "", l
-	if i := strings.LastIndex(l, "/"); i >= 0 {
-		vendor, name = l[:i], l[i+1:]
-	}
-	name, _, _ = strings.Cut(name, ":") // OpenRouter variants: gpt-4o:extended
-	prefixed := func(list ...string) bool {
-		for _, p := range list {
-			if strings.HasPrefix(name, p) {
-				return true
-			}
+	for _, no := range []string{"embedding", "transcribe", "tts", "audio", "realtime", "search", "moderation"} {
+		if strings.Contains(l, no) {
+			return false
 		}
-		return false
 	}
-	switch {
-	case prefixed("gpt-4o", "chatgpt-4o", "gpt-4.1", "gpt-4.5", "gpt-4-turbo", "gpt-4-vision", "gpt-5"):
-		return true
-	case prefixed("o1-mini", "o1-preview", "o3-mini"):
-		return false
-	case prefixed("o1", "o3", "o4"):
-		return true
-	case strings.HasPrefix(name, "claude-"):
-		return !prefixed("claude-2", "claude-instant", "claude-v1")
-	case prefixed("gemini"), prefixed("pixtral"):
-		return true
-	case strings.Contains(name, "vision"), strings.Contains(name, "-vl"), prefixed("llama-4"):
-		return vendor != "" || strings.HasPrefix(name, "llama") || strings.HasPrefix(name, "qwen")
-	}
-	return false
+	return vision.MatchString(l)
 }
 
 // TakesTemperature reports whether the model accepts a temperature other than the default: the

@@ -100,9 +100,13 @@ type TestNodeInput struct {
 
 // TestNodeResult is what the node did.
 type TestNodeResult struct {
-	Outcome    string
-	Output     json.RawMessage
-	Logs       []string
+	Outcome string
+	Output  json.RawMessage
+	Logs    []string
+	// Request is the rendered params of the call the node made (its prompt, its input), as JSON with the
+	// connection's secrets masked; the credentials themselves are never in it. Empty for a node that
+	// makes no call.
+	Request    json.RawMessage
 	DurationMS int64
 	Error      *StepError // reason: exception | timeout | network_blocked | connection_unavailable | ...
 }
@@ -342,6 +346,9 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 		if dr.masker != nil {
 			masker = dr.masker
 		}
+		if raw, err := json.Marshal(params); err == nil {
+			res.Request = masker.MaskJSON(raw)
+		}
 		// As in a run: a call whose answer names its outcome by a choice field takes it from the output.
 		if dr.err == nil && dr.outcome == "" && interp.View().Catalog().Nodes[node.Type].Answer != nil {
 			out, _ := decodeMap(dr.output)
@@ -500,8 +507,8 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 		masker = r.credentialMasker(info.Kind, creds)
 	}
 	timeout := r.cfg.CallLimits.DefaultTimeout
-	if ms, ok := graph.DurationMs(c.params["timeout"]); ok {
-		timeout = min(time.Duration(ms)*time.Millisecond, r.cfg.CallLimits.MaxTimeout)
+	if t, ok := paramTimeout(c.params); ok {
+		timeout = min(t, r.cfg.CallLimits.MaxTimeout)
 	}
 	deadline := time.Now().Add(timeout)
 	in := catalog.CallInput{

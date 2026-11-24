@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
@@ -43,8 +44,8 @@ const DefaultPrompt = "Classify the input into exactly one of the choices. Judge
 // the instruction (a template, not empty once rendered; empty: DefaultPrompt), the choices and the
 // confidence under which the node takes low_confidence.
 //
-// Timeout is the engine's reserved timeout param: a duration (60s, 2m) or milliseconds, 1s to 5m, default
-// 60s.
+// TimeoutMs is the deadline of the call in milliseconds, repeats included (the engine reads it), 1000 to
+// 300000, default 60000.
 type JevParams struct {
 	Connection    string
 	Model         string
@@ -52,7 +53,7 @@ type JevParams struct {
 	Prompt        string
 	Choices       []Choice
 	MinConfidence float64
-	Timeout       string
+	TimeoutMs     int
 }
 
 // Choice is an option; Value becomes an outcome of the node.
@@ -91,7 +92,7 @@ func paramsSchema() string {
       "additionalProperties": false
     }},
     "min_confidence": {"type": "number", "minimum": 0, "maximum": 1, "default": 0.6, "description": "below it the node takes low_confidence"},
-    "timeout": ` + aichat.TimeoutSchema + `
+    "timeout_ms": ` + aichat.TimeoutSchema + `
   },
   "additionalProperties": false
 }`
@@ -248,22 +249,41 @@ func (n *jevNode) DecisionKey(in catalog.CallInput) (string, bool) {
 		choices[i] = map[string]any{"value": c.Value, "description": c.Description}
 	}
 	return engine.DecisionKey(r.prompt, r.input, r.model, map[string]any{
-		"choices": choices, "min_confidence": r.minConfidence, "provider": in.Credentials["provider"],
+		"choices": choices, "min_confidence": r.minConfidence, "provider": in.Credentials["provider"], "connection": connectionID(in),
 	})
+}
+
+// connectionID is the non-secret identity of the connection a call runs with: a decision of one connection
+// is not another's (a tenant's own key and the platform key may reach different accounts and models).
+func connectionID(in catalog.CallInput) string {
+	if in.Connection == nil {
+		return ""
+	}
+	return in.Connection.ID
 }
 
 func invalid(msg string) error {
 	return &catalog.CallError{Code: catalog.CallInvalidRequest, Message: msg}
 }
 
-// modelFor is the model id the provider knows: OpenAI's own ids have no vendor prefix, the OpenRouter ids
-// of its models do (openai/gpt-4o-mini), so the default model of an OpenRouter platform key works on an
-// OpenAI connection too.
-func modelFor(provider, model string) string {
-	if provider == ProviderOpenAI {
-		return strings.TrimPrefix(model, "openai/")
+// typesafeModel is a pinned TypeSafe Jev version of OpenRouter's Decisions API.
+var typesafeModel = regexp.MustCompile(`^typesafe/jev-[0-9]+\.[0-9]+$`)
+
+// checkProviderModel is what the provider of a connection takes as a model: OpenRouter decides with a
+// pinned TypeSafe Jev version, OpenAI with a model of its chat completions. The model is saved before the
+// connection is known, so the pair is checked when the call runs.
+func checkProviderModel(provider, model string) error {
+	switch provider {
+	case ProviderOpenRouter:
+		if !typesafeModel.MatchString(model) {
+			return fmt.Errorf("model %q is not a pinned TypeSafe Jev version of OpenRouter such as %s", model, DefaultModelOpenRouter)
+		}
+	case ProviderOpenAI:
+		if strings.HasPrefix(model, "typesafe/") {
+			return fmt.Errorf("model %q is a TypeSafe Jev version: it needs a connection with provider openrouter", model)
+		}
 	}
-	return model
+	return nil
 }
 
 func (n *jevNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallResult, error) {
@@ -279,59 +299,155 @@ func (n *jevNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.Ca
 		return catalog.CallResult{}, invalid(err.Error())
 	}
 	provider := in.Credentials["provider"]
-	model := modelFor(provider, r.model)
-
-	serial, err := serializeInput(r.input)
-	if err != nil {
-		return catalog.CallResult{}, invalid("the input is not JSON: " + err.Error())
+	if err := checkProviderModel(provider, r.model); err != nil {
+		return catalog.CallResult{}, invalid(err.Error())
 	}
-	req := aichat.Request{
-		Model: model, System: systemPrompt(r.choices), Prompt: r.prompt + "\n\nInput (JSON):\n" + serial,
-		MaxTokens: maxAnswerTokens,
-		JSON:      &aichat.JSONFormat{Name: "decision", Schema: answerSchema(r.choices)},
-	}
-	if aichat.TakesTemperature(model) {
-		zero := 0.0 // a decision is as repeatable as the provider makes it
-		req.Temperature = &zero
-	}
-
 	started := n.o.now()
-	resp, fail := n.client.Complete(ctx, ep, req)
+	var (
+		d       decided
+		usage   aichat.Usage
+		fail    *aichat.Failure
+		modelID string
+	)
+	if provider == ProviderOpenRouter {
+		d, usage, modelID, fail = n.decideOnOpenRouter(ctx, ep, r)
+	} else {
+		d, usage, modelID, fail = n.decideOnOpenAI(ctx, ep, r)
+	}
 	// Whatever the answer is, the tokens it reports were spent.
-	aichat.RecordUsage(ctx, n.o.log, in, resp.Usage, started)
+	aichat.RecordUsage(ctx, n.o.log, in, usage, started)
 	if fail != nil {
 		if fail.Err != nil && fail.Err.Code == catalog.CallUnauthorized && n.unauthorized != nil {
 			n.unauthorized(ctx, in)
 		}
 		return fail.Result()
 	}
+	if d.err != nil {
+		return catalog.CallResult{}, invalid(d.err.Error())
+	}
 	latency := n.o.now().Sub(started)
 
-	choice, probs, err := parseAnswer(resp, r.choices)
-	if err != nil {
-		return catalog.CallResult{}, invalid(err.Error())
-	}
-	confidence := probs[choice]
-	outcome := choice
-	if confidence < r.minConfidence {
+	outcome := d.choice
+	if d.confidence < r.minConfidence {
 		outcome = OutcomeLowConfidence
 	}
-	probOut := make(map[string]any, len(probs))
-	for k, v := range probs {
+	probOut := make(map[string]any, len(d.probs))
+	for k, v := range d.probs {
 		probOut[k] = v
 	}
 	cost := any(nil)
-	if resp.Usage.CostUSD != nil {
-		cost = *resp.Usage.CostUSD
+	if usage.CostUSD != nil {
+		cost = *usage.CostUSD
 	}
 	return catalog.CallResult{Outcome: outcome, Output: map[string]any{
-		"choice": choice, "confidence": confidence, "probabilities": probOut,
-		"provider": provider, "model": firstNonEmpty(resp.Model, model),
+		"choice": d.choice, "confidence": d.confidence, "probabilities": probOut,
+		"provider": provider, "model": firstNonEmpty(modelID, r.model),
 		"usage": map[string]any{
-			"input_tokens": int64(resp.Usage.InputTokens), "output_tokens": int64(resp.Usage.OutputTokens), "cost_usd": cost,
+			"input_tokens": int64(usage.InputTokens), "output_tokens": int64(usage.OutputTokens), "cost_usd": cost,
 		},
 		"latency_ms": latency.Milliseconds(),
 	}}, nil
+}
+
+// decided is a decision: the choice, its distribution and the confidence the routing uses; err is an answer
+// outside the choices.
+type decided struct {
+	choice     string
+	probs      map[string]float64
+	confidence float64
+	err        error
+}
+
+// decideOnOpenRouter asks OpenRouter's Decisions API (TypeSafe Jev): the choice, a probability per choice
+// and the provider's own confidence in the choice, which is what the node routes by.
+func (n *jevNode) decideOnOpenRouter(ctx context.Context, ep aichat.Endpoint, r call) (decided, aichat.Usage, string, *aichat.Failure) {
+	ep.BaseURL = aichat.OpenRouterDecisionsURL
+	req := aichat.DecisionRequest{Model: r.model, State: r.input, Instructions: r.prompt}
+	for _, c := range r.choices {
+		req.Criteria = append(req.Criteria, aichat.Criterion{Name: c.Value, Description: c.Description})
+	}
+	resp, fail := n.client.Decide(ctx, ep, req)
+	if fail != nil {
+		return decided{}, resp.Usage, resp.Model, fail
+	}
+	d := decided{choice: resp.Choice}
+	d.probs, d.err = checkDistribution(resp.Probabilities, r.choices, resp.Choice)
+	if d.err == nil {
+		d.confidence = d.probs[resp.Choice]
+		if resp.Confidence != nil {
+			c := *resp.Confidence
+			if math.IsNaN(c) || math.IsInf(c, 0) || c < 0 || c > 1 {
+				d.err = errors.New("the confidence of the answer is not a number from 0 to 1")
+			}
+			d.confidence = c
+		}
+	}
+	return d, resp.Usage, resp.Model, nil
+}
+
+// decideOnOpenAI asks a chat model for the choice and a probability per choice in strict structured output.
+func (n *jevNode) decideOnOpenAI(ctx context.Context, ep aichat.Endpoint, r call) (decided, aichat.Usage, string, *aichat.Failure) {
+	serial, err := serializeInput(r.input)
+	if err != nil {
+		return decided{err: errors.New("the input is not JSON: " + err.Error())}, aichat.Usage{}, "", nil
+	}
+	req := aichat.Request{
+		Model: r.model, System: systemPrompt(r.choices), Prompt: r.prompt + "\n\nInput (JSON):\n" + serial,
+		MaxTokens: maxAnswerTokens,
+		JSON:      &aichat.JSONFormat{Name: "decision", Schema: answerSchema(r.choices)},
+	}
+	if aichat.TakesTemperature(r.model) {
+		zero := 0.0 // a decision is as repeatable as the provider makes it
+		req.Temperature = &zero
+	}
+	resp, fail := n.client.Complete(ctx, ep, req)
+	if fail != nil {
+		return decided{}, resp.Usage, resp.Model, fail
+	}
+	choice, probs, err := parseAnswer(resp, r.choices)
+	if err != nil {
+		return decided{err: err}, resp.Usage, resp.Model, nil
+	}
+	return decided{choice: choice, probs: probs, confidence: probs[choice]}, resp.Usage, resp.Model, nil
+}
+
+// distributionTolerance is how far from 1 the probabilities of a provider may sum (rounding).
+const distributionTolerance = 0.05
+
+// checkDistribution checks the probabilities of an answer against the choices: a probability for exactly
+// each choice, each a number from 0 to 1, summing to 1 within the tolerance; they are then normalized to
+// sum to 1. choice is one of the choices.
+func checkDistribution(raw map[string]float64, choices []Choice, choice string) (map[string]float64, error) {
+	known := make(map[string]bool, len(choices))
+	for _, c := range choices {
+		known[c.Value] = true
+	}
+	if !known[choice] {
+		return nil, errors.New("the answer is not one of the choices")
+	}
+	if len(raw) != len(choices) {
+		return nil, errors.New("the answer does not give a probability for exactly each choice")
+	}
+	probs := make(map[string]float64, len(choices))
+	var sum float64
+	for _, c := range choices {
+		f, ok := raw[c.Value]
+		if !ok {
+			return nil, errors.New("the answer does not give a probability for exactly each choice")
+		}
+		if math.IsNaN(f) || math.IsInf(f, 0) || f < 0 || f > 1 {
+			return nil, fmt.Errorf("the probability of %s is not a number from 0 to 1", c.Value)
+		}
+		probs[c.Value] = f
+		sum += f
+	}
+	if sum <= 0 || math.Abs(sum-1) > distributionTolerance {
+		return nil, errors.New("the probabilities of the answer do not sum to 1")
+	}
+	for k, f := range probs {
+		probs[k] = f / sum
+	}
+	return probs, nil
 }
 
 // serializeInput is the input as JSON, the keys of every map sorted: the same input is the same text.
@@ -381,9 +497,8 @@ func answerSchema(choices []Choice) json.RawMessage {
 	return b
 }
 
-// parseAnswer reads the answer: a choice among the choices and a probability for each of them, which are
-// normalized to sum to 1. An answer outside this is an invalid request, whatever the provider's strict
-// mode promised.
+// parseAnswer reads the answer of a chat model: a choice among the choices and a probability for each of
+// them. An answer outside this is an invalid request, whatever the provider's strict mode promised.
 func parseAnswer(resp aichat.Response, choices []Choice) (string, map[string]float64, error) {
 	if resp.FinishReason == "length" {
 		return "", nil, errors.New("the answer was cut off at the token limit")
@@ -402,39 +517,21 @@ func parseAnswer(resp aichat.Response, choices []Choice) (string, map[string]flo
 		}
 	}
 	choice, _ := m["choice"].(string)
-	known := make(map[string]bool, len(choices))
-	for _, c := range choices {
-		known[c.Value] = true
-	}
-	if !known[choice] {
-		return "", nil, errors.New("the answer is not one of the choices")
-	}
-	raw, ok := m["probabilities"].(map[string]any)
+	rawProbs, ok := m["probabilities"].(map[string]any)
 	if !ok {
 		return "", nil, errors.New("the answer has no probabilities")
 	}
-	if len(raw) != len(choices) {
-		return "", nil, errors.New("the answer does not give a probability for exactly each choice")
-	}
-	probs := make(map[string]float64, len(choices))
-	var sum float64
-	for _, c := range choices {
-		x, ok := raw[c.Value]
-		if !ok {
-			return "", nil, errors.New("the answer does not give a probability for exactly each choice")
-		}
+	typed := make(map[string]float64, len(rawProbs))
+	for k, x := range rawProbs {
 		f, ok := expr.Number(x)
-		if !ok || math.IsNaN(f) || math.IsInf(f, 0) || f < 0 {
-			return "", nil, fmt.Errorf("the probability of %s is not a number from 0", c.Value)
+		if !ok {
+			return "", nil, fmt.Errorf("the probability of %s is not a number", k)
 		}
-		probs[c.Value] = f
-		sum += f
+		typed[k] = f
 	}
-	if sum <= 0 {
-		return "", nil, errors.New("the probabilities are all zero")
-	}
-	for k, f := range probs {
-		probs[k] = f / sum
+	probs, err := checkDistribution(typed, choices, choice)
+	if err != nil {
+		return "", nil, err
 	}
 	return choice, probs, nil
 }

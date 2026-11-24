@@ -61,18 +61,24 @@ func Prepare(raw json.RawMessage) (*Schema, error) {
 	return s, nil
 }
 
-// Unwrap takes the answer out of the wrapper of a schema that is not an object and drops the null the
-// provider put into each property the author left optional, so the answer has the shape of the author's
-// schema. The answer is a decoded JSON value (json.Number for numbers).
-func (s *Schema) Unwrap(v any) any {
+// Unwrap checks the provider's envelope and takes the author's value out of it: a schema that is not an
+// object was wrapped in {"value": ...}, and the answer must be exactly that object. It then drops the
+// null the provider put into each property the author left optional, so the value has the shape of the
+// author's schema. v is a decoded JSON value (json.Number for numbers); an error is an answer outside
+// the schema the provider was given.
+func (s *Schema) Unwrap(v any) (any, error) {
 	if s.Wrapped {
 		m, ok := v.(map[string]any)
 		if !ok {
-			return v
+			return nil, errors.New("the answer is not the {\"value\": ...} object the schema asked for")
 		}
-		v = m["value"]
+		inner, ok := m["value"]
+		if !ok || len(m) != 1 {
+			return nil, errors.New("the answer is not the {\"value\": ...} object the schema asked for")
+		}
+		v = inner
 	}
-	return dropNulls(s.original, v)
+	return dropNulls(s.original, v), nil
 }
 
 func closeObjects(v any) any {

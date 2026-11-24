@@ -45,10 +45,10 @@ components = append(components, automations.NewComponent(
 | `AUTOMATION_PLATFORM_CREDENTIALS` | JSON `{"<kind или имя OAuth-клиента>": {"<поле>": "<значение>"}}`: ключи платформы и `client_id`/`client_secret` OAuth2-клиентов. |
 | `AUTOMATION_OPENAI_APIKEY` | Платформенный ключ OpenAI для ноды `ai.llm`: ключ задан — коннектор `openai` предлагается тенантам (только после включения администратором тенанта). Это не ключ BiChat (`BICHAT_OPENAI_*`): расход автоматизаций учитывается отдельно. |
 | `AUTOMATION_OPENAI_BASEURL` | OpenAI-совместимый endpoint платформенного ключа (только https); по умолчанию `https://api.openai.com/v1`. |
-| `AUTOMATION_OPENAI_DEFAULTMODEL` | Точный id модели, который записывается в версию графа, если в ноде `ai.llm` модель не указана (по умолчанию `gpt-4o-mini`). |
+| `AUTOMATION_OPENAI_DEFAULTMODEL` | Точный id модели, который записывается в версию графа, если в ноде `ai.llm` модель не указана (по умолчанию снапшот `gpt-4o-mini-2024-07-18`). |
 | `AUTOMATION_JEV_APIKEY` | Платформенный ключ классификатора `ai.jev`. |
 | `AUTOMATION_JEV_PROVIDER` | Чей это ключ: `openrouter` (по умолчанию) или `openai`. |
-| `AUTOMATION_JEV_DEFAULTMODEL` | Точный id модели по умолчанию для `ai.jev`; по умолчанию `openai/gpt-4o-mini` (`gpt-4o-mini` для провайдера `openai`). |
+| `AUTOMATION_JEV_DEFAULTMODEL` | Точный id модели по умолчанию для `ai.jev`; по умолчанию `typesafe/jev-1.14` для `openrouter` и `gpt-4o-mini-2024-07-18` для `openai`. |
 | `AUTOMATIONS_ASSETS_DIR` | Разработка: каталог свежесобранного бандла экрана вместо встроенного. |
 
 Адрес возврата OAuth2 — `<origin приложения>/settings/integrations/oauth/callback`;
@@ -173,8 +173,9 @@ Identity показывается только с явным происхожд�
 рендера, `input` не map, превышен контекст, ответ вне схемы или вне choices — без повторного запроса), `rejected`
 (отказ или модерация), `unauthorized`, `rate_limited`, `unavailable`.
 
-Модель задаётся точным id. Алиасы (`latest`, `*-latest`, `openrouter/auto`) не сохраняются: смена модели — это новая
-версия графа. Пустая модель при сохранении заменяется на `defaultmodel` коннектора (`catalog.CompletedNode`), так что
+Модель задаётся точным id. Алиасы (`latest`, `*-latest`, `~…`, `openrouter/auto`) и «плавающие» id OpenAI без даты
+(`gpt-4o`, `gpt-4o-mini`, `o3`) не сохраняются: OpenAI закрепляет модель датированным снапшотом
+(`gpt-4o-mini-2024-07-18`). Смена модели — это новая версия графа. Пустая модель при сохранении заменяется на `defaultmodel` коннектора (`catalog.CompletedNode`), так что
 смена env не меняет модель уже сохранённой версии.
 
 ### `ai.llm`
@@ -187,20 +188,21 @@ Identity показывается только с явным происхожд�
 | `schema` | JSON Schema ответа, обязательна при `format: json`, проверяется при сохранении (подмножество `output_schema`: object, array, string/enum, integer, number, boolean). Провайдеру уходит строгий режим structured output; ответ всё равно проверяется по схеме у нас. |
 | `max_tokens` | 1..32000, по умолчанию 2000. |
 | `temperature` | 0..2, необязательно. |
-| `timeout` | Срок вызова, повторы включены: `60s`, `2m` или миллисекунды, 1 с..5 мин, по умолчанию `60s`. Это зарезервированный параметр `timeout` движка. |
-| `images` | CEL-выражение списка id загрузок (до 8 файлов по 5 МБ). Только для модели с vision, иначе ошибка сохранения `model_no_vision`. |
+| `timeout_ms` | Срок вызова в миллисекундах, повторы включены: 1000..300000, по умолчанию 60000. Движок читает его как дедлайн вызова. |
+| `images` | Список id загрузок (до 8 файлов по 5 МБ) или CEL-выражение такого списка. Только для модели с vision, иначе ошибка сохранения `model_no_vision`. |
 
 Исходы: `done`, `failed`. Выход: `text` (для `text`), `json` (для `json`, тип выводится из `schema`), `model`, `usage`
 (`input_tokens`, `output_tokens`, `cost_usd` или `null`), `latency_ms`.
 
 Файлы для `images` читает `openai.ImageSource`; модуль `automations` подключает загрузки core (чужие загрузки не
-находятся). Vision определяется по семейству модели (`openai.WithVision` заменяет проверку).
+находятся). Vision определяется по проверенному списку моделей (точные id и их снапшоты; `gpt-4o-mini-transcribe`, `gpt-4o-audio-preview` и т. п. в нём нет). Приложение с метаданными возможностей своего endpoint заменяет проверку через `openai.WithVision`.
 
 ### `ai.jev`
 
 | Параметр | |
 | --- | --- |
-| `model` | Точный id модели провайдера подключения (OpenRouter: `openai/gpt-4o-mini`). |
+| `model` | Точный id модели провайдера подключения: для `openrouter` закреплённая версия TypeSafe Jev (`typesafe/jev-1.14`), для `openai` датированный снапшот чат-модели. Пара модели и провайдера проверяется при вызове. |
+| `timeout_ms` | Как у `ai.llm`. |
 | `input` | CEL: map с данными для решения. Значения любых типов — строка, число, bool, список, map; ключи сериализуются отсортированными. |
 | `prompt` | Шаблон инструкции; по умолчанию — инструкция с правилом «при сомнении выбирай безопасный вариант». |
 | `choices` | 2..100 вариантов `{value, description}`; `value` — `^[a-z][a-z0-9_]{0,39}$`, уникален, становится исходом; `low_confidence` и `failed` запрещены. |
@@ -209,9 +211,9 @@ Identity показывается только с явным происхожд�
 Исходы: по одному на каждый `choice`, `low_confidence` (уверенность ниже `min_confidence`; выбранное значение всё
 равно в `output.choice`) и `failed`. Выход: `choice` (enum значений `choices`), `confidence`, `probabilities` (по всем
 вариантам, сумма 1), `provider`, `model`, `usage`, `latency_ms`. Провайдер решения — поле подключения `provider`:
-`openrouter` или `openai`.
+`openrouter` или `openai`. Для `openrouter` нода вызывает Decisions API OpenRouter (`POST /api/alpha/decisions`, TypeSafe Jev): типизированный выбор, вероятности и собственная уверенность провайдера — по ней и маршрутизируется исход. Для `openai` — чат-модель со строгим structured output (`choice` и `probabilities`; уверенность — вероятность выбранного варианта). Вероятности проверяются: по всем вариантам, каждая в [0, 1], сумма 1; ответ вне этого — `invalid_request` без повторного запроса.
 
 ### Кеш решений
 
-Ключ решения включает отрендеренный prompt, input, модель и параметры модели. Dry run в режиме `cached` берёт решение
+Ключ решения включает отрендеренный prompt, input, модель, параметры модели, эндпоинт и подключение. Dry run в режиме `cached` берёт решение
 из `automation.decision_cache` и не вызывает провайдера; смена prompt, input, модели или параметров — промах кеша.

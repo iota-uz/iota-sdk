@@ -366,12 +366,17 @@ func statusFailure(resp *http.Response, raw []byte, key string) *Failure {
 			// Repeating cannot help: the account has no quota left.
 			return fail(catalog.CallUnavailable, with("the provider's quota is exhausted"), false)
 		}
-		return &Failure{Retry: true, RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After"), time.Now()),
-			Err: &catalog.CallError{Code: catalog.CallRateLimited, Message: with("the provider limits the rate of requests"), Retryable: true}}
+		after := parseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
+		return &Failure{Retry: true, RetryAfter: after,
+			Err: &catalog.CallError{Code: catalog.CallRateLimited, Message: with("the provider limits the rate of requests"), Retryable: true, RetryAfter: after}}
 	case status == http.StatusUnauthorized || status == http.StatusForbidden:
 		return fail(catalog.CallUnauthorized, "the provider refused the API key", false)
 	case status == http.StatusRequestTimeout || status == http.StatusConflict || status >= 500:
-		return fail(catalog.CallUnavailable, with("the provider is unavailable"), true)
+		f := fail(catalog.CallUnavailable, with("the provider is unavailable"), true)
+		// The engine repeats the call after the provider's Retry-After at least, and keeps unavailable if
+		// the attempts run out.
+		f.Err.RetryAfter = parseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
+		return f
 	case code == "content_filter" || code == "content_policy_violation" || kind == "content_policy_violation" || code == "moderation_blocked":
 		return fail(catalog.CallRejected, with("the provider's content policy refused the request"), false)
 	case status == http.StatusPaymentRequired:

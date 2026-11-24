@@ -119,6 +119,7 @@ type Runtime struct {
 type interpEntry struct {
 	in          *graph.Interpreter
 	unavailable map[string]bool // node types the tenant's catalog lacks now
+	platformOff map[string]bool // of those, the ones that lack the platform key the tenant's administrator withheld
 	specs       map[string]graph.NodeSpec
 	events      map[string]graph.EventSpec
 	joinOf      map[string]string // a parallel → its join
@@ -290,6 +291,7 @@ func (r *Runtime) interpreter(ctx context.Context, tenant, automation uuid.UUID,
 	}
 	cat := view.Catalog
 	unavailable := map[string]bool{}
+	platformOff := map[string]bool{}
 	for _, n := range g.Nodes {
 		if _, ok := cat.Nodes[n.Type]; ok {
 			continue
@@ -308,12 +310,17 @@ func (r *Runtime) interpreter(ctx context.Context, tenant, automation uuid.UUID,
 		}
 		cat.Nodes[n.Type] = spec
 		unavailable[n.Type] = true
+		for _, k := range nt.Requires() {
+			if view.PlatformWithheld[k] {
+				platformOff[n.Type] = true
+			}
+		}
 	}
 	in, err := graph.NewInterpreter(cat, g, r.graphOptions())
 	if err != nil {
 		return nil, err
 	}
-	e := &interpEntry{in: in, unavailable: unavailable, specs: cat.Nodes, events: cat.Events, joinOf: map[string]string{}, used: time.Now()}
+	e := &interpEntry{in: in, unavailable: unavailable, platformOff: platformOff, specs: cat.Nodes, events: cat.Events, joinOf: map[string]string{}, used: time.Now()}
 	for _, n := range g.Nodes {
 		if cat.Nodes[n.Type].Behavior != graph.BehaviorJoin {
 			continue

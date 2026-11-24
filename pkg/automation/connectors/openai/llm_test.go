@@ -84,8 +84,8 @@ func TestParams(t *testing.T) {
 		return issues
 	}
 	assert.Empty(t, parse(`{"prompt":"hi"}`))
-	assert.Empty(t, parse(`{"prompt":"hi","model":"gpt-4o-2024-08-06","temperature":0.2,"max_tokens":32000,"timeout":"2m"}`))
-	assert.Empty(t, parse(`{"prompt":"hi","timeout":1000}`))
+	assert.Empty(t, parse(`{"prompt":"hi","model":"gpt-4o-2024-08-06","temperature":0.2,"max_tokens":32000,"timeout_ms":120000}`))
+	assert.Empty(t, parse(`{"prompt":"hi","timeout_ms":1000}`))
 	assert.Empty(t, parse(`{"prompt":"hi","format":"json","schema":`+answerSchema+`}`))
 
 	for name, raw := range map[string]string{
@@ -101,9 +101,13 @@ func TestParams(t *testing.T) {
 		"max tokens":           `{"prompt":"hi","max_tokens":32001}`,
 		"zero tokens":          `{"prompt":"hi","max_tokens":0}`,
 		"temperature":          `{"prompt":"hi","temperature":2.1}`,
-		"timeout too short":    `{"prompt":"hi","timeout":"0s"}`,
-		"timeout ms short":     `{"prompt":"hi","timeout":999}`,
-		"timeout too long":     `{"prompt":"hi","timeout":"6m"}`,
+		"timeout too short":    `{"prompt":"hi","timeout_ms":0}`,
+		"timeout ms short":     `{"prompt":"hi","timeout_ms":999}`,
+		"timeout too long":     `{"prompt":"hi","timeout_ms":300001}`,
+		"timeout string":       `{"prompt":"hi","timeout":"60s"}`,
+		"alias snapshotless":   `{"prompt":"hi","model":"gpt-4o-mini"}`,
+		"openrouter rolling":   `{"prompt":"hi","model":"openai/gpt-4o"}`,
+		"too many images":      `{"prompt":"hi","model":"gpt-4o-2024-08-06","images":["1","2","3","4","5","6","7","8","9"]}`,
 		"format":               `{"prompt":"hi","format":"xml"}`,
 		"unknown param":        `{"prompt":"hi","tools":[]}`,
 	} {
@@ -115,13 +119,13 @@ func TestModelAliasesAndVision(t *testing.T) {
 	for _, alias := range []string{"gpt-4o-latest", "chatgpt-4o-latest", "latest", "claude-latest", "gpt-5-latest", "openrouter/auto", "openai/gpt-4o:latest"} {
 		assert.Error(t, aichat.CheckModel(alias), alias)
 	}
-	for _, exact := range []string{"gpt-4o", "gpt-4o-mini-2024-07-18", "o3-2025-04-16", "anthropic/claude-3.5-sonnet", "meta-llama/llama-3-8b-instruct:free"} {
+	for _, exact := range []string{"gpt-4o-2024-08-06", "gpt-4o-mini-2024-07-18", "o3-2025-04-16", "anthropic/claude-3.5-sonnet", "meta-llama/llama-3-8b-instruct:free"} {
 		assert.NoError(t, aichat.CheckModel(exact), exact)
 	}
 	for model, want := range map[string]bool{
 		"gpt-4o": true, "gpt-4o-mini-2024-07-18": true, "gpt-4.1": true, "gpt-5": true, "o3": true, "o4-mini": true,
 		"openai/gpt-4o": true, "anthropic/claude-3.5-sonnet": true, "google/gemini-2.0-flash-001": true,
-		"gpt-3.5-turbo": false, "gpt-4": false, "o1-mini": false, "o3-mini": false, "text-embedding-3-small": false,
+		"gpt-3.5-turbo-0125": false, "gpt-4": false, "o1-mini": false, "o3-mini": false, "text-embedding-3-small": false,
 		"meta-llama/llama-3-8b-instruct": false, "anthropic/claude-2.1": false,
 	} {
 		assert.Equal(t, want, aichat.VisionModel(model), model)
@@ -130,19 +134,19 @@ func TestModelAliasesAndVision(t *testing.T) {
 
 func TestImagesNeedAModelWithVision(t *testing.T) {
 	n, _ := newNode(t)
-	_, issues := n.Spec().Params.Parse(map[string]any{"prompt": "describe", "model": "gpt-3.5-turbo", "images": "event.upload_ids"})
+	_, issues := n.Spec().Params.Parse(map[string]any{"prompt": "describe", "model": "gpt-3.5-turbo-0125", "images": "event.upload_ids"})
 	require.Len(t, issues, 1)
 	assert.Equal(t, openai.ErrorModelNoVision, issues[0].Code)
 	assert.Equal(t, []any{"images"}, issues[0].Path)
 
-	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "describe", "model": "gpt-4o", "images": "event.upload_ids"})
+	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "describe", "model": "gpt-4o-2024-08-06", "images": "event.upload_ids"})
 	assert.Empty(t, issues)
 	// An empty images param is no images.
-	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "describe", "model": "gpt-3.5-turbo", "images": "[]"})
+	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "describe", "model": "gpt-3.5-turbo-0125", "images": "[]"})
 	assert.Empty(t, issues)
 
 	// The default model is checked when the node names none.
-	n2, _ := newNode(t, openai.WithDefaultModel("gpt-3.5-turbo"))
+	n2, _ := newNode(t, openai.WithDefaultModel("gpt-3.5-turbo-0125"))
 	_, issues = n2.Spec().Params.Parse(map[string]any{"prompt": "describe", "images": "event.upload_ids"})
 	require.Len(t, issues, 1)
 	assert.Equal(t, openai.ErrorModelNoVision, issues[0].Code)
@@ -158,7 +162,7 @@ func TestCompleteParamsPinsTheDefaultModel(t *testing.T) {
 	assert.NotContains(t, raw, "model", "the argument is not changed")
 	assert.Equal(t, done, cn.CompleteParams(done), "idempotent")
 
-	assert.Equal(t, "gpt-4o", cn.CompleteParams(map[string]any{"prompt": "hi", "model": "gpt-4o"})["model"])
+	assert.Equal(t, "gpt-4o-2024-08-06", cn.CompleteParams(map[string]any{"prompt": "hi", "model": "gpt-4o-2024-08-06"})["model"])
 	assert.Equal(t, "gpt-4o-mini-2024-07-18", cn.CompleteParams(map[string]any{"prompt": "hi", "model": ""})["model"])
 	assert.Equal(t, "gpt-4o-mini-2024-07-18", cn.CompleteParams(map[string]any{"prompt": "hi", "model": nil})["model"])
 	assert.Equal(t, 5, cn.CompleteParams(map[string]any{"model": 5})["model"], "a value of another type is left to the check")
@@ -172,7 +176,7 @@ func TestCompleteParamsPinsTheDefaultModel(t *testing.T) {
 
 func TestTextCall(t *testing.T) {
 	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("Hello there", 12, 3)})
-	n, _ := newNode(t, openai.WithTransport(srv.Transport()), openai.WithDefaultModel("gpt-4o-mini"))
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()), openai.WithDefaultModel("gpt-4o-mini-2024-07-18"))
 	usage := &aitest.Usage{}
 	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "Say hello", "system": "Be brief", "temperature": 0.5}), usage)
 
@@ -190,7 +194,7 @@ func TestTextCall(t *testing.T) {
 	assert.Equal(t, "/chat/completions", reqs[0].Path)
 	assert.Equal(t, "Bearer sk-test-key-123456", reqs[0].Header.Get("Authorization"))
 	body := reqs[0].JSON(t)
-	assert.Equal(t, "gpt-4o-mini", body["model"], "the default model of the connector")
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", body["model"], "the default model of the connector")
 	assert.EqualValues(t, 2000, body["max_tokens"])
 	assert.EqualValues(t, 0.5, body["temperature"])
 	assert.NotContains(t, body, "response_format")
@@ -510,7 +514,7 @@ func TestImagesReachTheProvider(t *testing.T) {
 	n, _ := newNode(t, openai.WithTransport(srv.Transport()), openai.WithImages(images{
 		"11": {Data: png}, "12": {MediaType: "image/jpeg; charset=binary", Data: []byte("jpegdata")},
 	}))
-	params := parsed(t, n, map[string]any{"prompt": "what is it?", "model": "gpt-4o", "images": "event.images"})
+	params := parsed(t, n, map[string]any{"prompt": "what is it?", "model": "gpt-4o-2024-08-06", "images": "event.images"})
 	params["images"] = []any{"11", json.Number("12")} // the engine renders the expression to its value
 	in := aitest.Input(openai.Kind, srv, nil, params, nil)
 
@@ -544,24 +548,24 @@ func TestImageFailures(t *testing.T) {
 		_, err := n.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, params, nil))
 		return err
 	}
-	assert.Contains(t, callCode(t, run("gpt-4o", "missing")).Message, "not found")
-	assert.Contains(t, callCode(t, run("gpt-4o", "big")).Message, "5 MB")
-	assert.Contains(t, callCode(t, run("gpt-4o", "text")).Message, "PNG, JPEG")
-	assert.Contains(t, callCode(t, run("gpt-4o", 1, 2, 3, 4, 5, 6, 7, 8, 9)).Message, "at most 8")
-	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run("gpt-3.5-turbo", "1")).Code, "a model without vision, whatever was saved")
-	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run("gpt-4o", true)).Code)
+	assert.Contains(t, callCode(t, run("gpt-4o-2024-08-06", "missing")).Message, "not found")
+	assert.Contains(t, callCode(t, run("gpt-4o-2024-08-06", "big")).Message, "5 MB")
+	assert.Contains(t, callCode(t, run("gpt-4o-2024-08-06", "text")).Message, "PNG, JPEG")
+	assert.Contains(t, callCode(t, run("gpt-4o-2024-08-06", 1, 2, 3, 4, 5, 6, 7, 8, 9)).Message, "at most 8")
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run("gpt-3.5-turbo-0125", "1")).Code, "a model without vision, whatever was saved")
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, run("gpt-4o-2024-08-06", true)).Code)
 	assert.Empty(t, srv.Requests())
 
 	// Without a source the node has no images to give.
 	n0, _ := newNode(t, openai.WithTransport(srv.Transport()))
-	params := parsed(t, n0, map[string]any{"prompt": "x", "model": "gpt-4o"})
+	params := parsed(t, n0, map[string]any{"prompt": "x", "model": "gpt-4o-2024-08-06"})
 	params["images"] = []any{"1"}
 	_, err := n0.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, params, nil))
 	assert.Contains(t, callCode(t, err).Message, "not available")
 
 	// A failing source is the engine's to repeat.
 	nf, _ := newNode(t, openai.WithTransport(srv.Transport()), openai.WithImages(failingImages{}))
-	params = parsed(t, nf, map[string]any{"prompt": "x", "model": "gpt-4o"})
+	params = parsed(t, nf, map[string]any{"prompt": "x", "model": "gpt-4o-2024-08-06"})
 	params["images"] = []any{"1"}
 	_, err = nf.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, params, nil))
 	ce := callCode(t, err)
@@ -578,7 +582,7 @@ func (failingImages) Image(context.Context, uuid.UUID, string, int64) (openai.Im
 // --- decision keys ---
 
 func TestDecisionKeyFollowsPromptModelAndParams(t *testing.T) {
-	n, _ := newNode(t, openai.WithDefaultModel("gpt-4o-mini"))
+	n, _ := newNode(t, openai.WithDefaultModel("gpt-4o-mini-2024-07-18"))
 	dn := n.(engine.DecisionNode)
 	key := func(raw map[string]any, images ...string) string {
 		p := parsed(t, n, raw)
@@ -595,21 +599,21 @@ func TestDecisionKeyFollowsPromptModelAndParams(t *testing.T) {
 	}
 	base := key(map[string]any{"prompt": "classify this"})
 	assert.Equal(t, base, key(map[string]any{"prompt": "classify this"}), "stable")
-	assert.Equal(t, base, key(map[string]any{"prompt": "classify this", "model": "gpt-4o-mini", "max_tokens": 2000}), "defaults are the same call")
+	assert.Equal(t, base, key(map[string]any{"prompt": "classify this", "model": "gpt-4o-mini-2024-07-18", "max_tokens": 2000}), "defaults are the same call")
 
 	for name, other := range map[string]string{
 		"prompt":      key(map[string]any{"prompt": "classify that"}),
 		"system":      key(map[string]any{"prompt": "classify this", "system": "be strict"}),
-		"model":       key(map[string]any{"prompt": "classify this", "model": "gpt-4o"}),
+		"model":       key(map[string]any{"prompt": "classify this", "model": "gpt-4o-2024-08-06"}),
 		"max tokens":  key(map[string]any{"prompt": "classify this", "max_tokens": 100}),
 		"temperature": key(map[string]any{"prompt": "classify this", "temperature": 0.3}),
 		"format":      key(map[string]any{"prompt": "classify this", "format": "json", "schema": schemaParam(t)}),
-		"images":      key(map[string]any{"prompt": "classify this", "model": "gpt-4o"}, "7"),
+		"images":      key(map[string]any{"prompt": "classify this", "model": "gpt-4o-2024-08-06"}, "7"),
 	} {
 		assert.NotEqual(t, base, other, name)
 	}
-	a := key(map[string]any{"prompt": "x", "model": "gpt-4o"}, "7")
-	b := key(map[string]any{"prompt": "x", "model": "gpt-4o"}, "8")
+	a := key(map[string]any{"prompt": "x", "model": "gpt-4o-2024-08-06"}, "7")
+	b := key(map[string]any{"prompt": "x", "model": "gpt-4o-2024-08-06"}, "8")
 	assert.NotEqual(t, a, b)
 
 	_, ok := dn.DecisionKey(catalog.CallInput{Params: map[string]any{"model": "gpt-4o-latest", "prompt": "x"}})
@@ -619,7 +623,7 @@ func TestDecisionKeyFollowsPromptModelAndParams(t *testing.T) {
 // --- the connector ---
 
 func TestConnectorTest(t *testing.T) {
-	srv := aitest.New(t, aitest.Reply{Header: map[string]string{"openai-organization": "org-acme", "openai-project": "proj_support"}, Body: `{"object":"list","data":[{"id":"gpt-4o"}]}`})
+	srv := aitest.New(t, aitest.Reply{Header: map[string]string{"openai-organization": "org-acme", "openai-project": "proj_support"}, Body: `{"object":"list","data":[{"id":"gpt-4o-2024-08-06"}]}`})
 	c := openai.New(openai.WithTransport(srv.Transport()))
 	id, err := c.Test(context.Background(), connectors.Credentials{"api_key": "sk-test-key-123456", "base_url": srv.URL})
 	require.NoError(t, err)
@@ -650,7 +654,7 @@ func TestConnectorTest(t *testing.T) {
 
 func TestPlatformCredentials(t *testing.T) {
 	assert.Empty(t, openai.PlatformCredentials(nil))
-	assert.Empty(t, openai.PlatformCredentials(&openaiconfig.Config{DefaultModel: "gpt-4o"}))
+	assert.Empty(t, openai.PlatformCredentials(&openaiconfig.Config{DefaultModel: "gpt-4o-2024-08-06"}))
 	got := openai.PlatformCredentials(&openaiconfig.Config{APIKey: "sk-platform", BaseURL: "https://llm.example.com/v1"})
 	require.Contains(t, got, catalog.ConnectorKind("openai"))
 	assert.Equal(t, connectors.Credentials{"api_key": "sk-platform", "base_url": "https://llm.example.com/v1"}, got["openai"].Credentials)
@@ -666,4 +670,128 @@ func TestCredentialsSchemaValidates(t *testing.T) {
 	assert.Error(t, connectors.ValidateCredentials(d, connectors.Credentials{"base_url": "https://x.example.com"}))
 	assert.Equal(t, map[string]string{"base_url": "https://llm.example.com/v1"},
 		connectors.RedactedCredentials(d, connectors.Credentials{"api_key": "sk-1", "base_url": "https://llm.example.com/v1"}))
+}
+
+func TestRollingIdsAreNotPinned(t *testing.T) {
+	for _, rolling := range []string{"gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-5", "o3", "o4-mini", "chatgpt-4o", "openai/gpt-4o-mini"} {
+		err := aichat.CheckModel(rolling)
+		require.Error(t, err, rolling)
+		assert.Contains(t, err.Error(), "rolling", rolling)
+	}
+	for _, pinned := range []string{
+		"gpt-4o-2024-08-06", "gpt-4o-mini-2024-07-18", "gpt-4.1-2025-04-14", "gpt-5-2025-08-07", "o3-2025-04-16", "gpt-4-0613",
+		"openai/gpt-4o-mini-2024-07-18", "anthropic/claude-3.5-sonnet", "meta-llama/llama-3-8b-instruct", "typesafe/jev-1.14", "my-company-model",
+	} {
+		assert.NoError(t, aichat.CheckModel(pinned), pinned)
+	}
+	assert.Error(t, aichat.CheckModel("~typesafe/jev-latest"))
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", openaiconfig.DefaultModel, "the shipped default is pinned")
+	assert.NoError(t, aichat.CheckModel(openaiconfig.DefaultModel))
+}
+
+func TestVisionIsAVerifiedList(t *testing.T) {
+	for model, want := range map[string]bool{
+		"gpt-4o-2024-08-06": true, "gpt-4o-mini-2024-07-18": true, "gpt-4.1-2025-04-14": true, "gpt-5-2025-08-07": true, "o3-2025-04-16": true,
+		"gpt-4o-mini-transcribe-2025-03-20": false, "gpt-4o-audio-preview-2025-06-03": false, "gpt-4o-realtime-preview-2025-06-03": false,
+		"gpt-4o-mini-tts-2025-03-20": false, "gpt-4o-search-preview-2025-03-11": false, "gpt-4o-mini-search-preview": false,
+		"gpt-3.5-turbo-0125": false, "o3-mini-2025-01-31": false, "o1-mini-2024-09-12": false, "text-embedding-3-small": false,
+		"openai/gpt-4o-2024-08-06": true, "anthropic/claude-3.5-sonnet": true, "anthropic/claude-sonnet-4": true, "anthropic/claude-3-haiku": true,
+		"google/gemini-2.0-flash-001": true, "google/gemini-embedding-001": false, "meta-llama/llama-3-8b-instruct": false, "my-company-model": false,
+	} {
+		assert.Equal(t, want, aichat.VisionModel(model), model)
+	}
+	n, _ := newNode(t)
+	_, issues := n.Spec().Params.Parse(map[string]any{"prompt": "x", "model": "gpt-4o-mini-transcribe-2025-03-20", "images": []any{"1"}})
+	require.Len(t, issues, 1)
+	assert.Equal(t, openai.ErrorModelNoVision, issues[0].Code)
+	// An application with capability metadata of its own replaces the list.
+	n2, _ := newNode(t, openai.WithVision(func(m string) bool { return m == "my-company-model" }))
+	_, issues = n2.Spec().Params.Parse(map[string]any{"prompt": "x", "model": "my-company-model", "images": []any{"1"}})
+	assert.Empty(t, issues)
+}
+
+func TestImagesAreAListOrAnExpression(t *testing.T) {
+	n, _ := newNode(t)
+	_, issues := n.Spec().Params.Parse(map[string]any{"prompt": "x", "model": "gpt-4o-2024-08-06", "images": []any{"11", "12"}})
+	assert.Empty(t, issues, "a literal list of upload ids")
+	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "x", "model": "gpt-4o-2024-08-06", "images": "event.upload_ids"})
+	assert.Empty(t, issues, "a CEL expression")
+	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "x", "model": "gpt-3.5-turbo-0125", "images": []any{"11"}})
+	require.Len(t, issues, 1)
+	assert.Equal(t, openai.ErrorModelNoVision, issues[0].Code)
+	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "x", "model": "gpt-3.5-turbo-0125", "images": []any{}})
+	assert.Empty(t, issues, "an empty list is no images")
+	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "x", "model": "gpt-4o-2024-08-06", "images": []any{1}})
+	assert.NotEmpty(t, issues, "ids are strings")
+
+	// The literal list is what the node gets, and the provider gets the pictures.
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("a cat", 100, 3)})
+	n, _ = newNode(t, openai.WithTransport(srv.Transport()), openai.WithImages(images{"11": {Data: png}}))
+	p := parsed(t, n, map[string]any{"prompt": "what?", "model": "gpt-4o-2024-08-06", "images": []any{"11"}})
+	_, err := n.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, p, nil))
+	require.NoError(t, err)
+	parts := srv.Requests()[0].JSON(t)["messages"].([]any)[0].(map[string]any)["content"].([]any)
+	assert.Len(t, parts, 2)
+}
+
+func TestTimeoutMsIsTheEnginesDeadline(t *testing.T) {
+	n, _ := newNode(t)
+	p := parsed(t, n, map[string]any{"prompt": "x"})
+	assert.Equal(t, json.Number("60000"), p["timeout_ms"])
+	assert.NotContains(t, string(n.Spec().Params.JSONSchema()), "\"timeout\":")
+}
+
+func TestServerErrorKeepsRetryAfter(t *testing.T) {
+	srv := aitest.New(t, aitest.Reply{Status: 503, Header: map[string]string{"Retry-After": "16"}, Body: `{}`})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	res, err := n.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), nil))
+	require.Error(t, err)
+	assert.Zero(t, res.RetryAfter)
+	ce := callCode(t, err)
+	assert.Equal(t, catalog.CallUnavailable, ce.Code, "the code survives the repeats")
+	assert.True(t, ce.Retryable)
+	assert.Equal(t, 16*time.Second, ce.RetryAfter, "the engine waits at least that long")
+}
+
+func TestStrictEnvelopeIsChecked(t *testing.T) {
+	stringSchema := map[string]any{"type": "string"}
+	for name, answer := range map[string]string{
+		"bare string":     `"hello"`,
+		"extra field":     `{"value":"hello","note":"x"}`,
+		"wrong key":       `{"text":"hello"}`,
+		"not an envelope": `["hello"]`,
+		"wrong type":      `{"value":5}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := aitest.New(t, aitest.Reply{Body: aitest.Chat(answer, 5, 1)})
+			n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+			in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x", "format": "json", "schema": stringSchema}), nil)
+			_, err := n.Execute(context.Background(), in)
+			assert.Equal(t, catalog.CallInvalidRequest, callCode(t, err).Code)
+			assert.Len(t, srv.Requests(), 1)
+		})
+	}
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat(`{"value":"hello"}`, 5, 1)})
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	res, err := n.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x", "format": "json", "schema": stringSchema}), nil))
+	require.NoError(t, err)
+	assert.Equal(t, "hello", res.Output["json"])
+}
+
+func TestDecisionKeyFollowsTheEndpointAndTheConnection(t *testing.T) {
+	n, _ := newNode(t)
+	dn := n.(engine.DecisionNode)
+	p := parsed(t, n, map[string]any{"prompt": "x"})
+	key := func(base, conn string) string {
+		in := catalog.CallInput{Params: p, Credentials: catalog.Credentials{"api_key": "k", "base_url": base}, Connection: &catalog.ConnectionInfo{ID: conn}}
+		k, ok := dn.DecisionKey(in)
+		require.True(t, ok)
+		return k
+	}
+	a := key("https://llm-a.example.com/v1", "c1")
+	assert.Equal(t, a, key("https://llm-a.example.com/v1/", "c1"))
+	assert.NotEqual(t, a, key("https://llm-b.example.com/v1", "c1"), "another endpoint")
+	assert.NotEqual(t, a, key("https://llm-a.example.com/v1", "c2"), "another connection")
+	assert.NotEqual(t, key("", "c1"), a, "OpenAI's own endpoint")
+	assert.NotContains(t, a, "sk-")
 }
