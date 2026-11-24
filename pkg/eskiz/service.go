@@ -33,12 +33,31 @@ type Service interface {
 	ListTemplates(ctx context.Context) ([]models.TemplateRecord, error)
 }
 
+// ServiceOption customizes NewService.
+type ServiceOption func(*serviceOptions)
+
+type serviceOptions struct {
+	base http.RoundTripper
+}
+
+// WithRoundTripper makes the service send every request, login included, through base instead of
+// http.DefaultTransport: a caller observes or redirects the traffic (a test server, a transport that
+// tells whether a request was written).
+func WithRoundTripper(base http.RoundTripper) ServiceOption {
+	return func(o *serviceOptions) { o.base = base }
+}
+
 func NewService(
 	cfg Config,
 	logger *logrus.Logger,
 	httpCfg *headers.Config,
+	opts ...ServiceOption,
 ) Service {
-	httpClient := &http.Client{Timeout: apiTimeout}
+	var o serviceOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	httpClient := &http.Client{Timeout: apiTimeout, Transport: o.base}
 
 	// Unauthenticated client used by the token refresher to obtain a token
 	// without recursing back through itself.
@@ -55,6 +74,9 @@ func NewService(
 		true, // log response bodies
 		"eskiz",
 	)
+	if o.base != nil {
+		logTransport.Base = o.base
+	}
 
 	// Create authenticated client
 	authClient := &http.Client{
