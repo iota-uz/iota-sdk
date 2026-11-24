@@ -40,6 +40,8 @@ export const isTidied = (p: XY): boolean => p.x - Math.floor(p.x) === TIDY_MARK 
 const tidied = (p: XY): XY => ({ x: Math.round(p.x) + TIDY_MARK, y: Math.round(p.y) + TIDY_MARK })
 /** The layout as it is drawn: whole numbers, without the mark. */
 export function unmarked(layout: AutomationLayout): AutomationLayout {
+  // Nothing marked, nothing to copy.
+  if (Object.values(layout).every((p) => Number.isInteger(p.x) && Number.isInteger(p.y))) return layout
   const out: AutomationLayout = {}
   for (const [id, p] of Object.entries(layout)) out[id] = { x: Math.round(p.x), y: Math.round(p.y) }
   return out
