@@ -1,1 +1,1 @@
-{"bump":"patch","summary":"Fix pkg/extruntime/e2e failing at harness setup: the test harness now applies migrations before the composition start hooks run, and the automation action commands declare their domain errors in the native set."}
+{"bump":"patch","summary":"Fix the pkg/extruntime/e2e suite after the automation engine was wired in: the ITF harness applies its migration policy before the composition start hooks run, and automation action commands declare their domain errors in the native set so the extension kit resolves them."}
