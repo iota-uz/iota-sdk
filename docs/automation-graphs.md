@@ -318,6 +318,47 @@ queued conversation runs, runs of disabled graphs, retention.
   `TestNode` runs one node once as the author: no run, no steps; an effect node's transaction is
   rolled back. `SearchSubjects` uses an optional `SubjectSearcher` of the subject loader.
 
+### The module wires the engine and serves its pages (#1339)
+
+- **Wiring.** `modules/automations` builds `engine.Runtime` whenever the composition has the extension
+  core (`wiring.NewComponent`: the workflow engine and the subject loader) and contributes
+  `Runtime.Natives()`, `Runtime.Consumer()` and `Runtime.Schedules()`; the API and worker processes run
+  `Runtime.Serve` and the inbound poller as a hook (`automations.WithoutBackground()` keeps them out of
+  a process). The module's catalog registry carries `engine.Triggers()`, the application's native
+  events (an event whose payload the catalog cannot express is left out with a warning) and the
+  built-in and flow nodes. `automations.WithEngineConfig` sets limits, a subject loader or a task
+  bridge; `automations.WithoutEngine()` turns the engine and the pages off. The connection store's
+  usage index is `Runtime.UsageIndex()` unless the application gives one, so «Integrations» refuses
+  to delete a connection a graph uses (`CONNECTION_IN_USE` with the graph).
+- **Pages.** `/automations` (list, `Automations.Read`), `/automations/new` (`Automations.Author`),
+  `/automations/{id}` and `/automations/{id}/runs/{run}` are one Solid screen
+  (`modules/automations/presentation/graphs/web`) with its own embedded bundle
+  (`/assets/automation-graphs/<release>/…`); the editor of `@iota-uz/sdk/automation-editor` is a lazy
+  chunk of the graph page. Its RPC (`POST /automations/rpc`, contract in the issue) is a thin layer
+  over `engine.Service`, `engine.Authoring` and `engine.Operations`: the tenant, the user and the
+  origin come from the session. An interactive session is `human`; an agent session
+  (`agentsession.Audience`), a request with an `Authorization` header or one without a session is
+  `agent`, which the engine refuses to enable (`HUMAN_REQUIRED`).
+- **Review before enabling.** `automations.enable_review` returns the Code nodes (language, source,
+  secret names, fetch), the triggers, `run_as` and the code digest; `automations.enable` takes the
+  digest the person saw and enables only the latest version: a version saved after the review is
+  `review_required` and the dialog reloads with the new code.
+- **Layout revision.** `automation.automations.layout_revision` counts layout changes.
+  `Service.SaveLayoutAt(base)` (`automations.save_layout {id, base_revision, positions}`) refuses a stale
+  base with `*LayoutConflictError` (`VERSION_CONFLICT` with the revision and positions of now): the
+  editor keeps its positions unsaved and offers «Refresh» (`EditorProps.remoteLayout`).
+- **Webhooks.** `engine.InboundHandler` is mounted at `/automations/hooks/{connection_id}` and
+  `/automations/hooks/platform/{kind}` with no session or tenant middleware; each request is
+  authenticated by the connector's `Verify`. The controller marks its route with
+  `middleware.CSRFExemptRoute`: a CSRF middleware of the SDK (`middleware.CSRF`, `CSRFFromConfig`)
+  installed with `Router.Use` on the router the route is registered on lets it through, and only it —
+  the same path on another router, other routes and requests that match no route stay protected. An
+  application adds no exemption of its own; one that wraps the whole server in a CSRF handler outside
+  the router (where no route is matched yet) has to leave `/automations/hooks/` out of that wrapper.
+- **Lists.** `Service.Overviews` gives the list its latest version's author and triggers, the last run
+  and the count of runs that need attention (failed, blocked, `filter_failed`); `ListFilter.Attention`
+  keeps graphs that have some; `Service.CountLive` names what disabling or deleting cancels.
+
 ## 6. Triggers and the event catalog
 
 - **Domain events** come from the outbox through the event catalog (`native.Event`, D7).
@@ -398,10 +439,13 @@ of `pkg/mcp` (#1084) and are reached through `lookup` / `execute` (#1314). Every
   only with `allow_live: true`, only for decision nodes, at most 20; beyond either limit the
   answer is `limit_exceeded`. Test node is not offered: it makes a real external effect.
 - Writes are `changes.Kind`s of entity `automation` behind `prepare_changes` / `apply_changes`:
-  `automation.create` (`{graph, layout?}`), `automation.update` (`{graph, layout?, note?}`,
-  `expected_revision` is the latest version; a stale one is the shared `revision_mismatch`) and
-  `automation.layout` (`fields: {id, base_revision, positions}`, the base is `layout_revision`; a
-  stale one is `VERSION_CONFLICT` with the current revision, in plan and in apply). Plan validates
+  `automation.create` (`{graph, layout?}`), `automation.update` (`{graph, layout?, layout_revision?,
+  note?}`, `expected_revision` is the latest version; a stale one is the shared `revision_mismatch`;
+  `layout_revision` is required with `layout` and a stale one is `VERSION_CONFLICT` in plan, while
+  at apply `SaveInput.LayoutBase` keeps positions another write moved since) and `automation.layout`
+  (`fields: {id, base_revision, positions}`, the base is `layout_revision` — `0` for a new graph; a
+  stale one is `VERSION_CONFLICT` with the current revision, in plan and at apply through
+  `SaveLayoutAt`). Revisions are accepted as JSON integers or the strings `automation_get` returns. Plan validates
   the graph as the principal (issues under `/fields/graph/...`). Fields naming what only a person
   does — `enabled`, `enabled_version`, `decision`, `decisions`, `task`, `connection`,
   `connections` — are issues `HUMAN_REQUIRED` with the page where the person does it, and the plan

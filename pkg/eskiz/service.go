@@ -33,12 +33,48 @@ type Service interface {
 	ListTemplates(ctx context.Context) ([]models.TemplateRecord, error)
 }
 
+// ServiceOption customizes NewService.
+type ServiceOption func(*serviceOptions)
+
+type serviceOptions struct {
+	base        http.RoundTripper
+	noRedirects bool
+	noReplay    bool
+}
+
+// WithoutAuthReplay makes the service renew an expired token after a 401 but not send the refused
+// request again: its 401 is returned. A request that must not be sent twice (an SMS) uses it.
+func WithoutAuthReplay() ServiceOption {
+	return func(o *serviceOptions) { o.noReplay = true }
+}
+
+// WithoutRedirects makes the service treat a redirect as the answer (an error) instead of following it:
+// a followed 307/308 would send the same request, an SMS, a second time to another address.
+func WithoutRedirects() ServiceOption {
+	return func(o *serviceOptions) { o.noRedirects = true }
+}
+
+// WithRoundTripper makes the service send every request, login included, through base instead of
+// http.DefaultTransport: a caller observes or redirects the traffic (a test server, a transport that
+// tells whether a request was written).
+func WithRoundTripper(base http.RoundTripper) ServiceOption {
+	return func(o *serviceOptions) { o.base = base }
+}
+
 func NewService(
 	cfg Config,
 	logger *logrus.Logger,
 	httpCfg *headers.Config,
+	opts ...ServiceOption,
 ) Service {
-	httpClient := &http.Client{Timeout: apiTimeout}
+	var o serviceOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	httpClient := &http.Client{Timeout: apiTimeout, Transport: o.base}
+	if o.noRedirects {
+		httpClient.CheckRedirect = noRedirect
+	}
 
 	// Unauthenticated client used by the token refresher to obtain a token
 	// without recursing back through itself.
@@ -55,11 +91,17 @@ func NewService(
 		true, // log response bodies
 		"eskiz",
 	)
+	if o.base != nil {
+		logTransport.Base = o.base
+	}
 
 	// Create authenticated client
 	authClient := &http.Client{
 		Timeout:   apiTimeout,
-		Transport: &authRoundTripper{Base: logTransport, Refresher: refresher},
+		Transport: &authRoundTripper{Base: logTransport, Refresher: refresher, NoReplay: o.noReplay},
+	}
+	if o.noRedirects {
+		authClient.CheckRedirect = noRedirect
 	}
 
 	config := eskizapi.NewConfiguration()
@@ -73,6 +115,8 @@ func NewService(
 		client: client,
 	}
 }
+
+func noRedirect(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
 type service struct {
 	cfg    Config

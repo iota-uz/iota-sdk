@@ -89,7 +89,7 @@ func decodeFields(raw json.RawMessage) (fields, []mcp.Issue) {
 // maxRevision is the largest revision a JSON number carries exactly.
 const maxRevision = 1 << 53
 
-// revisionArg is a revision a change names: the JSON integer or the decimal string automation_get
+// revisionArg is a revision a change names (a new graph's layout is at 0): the JSON integer or the decimal string automation_get
 // returns ("3"), normalized to one number.
 type revisionArg struct {
 	n   int
@@ -101,10 +101,10 @@ func (r *revisionArg) UnmarshalJSON(b []byte) error {
 	if s == "null" {
 		return nil
 	}
-	bad := errors.New("a revision is a positive integer or its decimal string")
+	bad := errors.New("a revision is a non-negative integer or its decimal string")
 	if unq, err := strconv.Unquote(s); err == nil {
 		n, err := strconv.Atoi(unq)
-		if err != nil || n < 1 {
+		if err != nil || n < 0 {
 			return bad
 		}
 		r.n, r.set = n, true
@@ -112,7 +112,7 @@ func (r *revisionArg) UnmarshalJSON(b []byte) error {
 	}
 	// A JSON number: any form of an integral value (1, 1.0, 1e0), as the schema's integer admits.
 	f, err := strconv.ParseFloat(s, 64)
-	if err != nil || f < 1 || f != math.Trunc(f) || f > maxRevision {
+	if err != nil || f < 0 || f != math.Trunc(f) || f > maxRevision {
 		return bad
 	}
 	r.n, r.set = int(f), true
@@ -121,7 +121,7 @@ func (r *revisionArg) UnmarshalJSON(b []byte) error {
 
 // revisionSchema accepts a revision as automation_get returns it (a decimal string) or as a number.
 func revisionSchema(description string) *jsonschema.Schema {
-	return &jsonschema.Schema{Types: []string{"integer", "string"}, Minimum: jsonschema.Ptr(1.0), Pattern: "^[1-9][0-9]*$",
+	return &jsonschema.Schema{Types: []string{"integer", "string"}, Minimum: jsonschema.Ptr(0.0), Pattern: "^(0|[1-9][0-9]*)$",
 		Description: description}
 }
 
@@ -569,7 +569,7 @@ func (k layoutKind) Apply(ctx context.Context, c changes.Change) (changes.Applie
 	}
 	// SaveLayout compares the base with the revision under the graph's lock: a save that won the race
 	// since the plan is VERSION_CONFLICT.
-	rev, err := k.svc.SaveLayout(joined(ctx), a, id, engine.LayoutInput{BaseRevision: f.BaseRevision.n, Positions: f.Positions})
+	rev, err := k.svc.SaveLayoutAt(joined(ctx), a, id, f.BaseRevision.n, f.Positions)
 	if err != nil {
 		return changes.Applied{}, failure(err)
 	}

@@ -235,6 +235,13 @@ func reviewOf(r *Runtime, view catalog.View, v versionRow, g graph.Graph) Enable
 	if rv.CodeNodes == nil {
 		rv.CodeNodes = []CodeNodeReview{}
 	}
+	rv.Triggers = triggerReviews(view, g)
+	return rv
+}
+
+// triggerReviews are the triggers of a graph as a person reads them: a schedule with its time zone.
+func triggerReviews(view catalog.View, g graph.Graph) []TriggerReview {
+	out := make([]TriggerReview, 0, len(g.Triggers))
 	for _, t := range triggersOf(view, g) {
 		tr := TriggerReview{TriggerID: t.ID, Kind: t.Kind, Event: t.Event}
 		if t.Schedule != nil {
@@ -243,7 +250,7 @@ func reviewOf(r *Runtime, view catalog.View, v versionRow, g graph.Graph) Enable
 				tr.Schedule += " (" + t.Schedule.Timezone + ")"
 			}
 		}
-		rv.Triggers = append(rv.Triggers, tr)
+		out = append(out, tr)
 	}
-	return rv
+	return out
 }

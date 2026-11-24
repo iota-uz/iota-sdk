@@ -200,7 +200,7 @@ func TestAuthorWithoutReadEditsSavedGraphs(t *testing.T) {
 		"fields": map[string]any{"graph": noteGraph("A", "b")}})
 	assert.Equal(t, 2, receiptResult(t, e.apply(authorOnly, up, "a-2")).Version)
 	lp := e.prepare(authorOnly, map[string]any{"op": "layout", "entity": "automation",
-		"fields": map[string]any{"id": res.ID, "base_revision": 2, "positions": map[string]any{"fin": map[string]any{"x": 1, "y": 1}}}})
+		"fields": map[string]any{"id": res.ID, "base_revision": 1, "positions": map[string]any{"fin": map[string]any{"x": 1, "y": 1}}}})
 	require.Equal(t, changes.OperationSucceeded, e.apply(authorOnly, lp, "a-3").Status)
 	_ = e.failure(authorOnly, mcpops.ToolList, map[string]any{}, mcp.CodeForbidden)
 }
@@ -255,7 +255,7 @@ func TestApplyNeedsOneConnection(t *testing.T) {
 	apply(map[string]any{"op": "update", "entity": "automation", "id": created.ID, "expected_revision": "1",
 		"fields": map[string]any{"graph": noteGraph("One", "b")}}, "one-2")
 	apply(map[string]any{"op": "layout", "entity": "automation",
-		"fields": map[string]any{"id": created.ID, "base_revision": 2, "positions": map[string]any{"fin": map[string]any{"x": 1, "y": 1}}}}, "one-3")
+		"fields": map[string]any{"id": created.ID, "base_revision": 1, "positions": map[string]any{"fin": map[string]any{"x": 1, "y": 1}}}}, "one-3")
 }
 
 // layout_revision as automation_get returns it (a string) is a base of automation.layout, and an update

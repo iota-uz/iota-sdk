@@ -1,9 +1,9 @@
+-- The revision of an automation's canvas layout (#1339): a layout save names the revision it was made
+-- over, and a save over a stale one is refused (VERSION_CONFLICT), so a second tab does not overwrite
+-- the positions of the first.
 -- +migrate Up
--- Automation layout revision (#1339, #1340): every write of a graph's layout increments it, and a save
--- of positions names the revision it was based on, so a stale editor tab or agent never overwrites
--- positions it has not seen.
 ALTER TABLE automation.automations
-    ADD COLUMN layout_revision integer NOT NULL DEFAULT 1;
+    ADD COLUMN layout_revision integer NOT NULL DEFAULT 0;
 
 -- +migrate Down
 ALTER TABLE automation.automations

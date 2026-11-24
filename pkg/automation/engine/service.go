@@ -32,11 +32,11 @@ var _ Service = (*service)(nil)
 
 func (s *service) authorize(a Actor, perms ...string) error {
 	if a.TenantID == uuid.Nil || a.UserID <= 0 || !a.Origin.valid() {
-		return ErrForbidden
+		return fmt.Errorf("%w: the actor has no tenant, user or origin", ErrForbidden)
 	}
 	for _, p := range perms {
 		if !a.Subject.Has(p) {
-			return ErrForbidden
+			return fmt.Errorf("%w: %s is required", ErrForbidden, p)
 		}
 	}
 	return nil
@@ -171,9 +171,6 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 			}
 			return &ConflictError{Latest: am.LatestVersion, By: latest.SavedBy}
 		}
-		if in.LayoutBase != nil && *in.LayoutBase != am.LayoutRevision {
-			return &LayoutConflictError{Revision: am.LayoutRevision, Layout: am.Layout}
-		}
 		next := am.LatestVersion + 1
 		if err := insertVersion(ctx, tx, a, id, next, v, digest, in.Note); err != nil {
 			return err
@@ -182,14 +179,19 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 		for k, xy := range am.Layout {
 			merged[k] = xy
 		}
+		stale := in.LayoutBase != nil && *in.LayoutBase != am.LayoutRevision
 		for k, xy := range in.Layout {
+			if _, placed := am.Layout[k]; stale && placed {
+				continue // another tab moved the layout since: its positions stay
+			}
 			merged[k] = xy
 		}
 		layout, err := layoutJSON(graph.LayoutOf(v.g, merged))
 		if err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `UPDATE automation.automations SET name = $3, latest_version = $4, layout = $5, layout_revision = layout_revision + 1, updated_at = now() WHERE tenant_id = $1 AND id = $2`,
+		if _, err := tx.Exec(ctx, `UPDATE automation.automations SET name = $3, latest_version = $4, layout = $5,
+			layout_revision = layout_revision + 1, updated_at = now() WHERE tenant_id = $1 AND id = $2`,
 			a.TenantID, id, v.g.Name, next, layout); err != nil {
 			return serrors.FromDB(opService, err)
 		}
@@ -358,20 +360,33 @@ func (r *Runtime) enableTx(ctx context.Context, tx pgx.Tx, a Actor, id uuid.UUID
 	return nil
 }
 
-func (s *service) SaveLayout(ctx context.Context, a Actor, id uuid.UUID, in LayoutInput) (int, error) {
+func (s *service) SaveLayout(ctx context.Context, a Actor, id uuid.UUID, l graph.Layout) error {
+	_, err := s.saveLayout(ctx, a, id, -1, l)
+	return err
+}
+
+func (s *service) SaveLayoutAt(ctx context.Context, a Actor, id uuid.UUID, baseRevision int, l graph.Layout) (int, error) {
+	if baseRevision < 0 {
+		return 0, fmt.Errorf("%w: a layout revision is never negative", ErrInvalidInput)
+	}
+	return s.saveLayout(ctx, a, id, baseRevision, l)
+}
+
+// saveLayout merges l into the layout; base < 0 saves over any revision. It returns the new revision.
+func (s *service) saveLayout(ctx context.Context, a Actor, id uuid.UUID, base int, l graph.Layout) (int, error) {
 	if err := s.authorize(a, PermAuthor); err != nil {
 		return 0, err
 	}
-	if errs := graph.ValidateLayout(in.Positions); len(errs) > 0 {
+	if errs := graph.ValidateLayout(l); len(errs) > 0 {
 		return 0, &ValidationError{Errors: errs}
 	}
-	revision := 0
+	var revision int
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		am, err := loadAutomation(ctx, tx, a.TenantID, id, true)
 		if err != nil {
 			return err
 		}
-		if in.BaseRevision != am.LayoutRevision {
+		if base >= 0 && base != am.LayoutRevision {
 			return &LayoutConflictError{Revision: am.LayoutRevision, Layout: am.Layout}
 		}
 		v, err := loadVersion(ctx, tx, a.TenantID, id, am.LatestVersion)
@@ -386,7 +401,7 @@ func (s *service) SaveLayout(ctx context.Context, a Actor, id uuid.UUID, in Layo
 		for k, xy := range am.Layout {
 			merged[k] = xy
 		}
-		for k, xy := range in.Positions {
+		for k, xy := range l {
 			merged[k] = xy
 		}
 		layout, err := layoutJSON(graph.LayoutOf(g, merged))
@@ -486,8 +501,7 @@ func (s *service) List(ctx context.Context, a Actor, f ListFilter) (Page[Automat
 		}
 	}
 	if f.Attention {
-		where = append(where, `EXISTS (SELECT 1`+runFrom+` WHERE r.tenant_id = automation.automations.tenant_id AND r.automation_id = automation.automations.id
-			AND `+statusSQL+` IN ('failed', 'blocked', 'filter_failed'))`)
+		where = append(where, `EXISTS (SELECT 1`+runFrom+` WHERE r.tenant_id = automations.tenant_id AND r.automation_id = automations.id AND `+attentionSQL+`)`)
 	}
 	if after {
 		args = append(args, c.At, c.ID)
@@ -578,7 +592,19 @@ func (s *service) EnableReview(ctx context.Context, a Actor, id uuid.UUID, versi
 	if err != nil {
 		return EnableReview{}, err
 	}
-	return reviewOf(s.r, view, v, g), nil
+	rv := reviewOf(s.r, view, v, g)
+	rv.Problems = []graph.GraphError{}
+	// The check Enable makes, told before the person presses Enable.
+	var verr *ValidationError
+	if _, err := s.r.validate(ctx, a, v.Graph); errors.As(err, &verr) {
+		rv.Problems = verr.Errors
+	} else if err != nil {
+		return EnableReview{}, err
+	}
+	if !triggersReadable(view, g) {
+		rv.Problems = append(rv.Problems, graph.GraphError{Code: CodeTriggersUnreadable, Message: "the triggers' events need a permission you do not have"})
+	}
+	return rv, nil
 }
 
 func (s *service) Enable(ctx context.Context, a Actor, id uuid.UUID, in EnableInput) (Automation, error) {
@@ -588,8 +614,14 @@ func (s *service) Enable(ctx context.Context, a Actor, id uuid.UUID, in EnableIn
 	if err := s.authorize(a, PermEnable); err != nil {
 		return Automation{}, err
 	}
-	if _, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false); err != nil {
+	current, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false)
+	if err != nil {
 		return Automation{}, err
+	}
+	// A version superseded since the review is reviewed again before anything about it is judged (its
+	// digest, its validation): the newer version may already fix what the older one lacks.
+	if in.Latest && current.LatestVersion != in.Version {
+		return Automation{}, ErrReviewRequired
 	}
 	v, err := loadVersion(ctx, s.r.cfg.DB, a.TenantID, id, in.Version)
 	if err != nil {
@@ -618,8 +650,12 @@ func (s *service) Enable(ctx context.Context, a Actor, id uuid.UUID, in EnableIn
 			return Automation{}, err
 		}
 		err = s.inTx(ctx, func(tx pgx.Tx) error {
-			if _, err := loadAutomation(ctx, tx, a.TenantID, id, true); err != nil {
+			locked, err := loadAutomation(ctx, tx, a.TenantID, id, true)
+			if err != nil {
 				return err
+			}
+			if in.Latest && locked.LatestVersion != in.Version {
+				return ErrReviewRequired
 			}
 			if err := s.r.enableTx(ctx, tx, a, id, in.Version, checked); err != nil {
 				return err

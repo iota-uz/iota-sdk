@@ -46,6 +46,12 @@
       "ConnectTimeout": 10000000000
     }
   },
+  "Eskiz": {
+    "URL": "",
+    "Email": "",
+    "Password": "",
+    "From": ""
+  },
   "ExtRuntime": {
     "Enabled": false,
     "NodeBinary": "node",
