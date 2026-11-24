@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/big"
 	"regexp"
 	"strings"
 	"sync"
@@ -296,8 +297,11 @@ func Decode(raw []byte) (Graph, []GraphError) {
 			col.Key, _ = c["key"].(string)
 			col.Window, _ = c["window"].(string)
 			if n, ok := c["max"].(json.Number); ok {
-				if v, err := n.Int64(); err == nil {
-					col.Max = int(v)
+				// 4, 4.0 and 4e0 are the same integer (the schema checked it is one); a value that is not an
+				// integer stays out of range, so validation refuses it.
+				col.Max = -1
+				if r, ok := new(big.Rat).SetString(string(n)); ok && r.IsInt() && r.Num().IsInt64() && r.Num().Int64() <= CollectMaxEvents {
+					col.Max = int(r.Num().Int64())
 				}
 			}
 			tr.Collect = col

@@ -184,7 +184,8 @@ func subjectVars(c Catalog, subject string) expr.Fields {
 // kind's payload with its kind; any other kind, or "", a map of dyn), nodes (each node's output), tenant
 // (a map of dyn) and now (the step's time).
 func ExprScope(c Catalog, subject, event string, nodes expr.Fields) expr.Scope {
-	return scopeOf(subjectVars(c, subject), eventField(c, event), nodes)
+	vars := subjectVars(c, subject)
+	return scopeOf(vars, eventField(c, event), expr.ListOf(eventField(c, event)), nodes, declaredNames(vars))
 }
 
 // ExprScopeOf is the scope of an expression that runs after any of several triggers: the variables of the
@@ -198,17 +199,41 @@ func ExprScopeOf(c Catalog, subjects, events []string, nodes expr.Fields) expr.S
 		}
 		vars = intersectFields(vars, subjectVars(c, subject))
 	}
-	return scopeOf(vars, eventFieldOf(c, events), nodes)
+	// subject and run are the run's own only where no reaching subject declares a variable of that name:
+	// a run from such a subject has the override, which the intersection may have dropped.
+	declared := map[string]bool{}
+	for _, subject := range subjects {
+		for name := range declaredNames(subjectVars(c, subject)) {
+			declared[name] = true
+		}
+	}
+	ev := eventFieldOf(c, events)
+	return scopeOf(vars, ev, expr.ListOf(ev), nodes, declared)
 }
 
-func scopeOf(vars expr.Fields, event expr.Field, nodes expr.Fields) expr.Scope {
-	// subject and run are the run's own unless the subject's context declares a variable of that name.
-	out := map[string]expr.Field{"subject": SubjectInfoField, "run": RunInfoField}
+// declaredNames are the variable names of a subject's context.
+func declaredNames(vars expr.Fields) map[string]bool {
+	out := make(map[string]bool, len(vars))
+	for _, p := range vars {
+		out[p.Name] = true
+	}
+	return out
+}
+
+func scopeOf(vars expr.Fields, event, events expr.Field, nodes expr.Fields, declared map[string]bool) expr.Scope {
+	// subject and run are the run's own unless a subject's context declares a variable of that name.
+	out := map[string]expr.Field{}
+	if !declared["subject"] {
+		out["subject"] = SubjectInfoField
+	}
+	if !declared["run"] {
+		out["run"] = RunInfoField
+	}
 	for _, p := range vars {
 		out[p.Name] = p.Field
 	}
 	out["event"] = event
-	out["events"] = expr.ListOf(event)
+	out["events"] = events
 	out["nodes"] = expr.ObjectOf(nodes)
 	out["tenant"] = expr.MapOf(expr.DynField)
 	out["now"] = expr.TimestampField
@@ -283,12 +308,16 @@ func (x *exprs) env(owner, event string, withNodes bool, each string) (*expr.Env
 			kind = x.event
 		}
 		scope = ExprScope(x.view.catalog, x.view.subject, kind, nodes)
+		// events are the run's trigger events, whatever event a wait's filter reads.
+		scope.Vars["events"] = expr.ListOf(eventField(x.view.catalog, x.event))
 	} else {
 		kinds, subjects := x.kindsAndSubjects(triggers)
+		triggerKinds := kinds
 		if event != "*" {
 			kinds = []string{event}
 		}
 		scope = ExprScopeOf(x.view.catalog, subjects, kinds, nodes)
+		scope.Vars["events"] = expr.ListOf(eventFieldOf(x.view.catalog, triggerKinds))
 		if x.run && len(triggers) > 1 {
 			// A run passes the event and the subject it has, whole: the fields all of them share, typed as the
 			// check types them, are what an expression may read.
@@ -380,20 +409,26 @@ func nodeOutput(c Catalog, spec NodeSpec, params map[string]any) (expr.Field, bo
 	// A failed call or effect puts output.error {code, message, retryable}: templates of the failed
 	// branch read it.
 	errField := expr.Prop{Name: "error", Field: expr.OptionalOf(ErrorField)}
+	// The failure's error is the engine's object whatever an output schema in a param declares (a static
+	// Output that declares error keeps its own: StructuredFailure is false for it).
+	withError := func(obj expr.Field) expr.Field {
+		obj = obj.Clone()
+		kept := obj.Props[:0]
+		for _, p := range obj.Props {
+			if p.Name != "error" {
+				kept = append(kept, p)
+			}
+		}
+		obj.Props = append(kept, errField)
+		return obj
+	}
 	switch {
 	case !ok:
 		return expr.ObjectOf(expr.Fields{errField}), true, err
 	case f.Kind == expr.Object:
-		if _, has := f.Prop("error"); !has {
-			f = f.Clone()
-			f.Props = append(f.Props, errField)
-		}
+		f = withError(f)
 	case f.Kind == expr.Optional && f.Elem != nil && f.Elem.Kind == expr.Object:
-		if _, has := f.Elem.Prop("error"); !has {
-			inner := f.Elem.Clone()
-			inner.Props = append(inner.Props, errField)
-			f = expr.OptionalOf(inner)
-		}
+		f = expr.OptionalOf(withError(*f.Elem))
 	}
 	return f, ok, err
 }

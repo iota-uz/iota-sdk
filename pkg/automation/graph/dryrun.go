@@ -11,6 +11,9 @@ import (
 type DryRunInput struct {
 	Event   Event
 	Timeout bool
+	// Events, for the input that starts the run, is the batch a trigger's collect merged: the run reads
+	// it as events and its last entry as event (Event is ignored then).
+	Events []Event
 }
 
 // DryRunOptions adjust a dry run.
@@ -30,10 +33,11 @@ type DryRunOptions struct {
 // ExecAnswer is the answer of a call a dry run executed: its outcome and output, or its failure (Code and
 // Message: the node's failed outcome, or the trace stops when it has none).
 type ExecAnswer struct {
-	Outcome string
-	Output  map[string]any
-	Code    string
-	Message string
+	Outcome   string
+	Output    map[string]any
+	Code      string
+	Message   string
+	Retryable bool // the failure may succeed later (output.error.retryable)
 }
 
 // Statuses of a dry run's steps with Modes on.
@@ -88,7 +92,7 @@ const (
 // waiting, or a join's, counted from its parallel's fork — the first one created on a tie.
 func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput, o DryRunOptions) []TraceStep {
 	run := Context{Event: map[string]any{}, Nodes: map[string]NodeState{}, Vars: ctx.Vars, Now: ctx.Now, Tenant: ctx.Tenant, Foreach: map[string]ForeachItem{},
-		Subject: ctx.Subject, Run: ctx.Run}
+		Subject: ctx.Subject, Run: ctx.Run, Events: ctx.Events}
 	for id, st := range ctx.Nodes {
 		// A call's given answer is its answer, not an output: it is visible once the call has run.
 		if node, ok := i.view.Node(id); ok && i.view.catalog.Nodes[node.Type].Behavior == BehaviorCall {
@@ -110,6 +114,9 @@ func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput,
 	for _, input := range inputs {
 		if d.ended {
 			break
+		}
+		if len(input.Events) > 0 {
+			input.Event = input.Events[len(input.Events)-1]
 		}
 		if !started {
 			if input.Timeout {
@@ -135,6 +142,12 @@ func (i *Interpreter) DryRun(subject Subject, ctx Context, inputs []DryRunInput,
 				}
 				main := &dryToken{ctx: copyContext(run), from: t.ID}
 				main.ctx.Event = map[string]any(input.Event)
+				if len(input.Events) > 0 {
+					main.ctx.Events = make([]map[string]any, len(input.Events))
+					for k, e := range input.Events {
+						main.ctx.Events[k] = map[string]any(e)
+					}
+				}
 				d.tokens = append(d.tokens, main)
 				d.emit(nil, TraceStep{Node: t.ID, Outcome: TriggerOutcome})
 				started = true
@@ -334,6 +347,17 @@ func (d *dryRun) dropTimer(drop *dryTimer) {
 // takeFailed sends a failure down the node's failed outcome, if it has one: output {"error"}, and
 // "code" when the failure names one the output must keep (a foreach's VALUE_TOO_LARGE).
 func (d *dryRun) takeFailed(t *dryToken, node, message string, code ...string) (string, bool) {
+	return d.takeFailedWith(t, node, message, failedHow{}, code...)
+}
+
+// failedHow is what a failed outcome's step carries besides the message: the call's retryable flag and
+// the status of the step (executed: a real call failed).
+type failedHow struct {
+	retryable bool
+	status    string
+}
+
+func (d *dryRun) takeFailedWith(t *dryToken, node, message string, how failedHow, code ...string) (string, bool) {
 	failedOutcome := d.i.FailedOutcome(node)
 	if failedOutcome == "" {
 		return "", false
@@ -344,7 +368,7 @@ func (d *dryRun) takeFailed(t *dryToken, node, message string, code ...string) (
 		if len(code) > 0 && code[0] != "" {
 			c = code[0]
 		}
-		out = FailedOutput(c, d.i.fitError(message, FailedOutput(c, "", false)), false)
+		out = FailedOutput(c, d.i.fitError(message, FailedOutput(c, "", how.retryable)), how.retryable)
 	} else {
 		out = map[string]any{"error": message}
 		if len(code) > 0 && code[0] != "" {
@@ -359,7 +383,7 @@ func (d *dryRun) takeFailed(t *dryToken, node, message string, code ...string) (
 		return "", false
 	}
 	t.set(node, NodeState{Output: out})
-	d.emit(t, TraceStep{Node: node, Outcome: failedOutcome, ContextPatch: map[string]any{"output": out}})
+	d.emit(t, TraceStep{Node: node, Outcome: failedOutcome, ContextPatch: map[string]any{"output": out}, Status: how.status})
 	return failedOutcome, true
 }
 
@@ -473,7 +497,7 @@ func (d *dryRun) walk(t *dryToken, current string) {
 				status = StatusExecuted
 				a := d.o.Execute(node, step.Effects)
 				if a.Code != "" {
-					fo, took := d.takeFailed(t, node.ID, a.Message, a.Code)
+					fo, took := d.takeFailedWith(t, node.ID, a.Message, failedHow{retryable: a.Retryable, status: StatusExecuted}, a.Code)
 					if !took {
 						d.fail(t, node.ID, failed(a.Code, "%s", a.Message))
 						return
