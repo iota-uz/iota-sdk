@@ -52,6 +52,7 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 		out = append(out, prepared...)
 		out = append(out, scheduleRule(view, g)...)
 		out = append(out, collectRule(view, g)...)
+		out = append(out, r.nodeRules(view, g)...)
 		return append(out, runAsRule(view, g)...)
 	}
 	errs = graph.Validate(view.Catalog, g, opts)
@@ -218,6 +219,21 @@ func (r *Runtime) executorRule(view catalog.View, g graph.Graph) []graph.GraphEr
 				out = append(out, graph.GraphError{Path: fmt.Sprintf("nodes[%d].type", i), Code: CodeUnsupported,
 					Message: n.Type + " waits for an answer without naming its answer event (AnswerEventer)"})
 			}
+		}
+	}
+	return out
+}
+
+// nodeRules are the rules the node types of a graph bring along (GraphChecker).
+func (r *Runtime) nodeRules(view catalog.View, g graph.Graph) []graph.GraphError {
+	var out []graph.GraphError
+	for i, n := range g.Nodes {
+		if _, ok := view.Catalog.Nodes[n.Type]; !ok {
+			continue
+		}
+		nt, _ := r.cfg.Catalog.Node(n.Type)
+		if gc, ok := nt.(GraphChecker); ok {
+			out = append(out, gc.CheckNode(g, i, view)...)
 		}
 	}
 	return out
