@@ -42,8 +42,8 @@ func (p tableProbe) Build(b *composition.Builder) error {
 }
 
 // The harness applies its migration policy before the start hooks run: a hook
-// that reads a migrated table at start finds it, as it does in a server that
-// migrates before it serves. Falsely green if the hook is skipped, so the test
+// that reads a migrated table at start finds it, as it does in a deployment, where
+// the schema is migrated before the process starts. Falsely green if the hook is skipped, so the test
 // also checks that it ran.
 func TestHarnessMigratesBeforeStartHooks(t *testing.T) {
 	t.Parallel()
