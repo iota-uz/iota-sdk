@@ -1046,7 +1046,9 @@ export function Canvas(props: CanvasProps): JSX.Element {
                 </span>
               </Show>
             </div>
-            <div class="ae-card__sub" title={name().subtitle}>{name().subtitle}</div>
+            <Show when={props.overlay?.notes?.get(id)} fallback={<div class="ae-card__sub" title={name().subtitle}>{name().subtitle}</div>}>
+              {(note) => <div class="ae-card__sub ae-card__note" title={note()}>{note()}</div>}
+            </Show>
           </div>
         }>
           {(render) => <div class="ae-card__body">{render()(item)}</div>}

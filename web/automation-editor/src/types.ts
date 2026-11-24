@@ -73,20 +73,80 @@ export type CatalogNode = {
   connector?: string
   /** false → the palette marks the type "no connection" and does not offer it. */
   connected?: boolean
+  /** Set for a call node: false → a Test node is confirmed as an irreversible effect. */
+  idempotent?: boolean
+  /** What a dry run does with the node. */
+  dry_run?: 'execute' | 'capture' | 'forbid'
 }
 
 export type GraphError = { path: string; message: string; line?: number; column?: number; code?: string }
 export type Subject = { entity: string; key: string; label?: string }
 
-// Types of runs, dry run and test node; the editor ships only the types and the overlay prop.
+// ——— runs, dry run and test node (#1347) ———
+/**
+ * A step of a dry run. kind: triggered | not_triggered | step | wait | woke | timeout | joined | cancelled
+ * | ended | error. status: captured (an effect not made, its params rendered in effects) or executed (a
+ * call made for real, a live decision).
+ */
 export type TraceStep = {
   node: string; token?: string; kind: string; outcome?: string | null
   path?: string; message?: string; effects?: unknown[]
+  status?: 'captured' | 'executed' | string; output?: unknown
 }
+/** How a dry run's execute nodes answer (#1336): from the cache, a live call, or the given context. */
+export type DecisionMode = 'cached' | 'live' | 'scripted'
 export type TestNodeResult = {
   outcome: string; output?: unknown; logs?: string[]; duration_ms?: number
+  /** reason: exception | timeout | network_blocked | connection_unavailable | secret_missing | … */
   error?: { reason: string; message: string; line?: number }
 }
+
+export type RunState = 'running' | 'waiting' | 'done' | 'failed' | 'cancelled' | 'blocked'
+export type RunSummary = {
+  run_id: string
+  version: number
+  state: RunState
+  subject: Subject | null
+  /** The id of the graph's trigger that started the run. */
+  trigger: string
+  /** The phrase of the run's error, for a failed run. */
+  error: string | null
+  /** RFC 3339 */
+  created_at: string
+  updated_at: string
+  /** Nodes where the run's tokens stand now. */
+  current_nodes?: string[]
+}
+export type RunToken = {
+  token_id: string; node: string | null; state: 'active' | 'waiting' | 'done' | 'cancelled'
+  parent?: string | null; foreach_index?: number | null
+}
+export type RunStep = {
+  node: string
+  token_id: string
+  attempt: number
+  input: unknown
+  outcome: string | null
+  output: unknown
+  /** Already masked by the server. */
+  logs: string[]
+  error: { code: string; message: string } | null
+  started_at: string
+  ended_at: string | null
+  /** The viewer may not read the step's data (a sensitive field). */
+  hidden?: boolean
+}
+export type RunWait = {
+  node: string; token_id: string; kind: 'event' | 'timer' | 'human' | 'call'
+  since: string; timeout_at: string | null
+  /** What Retry and Resolve name; a blocked call's wait. */
+  wait_id?: string
+}
+export type RunData = RunSummary & { tokens: RunToken[]; steps: RunStep[]; waits: RunWait[] }
+export type RunsQuery = { automation_id: string; version?: number; state?: RunState[]; subject?: string; cursor?: string; limit?: number }
+
+/** The Runs tab's view state; a host that keeps it in the URL controls it (D1). */
+export type RunsView = { run?: string | null; node?: string | null; state?: RunState[]; subject?: string }
 export type SaveResult =
   /** Saved; with pending_review the enabled version stays until review. */
   | { ok: true; graph: AutomationGraph; version: number; pending_review?: boolean }
@@ -95,14 +155,26 @@ export type SaveResult =
 
 export interface EditorApi {
   validate(graph: AutomationGraph): Promise<{ ok: boolean; errors: GraphError[]; warnings?: GraphError[] }>
-  dryRun(input: { graph: AutomationGraph; subject: Subject; context?: Record<string, unknown>; events: Record<string, unknown>[] }): Promise<{ trace: TraceStep[] }>
+  dryRun(input: { graph: AutomationGraph; subject: Subject; context?: Record<string, unknown>; events: Record<string, unknown>[]; decisions?: DecisionMode }): Promise<{ trace: TraceStep[] }>
   testNode(input: { graph: AutomationGraph; node_id: string; subject?: Subject; context?: Record<string, unknown> }): Promise<TestNodeResult>
   searchSubjects?(entity: string, query: string): Promise<{ subject: Subject; label: string; note?: string }[]>
+  /** The runs of a graph, newest first (limit ≤ 50). Both runs and run → the Runs tab. */
+  runs?(input: RunsQuery): Promise<{ items: RunSummary[]; next_cursor: string | null }>
+  /** A run; a run that is deleted or another tenant's rejects with an error whose code is "not_found". */
+  run?(run_id: string): Promise<RunData>
+  /** The graph of a version, which a run of another version is drawn with. */
+  version?(version: number): Promise<{ graph: AutomationGraph; layout: AutomationLayout }>
+  // Operate (Automations.Operate): without a method its button is not rendered.
+  cancelRun?(run_id: string): Promise<void>
+  /** A blocked run: repeat the blocked call. */
+  retryRun?(input: { run_id: string; wait_id?: string }): Promise<void>
+  /** A blocked run: go on with the chosen outcome of the blocked node. */
+  resolveRun?(input: { run_id: string; outcome: string; wait_id?: string }): Promise<void>
 }
 
 export type ItemState = 'passed' | 'running' | 'waiting' | 'failed' | 'skipped' | 'cancelled'
-/** taken: "node.outcome" */
-export type Overlay = { states: Map<string, ItemState>; badges: Map<string, string>; taken: Set<string> }
+/** taken: "node.outcome"; notes: a line under a card's title (the message of a failed branch). */
+export type Overlay = { states: Map<string, ItemState>; badges: Map<string, string>; taken: Set<string>; notes?: Map<string, string> }
 
 export type FieldSlot = (field: {
   nodeType: string; nodeId: string; param: string
@@ -141,7 +213,23 @@ export interface EditorProps {
   readOnly?: { reason: string }
   fieldSlot?: FieldSlot
   overlay?: Overlay | null
-  tab?: 'edit' | 'runs'; onTab?(tab: 'edit' | 'runs'): void; runsCount?: number; runsBody?: JSX.Element
+  tab?: 'edit' | 'runs'; onTab?(tab: 'edit' | 'runs'): void; runsCount?: number
+  /** The host's own Runs tab; absent and api.runs/api.run given → the editor's runs view. */
+  runsBody?: JSX.Element
+  /** The graph's id, which api.runs is asked with. */
+  automationId?: string
+  /** Rights of the viewer (the host's RBAC); absent → author unless read-only, operate by the api's methods. */
+  can?: { author?: boolean; operate?: boolean }
+  /** The Runs tab's state (run, node, filters); with onRunsView the host keeps it (in the URL). */
+  runsView?: RunsView
+  /** push: a new history entry (a run or node opened); otherwise the current one is replaced. */
+  onRunsView?(view: RunsView, push: boolean): void
+  /** A link to a run's subject («Open <subject>»); undefined → no link. */
+  subjectHref?(subject: Subject): string | undefined
+  /** «Run» on the empty Runs tab of a graph with a manual trigger; absent → no button. */
+  onStartRun?(): void
+  /** The name of a connection by id (the Test node confirmation names it). */
+  connectionName?(id: string): string | undefined
   /** Extra docked panels from the host (Dry run, Test node). */
   panels?: JSX.Element
   crumb?: JSX.Element; actions?: JSX.Element; banner?: JSX.Element
@@ -191,4 +279,6 @@ export interface OutlineProps {
   catalog: EditorCatalog
   overlay?: Overlay | null
   locale?: EditorLocale
+  /** Makes each item a button (a run's outline opens the node's drawer). */
+  onPick?(id: string): void
 }
