@@ -640,6 +640,33 @@ func (e *Engine) loadTask(ctx context.Context, q taskQueryer, tenant, id uuid.UU
 	return tasks[0], nil
 }
 
+// TasksByID reads tasks of the tenant by ID with their assignees,
+// delegations and decisions, in the order of ids; an ID of no task of the
+// tenant is left out. It judges no rights: a caller that shows a task to a
+// user decides who may see it (Tasks, DecideTask and DelegateTask judge
+// their own).
+func (e *Engine) TasksByID(ctx context.Context, tenant uuid.UUID, ids []uuid.UUID) ([]Task, error) {
+	if len(ids) == 0 {
+		return []Task{}, nil
+	}
+	tasks, err := e.queryTasks(ctx, e.cfg.DB, tenant, `t.id = ANY($2)`, ids)
+	if err != nil {
+		return nil, err
+	}
+	at := make(map[uuid.UUID]Task, len(tasks))
+	for _, t := range tasks {
+		at[t.ID] = t
+	}
+	out := make([]Task, 0, len(tasks))
+	for _, id := range ids {
+		if t, ok := at[id]; ok {
+			out = append(out, t)
+			delete(at, id)
+		}
+	}
+	return out, nil
+}
+
 // ---- observers ----
 
 // observeTask tells the observers about a change of a task, in tx.

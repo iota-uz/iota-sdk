@@ -47,7 +47,10 @@ func WithoutBackground() Option {
 
 // engineHolder is the composition's engine; rt is nil when the composition cannot run one (the module's
 // engine is turned off, or no extension core provides the workflow engine and the subject loader).
-type engineHolder struct{ rt *engine.Runtime }
+type engineHolder struct {
+	rt    *engine.Runtime
+	links engine.Links
+}
 
 // runtime is the composition's engine, nil when it cannot run one.
 func (c *component) runtime(container *composition.Container) (*engine.Runtime, error) {
@@ -93,11 +96,15 @@ func (c *component) buildEngine(b *composition.Builder) {
 		for _, tune := range c.engineTune {
 			tune(&cfg)
 		}
+		// Human nodes open tasks of the workflow engine unless the application gave its own bridge.
+		if cfg.Tasks == nil {
+			cfg.Tasks = engine.NewHumanBridge(cfg.Limits.WaitMax)
+		}
 		rt, err := engine.NewRuntime(cfg)
 		if err != nil {
 			return nil, err
 		}
-		return &engineHolder{rt: rt}, nil
+		return &engineHolder{rt: rt, links: cfg.Links}, nil
 	})
 	wiring.ContributeNativeWorkflows(b, func(container *composition.Container) (map[string]workflow.NativeContract, error) {
 		rt, err := c.runtime(container)

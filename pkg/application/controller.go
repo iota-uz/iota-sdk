@@ -101,6 +101,9 @@ type NavNode struct {
 	Actions    []NavAction
 	IsBeta     bool
 	Visibility *AuthPolicy
+	// Badge is rendered after the title of the item's link in the sidebar (a counter that refreshes
+	// itself, say); nil renders none. It renders with the request's context.
+	Badge templ.Component
 }
 
 type NavScope struct {

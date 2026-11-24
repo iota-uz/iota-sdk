@@ -86,6 +86,7 @@ func filterItems(items []types.NavigationItem, user user.User) []types.Navigatio
 				// RequireAny (OR) semantics instead of reverting to AND.
 				Logic:  item.Logic,
 				IsBeta: item.IsBeta,
+				Badge:  item.Badge,
 			})
 		}
 	}

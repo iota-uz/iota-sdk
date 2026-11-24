@@ -29,6 +29,8 @@ type NavigationItem struct {
 	Permissions []permission.Permission
 	Logic       PermissionLogic
 	IsBeta      bool
+	// Badge is rendered after the item's name in the sidebar (application.NavNode.Badge).
+	Badge templ.Component
 }
 
 func (n NavigationItem) HasPermission(user user.User) bool {

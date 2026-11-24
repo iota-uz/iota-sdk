@@ -4,7 +4,8 @@
   },
   "NavigationLinks": {
     "Integrations": "Integratsiyalar",
-    "Automations": "Avtomatlashtirishlar"
+    "Automations": "Avtomatlashtirishlar",
+    "AutomationTasks": "Mening vazifalarim"
   },
   "Permissions": {
     "Automations.Read": "Avtomatlashtirishlarni koʻrish",
@@ -454,6 +455,131 @@
       "billing": "Toʻlovlar",
       "projects": "Loyihalar",
       "Misc": "Boshqa"
+    },
+    "Tasks": {
+      "Title": "Mening vazifalarim",
+      "Intro": "Avtomatlashtirishlar sizdan kutayotgan qarorlar: sizga, rollaringiz va guruhlaringizga tayinlangan yoki sizga topshirilgan.",
+      "Tabs": {
+        "Label": "Vazifalar ro‘yxatlari",
+        "Mine": "Meniki",
+        "Overdue": "Muddati o‘tgan",
+        "Decided": "Men hal qilganlar"
+      },
+      "Search": {
+        "Label": "Vazifalarni qidirish",
+        "Placeholder": "Vazifa yoki yozuv bo‘yicha qidirish"
+      },
+      "Empty": {
+        "Mine": "Siz uchun vazifa yo‘q",
+        "MineHint": "Avtomatlashtirish sizdan, rolingiz yoki guruhingizdan qaror so‘rasa, vazifa shu yerda paydo bo‘ladi va bildirishnoma keladi.",
+        "Overdue": "Muddati o‘tgan vazifa yo‘q",
+        "OverdueHint": "Muddati o‘tgan ochiq vazifalar shu yerda paydo bo‘ladi.",
+        "Decided": "Siz hali birorta vazifani hal qilmadingiz",
+        "DecidedHint": "Hal qilingan vazifalar natijasi bilan shu yerda qoladi.",
+        "Filtered": "«{{.Query}}» bo‘yicha hech narsa topilmadi",
+        "Reset": "Filtrlarni tozalash",
+        "ToMine": "Vazifalarimni ochish"
+      },
+      "More": "Yana ko‘rsatish",
+      "Retry": "Qayta urinish",
+      "Back": "Mening vazifalarim",
+      "Overdue": "Muddati o‘tgan",
+      "Escalated": "Eskalatsiya qilingan",
+      "Via": {
+        "User": "Sizga tayinlangan",
+        "Role": "Rolingiz",
+        "Group": "Guruhingiz",
+        "Permission": "Huquqingiz",
+        "Delegated": "Sizga topshirilgan",
+        "DelegatedBy": "{{.Name}} topshirdi"
+      },
+      "Quorum": "{{.Required}} dan {{.Decided}}",
+      "MyDecision": "Sizning qaroringiz: {{.Outcome}}",
+      "Closed": {
+        "DecidedBy": "Allaqachon hal qilingan: {{.Name}}, {{.At}} — {{.Outcome}}",
+        "Decided": "Hal qilingan: {{.Outcome}}",
+        "Expired": "Muddat o‘tdi: vazifa qarorsiz yopildi",
+        "Cancelled": "Avtomatlashtirish to‘xtatildi: vazifa bekor qilindi",
+        "Changed": "Siz qaror qilayotganda vazifa o‘zgardi. Hozirgi holati shu."
+      },
+      "Decision": {
+        "Heading": "Qaror"
+      },
+      "Comment": {
+        "Label": "Izoh",
+        "Required": "majburiy",
+        "RequiredFor": "({{.Outcomes}} uchun majburiy)",
+        "Hint": "Izohni avtomatlashtirish va boshqa ijrochilar ko‘radi.",
+        "Missing": "Izoh yozing: bu qaror uchun u majburiy."
+      },
+      "Confirm": {
+        "Label": "Tasdiqlash: {{.Outcome}}",
+        "Question": "«{{.Outcome}}» qarorini qabul qilasizmi?",
+        "Hint": "Yozilgan qarorni o‘zgartirib bo‘lmaydi.",
+        "Cancel": "Bekor qilish"
+      },
+      "Submitting": "Tasdiqlanmoqda…",
+      "Slow": "Server javobini hali kutyapmiz. Qaror ikki marta yozilmaydi.",
+      "Form": {
+        "Unavailable": "Shakl mavjud emas",
+        "UnavailableHint": "Bu vazifa ilovada yo‘q shakl bilan hal qilinadi. Avtomatlashtirish egasidan qadamni tuzatishni so‘rang; ungacha bu yerda hal qilib bo‘lmaydi."
+      },
+      "Delegate": {
+        "Open": "Hamkasbga topshirish",
+        "To": "Hamkasb",
+        "Search": "Ism yoki email bo‘yicha topish",
+        "NotFound": "Hech kim topilmadi",
+        "Comment": "Hamkasb uchun izoh",
+        "Submit": "Vazifani topshirish",
+        "Submitting": "Topshirilmoqda…"
+      },
+      "OpenRun": "Ishga tushirishni ochish",
+      "Copy": "Nusxalash",
+      "Copied": "Nusxalandi",
+      "Missing": {
+        "Title": "Vazifa mavjud emas",
+        "Hint": "U boshqaga tayinlangan, topshirilgan yoki siz endi uning ijrochilari qatorida emassiz.",
+        "Back": "Vazifalarimga qaytish"
+      },
+      "Errors": {
+        "ListFailed": "Vazifalarni yuklab bo‘lmadi",
+        "ListFailedHint": "Ulanishni tekshirib, qayta urining.",
+        "TaskFailed": "Vazifani ochib bo‘lmadi",
+        "Invalid": "Qarorni tekshiring: majburiy izoh yoki maydon to‘ldirilmagan yoki noto‘g‘ri.",
+        "DecideFailed": "Qarorni yozib bo‘lmadi. Bir daqiqadan so‘ng qayta urining.",
+        "DelegationDenied": "Bu vazifani bu odamga topshirib bo‘lmaydi. Boshqa hamkasbni tanlang.",
+        "DelegateFailed": "Vazifani topshirib bo‘lmadi. Bir daqiqadan so‘ng qayta urining.",
+        "HumanRequired": "Vazifani faqat inson o‘z sessiyasida hal qiladi."
+      },
+      "Toast": {
+        "Decided": "Qaror yozildi",
+        "Delegated": "Topshirildi",
+        "DelegatedTo": "Topshirildi: {{.Name}}"
+      },
+      "Badge": {
+        "Open": {
+          "one": "{{.Count}} ta ochiq vazifa",
+          "other": "{{.Count}} ta ochiq vazifa"
+        }
+      },
+      "Time": {
+        "Now": "hozir",
+        "In": "{{.Span}}dan so‘ng",
+        "Ago": "{{.Span}} oldin",
+        "Minutes": {
+          "one": "{{.Count}} daq",
+          "other": "{{.Count}} daq"
+        },
+        "Hours": {
+          "one": "{{.Count}} soat",
+          "other": "{{.Count}} soat"
+        },
+        "Days": {
+          "one": "{{.Count}} kun",
+          "other": "{{.Count}} kun"
+        },
+        "Months": "yan,fev,mar,apr,may,iyn,iyl,avg,sen,okt,noy,dek"
+      }
     }
   }
 }

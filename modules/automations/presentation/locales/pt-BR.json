@@ -4,7 +4,8 @@
   },
   "NavigationLinks": {
     "Integrations": "Integrações",
-    "Automations": "Automações"
+    "Automations": "Automações",
+    "AutomationTasks": "Minhas tarefas"
   },
   "Permissions": {
     "Automations.Read": "Ver automações",
@@ -454,6 +455,131 @@
       "billing": "Cobrança",
       "projects": "Projetos",
       "Misc": "Outros"
+    },
+    "Tasks": {
+      "Title": "My tasks",
+      "Intro": "Decisions automations are waiting for from you: assigned to you, your roles and groups, or passed to you.",
+      "Tabs": {
+        "Label": "Task lists",
+        "Mine": "Mine",
+        "Overdue": "Overdue",
+        "Decided": "Decided by me"
+      },
+      "Search": {
+        "Label": "Search tasks",
+        "Placeholder": "Search by task or record"
+      },
+      "Empty": {
+        "Mine": "No tasks waiting for you",
+        "MineHint": "When an automation asks you, your role or your group to decide, the task appears here and you get a notification.",
+        "Overdue": "Nothing is overdue",
+        "OverdueHint": "Open tasks past their due time appear here.",
+        "Decided": "You have not decided any task yet",
+        "DecidedHint": "Tasks you decide stay here, with how they ended.",
+        "Filtered": "Nothing found for «{{.Query}}»",
+        "Reset": "Reset filters",
+        "ToMine": "Open my tasks"
+      },
+      "More": "Show more",
+      "Retry": "Retry",
+      "Back": "My tasks",
+      "Overdue": "Overdue",
+      "Escalated": "Escalated",
+      "Via": {
+        "User": "Assigned to you",
+        "Role": "Your role",
+        "Group": "Your group",
+        "Permission": "Your permission",
+        "Delegated": "Passed to you",
+        "DelegatedBy": "Passed from {{.Name}}"
+      },
+      "Quorum": "{{.Decided}} of {{.Required}}",
+      "MyDecision": "You decided: {{.Outcome}}",
+      "Closed": {
+        "DecidedBy": "Already decided by {{.Name}} at {{.At}}: {{.Outcome}}",
+        "Decided": "Decided: {{.Outcome}}",
+        "Expired": "The due time passed: the task closed without a decision",
+        "Cancelled": "The automation was stopped: the task is cancelled",
+        "Changed": "The task changed while you were deciding. Here is how it stands now."
+      },
+      "Decision": {
+        "Heading": "Decision"
+      },
+      "Comment": {
+        "Label": "Comment",
+        "Required": "required",
+        "RequiredFor": "(required for {{.Outcomes}})",
+        "Hint": "Visible to the automation and the other assignees.",
+        "Missing": "Write a comment: this decision needs one."
+      },
+      "Confirm": {
+        "Label": "Confirm {{.Outcome}}",
+        "Question": "Decide «{{.Outcome}}»?",
+        "Hint": "The decision cannot be changed once it is recorded.",
+        "Cancel": "Cancel"
+      },
+      "Submitting": "Confirming…",
+      "Slow": "Still waiting for the server. The decision will not be recorded twice.",
+      "Form": {
+        "Unavailable": "Form unavailable",
+        "UnavailableHint": "This task is decided with a form this application does not have. Ask the automation's owner to fix the step; until then it cannot be decided here."
+      },
+      "Delegate": {
+        "Open": "Pass to a colleague",
+        "To": "Colleague",
+        "Search": "Find by name or email",
+        "NotFound": "No one matches",
+        "Comment": "Comment for the colleague",
+        "Submit": "Pass the task",
+        "Submitting": "Passing…"
+      },
+      "OpenRun": "Open the run",
+      "Copy": "Copy",
+      "Copied": "Copied",
+      "Missing": {
+        "Title": "This task is not available",
+        "Hint": "It was assigned to someone else, passed on, or you are no longer among its assignees.",
+        "Back": "Back to my tasks"
+      },
+      "Errors": {
+        "ListFailed": "Could not load the tasks",
+        "ListFailedHint": "Check the connection and retry.",
+        "TaskFailed": "Could not open the task",
+        "Invalid": "Check the decision: a required comment or field is missing or wrong.",
+        "DecideFailed": "Could not record the decision. Try again in a minute.",
+        "DelegationDenied": "This task cannot be passed to that person. Pick another colleague.",
+        "DelegateFailed": "Could not pass the task on. Try again in a minute.",
+        "HumanRequired": "Only a person decides a task, in their own session."
+      },
+      "Toast": {
+        "Decided": "Decision recorded",
+        "Delegated": "Passed on",
+        "DelegatedTo": "Passed to {{.Name}}"
+      },
+      "Badge": {
+        "Open": {
+          "one": "{{.Count}} open task",
+          "other": "{{.Count}} open tasks"
+        }
+      },
+      "Time": {
+        "Now": "now",
+        "In": "in {{.Span}}",
+        "Ago": "{{.Span}} ago",
+        "Minutes": {
+          "one": "{{.Count}} min",
+          "other": "{{.Count}} min"
+        },
+        "Hours": {
+          "one": "{{.Count}} h",
+          "other": "{{.Count}} h"
+        },
+        "Days": {
+          "one": "{{.Count}} day",
+          "other": "{{.Count}} days"
+        },
+        "Months": "Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec"
+      }
     }
   }
 }
