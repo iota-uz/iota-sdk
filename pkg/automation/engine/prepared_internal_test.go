@@ -40,7 +40,7 @@ func TestPreparedEffectsAreUsedOnlyForTheSameStepAndTheSameVariables(t *testing.
 }
 
 // A preparation that no longer fits what the step reads is not handed to the node: the step prepares again, a
-// few times at most, and then the node decides without one.
+// few times at most, and then the step is retried later instead of being applied.
 func TestStalePreparationIsNotHandedToTheNode(t *testing.T) {
 	tok := &tokenRow{ID: uuid.New(), StepSeq: 2, NodeID: "n"}
 	vars := map[string]any{"order": map[string]any{"owner": 7}}

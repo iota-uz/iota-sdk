@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/notify"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -194,15 +195,22 @@ func TestSendToContactPreparesTheContactCheckBeforeTheTransaction(t *testing.T) 
 	require.Len(t, s.sends, 1)
 	assert.False(t, s.sends[0].CheckContacts, "the contact was checked before the transaction")
 
-	// A preparation made for another record is not trusted, and the contact is not asked again in the
-	// transaction either: the record is queued unchecked for the worker.
+	// A preparation made for another record, or one that is exhausted (what the step reads kept changing), never
+	// lets the record be queued unchecked: the step stops with a platform error, which the engine retries, and
+	// nothing is queued, whatever the record's address is.
 	elsewhere := step()
 	elsewhere.Subject = engine.SubjectRef{Entity: "crm.client", Key: "7"}
-	s = &sender{resolved: clientAudience(), receipt: notifications.AudienceReceipt{NoticeID: notice, Recipients: 1}}
-	res, err = applyWith(s, prepareAs(s, elsewhere))
-	require.NoError(t, err)
-	assert.Equal(t, notify.OutcomeSent, res.Outcome)
-	assert.False(t, s.sends[0].CheckContacts)
+	for name, prepared := range map[string]*engine.PreparedEffect{
+		"another record": prepareAs(&sender{resolved: clientAudience()}, elsewhere),
+		"exhausted":      {Exhausted: true},
+		"empty":          {},
+	} {
+		s = &sender{receipt: notifications.AudienceReceipt{NoticeID: notice, Recipients: 1}}
+		_, err = applyWith(s, prepared)
+		require.Error(t, err, name)
+		assert.True(t, host.IsInfrastructure(err), "%s: a retry, not an outcome", name)
+		assert.Empty(t, s.sends, "%s: nothing is queued", name)
+	}
 
 	// A preparation that failed fails the node with its error, and queues nothing.
 	s = &sender{resolveErr: serrors.New(serrors.FailedPrecondition, "notification channel is not available: sms")}
