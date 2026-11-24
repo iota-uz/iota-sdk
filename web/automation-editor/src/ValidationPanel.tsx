@@ -5,7 +5,8 @@ import { Icon } from './icons'
 import { describeItem } from './names'
 import { strings } from './strings'
 import type { AutomationGraph, EditorCatalog, EditorLocale, GraphError } from './types'
-import { errorTarget, issuesOf, removablePath, type ValidationState } from './validation'
+import { applyFix, removablePath } from './fix'
+import { errorTarget, issuesOf, type ValidationState } from './validation'
 
 export interface ValidationPanelProps {
   state: ValidationState
@@ -13,8 +14,8 @@ export interface ValidationPanelProps {
   catalog: EditorCatalog
   locale: EditorLocale
   onPick(target: { id: string | null; field: string | null }): void
-  /** Applies an issue's fix (absent: fixes are not offered, e.g. read only). */
-  onFix?(error: GraphError): void
+  /** Takes the graph with an issue's fix applied (absent: fixes are not offered, e.g. read only). */
+  onFix?(graph: AutomationGraph): void
   onRetry(): void
   onClose(): void
 }
@@ -33,7 +34,7 @@ export function ValidationPanel(props: ValidationPanelProps): JSX.Element {
           <span class="ae-issue__text">{error.message}</span>
         </button>
         <Show when={error.fix && props.onFix && removablePath(error.fix.remove)}>
-          <button type="button" class="ae-btn ae-btn--secondary ae-issue__fix" onClick={() => props.onFix?.(error)}>{error.fix!.label}</button>
+          <button type="button" class="ae-btn ae-btn--secondary ae-issue__fix" onClick={() => { const next = applyFix(props.graph, error.fix!.remove); if (next) props.onFix?.(next) }}>{error.fix!.label}</button>
         </Show>
       </li>
     )

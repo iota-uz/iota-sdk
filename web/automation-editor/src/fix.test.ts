@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AutomationGraph } from './types'
-import { applyFix, removablePath } from './validation'
+import { applyFix, removablePath } from './fix'
 
 const graph = {
   name: 'g', triggers: [], edges: [],

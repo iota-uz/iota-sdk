@@ -33,7 +33,7 @@ import type { PaletteChoice, PaletteMode } from './Palette'
 import { keyLabel, strings } from './strings'
 import type { AutomationGraph, AutomationLayout, CanvasApi, CanvasMenu, EditorProps, GraphError, XY } from './types'
 import { localErrors } from './validation'
-import { applyFix, rebaseErrors, type ValidationState } from './validation'
+import { rebaseErrors, type ValidationState } from './validation'
 import { isEditableTarget } from './xy/dom'
 
 // The panel's forms (JSON Schema fields, CEL and template editors, the schedule editor) are their own
@@ -504,10 +504,8 @@ function EditorBody(props: EditorProps): JSX.Element {
     queueMicrotask(() => panelRef?.querySelector<HTMLElement>('input, textarea, button[role="combobox"], [role="combobox"], select, button')?.focus())
   }
 
-  // An issue's fix (a pinned tool schema the server changed: drop it, the next save pins the new one).
-  const fixIssue = (error: GraphError) => {
-    const next = error.fix ? applyFix(draft(), error.fix.remove) : null
-    if (!next) return
+  // An issue's fix (a pinned tool schema the server changed: dropped, the next save pins the new one).
+  const fixIssue = (next: AutomationGraph) => {
     commitGraph(next)
     void validate(next)
   }
