@@ -196,7 +196,7 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 		return RunDetail{}, err
 	}
 	for _, w := range waits {
-		wv := WaitView{TokenID: w.TokenID, WaitID: w.WaitID, Kind: w.Kind, TimeoutAt: w.TimeoutAt, Status: w.Status}
+		wv := WaitView{TokenID: w.TokenID, NodeID: w.NodeID, WaitID: w.WaitID, Kind: w.Kind, TimeoutAt: w.TimeoutAt, Status: w.Status}
 		if w.EventKind != nil {
 			wv.EventKind = *w.EventKind
 		}

@@ -18,7 +18,8 @@ describe('runOverlay', () => {
     expect(o.states.has('joined')).toBe(false)
     expect(o.states.has('done')).toBe(false)
     expect(o.states.get('start')).toBe('passed')
-    expect([...o.taken].sort()).toEqual(['ask.ok', 'fan.mail', 'notify.sent', 'start.fired'])
+    expect([...o.taken].sort()).toEqual(['ask.ok', 'fan.approve', 'fan.mail', 'notify.sent', 'start.fired'])
+    expect(o.taken.has('fan.fork')).toBe(false)
   })
 
   it('a live run: the step in progress is running and nothing is skipped yet', () => {
@@ -52,7 +53,21 @@ describe('runOverlay', () => {
     expect(runOverlay(sample, byId('r4')).states.get('send_email')).toBe('waiting')
     const cancelled = runOverlay(sample, byId('r5'))
     expect(cancelled.states.get('delay')).toBe('cancelled')
+    expect(cancelled.taken.has('delay.cancelled')).toBe(false)
     expect(cancelled.states.get('end')).toBe('skipped')
+  })
+
+  it('a for each takes its item edge from the tokens it made', () => {
+    const graph = { ...sample, edges: [...sample.edges, { from: { node: 'has_email', outcome: 'item' }, to: 'send_email' }] }
+    const run: RunData = {
+      ...byId('r1'), state: 'running',
+      steps: [{ node: 'has_email', token_id: 'p', attempt: 1, input: {}, outcome: 'each', output: {}, logs: [], error: null, started_at: '2026-11-20T09:00:00Z', ended_at: '2026-11-20T09:00:01Z' }],
+      tokens: [{ token_id: 'p', node: 'has_email', state: 'waiting' }, { token_id: 'c', node: 'send_email', state: 'active', parent: 'p', foreach_index: 0 }],
+      waits: [],
+    }
+    const o = runOverlay(graph, run)
+    expect(o.taken.has('has_email.item')).toBe(true)
+    expect(o.taken.has('has_email.each')).toBe(false)
   })
 
   it('a for each counts its items', () => {

@@ -319,6 +319,7 @@ export default function EditorPage(): JSX.Element {
         // A run of another graph is not this page's (RV6: one id opens its own graph's tab).
         if (info() && data.run.automation_id !== info()!.id) {
           window.location.replace(graphPath(app.props.basePath, data.run.automation_id, { run: runId }))
+          return await new Promise<never>(() => undefined)
         }
         return runDataOf(data)
       } catch (e) {

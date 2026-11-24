@@ -120,7 +120,8 @@ export type RunSummary = {
 }
 export type RunToken = {
   token_id: string; node: string | null; state: 'active' | 'waiting' | 'done' | 'cancelled'
-  parent?: string | null; foreach_index?: number | null
+  /** The token that forked it; the parallel's branch it took, or its for each item. */
+  parent?: string | null; branch?: string | null; foreach_index?: number | null
 }
 export type RunStep = {
   node: string
@@ -219,7 +220,7 @@ export interface EditorProps {
   runsBody?: JSX.Element
   /** The graph's id, which api.runs is asked with. */
   automationId?: string
-  /** Rights of the viewer (the host's RBAC); absent → author unless read-only, operate by the api's methods. */
+  /** Rights of the viewer (the host's RBAC); absent → author unless read-only, no operate. */
   can?: { author?: boolean; operate?: boolean }
   /** The Runs tab's state (run, node, filters); with onRunsView the host keeps it (in the URL). */
   runsView?: RunsView

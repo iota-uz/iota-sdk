@@ -121,6 +121,7 @@ export type RunStrings = {
     empty: string
     captured: string
     executed: string
+    kinds: Record<'triggered' | 'woke' | 'timeout' | 'joined' | 'cancelled', string>
   }
   test: {
     open: string
@@ -150,6 +151,8 @@ export type RunStrings = {
     secrets: string
     logs: string
     output: string
+    reasons: Record<'timeout' | 'network_blocked' | 'connection_unavailable' | 'exception' | 'other', string>
+    answer: string
   }
 }
 
@@ -275,6 +278,7 @@ const en: RunStrings = {
     empty: 'Pick a subject and an event, then run.',
     captured: 'captured',
     executed: 'live',
+    kinds: { triggered: 'started the run', woke: 'woke up', timeout: 'timed out', joined: 'branches joined', cancelled: 'cancelled' },
   },
   test: {
     open: 'Test step',
@@ -304,6 +308,8 @@ const en: RunStrings = {
     secrets: 'Secrets',
     logs: 'Logs',
     output: 'Output',
+    reasons: { timeout: 'The step did not answer in time. Try again or raise its timeout.', network_blocked: 'The step tried to reach an address it may not call.', connection_unavailable: 'The connection is unavailable: reconnect it in Integrations.', exception: 'The step failed with an error in its code.', other: 'The step failed. Try again in a minute.' },
+    answer: 'The service’s answer',
   },
 }
 
@@ -427,6 +433,7 @@ const ru: RunStrings = {
     empty: 'Выберите объект и событие, затем прогоните.',
     captured: 'перехвачено',
     executed: 'вживую',
+    kinds: { triggered: 'начал запуск', woke: 'проснулся', timeout: 'истекло время', joined: 'ветки сошлись', cancelled: 'отменён' },
   },
   test: {
     open: 'Проверить шаг',
@@ -456,6 +463,8 @@ const ru: RunStrings = {
     secrets: 'Секреты',
     logs: 'Логи',
     output: 'Выход',
+    reasons: { timeout: 'Шаг не ответил вовремя. Повторите или увеличьте таймаут.', network_blocked: 'Шаг обратился к адресу, который ему нельзя вызывать.', connection_unavailable: 'Подключение недоступно: переподключите его в «Интеграциях».', exception: 'Шаг упал с ошибкой в своём коде.', other: 'Шаг не выполнился. Повторите через минуту.' },
+    answer: 'Ответ сервиса',
   },
 }
 
@@ -579,6 +588,7 @@ const uz: RunStrings = {
     empty: 'Obyekt va hodisani tanlang, keyin prog‘on qiling.',
     captured: 'ushlangan',
     executed: 'jonli',
+    kinds: { triggered: 'ishga tushirdi', woke: 'uyg‘ondi', timeout: 'vaqt tugadi', joined: 'tarmoqlar qo‘shildi', cancelled: 'bekor qilindi' },
   },
   test: {
     open: 'Qadamni sinash',
@@ -608,6 +618,8 @@ const uz: RunStrings = {
     secrets: 'Sirlar',
     logs: 'Loglar',
     output: 'Chiqish',
+    reasons: { timeout: 'Qadam o‘z vaqtida javob bermadi. Qayta urinib ko‘ring yoki taymautni oshiring.', network_blocked: 'Qadam chaqirishi mumkin bo‘lmagan manzilga murojaat qildi.', connection_unavailable: 'Ulanish mavjud emas: uni «Integratsiyalar»da qayta ulang.', exception: 'Qadam o‘z kodidagi xato bilan to‘xtadi.', other: 'Qadam bajarilmadi. Bir daqiqadan keyin qayta urinib ko‘ring.' },
+    answer: 'Xizmat javobi',
   },
 }
 
@@ -731,6 +743,7 @@ const uzCyrl: RunStrings = {
     empty: 'Объект ва ҳодисани танланг, кейин прогон қилинг.',
     captured: 'ушланган',
     executed: 'жонли',
+    kinds: { triggered: 'ишга туширди', woke: 'уйғонди', timeout: 'вақт тугади', joined: 'тармоқлар қўшилди', cancelled: 'бекор қилинди' },
   },
   test: {
     open: 'Қадамни синаш',
@@ -760,6 +773,8 @@ const uzCyrl: RunStrings = {
     secrets: 'Сирлар',
     logs: 'Логлар',
     output: 'Чиқиш',
+    reasons: { timeout: 'Қадам ўз вақтида жавоб бермади. Қайта уриниб кўринг ёки таймаутни оширинг.', network_blocked: 'Қадам чақириши мумкин бўлмаган манзилга мурожаат қилди.', connection_unavailable: 'Уланиш мавжуд эмас: уни «Интеграциялар»да қайта уланг.', exception: 'Қадам ўз кодидаги хато билан тўхтади.', other: 'Қадам бажарилмади. Бир дақиқадан кейин қайта уриниб кўринг.' },
+    answer: 'Хизмат жавоби',
   },
 }
 

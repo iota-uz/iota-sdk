@@ -201,9 +201,12 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
                   {(e) => (
                     <p class="ae-run-node__error" data-testid="test-error">
                       <Icon name="error" size={14} />
-                      <span>{missing() !== null ? t().secretMissing(missing() || '') : e().message}</span>
+                      <span>{missing() !== null ? t().secretMissing(missing() || '') : t().reasons[(['timeout', 'network_blocked', 'connection_unavailable', 'exception'] as const).find((r) => r === e().reason) ?? 'other']}</span>
                     </p>
                   )}
+                </Show>
+                <Show when={r().error && missing() === null && r().error!.message}>
+                  <details class="ae-answer"><summary>{t().answer}</summary><pre class="ae-value__text">{r().error!.message}</pre></details>
                 </Show>
                 <Show when={r().output !== undefined && r().output !== null}>
                   <section class="ae-panel__section">

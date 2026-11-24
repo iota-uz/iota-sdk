@@ -98,7 +98,15 @@ export function RunsTab(props: RunsTabProps): JSX.Element {
   }
   // The filters are the key of the list: a change reloads it, a node or run change does not.
   const filterKey = createMemo(() => `${states().join(',')}\u0000${subject().trim()}`)
-  createEffect(on(filterKey, () => void load()))
+  // A new filter drops the old list at once: nothing of it may open a run or answer for the new filter.
+  createEffect(on(filterKey, (_key, previous) => {
+    if (previous !== undefined) {
+      listSeq += 1
+      setItems(undefined)
+      setNext(null)
+    }
+    void load()
+  }))
 
   // With no run chosen, the newest opens (not on a phone, where the list is the screen).
   createEffect(() => {
@@ -114,7 +122,8 @@ export function RunsTab(props: RunsTabProps): JSX.Element {
       const i = list.findIndex((r) => r.run_id === run.run_id)
       if (i < 0) return list
       const row = list[i]!
-      const nodes = [...new Set(run.tokens.filter((tk) => tk.state === 'active' || tk.state === 'waiting').map((tk) => tk.node).filter((n): n is string => Boolean(n)))]
+      // Where it stands: its active tokens and its open waits (a fork's token waiting on its branches is not).
+      const nodes = [...new Set([...run.tokens.filter((tk) => tk.state === 'active').map((tk) => tk.node), ...run.waits.map((w) => w.node)].filter((n): n is string => Boolean(n)))]
       if (row.state === run.state && row.updated_at === run.updated_at && row.error === run.error && (row.current_nodes ?? []).join(',') === nodes.join(',')) return list
       const copy = [...list]
       copy[i] = { ...row, state: run.state, updated_at: run.updated_at, error: run.error, current_nodes: nodes }

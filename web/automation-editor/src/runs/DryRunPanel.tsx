@@ -112,8 +112,9 @@ export function DryRunPanel(props: DryRunPanelProps): JSX.Element {
       case 'not_triggered': return t().notTriggered
       case 'wait': return t().waits(name(s.node))
       case 'ended': return t().ended
-      case 'error': return s.path && s.message?.includes('missing') ? t().missing(s.path) : s.message ?? t().error
-      default: return s.outcome ?? s.kind
+      case 'error': return s.path ? `${t().error}: ${s.path}` : t().error
+      case 'triggered': case 'woke': case 'timeout': case 'joined': case 'cancelled': return s.outcome && s.kind !== 'triggered' ? `${t().kinds[s.kind]} · ${s.outcome}` : t().kinds[s.kind]
+      default: return s.outcome ?? ''
     }
   }
   const icon = (s: TraceStep) => (s.kind === 'error' ? 'failed' : s.kind === 'not_triggered' ? 'skipped' : s.kind === 'wait' ? 'waiting' : s.kind === 'cancelled' ? 'cancelled' : 'passed')

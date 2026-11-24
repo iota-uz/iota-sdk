@@ -82,7 +82,7 @@ function EditorBody(props: EditorProps): JSX.Element {
   const readOnly = () => Boolean(props.readOnly)
   // Rights come from the host; without them an editable graph's author may dry run and test.
   const canAuthor = () => props.can?.author ?? !readOnly()
-  const canOperate = () => props.can?.operate ?? true
+  const canOperate = () => props.can?.operate ?? false
   const runsAvailable = () => Boolean(props.api.runs && props.api.run && props.automationId)
   const [ownTab, setOwnTab] = createSignal<'edit' | 'runs'>('edit')
   const tab = () => props.tab ?? ownTab()
@@ -962,8 +962,8 @@ function EditorBody(props: EditorProps): JSX.Element {
               />
               </Suspense>
             </Show>
-            <Show when={dock()}>
-              {(d) => (
+            <Show when={dock()} keyed>
+              {(dockValue) => { const d = () => dockValue; return (
                 <Suspense fallback={<div class="ae-dock ae-panel--loading" role="status" aria-busy="true" aria-label={t().states.loading} />}>
                   <Show when={d().kind === 'dry'} fallback={
                     <TestPanel
@@ -990,7 +990,7 @@ function EditorBody(props: EditorProps): JSX.Element {
                     />
                   </Show>
                 </Suspense>
-              )}
+              ) }}
             </Show>
             {props.panels}
           </div>

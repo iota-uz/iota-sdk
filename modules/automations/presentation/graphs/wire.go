@@ -594,7 +594,7 @@ type StepView struct {
 // WaitView is a wait of a run.
 type WaitView struct {
 	TokenID string `json:"token_id"`
-	// NodeID is the node the waiting token stands on.
+	// NodeID is the node the wait belongs to.
 	NodeID    string  `json:"node_id"`
 	WaitID    string  `json:"wait_id"`
 	Kind      string  `json:"kind"`

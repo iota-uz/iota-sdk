@@ -78,7 +78,8 @@ export function CopyText(props: { text: string; locale: EditorLocale; label?: st
   onCleanup(() => clearTimeout(timer))
   const copy = async () => {
     try {
-      await navigator.clipboard?.writeText(props.text)
+      if (!navigator.clipboard) throw new Error('no clipboard')
+      await navigator.clipboard.writeText(props.text)
       setSaid(t().copied)
     } catch (error) {
       console.warn('automation-editor: copy failed', error)

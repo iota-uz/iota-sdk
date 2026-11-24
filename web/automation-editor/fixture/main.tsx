@@ -148,7 +148,7 @@ Object.assign(api, {
     if (runsMode === 'error') throw new Error('network')
     const q = (input.subject ?? '').toLowerCase()
     const items = runs.filter((r) => (!input.state || input.state.length === 0 || input.state.includes(r.state)) &&
-      (!q || (r.subject?.key ?? '').toLowerCase().startsWith(q) || (r.subject?.label ?? '').toLowerCase().includes(q))).map(toSummary)
+      (!q || (r.subject?.key ?? '').toLowerCase().startsWith(q))).map(toSummary)
     return { items, next_cursor: null }
   },
   async run(id: string) {

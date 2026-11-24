@@ -914,9 +914,7 @@ func (c *Controller) run(ctx context.Context, req RunRequest) (RunData, error) {
 			c.log.DebugContext(ctx, "automations: no link for the run's subject", "entity", d.Subject.Entity, "error", err)
 		}
 	}
-	nodeOf := make(map[string]string, len(d.Tokens))
 	for _, t := range d.Tokens {
-		nodeOf[t.ID.String()] = t.NodeID
 		tv := TokenView{ID: t.ID.String(), NodeID: t.NodeID, Status: t.Status, Branch: t.Branch, ForeachIndex: t.ForeachIndex}
 		if t.Parent != nil {
 			p := t.Parent.String()
@@ -931,7 +929,7 @@ func (c *Controller) run(ctx context.Context, req RunRequest) (RunData, error) {
 		})
 	}
 	for _, w := range d.Waits {
-		out.Waits = append(out.Waits, WaitView{TokenID: w.TokenID.String(), NodeID: nodeOf[w.TokenID.String()], WaitID: w.WaitID, Kind: w.Kind, EventKind: w.EventKind, TimeoutAt: optStamp(w.TimeoutAt), Status: w.Status})
+		out.Waits = append(out.Waits, WaitView{TokenID: w.TokenID.String(), NodeID: w.NodeID, WaitID: w.WaitID, Kind: w.Kind, EventKind: w.EventKind, TimeoutAt: optStamp(w.TimeoutAt), Status: w.Status})
 	}
 	return out, nil
 }

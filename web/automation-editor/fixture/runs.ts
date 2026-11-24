@@ -51,13 +51,14 @@ const summary = (run_id: string, version: number, state: RunSummary['state'], mi
 /** A run of the parallel graph: the mail branch is done, the approval branch waits for its event. */
 export const approvalWaiting: RunData = {
   ...summary('00000000-0000-4000-8000-00000000a001', 1, 'waiting', -10, { trigger: 'start', subject: { entity: 'crm.client', key: 'c-7', label: 'Acme LLC' } }),
+  // As the engine writes it: the parallel's step is "fork", its token waits for the branches it made.
   tokens: [
-    { token_id: 't0', node: 'fan', state: 'done' },
-    { token_id: 't-mail', node: 'joined', state: 'waiting', parent: 't0' },
-    { token_id: 't-approve', node: 'answer', state: 'waiting', parent: 't0' },
+    { token_id: 't0', node: 'fan', state: 'waiting' },
+    { token_id: 't-mail', node: 'joined', state: 'waiting', parent: 't0', branch: 'mail' },
+    { token_id: 't-approve', node: 'answer', state: 'waiting', parent: 't0', branch: 'approve' },
   ],
   steps: [
-    step('fan', 't0', 'mail', -10),
+    step('fan', 't0', 'fork', -10),
     step('notify', 't-mail', 'sent', -10, { input: { to: 'sales@acme.test' }, output: { message_id: 'm-1' } }),
     step('ask', 't-approve', 'ok', -9, { output: { message_id: 17 } }),
   ],
@@ -108,7 +109,8 @@ export function sampleRuns(): RunData[] {
     {
       ...summary('00000000-0000-4000-8000-0000000000r5', 3, 'cancelled', -600, { subject: null }),
       tokens: [{ token_id: 'e', node: 'delay', state: 'cancelled' }],
-      steps: [step('has_email', 'e', 'true', -600), step('send_email', 'e', 'sent', -599, { output: { message_id: 'm-3' } })],
+      // A cancel closes the open step with the outcome "cancelled".
+      steps: [step('has_email', 'e', 'true', -600), step('send_email', 'e', 'sent', -599, { output: { message_id: 'm-3' } }), step('delay', 'e', 'cancelled', -598)],
       waits: [],
     },
   ]

@@ -399,13 +399,13 @@ export function runDataOf(d: WireRunData): RunData {
   const waits: RunWait[] = []
   for (const w of d.waits) {
     const kind = waitKind(w.kind)
-    const node = (w as { node_id?: string }).node_id || nodeOf.get(w.token_id)
+    const node = w.node_id || nodeOf.get(w.token_id)
     if (!kind || w.status !== 'open' || !node) continue
     waits.push({ node, token_id: w.token_id, kind, since: d.run.updated_at, timeout_at: w.timeout_at, wait_id: w.wait_id })
   }
   return {
     ...runSummaryOf(d.run),
-    tokens: d.tokens.map((t) => ({ token_id: t.id, node: t.node_id || null, state: tokenState(t.status), parent: t.parent, foreach_index: t.foreach_index })),
+    tokens: d.tokens.map((t) => ({ token_id: t.id, node: t.node_id || null, state: tokenState(t.status), parent: t.parent, branch: t.branch ?? null, foreach_index: t.foreach_index })),
     steps: d.steps.map((s) => ({
       node: s.node_id, token_id: s.token_id, attempt: s.attempt, input: s.input ?? null, outcome: s.outcome || null, output: s.output ?? null,
       logs: (s as { logs?: string[] }).logs ?? [], error: s.error ? { code: s.error.code, message: s.error.message } : null,

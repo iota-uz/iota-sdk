@@ -73,12 +73,28 @@ export function runOverlay(graph: AutomationGraph, run: RunData, locale: EditorL
     taken.add(edgeKey(run.trigger, FIRED))
   }
   const attempt = pick(ATTEMPT, locale)
+  const edges = new Set(graph.edges.map((e) => edgeKey(e.from.node, e.from.outcome)))
+  const children = new Map<string, RunData['tokens']>()
+  for (const token of run.tokens) {
+    if (!token.parent) continue
+    const list = children.get(token.parent)
+    if (list) list.push(token)
+    else children.set(token.parent, [token])
+  }
   for (const [node, latest] of lastAttempts(run.steps)) {
     for (const step of latest) {
+      // A cancelled run closes its open steps with the outcome "cancelled" (no error).
+      const cancelled = step.outcome === 'cancelled' && !edges.has(edgeKey(node, 'cancelled'))
       if (step.ended_at === null) raise(states, node, 'running')
       else if (step.error) raise(states, node, 'failed')
+      else if (cancelled) raise(states, node, 'cancelled')
       else raise(states, node, 'passed')
-      if (step.outcome) taken.add(edgeKey(node, step.outcome))
+      if (step.outcome && edges.has(edgeKey(node, step.outcome))) taken.add(edgeKey(node, step.outcome))
+      // A parallel records "fork" and a for each "each": the edges taken are those of the tokens they made.
+      for (const child of children.get(step.token_id) ?? []) {
+        const outcome = child.branch ? child.branch : child.foreach_index !== null && child.foreach_index !== undefined ? 'item' : null
+        if (outcome && edges.has(edgeKey(node, outcome))) taken.add(edgeKey(node, outcome))
+      }
       const note = step.outcome === 'failed' || step.error ? failureMessage(step) : null
       if (note) notes.set(node, note)
     }

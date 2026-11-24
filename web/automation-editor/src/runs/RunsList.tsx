@@ -1,6 +1,6 @@
 // The list of a graph's runs (RV2, RV9): search by subject, state chips, a row per run with its state
 // (dot and word), subject, node, version, time and the phrase of a failure; ↑ ↓ move between rows.
-import { createSignal, For, Match, onCleanup, Show, Switch, type JSX } from 'solid-js'
+import { createEffect, createSignal, For, Match, on, onCleanup, Show, Switch, type JSX } from 'solid-js'
 import { findItem } from '../graph'
 import { Icon } from '../icons'
 import { describeItem } from '../names'
@@ -45,6 +45,13 @@ export function RunsList(props: RunsListProps): JSX.Element {
   const [query, setQuery] = createSignal(props.subject)
   let timer: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(timer))
+  // Back and Forward change the search: the box follows the URL.
+  createEffect(on(() => props.subject, (subject) => {
+    if (subject !== query().trim()) {
+      clearTimeout(timer)
+      setQuery(subject)
+    }
+  }, { defer: true }))
   const typed = (value: string) => {
     setQuery(value)
     clearTimeout(timer)

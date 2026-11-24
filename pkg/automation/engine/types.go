@@ -357,7 +357,9 @@ func (e *StepError) Error() string { return e.Code + ": " + e.Message }
 
 // WaitView is a wait of a run.
 type WaitView struct {
-	TokenID   uuid.UUID
+	TokenID uuid.UUID
+	// NodeID is the node the wait belongs to (a join's timeout wait: the join).
+	NodeID    string
 	WaitID    string
 	Kind      string
 	EventKind string
