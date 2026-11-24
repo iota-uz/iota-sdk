@@ -405,7 +405,8 @@ func TestKeyboardCleanupSurvivesTransientFailures(t *testing.T) {
 	r.bot.Fail(telegramtest.Failure{Method: "editMessageText", Code: 502, Description: "Bad Gateway", Times: 3})
 	r.bot.Fail(telegramtest.Failure{Method: "editMessageReplyMarkup", Code: 502, Description: "Bad Gateway", Times: 1})
 	require.NoError(t, r.c.AnswerPublished(context.Background(), evs[0], r.conn, r.creds()))
-	got, _ := r.bot.Message(700, m.ID)
+	got, found := r.bot.Message(700, m.ID)
+	require.True(t, found, "the original message is there")
 	assert.Empty(t, got.Markup, "the keyboard is gone")
 }
 
@@ -480,7 +481,8 @@ func TestAKeyboardThatStaysMakesTheUpdateBeRedelivered(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, code, "still failing: redelivered again")
 	code, _ = r.tenantUpdate(press)
 	assert.Equal(t, http.StatusOK, code)
-	got, _ := r.bot.Message(700, m.ID)
+	got, found := r.bot.Message(700, m.ID)
+	require.True(t, found, "the original message is there")
 	assert.Empty(t, got.Markup)
 }
 
@@ -643,40 +645,47 @@ func TestAReplacementBotsStartIsNotSkippedForTheSameUpdateID(t *testing.T) {
 	assert.Equal(t, "Linked, Alice", nb.Sent()[0].Text)
 }
 
-// onHandle runs fn once while the handler is running.
-type onHandle struct {
-	*linkHandler
-	fn func()
-}
-
-func (h *onHandle) Handle(ctx context.Context, u telegram.StartUpdate) (string, error) {
-	if fn := h.fn; fn != nil {
-		h.fn = nil
-		fn()
-	}
-	return h.linkHandler.Handle(ctx, u)
-}
-
 // A handler that outlasts its claim is fenced: its result is not recorded over the successor's, and the update
 // is asked to come back, so the reply of the claimant that counts is the only one.
 func TestAStartHandlerThatLostItsClaimDoesNotOverwriteItsSuccessor(t *testing.T) {
 	r := newRig(t)
-	h := &onHandle{linkHandler: &linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}}
+	h := &numbered{linkHandler: linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}}
 	require.NoError(t, r.c.RegisterStart(h))
 	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
 	u := r.platform.Update(800, alice, "/start u_abc")
 	var second int
-	h.fn = func() {
+	h.during = func() {
 		r.st.abandon() // the claim of the running handler lapses
 		second, _ = r.platformUpdate(u)
 	}
 	code, _ := r.platformUpdate(u)
 	assert.Equal(t, http.StatusServiceUnavailable, code, "the stale claimant's write is refused")
 	assert.Equal(t, http.StatusOK, second, "the successor completed")
-	assert.Len(t, r.platform.Sent(), 1, "one reply")
+	require.Len(t, r.platform.Sent(), 1, "one reply")
+	assert.Equal(t, "run 2", r.platform.Sent()[0].Text, "the reply of the successor, not of the handler that lost its claim")
 	code, _ = r.platformUpdate(u)
 	assert.Equal(t, http.StatusOK, code)
-	assert.Len(t, r.platform.Sent(), 1)
+	require.Len(t, r.platform.Sent(), 1)
+	assert.Equal(t, "run 2", r.platform.Sent()[0].Text, "and the replay does not bring the stale result back")
+}
+
+// numbered answers "run N" to its Nth call, and runs during once, inside its first call.
+type numbered struct {
+	linkHandler
+	calls  int
+	during func()
+}
+
+func (h *numbered) Handle(_ context.Context, u telegram.StartUpdate) (string, error) {
+	h.calls++
+	n := h.calls
+	if fn := h.during; fn != nil {
+		h.during = nil
+		fn()
+		n = 1 // this call started first: its reply is "run 1" even though the successor ran inside it
+	}
+	h.got = append(h.got, u)
+	return "run " + strconv.Itoa(n), nil
 }
 
 // handle runs Handle without the secret check: the update of a bot as the engine hands it over.
@@ -813,10 +822,16 @@ func TestTheUploadMemoIsOfOneTenant(t *testing.T) {
 	require.NoError(t, err)
 	other := r.conn
 	other.TenantID = uuid.New()
-	for _, conn := range []connectors.Connection{r.conn, r.conn, other} {
-		_, err := r.c.Handle(context.Background(), httptest.NewRecorder(), body, conn, r.creds())
+	conns := []connectors.Connection{r.conn, r.conn, other}
+	uploadIDs := make([]string, 0, len(conns))
+	for _, conn := range conns {
+		evs, err := r.c.Handle(context.Background(), httptest.NewRecorder(), body, conn, r.creds())
 		require.NoError(t, err)
+		require.Len(t, evs, 1, "every delivery has its event")
+		uploadIDs = append(uploadIDs, payloadOf(t, evs[0])["files"].([]any)[0].(map[string]any)["upload_id"].(string))
 	}
+	assert.Equal(t, uploadIDs[0], uploadIDs[1], "the replay within a tenant reuses its upload")
+	assert.NotEqual(t, uploadIDs[0], uploadIDs[2], "another tenant gets an upload of its own")
 	assert.Len(t, r.up.files, 2, "one per tenant; the replay within a tenant reuses")
 }
 

@@ -30,6 +30,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -94,6 +95,8 @@ type Connector struct {
 	// usernames caches the username of a bot (the addressee of a command) by a fingerprint of its token, with
 	// the time it was read: the raw token is not kept, and an entry is read again after usernameTTL.
 	usernames sync.Map
+	// afterFunc stands in for time.AfterFunc in a test (nil: the timer).
+	afterFunc func(d time.Duration, fn func())
 	// platformToken is the platform credential StartPlatform was given (the effective one).
 	platformToken atomic.Pointer[string]
 }

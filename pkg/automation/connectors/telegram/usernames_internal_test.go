@@ -30,16 +30,29 @@ func TestUsernameCacheDropsTheEntriesOfReplacedTokens(t *testing.T) {
 	assert.True(t, kept)
 }
 
-// An entry leaves when its time is up without anything being cached after it: the timer does it.
+// An entry leaves when its time is up without anything being cached after it: the timer does it. The timer is
+// stood in for, so the test does not depend on how fast it runs.
 func TestUsernameCacheEntryLeavesByItself(t *testing.T) {
 	c := New(Config{})
+	var scheduled []func()
+	var delays []time.Duration
+	c.afterFunc = func(d time.Duration, fn func()) { delays, scheduled = append(delays, d), append(scheduled, fn) }
 	fp := sha256.Sum256([]byte("1:old"))
-	// An entry whose time is almost up: it is gone shortly, with no later insertion.
-	c.rememberName(fp, "old_bot", time.Now().Add(-usernameTTL+50*time.Millisecond))
+	c.rememberName(fp, "old_bot", time.Now())
 	_, kept := c.usernames.Load(fp)
 	require.True(t, kept)
-	require.Eventually(t, func() bool {
-		_, ok := c.usernames.Load(fp)
-		return !ok
-	}, 5*time.Second, 10*time.Millisecond, "the entry was not dropped by its timer")
+	require.Len(t, scheduled, 1)
+	assert.InDelta(t, float64(usernameTTL), float64(delays[0]), float64(time.Minute), "the timer is for the rest of the hour")
+	scheduled[0]() // the hour is up, and nothing was cached since
+	_, kept = c.usernames.Load(fp)
+	assert.False(t, kept, "the entry is dropped without a later insertion")
+
+	// A refreshed entry is not the one the earlier timer holds: it stays.
+	c.rememberName(fp, "bot_one", time.Now())
+	c.rememberName(fp, "bot_two", time.Now().Add(time.Second))
+	require.Len(t, scheduled, 3)
+	scheduled[1]()
+	v, kept := c.usernames.Load(fp)
+	require.True(t, kept, "the timer of the replaced entry leaves the new one")
+	assert.Equal(t, "bot_two", v.(cachedName).name)
 }

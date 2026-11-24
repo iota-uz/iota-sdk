@@ -150,6 +150,7 @@ type Call struct {
 	Method string
 	Params map[string]string
 	Files  []string
+	At     time.Time // when the request arrived
 }
 
 // Message is a message in a chat: sent by the bot, or received by it.
@@ -317,7 +318,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b.mu.Lock()
-	b.calls = append(b.calls, Call{Method: method, Params: params, Files: fileNames(files)})
+	b.calls = append(b.calls, Call{Method: method, Params: params, Files: fileNames(files), At: time.Now()})
 	var lost bool
 	for i, f := range b.fails {
 		if f.Method == "" || f.Method == method {

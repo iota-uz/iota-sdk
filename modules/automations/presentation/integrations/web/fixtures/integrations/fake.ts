@@ -187,7 +187,8 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       const secret = String(p.credentials.bot_token ?? p.credentials.password ?? p.credentials.api_key ?? '')
       if (secret === 'bad') return { ok: false, error: 'test_failed', reason: 'auth' }
       // A bot another service already uses: the person confirms before it is connected.
-      if (secret === 'foreign' && !(p.confirm ?? []).includes('foreign_webhook')) return { ok: false, error: 'confirmation_required', warnings: ['foreign_webhook'] }
+      // The confirmation is bound to the bot (the server's token is "<code>@<bot id>"): the code alone is not enough.
+      if (secret === 'foreign' && !(p.confirm ?? []).includes('foreign_webhook@222222')) return { ok: false, error: 'confirmation_required', warnings: ['foreign_webhook@222222'] }
       const key = p.idempotency_key
       if (key && keys.has(key)) return { ok: true, connection: keys.get(key) }
       const signIn = c.kind === 'mcp' && p.credentials.auth === 'oauth2'

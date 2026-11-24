@@ -441,11 +441,11 @@ func TestTelegramSendRepeatsAfterTheRateLimitWithoutASecondMessage(t *testing.T)
 		 {"from": {"node": "ok", "outcome": "done"}, "to": "fin"}, {"from": {"node": "ok", "outcome": "failed"}, "to": "fin"}`)
 	te.create(p, te.human(), g)
 	te.publish(te.tenant, orderCreated, "o-1", order{}, 0)
-	started := time.Now()
 	p.until(func() bool { return len(noteTexts(t, te.env)) == 1 }, "the send is repeated")
-	assert.GreaterOrEqual(t, time.Since(started), time.Second, "after retry_after")
 	assert.Len(t, te.bot.Sent(), 1, "one message was sent")
-	assert.Len(t, te.bot.CallsOf("sendMessage"), 2, "the refused try and the repeat")
+	calls := te.bot.CallsOf("sendMessage")
+	require.Len(t, calls, 2, "the refused try and the repeat")
+	assert.GreaterOrEqual(t, calls[1].At.Sub(calls[0].At), time.Second, "the repeat came after retry_after, measured between the two requests")
 }
 
 // A send whose answer is lost is outcome_unknown, never a second message.
@@ -510,7 +510,9 @@ func TestTelegramReadWaitsForTheAskedUsersMessage(t *testing.T) {
 		 {"from": {"node": "late", "outcome": "done"}, "to": "fin"}, {"from": {"node": "late", "outcome": "failed"}, "to": "fin"}`)
 	te.create(p, te.human(), g)
 	te.ok(te.bot.SendText(700, tgAlice, "start"))
-	p.until(func() bool { return len(te.bot.Sent()) == 1 }, "the question is sent")
+	p.until(func() bool {
+		return len(te.bot.Sent()) == 1 && te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND correlation IS NOT NULL`) == 1
+	}, "the question is sent and its answer is awaited")
 	q := te.bot.Sent()[0]
 	_, _, err := te.bot.PressData(700, q.ID, tgAlice, q.Markup[0][0].CallbackData, q)
 	require.NoError(t, err)
@@ -570,7 +572,9 @@ func TestTelegramPlatformAskIsAnsweredByItsTenant(t *testing.T) {
 	g := strings.Replace(strings.Replace(tgAskGraph, `"chat_id": 700`, `"chat_id": 800, "connection": "platform:telegram_bot"`, 1), `"timeout": "1h"`, `"timeout": "1h"`, 1)
 	te.create(p, te.human(), g)
 	te.publish(te.tenant, orderCreated, "o-1", order{Note: "#9"}, 0)
-	p.until(func() bool { return len(te.platform.Sent()) == 1 }, "the question goes out through the platform bot")
+	p.until(func() bool {
+		return len(te.platform.Sent()) == 1 && te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND correlation IS NOT NULL`) == 1
+	}, "the question goes out through the platform bot and its answer is awaited")
 	q := te.platform.Sent()[0]
 	assert.Equal(t, 1, te.count(`SELECT count(*) FROM automation.connector_usage WHERE connection_id = 'platform:telegram_bot'`), "counted for the platform")
 	d, _, err := te.platform.PressData(800, q.ID, tgAlice, q.Markup[0][0].CallbackData, q)
@@ -619,6 +623,11 @@ func TestTelegramReadImplicitConnectionAndChat(t *testing.T) {
 	p.until(func() bool {
 		return te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event' AND event_kind = 'telegram.message_received.v1'`) == 1
 	}, "the read waits")
+	var waitID string
+	require.NoError(t, te.db.QueryRow(context.Background(), `SELECT wait_id FROM automation.waits WHERE status = 'open' AND kind = 'event' AND event_kind = 'telegram.message_received.v1'`).Scan(&waitID))
+	stillOpen := func() int {
+		return te.count(`SELECT count(*) FROM automation.waits WHERE wait_id = $1 AND status = 'open'`, waitID)
+	}
 	// The chat the run began in is not the chat it waits in; a message in 700 does not answer it (it
 	// starts another run, which waits in 701 as well).
 	before := te.messages()
@@ -629,8 +638,9 @@ func TestTelegramReadImplicitConnectionAndChat(t *testing.T) {
 	p.pass()
 	p.pass()
 	assert.Empty(t, noteTexts(t, te.env), "neither the other chat nor a message without text answers the read")
+	assert.Equal(t, 1, stillOpen(), "the original wait is still open after the negative deliveries")
 	te.ok(te.bot.SendText(701, tgAlice, "the reply"))
-	p.until(func() bool { return len(noteTexts(t, te.env)) >= 1 }, "a text in the awaited chat wakes the read")
+	p.until(func() bool { return len(noteTexts(t, te.env)) >= 1 && stillOpen() == 0 }, "a text in the awaited chat wakes the original read")
 	assert.Contains(t, noteTexts(t, te.env), "got the reply in 701")
 }
 
@@ -702,7 +712,8 @@ func TestTelegramAKeyboardThatStaysIsRedelivered(t *testing.T) {
 	d, err = te.bot.Redeliver(update)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, d.Status)
-	got, _ := te.bot.Message(700, q.ID)
+	got, found := te.bot.Message(700, q.ID)
+	require.True(t, found, "the original message is there")
 	assert.Empty(t, got.Markup, "the redelivery took the keyboard off")
 	p.pass()
 	assert.Len(t, noteTexts(t, te.env), 1, "and moved nothing twice")

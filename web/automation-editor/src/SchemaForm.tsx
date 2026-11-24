@@ -717,18 +717,22 @@ function SourceField(props: {
       <Choose>
         <Match when={mode() === 'list'}>
           <Show when={search} fallback={<p class="ae-form-note">{st().noList}</p>}>
-            <Combobox
-              id={props.id} label={<span class="ae-sr-only">{props.title}</span>} searchable readOnly={props.readOnly} placeholder={st().choose}
-              labels={{ notFound: st().notFound }} options={offered()} value={current()}
-              loadOptions={(query) => load(query)}
-              onValueChange={(v) => {
-                const chat = chatOfSelection(v)
-                if (chat !== null) { emit(chat); return }
-                // A source whose options are not chats keeps the value it declared.
-                const literal = literalOfSelection(v)
-                if (literal !== undefined) emit(literal)
-              }}
-            />
+            {/* Keyed by the connection: another connection is another picker, with none of the earlier one's
+                remembered search results and none of its searches still on the way. */}
+            <For each={[connection()]}>{() => (
+              <Combobox
+                id={props.id} label={<span class="ae-sr-only">{props.title}</span>} searchable readOnly={props.readOnly} placeholder={st().choose}
+                labels={{ notFound: st().notFound }} options={offered()} value={current()}
+                loadOptions={(query) => load(query)}
+                onValueChange={(v) => {
+                  const chat = chatOfSelection(v)
+                  if (chat !== null) { emit(chat); return }
+                  // A source whose options are not chats keeps the value it declared.
+                  const literal = literalOfSelection(v)
+                  if (literal !== undefined) emit(literal)
+                }}
+              />
+            )}</For>
           </Show>
         </Match>
         <Match when={mode() === 'manual'}>

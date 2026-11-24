@@ -163,7 +163,7 @@ type cachedName struct {
 func (c *Connector) rememberName(fp [sha256.Size]byte, name string, now time.Time) {
 	c.usernames.Range(func(k, v any) bool {
 		if now.Sub(v.(cachedName).at) >= usernameTTL {
-			c.usernames.Delete(k)
+			c.usernames.CompareAndDelete(k, v) // the entry that was seen: a refreshed one is kept
 		}
 		return true
 	})
@@ -172,10 +172,19 @@ func (c *Connector) rememberName(fp [sha256.Size]byte, name string, now time.Tim
 	// The entry also leaves on its own when its time is up, so a replaced token is not kept for want of a later
 	// insertion. A newer entry of the same bot is not touched (CompareAndDelete matches this one only).
 	if left := usernameTTL - time.Since(now); left > 0 {
-		time.AfterFunc(left, func() { c.usernames.CompareAndDelete(fp, entry) })
+		c.schedule(left, func() { c.usernames.CompareAndDelete(fp, entry) })
 	} else {
 		c.usernames.CompareAndDelete(fp, entry)
 	}
+}
+
+// schedule runs fn after d: a timer, unless a test stands in for it.
+func (c *Connector) schedule(d time.Duration, fn func()) {
+	if c.afterFunc != nil {
+		c.afterFunc(d, fn)
+		return
+	}
+	time.AfterFunc(d, fn)
 }
 
 // addressedToUs reports whether a command's addressee is this bot (or names none): a command for another bot
@@ -477,9 +486,21 @@ func (c *Connector) deliverStartReply(ctx context.Context, b *bot, m *gotgbot.Me
 			c.countStartReply(dctx, conn, d.Tenant, sent)
 		}
 	}
-	if err := scope.acts.InboundCompleted(ctx, scope.conn, scope.event, scope.key, d.Owner); err != nil {
-		// The reply went out; the record stays delivering and is abandoned with its claim's age.
-		c.log().Warn("telegram: a handled /start was not finished in the record", "error", err.Error())
+	// The reply went out: the record is finished without sending again. The owner-checked write is tried a few times;
+	// when it still fails the record stays delivering and lapses with its claim (a redelivery after that is the only
+	// case in which a confirmed reply can be sent twice, and it is logged).
+	var done error
+	for attempt := 0; attempt < 3; attempt++ {
+		if done = scope.acts.InboundCompleted(ctx, scope.conn, scope.event, scope.key, d.Owner); done == nil || errors.Is(done, connectors.ErrInboundLost) {
+			break
+		}
+		select {
+		case <-ctx.Done():
+		case <-time.After(time.Duration(attempt+1) * 100 * time.Millisecond):
+		}
+	}
+	if done != nil {
+		c.log().Warn("telegram: a delivered /start was not finished in the record", "error", done.Error())
 	}
 	return nil
 }

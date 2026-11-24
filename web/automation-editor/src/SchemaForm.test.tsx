@@ -308,8 +308,14 @@ describe('a field with an options source (a chat)', () => {
       />
     ))
     await vi.waitFor(() => expect(searchOptions).toHaveBeenCalledTimes(1))
+    const picker = document.querySelector('[role="combobox"]')
+    expect(picker).not.toBeNull()
     setValue({ connection: 'two' })
     await vi.waitFor(() => expect(searchOptions).toHaveBeenCalledTimes(2))
     expect(searchOptions).toHaveBeenLastCalledWith('telegram.chats', '', { nodeType: 't', params: { connection: 'two' } })
+    // The picker is a new one: what the first connection's searches left in the old one cannot be offered.
+    const next = document.querySelector('[role="combobox"]')
+    expect(next).not.toBeNull()
+    expect(next).not.toBe(picker)
   })
 })

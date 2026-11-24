@@ -314,7 +314,7 @@ func parseCallback(data string) (string, int, bool) {
 const readSchema = `{"type":"object","additionalProperties":false,"required":["chat_id"],"properties":{
  "chat_id":` + readChatSchema + `,
  "from_user_id":{"oneOf":[{"type":"integer"},{"type":"string","minLength":1,"maxLength":1000}],
-   "description":"Wait for this user only: an id, or an expression read when the message arrives (nodes.<id>.output...), where event is the incoming message."},
+   "description":"Wait for this user only: a numeric id, or an expression that gives one, for example nodes.ask.output.from.user_id. The name event is not allowed here: the wait is checked against the incoming message itself."},
  "timeout":{"type":"string","pattern":"^[1-9][0-9]{0,5}(s|m|h|d)$","x-max-ms":2592000000,"default":"24h","description":"30s, 20m, 2h or 7d; at most 30 days"}}}`
 
 type readNode struct {

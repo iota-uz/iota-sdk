@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -143,18 +144,23 @@ func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upl
 }
 
 // DownloadableByRoute reports whether the signed-in download route of the upload controller serves an upload stored
-// at the path: it is inside the public uploads root and outside its private namespace. A private upload (or one
-// outside the root) is read by the code that owns it, not through that route.
+// at the path (see PublicUploadPath, which the route itself uses).
 func (s *UploadService) DownloadableByRoute(storedPath string) bool {
-	root := s.uploadsPath
-	if root == "" {
+	return PublicUploadPath(s.uploadsPath, storedPath)
+}
+
+// PublicUploadPath reports whether a stored path is inside the public uploads root and outside its private
+// namespace: what the public file handler and the download route serve. Paths are compared as the route compares
+// them (cleaned, in the layout form of the storage), so a root such as "../uploads" gives the same answer here as
+// there.
+func PublicUploadPath(uploadsRoot, storedPath string) bool {
+	root := strings.Trim(filepath.ToSlash(filepath.Clean(uploadsRoot)), "/")
+	candidate := strings.TrimPrefix(path.Clean("/"+filepath.ToSlash(upload.LayoutPath(storedPath))), "/")
+	if root == "" || root == "." || !strings.HasPrefix(candidate, root+"/") {
 		return false
 	}
-	if !pathWithin(root, storedPath) {
-		return false
-	}
-	private := filepath.Join(root, uploadsconfig.PrivateDirectory)
-	return storedPath != private && !pathWithin(private, storedPath)
+	rest := strings.TrimPrefix(candidate, root+"/")
+	return rest != uploadsconfig.PrivateDirectory && !strings.HasPrefix(rest, uploadsconfig.PrivateDirectory+"/")
 }
 
 // CreateKeeping stores an upload in the public root, or returns the tenant's existing upload of the same content

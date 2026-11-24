@@ -560,8 +560,11 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
   // New credentials are another bot: what was confirmed for the earlier ones does not carry over.
   const setValue = (k: string, v: string) => {
     setValues((cur) => ({ ...cur, [k]: v })); setWarnings([]); setAccepted([]); setConfirmed(false)
-    setError(undefined) // an error about the earlier credentials (the confirmation asked for) is not about these
+    clearConfirmError() // the confirmation asked for was about the earlier credentials, not these
   }
+  // Only the "confirm first" message goes when the credentials or the switch change: a version conflict (and its
+  // «Load latest») or another failure of the last save stays until the next save.
+  const clearConfirmError = () => { if (error() === t('Form.ConfirmRequired')) setError(undefined) }
   const confirmList = () => [...new Set([...accepted(), ...warnings()])]
 
   const begin = () => { setBusy(true); setSlow(false); setError(undefined); setNotice(undefined); setRetry(false); setConflict(false); slowTimer = setTimeout(() => setSlow(true), 4000) }
@@ -730,7 +733,7 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
         <Show when={warnings().length > 0}>
           <div class="flex flex-col items-start gap-2 rounded-md border border-subtle p-3" role="group" data-testid="form-warnings">
             <For each={warnings()}>{(code) => <p role="alert" class="text-sm text-pink">{warningText(t, code)}</p>}</For>
-            <Switch checked={confirmed()} label={t('Form.ConfirmWarning')} onChange={(e) => { setConfirmed(e.currentTarget.checked); setError(undefined) }}
+            <Switch checked={confirmed()} label={t('Form.ConfirmWarning')} onChange={(e) => { setConfirmed(e.currentTarget.checked); clearConfirmError() }}
               disabled={busy()} data-field="confirm_warnings" data-testid="form-confirm" />
           </div>
         </Show>

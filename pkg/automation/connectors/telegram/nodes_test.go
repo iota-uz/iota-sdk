@@ -392,7 +392,8 @@ func TestFirstAcceptedPressAcknowledgesRemovesTheKeyboardAndAddsTheChoice(t *tes
 	text, answered := r.bot.Answered(queryID)
 	assert.True(t, answered, "every press is acknowledged")
 	assert.Empty(t, text)
-	got, _ := r.bot.Message(700, m.ID)
+	got, found := r.bot.Message(700, m.ID)
+	require.True(t, found, "the original message is there")
 	assert.Empty(t, got.Markup, "the keyboard is gone")
 	assert.Equal(t, "Approve the order?\n\n→ Option B", got.Text, "the same text with the chosen option")
 }
@@ -409,7 +410,8 @@ func TestAPressOfAClosedQuestionIsAnsweredWithoutAnEvent(t *testing.T) {
 	text, answered := r.bot.Answered(queryID)
 	assert.True(t, answered)
 	assert.Equal(t, telegram.AlreadyAnswered, text)
-	got, _ := r.bot.Message(700, m.ID)
+	got, found := r.bot.Message(700, m.ID)
+	require.True(t, found, "the original message is there")
 	assert.Empty(t, got.Markup, "the keyboard is taken off at the late press")
 	assert.Equal(t, "Approve the order?", got.Text, "and the text is not changed")
 }
@@ -426,7 +428,8 @@ func TestAPressThatLostTheRaceIsAnsweredAsClosed(t *testing.T) {
 	queryID := u["callback_query"].(map[string]any)["id"].(string)
 	text, _ := r.bot.Answered(queryID)
 	assert.Equal(t, telegram.AlreadyAnswered, text)
-	got, _ := r.bot.Message(700, m.ID)
+	got, found := r.bot.Message(700, m.ID)
+	require.True(t, found, "the original message is there")
 	assert.Equal(t, "Approve the order?", got.Text, "the text stays")
 }
 

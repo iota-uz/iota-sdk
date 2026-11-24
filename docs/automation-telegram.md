@@ -79,7 +79,9 @@ credential — изменение всего развёртывания: рез�
 | `telegram.ask` | call + ожидание нажатия | `<options[].outcome>`, `timeout`, `failed` |
 | `telegram.read` | wait на `telegram.message_received.v1` | `received`, `timeout` |
 
-- `chat_id` — число (id чата) или выражение CEL (`event.chatId`, `"@username"`); `thread_id` — тема форума.
+- `chat_id` — число (id чата) или выражение CEL (`event.chatId`); для `telegram.send` и `telegram.ask` ещё `"@username"`.
+  `telegram.read` ждёт в чате по числовому id (или выражению, которое его даёт): `"@username"` там отклоняется при проверке
+  графа. `thread_id` — тема форума.
   В редакторе поле выбирается из известных чатов («Личные», «Группы»), вводится вручную (id или
   @username) или задаётся выражением (`x-options-source: telegram.chats`, `EditorApi.searchOptions`).
 - `send.files` — id загрузок: один файл идёт как фото/документ с подписью, несколько — альбомом документов.

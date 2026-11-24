@@ -76,7 +76,7 @@ test('a bot another service uses is connected only after the person confirms it'
   await expect(form).toHaveCount(0)
   const created = await callsOf(page, 'connections.create')
   expect(created).toHaveLength(2)
-  expect(created[1]!.params.confirm).toEqual(['foreign_webhook'])
+  expect(created[1]!.params.confirm).toEqual(['foreign_webhook@222222']) // the whole token, not the code
   await expect(row(page, 'shared_bot')).toBeVisible()
 })
 
