@@ -7,6 +7,7 @@ import (
 	"errors"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/google/uuid"
@@ -59,8 +60,10 @@ type fields struct {
 	Note      string          `json:"note"`
 	Positions graph.Layout    `json:"positions"`
 	ID        string          `json:"id"`
-	// BaseRevision is a pointer so that a missing base is told from 0.
-	BaseRevision *int `json:"base_revision"`
+	// BaseRevision is the layout revision automation.layout is based on.
+	BaseRevision revisionArg `json:"base_revision"`
+	// LayoutRevision is the layout revision the layout of automation.update is based on.
+	LayoutRevision revisionArg `json:"layout_revision"`
 	// human are the human-only fields the change names, in humanFields order.
 	human []humanField
 }
@@ -80,6 +83,35 @@ func decodeFields(raw json.RawMessage) (fields, []mcp.Issue) {
 		}
 	}
 	return f, nil
+}
+
+// revisionArg is a revision a change names: the JSON integer or the decimal string automation_get
+// returns ("3"), normalized to one number.
+type revisionArg struct {
+	n   int
+	set bool
+}
+
+func (r *revisionArg) UnmarshalJSON(b []byte) error {
+	s := strings.TrimSpace(string(b))
+	if s == "null" {
+		return nil
+	}
+	if unq, err := strconv.Unquote(s); err == nil {
+		s = unq
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 1 {
+		return errors.New("a revision is a positive integer or its decimal string")
+	}
+	r.n, r.set = n, true
+	return nil
+}
+
+// revisionSchema accepts a revision as automation_get returns it (a decimal string) or as a number.
+func revisionSchema(description string) *jsonschema.Schema {
+	return &jsonschema.Schema{Types: []string{"integer", "string"}, Minimum: jsonschema.Ptr(1.0), Pattern: "^[1-9][0-9]*$",
+		Description: description}
 }
 
 // humanField is a field of a change only a person may act on: asking for it is refused with
@@ -288,7 +320,9 @@ func (k createKind) Plan(ctx context.Context, c changes.Change) (changes.Planned
 		}
 		p.Errors, p.Warnings = append(p.Errors, errs...), warns
 	}
-	p.Diff = graphDiff(nil, f.Graph)
+	if len(f.Graph) <= MaxGraphBytes {
+		p.Diff = graphDiff(nil, f.Graph)
+	}
 	if len(f.Layout) > 0 {
 		p.Diff = append(p.Diff, fielddiff.Diff{Field: "layout", Before: fielddiff.Absent(), After: fielddiff.Present(marshal(f.Layout))})
 	}
@@ -328,9 +362,10 @@ func (updateKind) Description() string {
 
 func (updateKind) Fields() *jsonschema.Schema {
 	return withHumanFields(objectSchema(map[string]*jsonschema.Schema{
-		"graph":  {Type: "object", Description: "The whole graph document of the new version."},
-		"layout": layoutSchema(),
-		"note":   {Type: "string", MaxLength: jsonschema.Ptr(2000), Description: "What the version changes, shown in the version list."},
+		"graph":           {Type: "object", Description: "The whole graph document of the new version."},
+		"layout":          layoutSchema(),
+		"note":            {Type: "string", MaxLength: jsonschema.Ptr(2000), Description: "What the version changes, shown in the version list."},
+		"layout_revision": revisionSchema("Required with layout: layout_revision as automation_get returns it; a stale one is VERSION_CONFLICT."),
 	}, "graph"))
 }
 
@@ -362,11 +397,23 @@ func (k updateKind) Plan(ctx context.Context, c changes.Change) (changes.Planned
 		}
 		p.Errors, p.Warnings = append(p.Errors, errs...), warns
 	}
-	latest, err := k.svc.GetVersion(ctx, a, id, am.LatestVersion)
-	if err != nil {
-		return changes.Planned{}, failure(err)
+	if len(f.Layout) > 0 {
+		switch {
+		case !f.LayoutRevision.set:
+			p.Errors = append(p.Errors, mcp.Issue{Path: "/fields/layout_revision", Code: "required",
+				Message: "positions are based on a layout: pass layout_revision as automation_get returns it"})
+		case f.LayoutRevision.n != am.LayoutRevision:
+			p.Errors = append(p.Errors, mcp.Issue{Path: "/fields/layout_revision", Code: "VERSION_CONFLICT",
+				Message: "the layout revision is " + strconv.Itoa(am.LayoutRevision) + "; read the graph again and prepare again"})
+		}
 	}
-	p.Diff = graphDiff(latest.Graph, f.Graph)
+	if len(f.Graph) <= MaxGraphBytes {
+		latest, err := k.svc.GetVersion(ctx, a, id, am.LatestVersion)
+		if err != nil {
+			return changes.Planned{}, failure(err)
+		}
+		p.Diff = graphDiff(latest.Graph, f.Graph)
+	}
 	if len(f.Layout) > 0 {
 		p.Diff = append(p.Diff, fielddiff.Diff{Field: "layout", Before: fielddiff.Present(marshal(am.Layout)), After: fielddiff.Present(marshal(f.Layout))})
 	}
@@ -406,11 +453,21 @@ func (k updateKind) Apply(ctx context.Context, c changes.Change) (changes.Applie
 	if len(issues) > 0 || len(f.human) > 0 || perr != nil {
 		return changes.Applied{}, mcp.Fail(mcp.CodeInvalidInput, mcp.RecoveryReadThenPrepare, "the change is not applicable")
 	}
-	am, err := k.svc.Get(joined(ctx), a, id)
+	in := engine.SaveInput{BaseVersion: baseVersion, Graph: f.Graph, Layout: f.Layout, Note: f.Note}
+	if len(f.Layout) > 0 {
+		if !f.LayoutRevision.set {
+			return changes.Applied{}, mcp.Fail(mcp.CodeInvalidInput, mcp.RecoveryReadThenPrepare, "the change is not applicable")
+		}
+		// SaveVersion compares it with the layout revision under the graph's lock.
+		in.LayoutBase = &f.LayoutRevision.n
+	}
+	v, err := k.svc.SaveVersion(joined(ctx), a, id, in)
 	if err != nil {
 		return changes.Applied{}, failure(err)
 	}
-	v, err := k.svc.SaveVersion(joined(ctx), a, id, engine.SaveInput{BaseVersion: baseVersion, Graph: f.Graph, Layout: f.Layout, Note: f.Note})
+	// Read in the apply's transaction, which holds the graph's row lock since the save: the version that
+	// runs is the one the save saw.
+	am, err := k.svc.Get(joined(ctx), a, id)
 	if err != nil {
 		return changes.Applied{}, failure(err)
 	}
@@ -436,7 +493,7 @@ func (layoutKind) Description() string {
 func (layoutKind) Fields() *jsonschema.Schema {
 	return withHumanFields(objectSchema(map[string]*jsonschema.Schema{
 		"id":            {Type: "string", Format: "uuid"},
-		"base_revision": {Type: "integer", Minimum: jsonschema.Ptr(1.0)},
+		"base_revision": revisionSchema("layout_revision as automation_get returns it."),
 		"positions":     layoutSchema(),
 	}, "id", "base_revision", "positions"))
 }
@@ -468,7 +525,7 @@ func (k layoutKind) Plan(ctx context.Context, c changes.Change) (changes.Planned
 		return changes.Planned{}, failure(err)
 	}
 	p := changes.Planned{Errors: k.check(ctx, OpLayout, f, id)}
-	if f.BaseRevision != nil && *f.BaseRevision != am.LayoutRevision {
+	if f.BaseRevision.set && f.BaseRevision.n != am.LayoutRevision {
 		p.Errors = append(p.Errors, mcp.Issue{Path: "/fields/base_revision", Code: "VERSION_CONFLICT",
 			Message: "the layout revision is " + strconv.Itoa(am.LayoutRevision) + "; read the graph again and prepare again"})
 	}
@@ -496,12 +553,12 @@ func (k layoutKind) Apply(ctx context.Context, c changes.Change) (changes.Applie
 	}
 	f, issues := decodeFields(c.Fields)
 	id, perr := uuid.Parse(f.ID)
-	if len(issues) > 0 || len(f.human) > 0 || perr != nil || f.BaseRevision == nil {
+	if len(issues) > 0 || len(f.human) > 0 || perr != nil || !f.BaseRevision.set {
 		return changes.Applied{}, mcp.Fail(mcp.CodeInvalidInput, mcp.RecoveryReadThenPrepare, "the change is not applicable")
 	}
 	// SaveLayout compares the base with the revision under the graph's lock: a save that won the race
 	// since the plan is VERSION_CONFLICT.
-	rev, err := k.svc.SaveLayout(joined(ctx), a, id, engine.LayoutInput{BaseRevision: *f.BaseRevision, Positions: f.Positions})
+	rev, err := k.svc.SaveLayout(joined(ctx), a, id, engine.LayoutInput{BaseRevision: f.BaseRevision.n, Positions: f.Positions})
 	if err != nil {
 		return changes.Applied{}, failure(err)
 	}

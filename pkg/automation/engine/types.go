@@ -157,9 +157,12 @@ type CreateInput struct {
 // SaveInput is a new version of a graph.
 type SaveInput struct {
 	BaseVersion int
-	Graph       json.RawMessage
-	Layout      graph.Layout // optional; saved together with the version
-	Note        string
+	// LayoutBase, when set, is the layout revision the positions in Layout were based on: another one is a
+	// *LayoutConflictError, as for SaveLayout.
+	LayoutBase *int
+	Graph      json.RawMessage
+	Layout     graph.Layout // optional; saved together with the version
+	Note       string
 }
 
 // LayoutInput is a save of positions based on the layout revision the caller read.

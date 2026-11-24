@@ -368,9 +368,9 @@ func (s *PostgresStore) SaveAudit(ctx context.Context, records []AuditRecord) er
 	const op serrors.Op = "changes.PostgresStore.SaveAudit"
 	for _, r := range records {
 		if _, err := s.db(ctx).Exec(ctx, `
-			INSERT INTO mcp.operation_audit (operation_id, item, tenant_id, subject, client_id, tool)
-			VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (operation_id, item) DO NOTHING`,
-			r.OperationID, r.Item, r.TenantID, r.Subject, r.ClientID, r.Tool); err != nil {
+			INSERT INTO mcp.operation_audit (operation_id, item, tenant_id, subject, client_id, request_id, tool)
+			VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (operation_id, item) DO NOTHING`,
+			r.OperationID, r.Item, r.TenantID, r.Subject, r.ClientID, r.RequestID, r.Tool); err != nil {
 			return serrors.FromDB(op, err)
 		}
 	}
@@ -383,7 +383,7 @@ func (s *PostgresStore) UndeliveredAudit(ctx context.Context, operationID string
 		limit = 100
 	}
 	rows, err := s.db(ctx).Query(ctx, `
-		SELECT operation_id::text, item, tenant_id::text, subject, client_id, tool FROM mcp.operation_audit
+		SELECT operation_id::text, item, tenant_id::text, subject, client_id, request_id, tool FROM mcp.operation_audit
 		WHERE delivered_at IS NULL AND ($1 = '' OR operation_id::text = $1)
 		ORDER BY created_at, operation_id, item LIMIT $2`, operationID, limit)
 	if err != nil {
@@ -393,7 +393,7 @@ func (s *PostgresStore) UndeliveredAudit(ctx context.Context, operationID string
 	var out []AuditRecord
 	for rows.Next() {
 		var r AuditRecord
-		if err := rows.Scan(&r.OperationID, &r.Item, &r.TenantID, &r.Subject, &r.ClientID, &r.Tool); err != nil {
+		if err := rows.Scan(&r.OperationID, &r.Item, &r.TenantID, &r.Subject, &r.ClientID, &r.RequestID, &r.Tool); err != nil {
 			return nil, serrors.FromDB(op, err)
 		}
 		out = append(out, r)

@@ -251,5 +251,7 @@ type AuditRecord struct {
 	TenantID    string
 	Subject     string
 	ClientID    string
-	Tool        string
+	// RequestID is the transport request that applied the change.
+	RequestID string
+	Tool      string
 }

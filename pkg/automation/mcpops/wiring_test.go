@@ -257,3 +257,35 @@ func TestApplyNeedsOneConnection(t *testing.T) {
 	apply(map[string]any{"op": "layout", "entity": "automation",
 		"fields": map[string]any{"id": created.ID, "base_revision": 2, "positions": map[string]any{"fin": map[string]any{"x": 1, "y": 1}}}}, "one-3")
 }
+
+// layout_revision as automation_get returns it (a string) is a base of automation.layout, and an update
+// that moves nodes names the layout it moved them on: a newer layout edit is VERSION_CONFLICT.
+func TestLayoutRevisionsAreStringsAndGuardUpdates(t *testing.T) {
+	e := newEnv(t)
+	created := receiptResult(t, e.apply(agentID, e.prepare(agentID, map[string]any{"op": "create", "entity": "automation",
+		"fields": map[string]any{"graph": noteGraph("L", "a")}}), "l-1"))
+	var g got
+	e.ok(agentID, mcpops.ToolGet, map[string]any{"id": created.ID}, &g)
+	stale := g.LayoutRevision
+
+	moved := e.prepare(agentID, map[string]any{"op": "layout", "entity": "automation",
+		"fields": map[string]any{"id": created.ID, "base_revision": stale, "positions": map[string]any{"fin": map[string]any{"x": 1, "y": 1}}}})
+	require.Equal(t, changes.OperationSucceeded, e.apply(agentID, moved, "l-2").Status)
+
+	update := func(fields map[string]any) prepared {
+		fields["graph"] = noteGraph("L", "b")
+		return e.prepare(agentID, map[string]any{"op": "update", "entity": "automation", "id": created.ID, "expected_revision": "1", "fields": fields})
+	}
+	pos := map[string]any{"note": map[string]any{"x": 9, "y": 9}}
+	missing := update(map[string]any{"layout": pos})
+	require.Equal(t, changes.StatusInvalid, missing.Status)
+	assert.Equal(t, "/changes/0/fields/layout_revision", missing.Errors[0].Path)
+	conflict := update(map[string]any{"layout": pos, "layout_revision": stale})
+	require.Equal(t, changes.StatusInvalid, conflict.Status)
+	assert.Equal(t, "VERSION_CONFLICT", conflict.Errors[0].Code)
+
+	e.ok(agentID, mcpops.ToolGet, map[string]any{"id": created.ID}, &g)
+	res := receiptResult(t, e.apply(agentID, update(map[string]any{"layout": pos, "layout_revision": g.LayoutRevision}), "l-3"))
+	assert.Equal(t, 2, res.Version)
+	assert.Equal(t, false, res.Enabled)
+}

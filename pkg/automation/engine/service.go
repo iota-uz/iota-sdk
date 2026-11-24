@@ -42,8 +42,6 @@ func (s *service) authorize(a Actor, perms ...string) error {
 	return nil
 }
 
-// inTx runs fn in a transaction of its own, or in a savepoint of the transaction the caller joined with
-// WithTx.
 // authorizeAny admits an actor that holds any one of perms.
 func (s *service) authorizeAny(a Actor, perms ...string) error {
 	if err := s.authorize(a); err != nil {
@@ -66,6 +64,8 @@ func (r *Runtime) reader(ctx context.Context) querier {
 	return r.cfg.DB
 }
 
+// inTx runs fn in a transaction of its own, or in a savepoint of the transaction the caller joined with
+// WithTx.
 func (s *service) inTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
 	if outer, ok := ctx.Value(joinedTxKey{}).(pgx.Tx); ok && outer != nil {
 		return pgx.BeginFunc(ctx, outer, fn)
@@ -170,6 +170,9 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 				return err
 			}
 			return &ConflictError{Latest: am.LatestVersion, By: latest.SavedBy}
+		}
+		if in.LayoutBase != nil && *in.LayoutBase != am.LayoutRevision {
+			return &LayoutConflictError{Revision: am.LayoutRevision, Layout: am.Layout}
 		}
 		next := am.LatestVersion + 1
 		if err := insertVersion(ctx, tx, a, id, next, v, digest, in.Note); err != nil {
@@ -491,7 +494,7 @@ func (s *service) List(ctx context.Context, a Actor, f ListFilter) (Page[Automat
 		where = append(where, fmt.Sprintf("(updated_at, id) < ($%d, $%d)", len(args)-1, len(args)))
 	}
 	args = append(args, limit+1)
-	rows, err := s.r.cfg.DB.Query(ctx, `SELECT `+automationCols+` FROM automation.automations WHERE `+strings.Join(where, " AND ")+
+	rows, err := s.r.reader(ctx).Query(ctx, `SELECT `+automationCols+` FROM automation.automations WHERE `+strings.Join(where, " AND ")+
 		fmt.Sprintf(` ORDER BY updated_at DESC, id DESC LIMIT $%d`, len(args)), args...)
 	if err != nil {
 		return Page[Automation]{}, serrors.FromDB(opService, err)
@@ -651,7 +654,7 @@ func (s *service) Disable(ctx context.Context, a Actor, id uuid.UUID) (Automatio
 	if err != nil {
 		return Automation{}, err
 	}
-	if err := s.r.cancelRunsOf(ctx, a.TenantID, id); err != nil {
+	if err := s.r.cancelAfterCommit(ctx, a.TenantID, id); err != nil {
 		return Automation{}, err
 	}
 	return am.Automation, nil
@@ -706,7 +709,17 @@ func (s *service) Delete(ctx context.Context, a Actor, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	return s.r.cancelRunsOf(ctx, a.TenantID, id)
+	return s.r.cancelAfterCommit(ctx, a.TenantID, id)
+}
+
+// cancelAfterCommit cancels the runs a Disable or Delete marked cancel_requested. In a transaction the
+// caller joined (WithTx) the marks are not committed yet and the pool must not be used: Maintain
+// (cancelOrphans) cancels them once the caller commits.
+func (r *Runtime) cancelAfterCommit(ctx context.Context, tenant, id uuid.UUID) error {
+	if outer, ok := ctx.Value(joinedTxKey{}).(pgx.Tx); ok && outer != nil {
+		return nil
+	}
+	return r.cancelRunsOf(ctx, tenant, id)
 }
 
 // cancelRunsOf cancels the live runs of a graph: queued ones never start, the instances of the others

@@ -86,3 +86,42 @@ func TestService_ChangeAuditSurvivesAStopBeforeDelivery(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, log.all(), 1, "a delivered event is not sent again")
 }
+
+// flakyLog fails to store its first entry, then confirms.
+type flakyLog struct {
+	auditLog
+	fails int
+}
+
+func (f *flakyLog) RecordConfirmed(ctx context.Context, e mcp.AuditEntry) error {
+	if f.fails > 0 {
+		f.fails--
+		return assert.AnError
+	}
+	f.Record(ctx, e)
+	return nil
+}
+
+// A delivery keeps the request of the apply, not the one delivering, and an event an auditor did not
+// confirm stays for the next delivery.
+func TestService_ChangeAuditKeepsTheApplyRequestAndWaitsForConfirmation(t *testing.T) {
+	w := newWorld(t)
+	svc, _ := w.service(t)
+	prepared, err := svc.Prepare(w.ctx, []changes.Change{{Op: "create", Entity: "note", Fields: []byte(`{"body":"a"}`)}}, "")
+	require.NoError(t, err)
+	op, err := svc.Apply(mcp.WithRequestID(w.ctx, "req-apply"), changes.ApplyInput{PlanID: prepared.PlanID, PlanHash: prepared.PlanHash, IdempotencyKey: "q-1"})
+	require.NoError(t, err)
+	require.NotNil(t, op.Receipt)
+
+	log := &flakyLog{fails: 1}
+	restarted, _ := w.service(t, func(c *changes.Config) { c.Auditor = log })
+	dispatch := mcp.WithRequestID(context.Background(), "req-dispatch")
+	_, err = restarted.DispatchEffects(dispatch, 10)
+	require.NoError(t, err)
+	assert.Empty(t, log.all(), "the auditor did not store it")
+	_, err = restarted.DispatchEffects(dispatch, 10)
+	require.NoError(t, err)
+	entries := log.all()
+	require.Len(t, entries, 1, "delivered on the next run")
+	assert.Equal(t, "req-apply", entries[0].RequestID)
+}

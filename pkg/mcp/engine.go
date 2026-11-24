@@ -44,6 +44,14 @@ type Auditor interface {
 	Record(ctx context.Context, e AuditEntry)
 }
 
+// ConfirmingAuditor is an optional interface of an Auditor that reports whether it stored an entry.
+// Deliveries that must not be lost (the audit of applied changes, pkg/mcp/changes) use it and keep an
+// entry for a later delivery when it returns an error; with Record alone, returning counts as stored.
+type ConfirmingAuditor interface {
+	Auditor
+	RecordConfirmed(ctx context.Context, e AuditEntry) error
+}
+
 type Engine struct {
 	registry *Registry
 	authz    Authorizer
@@ -152,11 +160,11 @@ func isNested(ctx context.Context) bool {
 func (e *Engine) Call(ctx context.Context, name string, input json.RawMessage) Result {
 	started := time.Now()
 	p, ok := PrincipalFrom(ctx)
-	if e.audit != nil {
-		ctx = context.WithValue(ctx, auditKey{}, &auditScope{audit: e.audit, base: AuditEntry{
-			RequestID: RequestIDFrom(ctx), Subject: p.Subject(), TenantID: p.TenantID.String(), ClientID: p.ClientID, Nested: isNested(ctx),
-		}})
-	}
+	// The scope is set on every call, also without an auditor: a scope inherited from an outer engine
+	// never leaks into this one.
+	ctx = context.WithValue(ctx, auditKey{}, &auditScope{audit: e.audit, base: AuditEntry{
+		RequestID: RequestIDFrom(ctx), Subject: p.Subject(), TenantID: p.TenantID.String(), ClientID: p.ClientID, Nested: isNested(ctx),
+	}})
 	res := e.call(ctx, p, ok, name, input)
 	if e.audit != nil {
 		entry := AuditEntry{
@@ -220,7 +228,7 @@ type auditScope struct {
 // AuditorFrom is the auditor of the engine running the call of ctx, if it has one.
 func AuditorFrom(ctx context.Context) (Auditor, bool) {
 	s, ok := ctx.Value(auditKey{}).(*auditScope)
-	if !ok {
+	if !ok || s.audit == nil {
 		return nil, false
 	}
 	return s.audit, true
@@ -232,7 +240,7 @@ func AuditorFrom(ctx context.Context) (Auditor, bool) {
 // engine with an auditor it does nothing.
 func Audit(ctx context.Context, tool string, outcome Code, operationID string) {
 	s, ok := ctx.Value(auditKey{}).(*auditScope)
-	if !ok {
+	if !ok || s.audit == nil {
 		return
 	}
 	entry := s.base

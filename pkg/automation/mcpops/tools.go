@@ -624,6 +624,10 @@ func (t *tools) dryRun(ctx context.Context, a engine.Actor, in dryRunIn) (dryRun
 		}
 		raw = v.Graph
 	}
+	// The same limit for a saved graph as for one given inline.
+	if len(raw) > MaxGraphBytes {
+		return dryRunOut{}, tooLarge("/id")
+	}
 	dr := engine.DryRunInput{Graph: raw, Subject: in.Subject, Context: in.Context, Events: in.Events, Decisions: in.Decisions,
 		RealCalls: engine.RealCallsNone}
 	if in.AllowLive {

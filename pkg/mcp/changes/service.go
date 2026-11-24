@@ -362,7 +362,7 @@ func (s *Service) execute(ctx context.Context, p mcp.Principal, plan Plan, opera
 		audit := make([]AuditRecord, 0, len(plan.Changes))
 		for i, c := range plan.Changes {
 			audit = append(audit, AuditRecord{OperationID: operation.ID, Item: i, TenantID: p.TenantID.String(), Subject: p.Subject(),
-				ClientID: p.ClientID, Tool: "changes:" + kindKey(c.Entity, c.Op)})
+				ClientID: p.ClientID, RequestID: mcp.RequestIDFrom(ctx), Tool: "changes:" + kindKey(c.Entity, c.Op)})
 		}
 		if err := s.cfg.Store.SaveAudit(txCtx, audit); err != nil {
 			return errors.Join(errTransient, err)
@@ -393,6 +393,10 @@ func (s *Service) execute(ctx context.Context, p mcp.Principal, plan Plan, opera
 		}
 		operation.Status, operation.ExternalEffects, operation.Error = OperationFailed, EffectsNone, f
 		return operation, nil
+	}
+	if operation.Receipt != nil {
+		// Another apply of the key committed: its receipt, as this caller may see it now.
+		return s.visible(ctx, p, s.withRetry(operation)), nil
 	}
 	// The transaction either rolled back on a transient error or its commit
 	// outcome is unknown; the operation stays pending and the same key resumes it.
@@ -592,7 +596,8 @@ func (s *Service) DispatchEffects(ctx context.Context, limit int) (int, error) {
 const maxAuditBatch = 200
 
 // deliverAudit sends the undelivered audit events of an operation ("" any) to the auditor and marks
-// them. It is best effort: an event that fails stays stored and is sent by a later delivery.
+// them. An auditor that confirms its writes (mcp.ConfirmingAuditor) has an event marked only once it
+// stored it; one that fails stays stored and is sent by a later delivery.
 func (s *Service) deliverAudit(ctx context.Context, operationID string) {
 	a := s.cfg.Auditor
 	if a == nil {
@@ -605,10 +610,19 @@ func (s *Service) deliverAudit(ctx context.Context, operationID string) {
 	if err != nil {
 		return
 	}
+	confirming, _ := a.(mcp.ConfirmingAuditor)
 	for _, r := range records {
 		item := r.Item
-		a.Record(ctx, mcp.AuditEntry{RequestID: mcp.RequestIDFrom(ctx), Tool: r.Tool, Subject: r.Subject, TenantID: r.TenantID,
-			ClientID: r.ClientID, OperationID: r.OperationID, Item: &item})
+		// The request is the apply's, stored with the event, never the one delivering it.
+		entry := mcp.AuditEntry{RequestID: r.RequestID, Tool: r.Tool, Subject: r.Subject, TenantID: r.TenantID,
+			ClientID: r.ClientID, OperationID: r.OperationID, Item: &item}
+		if confirming != nil {
+			if err := confirming.RecordConfirmed(ctx, entry); err != nil {
+				return // kept for a later delivery
+			}
+		} else {
+			a.Record(ctx, entry)
+		}
 		if err := s.cfg.Store.MarkAudited(ctx, r.OperationID, r.Item); err != nil {
 			return
 		}
