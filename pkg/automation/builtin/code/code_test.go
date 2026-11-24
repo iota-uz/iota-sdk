@@ -73,7 +73,8 @@ func TestCodeReadsThroughAConnectionWithoutItsToken(t *testing.T) {
 			const r = await env.connections.crm.list("/deals");
 			const data = await r.json();
 			env.log("auth was", data.auth);
-			return { outcome: "done", output: { count: data.deals.length, auth: data.auth } };
+			const seen = JSON.stringify(data) + JSON.stringify(r.headers) + r.url;
+			return { outcome: "done", output: { count: data.deals.length, auth: data.auth, reflected: seen.includes("5ecret") } };
 		}`,
 	}})
 	if err != nil {
@@ -93,7 +94,8 @@ func TestCodeReadsThroughAConnectionWithoutItsToken(t *testing.T) {
 		t.Fatalf("the token leaked: %s", raw)
 	}
 	out := res.Output["output"].(map[string]any)
-	if out["count"] != float64(1) || out["auth"] != "Bearer ***" {
+	// The script itself never saw the token the API reflected: it was redacted before the sandbox.
+	if out["count"] != float64(1) || out["auth"] != "***" || out["reflected"] != false {
 		t.Fatalf("output %v", out)
 	}
 

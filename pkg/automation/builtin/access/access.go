@@ -317,13 +317,66 @@ func (g *Gateway) CallConnection(ctx context.Context, req code.ConnectionRequest
 	if len(req.Body) > 0 {
 		header.Set("Content-Type", "application/json")
 	}
+	before := header.Clone()
 	if err := c.Authorize(ctx, header); err != nil {
 		return nil, fmt.Errorf("connection %s could not authorize the request", req.Connection)
 	}
+	masker := Masker(append(c.Values, AddedValues(before, header)...)...)
 	if g.Fetcher == nil {
 		return nil, &code.NetworkBlockedError{Reason: "disabled"}
 	}
-	return g.Fetcher.Fetch(ctx, code.FetchRequest{URL: u.String(), Method: strings.ToUpper(m.HTTPMethod), Header: header, Body: req.Body})
+	resp, err := g.Fetcher.Fetch(ctx, code.FetchRequest{URL: u.String(), Method: strings.ToUpper(m.HTTPMethod), Header: header, Body: req.Body, SameOrigin: true})
+	if err != nil {
+		var left *code.OriginError
+		var blocked *code.NetworkBlockedError
+		switch {
+		case errors.As(err, &left):
+			return nil, &code.ConnectionRefusedError{Code: code.ReasonConnectionOriginMismatch, Message: "connection " + c.Name + " was redirected off its origin"}
+		case errors.As(err, &blocked):
+			return nil, err
+		}
+		// An API may echo what it was sent: the error reaches the code only masked.
+		return nil, errors.New(masker.Mask(err.Error()))
+	}
+	return RedactResponse(resp, masker), nil
+}
+
+// AddedValues are the header values Authorize set or changed (and their parts after a scheme), so a
+// token it computed (Basic credentials) is masked too.
+func AddedValues(before, after http.Header) []string {
+	var out []string
+	for k, vs := range after {
+		prev := strings.Join(before.Values(k), "\x00")
+		for _, v := range vs {
+			if strings.Contains(prev, v) {
+				continue
+			}
+			out = append(out, v)
+			if _, rest, ok := strings.Cut(v, " "); ok && rest != "" {
+				out = append(out, rest)
+			}
+		}
+	}
+	return out
+}
+
+// RedactResponse is a response with the masker's values replaced in its headers, body and URL: what
+// an API reflects of the credentials never reaches the code.
+func RedactResponse(r *code.FetchResponse, m code.Masker) *code.FetchResponse {
+	if r == nil {
+		return nil
+	}
+	out := *r
+	out.Header = make(http.Header, len(r.Header))
+	for k, vs := range r.Header {
+		for _, v := range vs {
+			out.Header.Add(k, m.Mask(v))
+		}
+	}
+	out.Body = []byte(m.Mask(string(r.Body)))
+	out.URL = m.Mask(r.URL)
+	out.StatusText = m.Mask(r.StatusText)
+	return &out
 }
 
 // Masker masks the values (secrets, credentials) in everything a node returns.

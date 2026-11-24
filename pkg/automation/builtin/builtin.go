@@ -53,7 +53,7 @@ func Nodes(d Deps) ([]catalog.NodeType, error) {
 		set.New(),
 		code.New(code.Deps{Engine: d.Engine, Engines: d.Engines, Compiler: d.Compiler, Fetcher: d.Fetcher, Secrets: d.Secrets, Connections: d.Connections}),
 		http.New(http.Deps{Fetcher: d.Fetcher, Secrets: d.Secrets, Connections: d.Connections}),
-		start, run,
+		start, run, actions.Front(),
 	}
 	acts, err := actions.Nodes(d.Actions...)
 	if err != nil {

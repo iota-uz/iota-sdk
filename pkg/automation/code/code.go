@@ -222,6 +222,19 @@ type FetchRequest struct {
 	Header      http.Header
 	Body        []byte
 	Redirect    string // "follow" (default) | "manual" | "error"
+	// SameOrigin refuses a redirect to another origin with an *OriginError (a request through a
+	// connection stays on the connector's API).
+	SameOrigin bool
+	// Sensitive are headers the request authorizes with (a secret's header, an idempotency key): dropped
+	// once a redirect leaves the origin, whatever their name.
+	Sensitive []string
+}
+
+// OriginError is a redirect a SameOrigin request was refused: it left the request's origin.
+type OriginError struct{ From, To string }
+
+func (e *OriginError) Error() string {
+	return "redirect refused: " + e.To + " is not the origin of the request (" + e.From + ")"
 }
 
 // FetchResponse is the response env.fetch resolves with.

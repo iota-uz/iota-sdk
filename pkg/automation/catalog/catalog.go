@@ -8,6 +8,7 @@ package catalog
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -119,6 +120,17 @@ type CallInput struct {
 	Credentials Credentials     // decrypted by the engine; the node neither keeps nor logs them
 	Deadline    time.Time
 	Usage       UsageRecorder
+	// Commands invokes SDK commands for the call (wf.call): nil outside a call's child instance.
+	Commands Commands
+}
+
+// Commands invokes a native or package command as the call's run-as, with the call's invocation ID
+// (InvocationIDOf of its idempotency key): a repeat of a finished invocation returns its recorded output
+// without running it again, one without a recorded outcome is a CallError outcome_unknown. A refusal of
+// the command is a *CallError with its code (forbidden for a missing right); any other error is
+// infrastructure.
+type Commands interface {
+	Invoke(ctx context.Context, command string, input json.RawMessage) (json.RawMessage, error)
 }
 
 // InvocationIDOf is the invocation ID (a UUID) a call node passes to SDK commands: derived from the

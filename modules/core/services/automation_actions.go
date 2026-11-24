@@ -1,4 +1,4 @@
-package core
+package services
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
-	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions/servicectx"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
@@ -25,9 +24,9 @@ const (
 	ActionGroupRemoveUser = "core.group.remove_user"
 )
 
-// contributeAutomationActions offers the user and group operations of the core services to automation
+// ContributeAutomationActions offers the user and group operations of the core services to automation
 // graphs: they run as the run-as user, with its rights, through the same services the UI calls.
-func contributeAutomationActions(b *composition.Builder) {
+func ContributeAutomationActions(b *composition.Builder) {
 	actions.ContributeFunc(b, func(c *composition.Container) ([]actions.Action, error) {
 		pool, err := composition.Resolve[*pgxpool.Pool](c)
 		if err != nil {
@@ -37,11 +36,11 @@ func contributeAutomationActions(b *composition.Builder) {
 		if err != nil {
 			return nil, err
 		}
-		userService, err := composition.Resolve[*services.UserService](c)
+		userService, err := composition.Resolve[*UserService](c)
 		if err != nil {
 			return nil, err
 		}
-		groupService, err := composition.Resolve[*services.GroupService](c)
+		groupService, err := composition.Resolve[*GroupService](c)
 		if err != nil {
 			return nil, err
 		}
@@ -53,6 +52,12 @@ func contributeAutomationActions(b *composition.Builder) {
 			groupMemberAction{env: env, groups: groupService, add: false},
 		}, nil
 	})
+}
+
+// automationActionTemplates are the core actions without dependencies: the specs of their native
+// command contracts (Natives).
+func automationActionTemplates() []actions.Action {
+	return []actions.Action{userBlockAction{}, userUnblockAction{}, groupMemberAction{add: true}, groupMemberAction{add: false}}
 }
 
 type coreActionEnv struct {
@@ -78,7 +83,7 @@ func userOutputOf(u user.User) (json.RawMessage, error) {
 
 type userBlockAction struct {
 	env   coreActionEnv
-	users *services.UserService
+	users *UserService
 }
 
 func (userBlockAction) Key() string { return ActionUserBlock }
@@ -119,7 +124,7 @@ func (a userBlockAction) Run(ctx context.Context, actor spi.Subject, args json.R
 
 type userUnblockAction struct {
 	env   coreActionEnv
-	users *services.UserService
+	users *UserService
 }
 
 func (userUnblockAction) Key() string { return ActionUserUnblock }
@@ -158,7 +163,7 @@ func (a userUnblockAction) Run(ctx context.Context, actor spi.Subject, args json
 // groupMemberAction adds a user to a group or removes one from it.
 type groupMemberAction struct {
 	env    coreActionEnv
-	groups *services.GroupService
+	groups *GroupService
 	add    bool
 }
 

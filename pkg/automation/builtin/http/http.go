@@ -280,27 +280,42 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 	if err != nil {
 		return catalog.CallResult{}, fail(access.CodeInvalidParams, "%v", err)
 	}
+	freq := sandbox.FetchRequest{URL: u.String(), Method: method, Body: body}
 	if a != nil {
+		before := header.Clone()
 		values, err := n.authorize(ctx, in, a, u, header)
 		if err != nil {
 			return catalog.CallResult{}, err
 		}
-		masked = values
+		masked = append(values, access.AddedValues(before, header)...)
+		// A connection reaches only its API: a redirect off its origin is refused. A secret's headers never
+		// follow a redirect to another origin, whatever their name.
+		freq.SameOrigin = a.Connection != ""
+		for k := range header {
+			if before.Get(k) != header.Get(k) {
+				freq.Sensitive = append(freq.Sensitive, k)
+			}
+		}
 	}
 	masker := access.Masker(masked...)
 	if h, _ := p["idempotency_header"].(string); h != "" {
 		header.Set(h, in.IdempotencyKey)
+		freq.Sensitive = append(freq.Sensitive, h)
 	}
+	freq.Header = header
 	timeout := 30 * time.Second
 	if ms, ok := graph.DurationMs(p["timeout"]); ok {
 		timeout = time.Duration(ms) * time.Millisecond
 	}
 	rctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	resp, err := n.d.Fetcher.Fetch(rctx, sandbox.FetchRequest{URL: u.String(), Method: method, Header: header, Body: body})
+	resp, err := n.d.Fetcher.Fetch(rctx, freq)
 	if err != nil {
 		var blocked *sandbox.NetworkBlockedError
+		var left *sandbox.OriginError
 		switch {
+		case errors.As(err, &left):
+			return catalog.CallResult{}, fail(access.CodeConnectionOriginMismatch, "the request through connection %s was redirected off its origin", a.Connection)
 		case errors.As(err, &blocked):
 			return catalog.CallResult{}, fail(access.CodeNetworkBlocked, "%s", access.BlockedMessage(blocked))
 		case errors.Is(err, sandbox.ErrResponseTooLarge):

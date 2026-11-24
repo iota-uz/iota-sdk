@@ -117,6 +117,8 @@ type NodeSpec struct {
 	// OutputKeys: the output is an object with a dyn field per key of this object param (a set node's
 	// values).
 	OutputKeys *ParamRef
+	// Dispatch makes the type the front of a family of types chosen by a param (Resolve).
+	Dispatch *Dispatch
 	// StepContext: the effect carries the step's expression context (Effect.Context): a node that runs
 	// code reads event, nodes, the subject's variables, tenant and now outside of the step.
 	StepContext bool
@@ -659,6 +661,7 @@ type specDetail struct {
 	MatchHook     string           `json:"match_hook,omitempty"`
 	Optional      *OptionalOutcome `json:"optional,omitempty"`
 	StepContext   bool             `json:"step_context,omitempty"`
+	Dispatch      *Dispatch        `json:"dispatch,omitempty"`
 }
 
 type waitDetail struct {
@@ -674,7 +677,7 @@ type waitDetail struct {
 func contentHash(c Catalog, v CatalogView) string {
 	details := map[string]specDetail{}
 	for typ, n := range c.Nodes {
-		d := specDetail{Outcomes: n.Outcomes, DoneOutcome: n.DoneOutcome, FailedOutcome: n.FailedOutcome, Values: n.Values, Answer: n.Answer, Optional: n.Optional, StepContext: n.StepContext}
+		d := specDetail{Outcomes: n.Outcomes, DoneOutcome: n.DoneOutcome, FailedOutcome: n.FailedOutcome, Values: n.Values, Answer: n.Answer, Optional: n.Optional, StepContext: n.StepContext, Dispatch: n.Dispatch}
 		if w := n.Wait; w != nil {
 			d.Wait = &waitDetail{Event: w.Event, Filter: w.Filter, TimeoutParam: w.TimeoutParam, Matched: w.Matched, TimeoutOutcome: w.TimeoutOutcome, Effect: w.Effect}
 		}

@@ -4,12 +4,17 @@
 // Permission is checked against the run-as on every call (an author's right is never carried to the run)
 // and an author without it does not see the action in the palette.
 //
-// A module contributes its actions at composition (Contribute, ContributeFunc); the automations module
-// registers them in the catalog when the application starts, and a key registered twice fails the start.
+// A module contributes its actions at composition (Contribute, ContributeFunc) and their command contracts
+// to its native.Set (Commands); the automations module registers them in the catalog when the application
+// starts, and a key registered twice fails the start. A call of an action is wf.call of its command: a
+// host request as the run-as with the call's invocation ID (the idempotency key's), so the host records
+// the invocation and a repeat returns its outcome.
 //
-// The node type of an action is "action." + its key. Its params are {args: {<name>: cel|tpl}}: an argument
-// whose type is a string (string, uuid, date, datetime, int64, decimal, enum) is a {{ }} template, any
-// other a CEL expression whose value is the argument. Args are validated against Spec().Args before Run.
+// A graph names an action as {"type": "action", "params": {"action": "core.user.block", "args": {...}}}:
+// the action node dispatches (graph.Dispatch) to the node type "action." + key, which declares the
+// action's args, outcomes and output. An argument whose type is a string (string, uuid, date, datetime,
+// int64, decimal, enum) is a {{ }} template, any other a CEL expression whose value is the argument. Args
+// are validated against Spec().Args before the command is called.
 package actions
 
 import (
@@ -91,10 +96,13 @@ func WithInvocation(ctx context.Context, id string) context.Context {
 }
 
 // InvocationID is the invocation ID of the call an action runs in ("" outside of one): the same on every
-// attempt, so an idempotent action dedupes by it.
+// attempt, so an idempotent action dedupes by it. Inside the action's command it is the host's invocation
+// ID, which a workflow call pre-allocates from the call's idempotency key.
 func InvocationID(ctx context.Context) string {
-	id, _ := ctx.Value(invocationKey{}).(string)
-	return id
+	if id, _ := ctx.Value(invocationKey{}).(string); id != "" {
+		return id
+	}
+	return host.InvocationID(ctx)
 }
 
 // Contribute adds actions to the application's composition.
@@ -288,8 +296,10 @@ func label(l manifest.Label, locale, fallback string) string {
 	return fallback
 }
 
-// Execute validates the args and runs the action as the run-as. The engine checked Permission already
-// (PermissionedNode); it is checked again here, so no path runs an action for a subject without it.
+// Execute validates the args and calls the action's command through the call's command host (wf.call):
+// as the run-as, with the call's invocation ID, so a repeat after a crash returns the recorded outcome.
+// The engine checked Permission already (PermissionedNode); it is checked again here, and the host checks
+// it a third time, so no path runs an action for a subject without it.
 func (n *node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallResult, error) {
 	if !in.RunAs.Has(n.spec.Permission) {
 		return catalog.CallResult{}, &catalog.CallError{Code: CodeForbidden, Message: "the run-as may not " + n.a.Key()}
@@ -307,40 +317,27 @@ func (n *node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 			return catalog.CallResult{}, &catalog.CallError{Code: CodeInvalidArgs, Message: err.Error()}
 		}
 	}
-	ctx = WithInvocation(ctx, catalog.InvocationIDOf(in.IdempotencyKey))
-	outcome, out, err := n.a.Run(ctx, in.RunAs, raw)
+	if in.Commands == nil {
+		return catalog.CallResult{}, &catalog.CallError{Code: catalog.CallUnavailable, Message: "actions run only in a call of a run", Retryable: true}
+	}
+	out, err := in.Commands.Invoke(ctx, n.a.Key(), raw)
 	if err != nil {
-		var ae *ActionError
-		switch {
-		case errors.Is(err, ErrForbidden):
-			return catalog.CallResult{}, &catalog.CallError{Code: CodeForbidden, Message: "the run-as may not " + n.a.Key()}
-		case errors.Is(err, ErrInvalidArgs):
-			return catalog.CallResult{}, &catalog.CallError{Code: CodeInvalidArgs, Message: err.Error()}
-		case errors.As(err, &ae):
-			return catalog.CallResult{}, &catalog.CallError{Code: ae.Code, Message: ae.Message}
-		case ctx.Err() != nil, host.IsInfrastructure(err):
-			return catalog.CallResult{}, err
-		}
-		return catalog.CallResult{}, &catalog.CallError{Code: CodeActionFailed, Message: err.Error()}
+		return catalog.CallResult{}, err
 	}
-	if outcome == "" {
-		outcome = n.outcomes[0]
+	var res commandOutput
+	if err := json.Unmarshal(out, &res); err != nil {
+		return catalog.CallResult{}, &catalog.CallError{Code: CodeInvalidOutput, Message: "the command's output is not an action result"}
 	}
-	if !slices.Contains(n.outcomes, outcome) || outcome == OutcomeFailed {
-		return catalog.CallResult{}, &catalog.CallError{Code: graph.FailUnknownOutcome, Message: fmt.Sprintf("%s returned outcome %q", n.a.Key(), outcome)}
+	if !slices.Contains(n.outcomes, res.Outcome) || res.Outcome == OutcomeFailed {
+		return catalog.CallResult{}, &catalog.CallError{Code: graph.FailUnknownOutcome, Message: fmt.Sprintf("%s returned outcome %q", n.a.Key(), res.Outcome)}
 	}
 	output := map[string]any{}
-	if len(out) > 0 && string(out) != "null" {
-		if n.spec.Output != nil {
-			if err := manifest.ValidateValue(*n.spec.Output, out); err != nil {
-				return catalog.CallResult{}, &catalog.CallError{Code: CodeInvalidOutput, Message: err.Error()}
-			}
-		}
-		if err := json.Unmarshal(out, &output); err != nil {
+	if len(res.Output) > 0 && string(res.Output) != "null" {
+		if err := json.Unmarshal(res.Output, &output); err != nil {
 			return catalog.CallResult{}, &catalog.CallError{Code: CodeInvalidOutput, Message: "the output is not a JSON object"}
 		}
 	}
-	return catalog.CallResult{Outcome: outcome, Output: output}, nil
+	return catalog.CallResult{Outcome: res.Outcome, Output: output}, nil
 }
 
 func sortedNames(m map[string]bool) []string {

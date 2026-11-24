@@ -41,6 +41,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/automations/services"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
@@ -195,6 +196,10 @@ func (c *component) Build(b *composition.Builder) error {
 			return nil, err
 		}
 		return reg, nil
+	})
+	// The contributed actions by key: their native commands (actions.Commands) run them.
+	composition.ProvideDefault[*actions.Index](b, func(*composition.Container) (*actions.Index, error) {
+		return actions.NewIndex()
 	})
 	// The actions modules contribute (actions.Contribute) join the catalog when the application starts.
 	composition.ContributeHooks(b, func(container *composition.Container) ([]composition.Hook, error) {

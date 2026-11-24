@@ -123,7 +123,7 @@ func TestBearerSecretIsSentAndMasked(t *testing.T) {
 		t.Fatalf("headers %v", req.Header)
 	}
 	body, _ := res.Output["body"].(map[string]any)
-	if body["echo"] != "Bearer ***" {
+	if body["echo"] != "***" {
 		t.Fatalf("the secret is not masked in the output: %v", res.Output)
 	}
 }

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions"
 	"reflect"
 	"slices"
 	"strconv"
@@ -177,6 +178,13 @@ var UserRoleAssignedEvent = native.Event[UserRoleAssignedPayload](UserRoleAssign
 // and core.role entities and the user, role and group events. Applications
 // compose it into their native.Set (modules.Natives).
 func Natives(s *native.Set) error {
+	commands, err := actions.Commands(automationActionTemplates()...)
+	if err != nil {
+		return err
+	}
+	if err := s.Add(commands...); err != nil {
+		return err
+	}
 	return s.Add(
 		native.Entity(data.CoreUser()), native.Entity(GroupEntity()), native.Entity(RoleEntity()),
 		UserCreatedEvent, UserUpdatedEvent, UserBlockedEvent, UserUnblockedEvent, UserDeletedEvent, UserRoleAssignedEvent,

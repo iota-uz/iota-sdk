@@ -57,6 +57,13 @@ func actionsHook(container *composition.Container) composition.Hook {
 			if len(list) == 0 {
 				return nil, nil
 			}
+			idx, err := composition.Resolve[*actions.Index](container)
+			if err != nil {
+				return nil, serrors.Wrap(op, err)
+			}
+			if err := idx.Add(list...); err != nil {
+				return nil, serrors.Wrap(op, err)
+			}
 			reg, err := composition.Resolve[catalog.Registry](container)
 			if err != nil {
 				return nil, serrors.Wrap(op, err)

@@ -55,7 +55,10 @@ type CallRequest struct {
 	Connection     string          `json:"connection,omitempty"`    // the connection ref: a UUID or "platform:<kind>"
 	ConnectorKind  string          `json:"connector,omitempty"`     // the connection's kind
 	Input          json.RawMessage `json:"input"`                   // rendered params, no secrets
-	Context        json.RawMessage `json:"context,omitempty"`       // the step's context (graph.NodeSpec.StepContext)
+	// Context is the step's context (graph.NodeSpec.StepContext). It is never part of the instance input,
+	// which the workflow API shows without the automation's field rules: Begin keeps it in
+	// automation.call_contexts and the child reads it from there.
+	Context json.RawMessage `json:"-"`
 	IdempotencyKey string          `json:"idempotency_key"`         // "run:node:token:seq"; stable across retries
 	Deadline       time.Time       `json:"deadline"`                // node timeout from params, ≤ CallLimits.MaxTimeout
 	TimeoutMS      int64           `json:"timeout_ms,omitempty"`    // the node's timeout: an operator's Retry gets a new deadline of it
@@ -68,6 +71,9 @@ type CallRequest struct {
 	// AnswerWaitID is the wait an ask node's answer wakes (Asker): its correlation points at it.
 	AnswerWaitID string `json:"answer_wait_id,omitempty"`
 }
+
+// maxCallContextBytes bounds the step's context a call carries (a Code node's ctx).
+const maxCallContextBytes = 8 << 20
 
 // CallLimits bound the calls of a process.
 type CallLimits struct {
@@ -289,6 +295,9 @@ func (o callObserver) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst
 	if _, err := tx.Exec(ctx, `DELETE FROM automation.call_slots WHERE tenant_id = $1 AND instance_id = $2`, inst.TenantID, inst.ID); err != nil {
 		return serrors.FromDB(opCall, err)
 	}
+	if _, err := tx.Exec(ctx, `DELETE FROM automation.call_contexts WHERE tenant_id = $1 AND instance_id = $2`, inst.TenantID, inst.ID); err != nil {
+		return serrors.FromDB(opCall, err)
+	}
 	if o.c.r.quietCallObserver {
 		return wakeParent(ctx, tx, inst.TenantID, req.ParentInstance)
 	}
@@ -369,7 +378,7 @@ func (c *CallRunner) Begin(ctx context.Context, tx pgx.Tx, run StepContext, node
 		if req.Context, err = json.Marshal(run.Context); err != nil {
 			return WaitSpec{}, &StepError{Code: CodeInvalidInput, Message: "the context of " + node.ID + " is not JSON"}
 		}
-		if len(req.Context)+len(input) > c.r.cfg.Limits.PayloadBytes {
+		if len(req.Context) > maxCallContextBytes {
 			return WaitSpec{}, &StepError{Code: CodeLimitExceeded, Message: "the context of " + node.ID + " is too large"}
 		}
 	}
@@ -408,6 +417,12 @@ func (c *CallRunner) Begin(ctx context.Context, tx pgx.Tx, run StepContext, node
 	if err != nil {
 		return WaitSpec{}, err
 	}
+	if req.Context != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO automation.call_contexts (tenant_id, instance_id, run_id, context) VALUES ($1, $2, $3, $4)
+			ON CONFLICT (tenant_id, instance_id) DO NOTHING`, run.TenantID, child, run.RunID, req.Context); err != nil {
+			return WaitSpec{}, serrors.FromDB(opCall, err)
+		}
+	}
 	// No timer: the child answers by its deadline, and a call that blocks (an unknown outcome) waits for
 	// an operator, not for a clock.
 	return WaitSpec{WaitID: waitID, Kind: waitCall, Child: &child}, nil
@@ -445,6 +460,10 @@ func (c *CallRunner) Run(ctx context.Context, nr workflow.NativeRun) (json.RawMe
 	if renewed != nil && renewed.After(req.Deadline) {
 		req.Deadline = *renewed
 	}
+	if err := c.r.cfg.DB.QueryRow(ctx, `SELECT context FROM automation.call_contexts WHERE tenant_id = $1 AND instance_id = $2`,
+		req.TenantID, nr.Instance().ID).Scan(&req.Context); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, infra(serrors.FromDB(opCall, err))
+	}
 	x := &callExec{c: c, nr: nr, req: req}
 	res, err := x.run(ctx)
 	if err != nil {
@@ -462,6 +481,9 @@ func (c *CallRunner) Run(ctx context.Context, nr workflow.NativeRun) (json.RawMe
 	// committed, before its completion, still gives its parent that result, never a synthesized one.
 	_, err = nr.Transaction(ctx, "result", 0, func(ctx context.Context, tx pgx.Tx) (json.RawMessage, error) {
 		if _, err := tx.Exec(ctx, `DELETE FROM automation.call_deadlines WHERE tenant_id = $1 AND instance_id = $2`, req.TenantID, nr.Instance().ID); err != nil {
+			return nil, serrors.FromDB(opCall, err)
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM automation.call_contexts WHERE tenant_id = $1 AND instance_id = $2`, req.TenantID, nr.Instance().ID); err != nil {
 			return nil, serrors.FromDB(opCall, err)
 		}
 		if req.ParentInstance == uuid.Nil {
@@ -889,6 +911,7 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, prior int, 
 		TenantID: req.TenantID, AutomationID: req.AutomationID, RunID: req.RunID, NodeID: req.NodeID,
 		Attempt: prior + a.Attempt, IdempotencyKey: req.IdempotencyKey, Params: params, Subject: req.Subject,
 		RunAs: req.RunAs, Connection: conn.info, Credentials: conn.creds, Deadline: req.Deadline, Usage: x.c.r.cfg.Usage,
+		Commands: hostCommands{inv: x.c.r.cfg.Commands, req: req, instance: x.nr.Instance().ID},
 	}
 	callCtx, cancel := context.WithDeadline(ctx, req.Deadline)
 	defer cancel()
@@ -1017,4 +1040,52 @@ func watermark(ctx context.Context, q querier) (int64, error) {
 	var seq int64
 	err := q.QueryRow(ctx, `SELECT CASE WHEN is_called THEN last_value ELSE 0 END FROM extruntime.outbox_events_seq_seq`).Scan(&seq)
 	return seq, serrors.FromDB(opCall, err)
+}
+
+// hostCommands invokes the commands of a call through the command host: the run-as as the subject, the
+// call's invocation ID, the child instance as the producer.
+type hostCommands struct {
+	inv      workflow.CommandInvoker
+	req      CallRequest
+	instance uuid.UUID
+}
+
+func (h hostCommands) Invoke(ctx context.Context, command string, input json.RawMessage) (json.RawMessage, error) {
+	if h.inv == nil {
+		return nil, &catalog.CallError{Code: catalog.CallUnavailable, Message: "this process has no command host", Retryable: true}
+	}
+	sub := h.req.RunAs
+	sub.TenantID = h.req.TenantID
+	if len(input) == 0 {
+		input = json.RawMessage(`null`)
+	}
+	id := catalog.InvocationIDOf(h.req.IdempotencyKey)
+	res, err := h.inv.Invoke(ctx, host.Request{
+		Contract: command, Input: input, Subject: sub, InvocationID: id, StartKeyBase: "automation.call:" + id,
+		Trigger:  host.Trigger{Kind: host.TriggerWorkflow, Ref: h.instance.String()},
+		Producer: spi.Producer{InstanceID: h.instance.String()},
+	})
+	if err == nil {
+		return res.Output, nil
+	}
+	if host.IsInfrastructure(err) || ctx.Err() != nil {
+		return nil, err
+	}
+	we, ok := pool.AsWireError(err)
+	if !ok {
+		return nil, err
+	}
+	switch {
+	case we.Code == host.CodeInvocationUnfinished:
+		return nil, &catalog.CallError{Code: catalog.CallOutcomeUnknown, Message: "an earlier attempt of " + command + " has no recorded outcome"}
+	case we.Kind == pool.ErrKindDenied:
+		return nil, &catalog.CallError{Code: CodeForbidden, Message: "the run-as may not call " + command}
+	case we.Kind == pool.ErrKindDomain || we.Kind == pool.ErrKindValidation:
+		code := we.Code
+		if i := strings.LastIndex(code, "."); i >= 0 {
+			code = code[i+1:]
+		}
+		return nil, &catalog.CallError{Code: code, Message: we.Message}
+	}
+	return nil, err
 }

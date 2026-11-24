@@ -54,6 +54,9 @@ type Config struct {
 	// Calls runs call nodes; nil: the engine's own CallRunner (automation.call child instances).
 	Calls CallExecutor
 	Tasks TaskBridge // nil → human nodes fail validation; NewHumanBridge is the engine's
+	// Commands is the command host call nodes invoke SDK commands through (wf.call, *host.Host); nil: a
+	// call that invokes a command fails as unavailable.
+	Commands workflow.CommandInvoker
 	// Credentials opens the connection a call runs with (connectors.Store); nil: only calls without a
 	// connector run.
 	Credentials connectors.CredentialSource

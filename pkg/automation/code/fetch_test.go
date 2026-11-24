@@ -150,6 +150,22 @@ func TestGuardedFetcherRedirects(t *testing.T) {
 		t.Fatalf("credentials reached another origin: %q", got)
 	}
 
+	// A header the request names sensitive does not follow, even one safelisted by name.
+	authSeen.Store("")
+	if _, err := f.Fetch(ctx, FetchRequest{URL: "https://example.com/to-other", Header: http.Header{"Accept": {"key-in-accept"}}, Sensitive: []string{"accept"}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := authSeen.Load().(string); got != "api.example.com    " {
+		t.Fatalf("a sensitive header reached another origin: %q", got)
+	}
+	// A same-origin request (a connection's) refuses the redirect before it is followed.
+	authSeen.Store("")
+	_, err = f.Fetch(ctx, FetchRequest{URL: "https://example.com/to-other", Header: http.Header{"Authorization": {"Bearer s3cr3t"}}, SameOrigin: true})
+	var left *OriginError
+	if !errors.As(err, &left) || authSeen.Load().(string) != "" {
+		t.Fatalf("same origin: %v, seen %q", err, authSeen.Load())
+	}
+
 	resp, err = f.Fetch(ctx, FetchRequest{URL: "https://example.com/to-other", Redirect: "manual"})
 	if err != nil || resp.Status != http.StatusFound || resp.Redirected {
 		t.Fatalf("manual: %v %+v", err, resp)

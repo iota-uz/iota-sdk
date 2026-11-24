@@ -10,6 +10,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
@@ -94,8 +95,13 @@ func TestExecuteValidatesChecksAndMapsErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	cn := nodes[0].(catalog.CallNode)
+	idx, err := actions.NewIndex(act)
+	if err != nil {
+		t.Fatal(err)
+	}
 	in := func(args map[string]any, perms ...string) catalog.CallInput {
-		return catalog.CallInput{TenantID: uuid.New(), IdempotencyKey: "r:n:t:1", Params: map[string]any{"args": args}, RunAs: spi.Subject{Permissions: perms}}
+		sub := spi.Subject{Permissions: perms}
+		return catalog.CallInput{TenantID: uuid.New(), IdempotencyKey: "r:n:t:1", Params: map[string]any{"args": args}, RunAs: sub, Commands: idx.Local(sub)}
 	}
 	code := func(err error) string {
 		var ce *catalog.CallError
@@ -121,7 +127,35 @@ func TestExecuteValidatesChecksAndMapsErrors(t *testing.T) {
 	if err != nil || res.Outcome != "assigned" || res.Output["by"] != float64(7) {
 		t.Fatalf("%v %+v", err, res)
 	}
-	if gotInvocation != catalog.InvocationIDOf("r:n:t:1") {
-		t.Fatalf("invocation %q", gotInvocation)
+	_ = gotInvocation // set by the command host (the engine's test checks it)
+	// Without a command host the call fails before anything runs.
+	noHost := in(map[string]any{"client_id": cid, "user_id": 5}, "Clients.Update")
+	noHost.Commands = nil
+	if _, err := cn.Execute(context.Background(), noHost); code(err) != catalog.CallUnavailable {
+		t.Fatal("ran without a command host")
+	}
+}
+
+// The action node dispatches to the action it names.
+func TestFrontDispatches(t *testing.T) {
+	reg := catalog.NewRegistry(nil)
+	if err := reg.RegisterNode(actions.Front()); err != nil {
+		t.Fatal(err)
+	}
+	if err := actions.Register(reg, fake{key: "crm.client.assign", spec: spec()}); err != nil {
+		t.Fatal(err)
+	}
+	v, err := reg.ForTenant(context.Background(), uuid.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, errs := graph.Decode([]byte(`{"name": "A", "triggers": [{"id": "t", "event": "x"}], "nodes": [
+		{"id": "a", "type": "action", "params": {"action": "crm.client.assign", "args": {"client_id": "{{ 'x' }}", "user_id": "1"}}}], "edges": []}`))
+	if len(errs) > 0 {
+		t.Fatal(errs)
+	}
+	r := graph.Resolve(v.Catalog, g)
+	if r.Nodes[0].Type != "action.crm.client.assign" || r.Nodes[0].Params["action"] != nil || g.Nodes[0].Type != "action" {
+		t.Fatalf("resolved %+v (original %+v)", r.Nodes[0], g.Nodes[0])
 	}
 }

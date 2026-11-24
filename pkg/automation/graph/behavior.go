@@ -438,6 +438,10 @@ func copyNodeSpec(n NodeSpec) NodeSpec {
 		r := *n.OutputFrom
 		n.OutputFrom = &r
 	}
+	if n.Dispatch != nil {
+		d := *n.Dispatch
+		n.Dispatch = &d
+	}
 	if n.OutputKeys != nil {
 		r := *n.OutputKeys
 		n.OutputKeys = &r

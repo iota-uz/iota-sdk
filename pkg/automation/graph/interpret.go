@@ -461,6 +461,7 @@ func NewInterpreter(c Catalog, g Graph, o Options) (*Interpreter, error) {
 		hooks[name] = h
 	}
 	o.MatchHooks = hooks
+	g = Resolve(c, g)
 	format := o
 	format.Rules = nil
 	if errs := Validate(c, g, format); len(errs) > 0 {
