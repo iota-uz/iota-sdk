@@ -46,7 +46,8 @@ const commonProps = `
 		"propertyNames": {"pattern": "^[a-z_][a-zA-Z0-9_]{0,63}$"},
 		"additionalProperties": {"type": "string", "minLength": 1, "maxLength": 2000, "description": "CEL"},
 		"description": "event.input of the started run: name → CEL"},
-	"subject": {"type": "string", "minLength": 1, "maxLength": 2000, "description": "CEL: {entity, key} the run is about; default: this run's subject"}`
+	"subject": {"type": "string", "minLength": 1, "maxLength": 2000, "description": "CEL: {entity, key} the run is about; default: this run's subject"},
+	"trigger_id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$", "description": "the trigger to start through; default: «Called by an automation», else manual, else the first. Through an event or schedule trigger, input is the event's payload"}`
 
 const startSchema = `{"type": "object", "properties": {` + commonProps + `
 }, "required": ["automation_id"], "additionalProperties": false}`
@@ -98,6 +99,7 @@ func (st *starter) start(ctx context.Context, tx pgx.Tx, run engine.StepContext,
 		return nil, &engine.StepError{Code: engine.CodeInvalidInput, Message: "automation_id is not a UUID"}
 	}
 	in := engine.StepStart{AutomationID: id, Attached: attached}
+	in.TriggerID, _ = e.Params["trigger_id"].(string)
 	if m, ok := e.Params["input"].(map[string]any); ok {
 		in.Input = m
 	}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,9 +21,7 @@ import (
 const (
 	// CodeNotEnabled: the graph is not one of the tenant's or is not enabled.
 	CodeNotEnabled = "not_enabled"
-	// CodeNoEntry: the enabled version has no trigger another automation starts it through: a
-	// «Called by an automation» trigger (EventCalled) or a manual one.
-	CodeNoEntry = "no_entry"
+
 	// CodeDepthExceeded: the run would pass the cascade limit (Limits.MaxDepth).
 	CodeDepthExceeded = "depth_exceeded"
 	// CodeNoOwner: the graph runs as its owner and has none.
@@ -40,6 +39,9 @@ type StepStart struct {
 	Input        map[string]any
 	// Subject is what the run is about; nil: the subject of the step's run.
 	Subject *SubjectRef
+	// TriggerID is the trigger of the target's enabled version the run starts through; empty: its
+	// «Called by an automation» trigger (EventCalled), else its manual one, else its first trigger by id.
+	TriggerID string
 	// Attached makes the run a child of the step's run: cancelling the step's run cancels it (a node that
 	// waits for the run). A detached run lives on its own.
 	Attached bool
@@ -100,10 +102,21 @@ func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 	if err != nil {
 		return RunRef{}, err
 	}
-	// The entry: the first «Called by an automation» trigger by id, else the first manual one.
+	// The trigger: the one named, else the first «Called by an automation» trigger by id, else the first
+	// manual one, else the first trigger.
 	var trig *graph.Trigger
 	triggers := append([]graph.Trigger(nil), ie.in.Graph().Triggers...)
 	sort.Slice(triggers, func(i, j int) bool { return triggers[i].ID < triggers[j].ID })
+	if in.TriggerID != "" {
+		for i := range triggers {
+			if triggers[i].ID == in.TriggerID {
+				trig = &triggers[i]
+			}
+		}
+		if trig == nil {
+			return refuse(CodeInvalidInput, "the enabled version of %s has no trigger %s", in.AutomationID, in.TriggerID)
+		}
+	}
 	for _, want := range []string{EventCalled, EventManual} {
 		for i := range triggers {
 			if trig == nil && triggers[i].Event == want {
@@ -111,14 +124,18 @@ func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 			}
 		}
 	}
-	if trig == nil {
-		return refuse(CodeNoEntry, "graph %s has no «Called by an automation» or manual trigger to start it with", in.AutomationID)
+	if trig == nil && len(triggers) > 0 {
+		trig = &triggers[0]
 	}
+	if trig == nil {
+		return refuse(CodeNotEnabled, "graph %s has no trigger", in.AutomationID)
+	}
+	entry := trig.Event == EventCalled || trig.Event == EventManual
 	input := in.Input
 	if input == nil {
 		input = map[string]any{}
 	}
-	if schema, ok := trig.Params["input_schema"].(map[string]any); ok && len(schema) > 0 {
+	if schema, ok := trig.Params["input_schema"].(map[string]any); entry && ok && len(schema) > 0 {
 		raw, err := json.Marshal(schema)
 		if err != nil {
 			return RunRef{}, err
@@ -148,8 +165,21 @@ func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 	now := time.Now()
 	ev := events.Envelope{ID: uuid.NewString(), TenantID: run.TenantID, Event: trig.Event, InitiatorUserID: &user, OccurredAt: now}
 	gev := graph.Event{"kind": trig.Event, "input": input, "initiator_user_id": user}
-	if trig.Event == EventCalled {
+	switch {
+	case trig.Event == EventCalled:
 		gev["caller_run_id"], gev["caller_automation_id"] = run.RunID.String(), run.AutomationID.String()
+	case !entry:
+		// Through an event or schedule trigger: the input is the event's payload, with every field its
+		// schema requires. The run's cause records the run that started it.
+		gev = graph.Event{"kind": trig.Event}
+		for k, v := range input {
+			if k != "kind" {
+				gev[k] = v
+			}
+		}
+		if missing := missingPayload(ie.in.View().Catalog(), trig.Event, gev); len(missing) > 0 {
+			return refuse(CodeInvalidInput, "the input is the payload of %s through trigger %s and lacks %s", trig.Event, trig.ID, strings.Join(missing, ", "))
+		}
 	}
 	req := startRequest{
 		tenant: run.TenantID, automationID: in.AutomationID, version: v.Version.Version, in: ie.in, triggerID: trig.ID,
@@ -230,4 +260,13 @@ func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 		return refuse(CodeSubjectBusy, "the conversation of the run is busy: the run would only start after this one")
 	}
 	return ref, nil
+}
+
+// missingPayload are the required fields of an event's payload an event lacks.
+func missingPayload(c graph.Catalog, event string, ev graph.Event) []string {
+	spec, ok := c.Events[event]
+	if !ok {
+		return []string{"its event (not in the catalog)"}
+	}
+	return requiredIn("event", spec.Payload, ev)
 }

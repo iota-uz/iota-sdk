@@ -1004,6 +1004,9 @@ func (m *mover) wakeEvent(ctx context.Context, tok *tokenRow, w waitRow, ev inbo
 	var changed bool
 	m.s.sensitive, changed = mergeRefs(m.s.sensitive, refs)
 	m.s.sensitiveChanged = m.s.sensitiveChanged || changed
+	if err := m.withheldOutput(ctx, gev); err != nil {
+		return err
+	}
 	outcome, output := m.in().Wake(w.NodeID, gev)
 	if node, _, ok := m.spec(w.NodeID); ok {
 		if nt, ok := m.x.r.cfg.Catalog.Node(node.Type); ok {
@@ -1310,4 +1313,52 @@ func (m *mover) subjectVars(ctx context.Context) (map[string]any, error) {
 	}
 	m.vars = vars
 	return vars, nil
+}
+
+// withheldOutput gives a wait woken by the finish of a run whose output the event withheld (the run read
+// sensitive fields) that output, read from the run, when this run's run-as may read those fields; the
+// fields then go with this run's data too.
+func (m *mover) withheldOutput(ctx context.Context, gev graph.Event) error {
+	if gev.Kind() != EventRunFinished {
+		return nil
+	}
+	if withheld, _ := gev["outputWithheld"].(bool); !withheld {
+		return nil
+	}
+	id, err := uuid.Parse(fmt.Sprint(gev["runId"]))
+	if err != nil {
+		return nil
+	}
+	var out, raw []byte
+	err = m.tx.QueryRow(ctx, `SELECT output, sensitive FROM automation.runs WHERE tenant_id = $1 AND id = $2`, m.x.tenant, id).Scan(&out, &raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return serrors.FromDB(opRun, err)
+	}
+	var refs []sensitiveRef
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &refs); err != nil {
+			return err
+		}
+	}
+	ok, err := m.x.r.projector(m.x.tenant).readable(ctx, refs, &m.x.subject)
+	if err != nil {
+		return &host.InfraError{Err: err}
+	}
+	if !ok {
+		return nil
+	}
+	var output any
+	if len(out) > 0 {
+		if err := json.Unmarshal(out, &output); err != nil {
+			return err
+		}
+	}
+	gev["output"], gev["outputWithheld"] = output, false
+	var changed bool
+	m.s.sensitive, changed = mergeRefs(m.s.sensitive, refs)
+	m.s.sensitiveChanged = m.s.sensitiveChanged || changed
+	return nil
 }

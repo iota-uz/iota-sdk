@@ -517,18 +517,38 @@ func TestStartingAGraphNeedsOperate(t *testing.T) {
 	assert.Empty(t, be.runsOf(p, child.ID))
 }
 
-func TestStartingAGraphWithoutAnEntryFailsNoEntry(t *testing.T) {
+// A graph with only an event trigger is started through it: the input is the event's payload, and a
+// payload without a required field is refused.
+func TestStartingAGraphThroughItsEventTrigger(t *testing.T) {
 	be := newBuiltinEnv(t)
 	p := be.proc()
 	a := be.human()
-	// An enabled graph with only an event trigger: nothing starts it from another automation.
 	target := be.create(p, a, strings.Replace(strings.Replace(childGraph, `"event": "automation.called.v1"`, `"event": "acme.order.created.v1"`, 1),
 		`child {{ event.input.amount }}`, `child {{ event.amount }}`, 1))
-	parent := be.create(p, a, parentGraph("start_automation", target.ID))
+	full := strings.Replace(parentGraph("start_automation", target.ID), `"input": {"amount": "event.amount"}`, `"input": {"amount": "event.amount + 100", "note": "'from a step'", "secret": "''"}`, 1)
+	parent := be.create(p, a, full)
 	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 3}, 0)
-	var pr []engine.RunSummary
-	p.until(func() bool { pr = be.runsOf(p, parent.ID); return len(pr) == 1 && len(be.effects(pr[0].RunID)) == 1 }, "the parent takes failed")
-	assert.Equal(t, []string{"bad:no_entry"}, be.effects(pr[0].RunID))
+	var kids []engine.RunSummary
+	p.until(func() bool {
+		kids = be.runsOf(p, target.ID)
+		return len(kids) >= 1 && len(be.effects(kids[0].RunID)) == 1
+	}, "the target runs from the step")
+	// The target's own trigger also fired on o-1: its run is the other one.
+	var fromStep []string
+	for _, k := range kids {
+		fromStep = append(fromStep, be.effects(k.RunID)...)
+	}
+	assert.Contains(t, fromStep, "note:child 103")
+	pr := be.runsOf(p, parent.ID)
+	require.Len(t, pr, 1)
+	assert.Equal(t, []string{"ok:started"}, be.effects(pr[0].RunID))
+
+	// A payload without a required field is refused.
+	partial := be.create(p, a, strings.Replace(parentGraph("start_automation", target.ID), `"name": "Parent"`, `"name": "Partial"`, 1))
+	be.publish(be.tenant, orderCreated, "o-2", order{Amount: 4}, 0)
+	var pp []engine.RunSummary
+	p.until(func() bool { pp = be.runsOf(p, partial.ID); return len(pp) == 1 && len(be.effects(pp[0].RunID)) == 1 }, "the partial input is refused")
+	assert.Equal(t, []string{"bad:invalid_input"}, be.effects(pp[0].RunID))
 }
 
 // The step's context a Code node reads is not in the call's workflow instance input, which the workflow

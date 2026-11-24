@@ -322,15 +322,16 @@ queued conversation runs, runs of disabled graphs, retention.
 `pkg/automation/builtin` registers the node types every tenant's catalog has without a connector; the
 `automations` module registers them in its `catalog.Registry` when it is composed (`builtin.Register` for
 an application that builds its own registry). Params are in the field language; a `"*"` segment of a
-`Values`/`Templates`/`Expressions` path stands for every key of a map param (`values.*`, `headers.*`), and
-each key's expression is checked at save time at its own path (`nodes[i].params.values.total`).
+`Values`/`Templates`/`Expressions`/`Mixed` path stands for every key of a map param (`values.*`,
+`headers.*`), and each key's expression is checked at save time at its own path
+(`nodes[i].params.values.total`). A `Mixed` param is CEL or, with `{{ }}`, a template.
 
 | Type | Behavior | Params | Outcomes | Output |
 |---|---|---|---|---|
 | `set` | effect (in the step) | `values: map<name, cel>` | `done` | one field per name (`OutputKeys`) |
 | `code` | call | `lang ts\|js`, `source` ≤ 100 000, `secrets[]`, `connections[]`, `fetch`, `timeout` (30s, ≤ 5m), `outcomes[]` (≤ 20, default `done`) | declared, `failed` | `{output, logs}` |
-| `http` | call | `method`, `url` (tpl), `headers`/`query` (map of tpl), `body {kind none\|json\|form\|text, value: cel \| template: tpl}`, `auth {secret (a NAME), scheme bearer\|basic\|header, header} \| {connection}`, `timeout` (30s, ≤ 120s), `success` (cel over `status`, `headers`, `body`, `url`; default `status < 400`), `idempotency_header` | `success`, `failed` | `{status, headers, body, url, body_omitted?}` |
-| `start_automation` | effect (in the step) | `automation_id`, `input: map<name, cel>`, `subject` (cel `{entity, key}`; default the run's) | `started`, `failed` | `{run_id}` |
+| `http` | call | `method`, `url` (tpl), `headers`/`query` (map of tpl), `body {kind none\|json\|form\|text, value: cel\|tpl, template: tpl}`, `auth {secret (a NAME), scheme bearer\|basic\|header, header} \| {connection}`, `timeout` (30s, ≤ 120s), `success` (cel over `status`, `headers`, `body`, `url`; default `status < 400`), `idempotency_header` | `success`, `failed` | `{status, headers, body, url, body_omitted?}` |
+| `start_automation` | effect (in the step) | `automation_id`, `trigger_id?`, `input: map<name, cel>`, `subject` (cel `{entity, key}`; default the run's) | `started`, `failed` | `{run_id}` |
 | `run_automation` | wait with effect | as `start_automation`, `timeout` (1h, ≤ 30d) | `done`, `failed`, `timeout` | `{run_id, status, output, output_withheld}` |
 | `action` | call | `action` (a key), `args: {<name>: tpl for a string type \| cel}` | the action's, `failed` | the action's |
 
@@ -338,70 +339,79 @@ each key's expression is checked at save time at its own path (`nodes[i].params.
   `VALIDATION_FAILED` at `nodes[i].params.source` with line and column. The node declares
   `NodeSpec.StepContext`: the step's context (`event`, `nodes`, the subject's variables, `subject`, `run`,
   `tenant`, `now`) is its `ctx`. The engine keeps that context in `automation.call_contexts` for the call's
-  child instance and drops it with the call's result; it is never part of the instance's input, which the
-  workflow API shows without the automation's field rules. Only the declared secrets are in
-  `env.secrets`; `env.fetch` exists with `fetch: true`. A failure is `failed` with `output.error.code` the
-  sandbox's reason (`timeout`, `exception`, `network_blocked`, `unknown_outcome`, `secret_missing`,
+  child instance and drops it with the call's result. Only the declared secrets are in `env.secrets`;
+  `env.fetch` exists with `fetch: true`. A failure is `failed` with `output.error.code` the sandbox's
+  reason (`timeout`, `exception`, `network_blocked`, `unknown_outcome`, `secret_missing`,
   `connection_missing`, `connection_origin_mismatch`, ...) and the masked logs; a run that ended without a
   result is `outcome_unknown`. The node is not idempotent: it is never repeated after an unknown outcome.
   `EnableReview` lists its source, secrets, fetch and connections.
+- **History.** `automation.run` and `automation.call` are private native contracts
+  (`workflow.NativeContract.Private`): the workflow history API (`List`, `Get`, `Extensions.Read`) shows
+  their shape and leaves out their input, results, errors, signal payloads and task decisions. The data of
+  a run is read through `GetRun`, which hides the steps a viewer may not read.
 - **Secrets.** Code and HTTP read a declared name (`^[A-Z][A-Z0-9_]{0,63}$`) from the tenant's store, the
   container's `host.SecretResolver`: `CONNECTION__FIELD` is the secret field `field` of the tenant's
   connection `connection` (`TELEGRAM__TOKEN` → `telegram.token`, an `x-secret` field of a connected
-  connection), any other name goes to the resolver as it is (what the application adds behind it).
+  connection); any other name goes to the resolver as it is (what the application adds behind it).
 - **Connections in code.** A connector that implements `connectors.CodeAccessor` declares its API's
   `BaseURL` and the methods of `env.connections.<name>` (`get(path)`, `list(path)`, each an HTTP method);
-  `Authorize` adds the credentials to a request in Go, so no token reaches the sandbox. Every value of
-  the credentials and of the authorization it added is redacted from the response's headers, body and URL
-  and from errors before the code sees them. A path or URL off the base URL's origin, and a redirect off
-  it, is `connection_origin_mismatch` (the fetcher's `SameOrigin`); a name that is not a connected
+  `Authorize` adds the credentials to a request in Go, so no token reaches the sandbox. Every value of the
+  credentials and of the authorization it added is redacted from the response before the code sees it:
+  header names and values, the URL, and the body (as JSON when it is JSON: strings, keys and numbers
+  decoded first, so an escaped spelling is found). A path or URL off the base URL's origin, and a redirect
+  off it, is `connection_origin_mismatch` (the fetcher's `SameOrigin`); a name that is not a connected
   connection with code access is `connection_missing`. `auth: {connection}` does the same for an HTTP node.
 - **HTTP.** The request goes through `code.NewGuardedFetcher` (https on 443, every hop's DNS checked,
   `Authorization`/`Cookie` and every non-safelisted header dropped once a redirect leaves the origin, and
   the headers of a secret's authorization and the idempotency key whatever their names: `Sensitive`).
-  With `auth` the URL names its https host before any template (`https://api.example.com/{{ ... }}`), so
-  run data never moves a secret to another host. A refusal is `network_blocked` with the host only; a DNS
-  or dial failure is `unavailable` (nothing was sent); a body over 10 MiB is `response_too_large`; a 429
-  with `Retry-After` is repeated by the engine's rule. Only `GET`/`HEAD` and a request with
-  `idempotency_header` (it carries the call's idempotency key) are idempotent
-  (`catalog.IdempotentCall`). A response the success expression rejects takes `failed` with the response
-  in the output and `output.error.code = http_status`. The response is read and judged whole (≤ 10 MiB);
-  a node's output is bounded by the engine's payload limit (1 MiB), so a larger one keeps its outcome and
-  returns `body: null, body_omitted: true` with its status, headers and url. `body.template` is a `{{ }}`
-  template of the text (`text`) or of the JSON text (`json`) instead of a CEL `value`.
+  With `auth` the URL names its https host before any template (`https://api.example.com/{{ ... }}`). A
+  refusal is `network_blocked` with the host only; a DNS or dial failure is `unavailable` (nothing was
+  sent); a body over 10 MiB is `response_too_large`; a 429 with `Retry-After` is repeated by the engine's
+  rule. Only `GET`/`HEAD` and a request with `idempotency_header` (it carries the call's idempotency key)
+  are idempotent (`catalog.IdempotentCall`); such a changing request is not followed off its origin
+  (`redirect_refused`), where its key would not go. A response the success expression rejects takes
+  `failed` with the response in the output and `output.error.code = http_status`. The node type declares
+  `NodeSpec.MaxOutputBytes` above the engine's payload limit, so the body comes back up to 10 MiB.
+  `body.value` is CEL, or a `{{ }}` template for a `text` body; `body.template` is the template of a
+  `text` or `json` body.
 - **Another graph.** The run-as needs `Automations.Operate`, as for a manual start (`forbidden`). Both
-  nodes start the target's enabled version through its entry: the first «Called by an automation»
-  trigger (`automation.called.v1`, params `{input_schema}`, payload `{input, caller_run_id,
-  caller_automation_id, initiator_user_id}`) by id, else the first manual trigger; `input` is
-  `event.input`, validated by the trigger's `input_schema`, in the step's transaction
-  (`engine.RunStarter`, `Runtime.StartFromStep`). A graph of another tenant or a disabled one is
-  `not_enabled`; one with neither trigger is `no_entry`. The started run's depth is the run's plus one,
-  so `A → B → A` ends at `Limits.MaxDepth` with `depth_exceeded`. The started run is about the run's
-  subject unless `subject` says otherwise; `start_automation` keeps a conversation (the run queues behind
-  this one), `run_automation` would wait for itself, so its run is about none. `run_automation`'s run is
-  a child instance of the step's run (cancelling the run terminates it); its wait listens for
+  nodes start the target's enabled version in the step's transaction (`engine.RunStarter`,
+  `Runtime.StartFromStep`) through `trigger_id`, else its first «Called by an automation» trigger
+  (`automation.called.v1`, params `{input_schema}`, payload `{input, caller_run_id, caller_automation_id,
+  initiator_user_id}`) by id, else its first manual one, else its first trigger. Through a called or
+  manual trigger `input` is `event.input`, validated by the trigger's `input_schema`; through an event or
+  schedule trigger `input` is the event's payload, with every field its schema requires (`invalid_input`
+  otherwise). A graph of another tenant or a disabled one is `not_enabled`. The started run's depth is the
+  run's plus one, so `A → B → A` ends at `Limits.MaxDepth` with `depth_exceeded`. Its data derives from
+  what the step's run read: it inherits the run's sensitive fields (a viewer who may not read them does
+  not see its steps), and its run-as must be allowed to read them (`forbidden`). It is about the run's
+  subject unless `subject` says otherwise; `run_automation`'s run on the run's conversation takes its turn
+  inside the waiting run's, `start_automation`'s queues behind it. `run_automation`'s run is a child
+  instance of the step's run (cancelling the run terminates it); its wait listens for
   `automation.run.finished.v1` about that run (`engine.EffectWaitKeyer`) and takes `done` or `failed`
-  by its status (`engine.WakeResolver`); a run that read sensitive event fields gives `output: null` and
-  `output_withheld: true`. A run started by `start_automation` lives on its own. The composition provides
+  by its status (`engine.WakeResolver`). Its output comes from the run when the event withheld it (the run
+  read sensitive fields) and this run's run-as may read them; otherwise `output: null,
+  output_withheld: true`. A run started by `start_automation` lives on its own. The composition provides
   `engine.RunStarter` (the `*engine.Runtime`); without it the nodes fail with `runs_unavailable`.
 - **Before the call.** A failure to read a secret or open a connection, or of the compiler, is
   `unavailable` (retryable), never `outcome_unknown`: nothing ran.
 - **Actions.** A graph names an action as `{"type": "action", "params": {"action": "core.user.block",
   "args": {...}}}`. The `action` node dispatches (`graph.Dispatch`, `graph.Resolve`) to the node type
   `action.<key>`, which carries the action's `ActionSpec` (label, group, args and output as
-  `manifest.Type`, outcomes, `Permission`, `Idempotent`, `Subjects`): its args, outcomes and output are
-  checked like any node's. A module contributes its `actions.Action`s at composition
-  (`actions.Contribute`, `actions.ContributeFunc`) and their command contracts to its `native.Set`
-  (`actions.Commands`); the automations module indexes and registers them at start, and a key
-  contributed twice fails it. A call of an action is `wf.call` of its command: a `host.Request` through
-  `engine.Config.Commands` as the run-as with `InvocationID` = the call's invocation ID (from its
-  idempotency key), so the host records the invocation and a repeat returns its outcome; the command runs
-  the action in a host transaction (`actions.InvocationID(ctx)` is that ID). An author without the
-  permission does not see the action; the run-as's permission is checked on every call (`forbidden`,
-  nothing done); args are validated before the command (`invalid_args`); an `*ActionError` is `failed`
-  with its code. `servicectx.Context` builds the services' context (the run-as as the user). The SDK's
-  actions: `core.user.block`, `core.user.unblock`, `core.group.add_user`, `core.group.remove_user`,
-  `crm.chat.send_message`.
+  `manifest.Type`, outcomes, `Permission`, `Idempotent`, `Subjects`, declared `Errors`): its args, outcomes
+  and output are checked like any node's. A module registers an action once, in its `native.Set`:
+  `actions.Native(template, build)` is the action's command contract, implemented by the action `build`
+  makes from the application's dependencies; the set refuses a key twice. The automations module makes
+  the node types of the set's action commands when the application starts. A call of an action is
+  `wf.call` of its command (`catalog.CommandCall`, `NativeRun.CallAs`) under the call's invocation ID
+  (from its idempotency key): the workflow journals it and the host records the invocation, so a repeat
+  returns the recorded outcome and one that may have run is never repeated blindly. The command runs the
+  action in a host transaction as the run-as (`actions.InvocationID(ctx)` is the invocation's ID). An
+  author without the permission does not see the action; the run-as's permission is checked on every
+  call (`forbidden`, nothing done); args are validated before the command (`invalid_args`); a declared
+  `*ActionError` is `failed` with its code, dots and all. `servicectx.Context` builds the services' context
+  (the run-as as the user). The SDK's actions: `core.user.block`, `core.user.unblock`,
+  `core.group.add_user`, `core.group.remove_user`, `crm.chat.send_message`.
 
 ## 6. Triggers and the event catalog
 
