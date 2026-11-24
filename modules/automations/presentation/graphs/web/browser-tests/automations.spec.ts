@@ -340,3 +340,30 @@ test('D1: unsaved edits are not dropped by opening a version or by Back', async 
   await expect(page).toHaveURL(/version=1/)
   await expect(page.getByTestId('open-latest')).toBeVisible()
 })
+
+test('D1: edits made while another version loads are not dropped without consent', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&oldVersionDelay=2500`)
+  await expect(page.getByTestId('crumb')).toBeVisible()
+  const rename = async (name: string) => {
+    await page.locator('.ae-toolbar__name').click()
+    await page.getByLabel('Name').fill(name)
+    await page.keyboard.press('Escape')
+  }
+  const dialog = page.getByTestId('discard-dialog')
+
+  // Keep editing: the draft stays and the URL names the version still open.
+  await openVersion(page, 2)
+  await rename('Edited while v2 loads')
+  await expect(dialog).toBeVisible({ timeout: 5000 })
+  await dialog.getByTestId('discard-cancel').click()
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Edited while v2 loads')
+  await expect(page).not.toHaveURL(/version=/)
+  await expect(page.getByTestId('open-latest')).toHaveCount(0)
+
+  // Discard: the version that arrived opens.
+  await openVersion(page, 2)
+  await expect(dialog).toBeVisible()
+  await dialog.getByTestId('discard-confirm').click()
+  await expect(page.getByTestId('open-latest')).toBeVisible({ timeout: 5000 })
+  await expect(page).toHaveURL(/version=2/)
+})

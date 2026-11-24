@@ -112,6 +112,11 @@ export default function EditorPage(): JSX.Element {
       }
       const g = await app.call('automations.get', { id: app.props.id, ...(version > 0 ? { version } : {}) })
       if (mine !== loadSeq) return
+      // Edits made while the snapshot was on its way are not replaced without the person's consent.
+      if (loaded() && dirty()) {
+        setDiscard({ version, held: g })
+        return
+      }
       applyGet(g, mine)
     } catch (e) {
       if (mine === loadSeq) setLoadError(errorText(t, e, t('Actions.LoadGraph')))
@@ -147,7 +152,9 @@ export default function EditorPage(): JSX.Element {
   }
 
   const [dirty, setDirty] = createSignal(false)
-  const [discard, setDiscard] = createSignal<{ version: number; revert?: string } | null>(null)
+  // A version switch that would drop unsaved edits: asked before it starts (revert: the URL Back left),
+  // or once its snapshot arrived while edits were made (held).
+  const [discard, setDiscard] = createSignal<{ version: number; revert?: string; held?: GetResult } | null>(null)
   /** Opens a version (0: the latest); unsaved edits are not dropped without the person's consent. */
   const switchVersion = (version: number, revert?: string) => {
     if (dirty()) {
@@ -171,12 +178,25 @@ export default function EditorPage(): JSX.Element {
     if (!d) return
     setDiscard(null)
     setDirty(false)
+    if (d.held) {
+      // The URL already names the version (the menu or Back set it before the request).
+      applyGet(d.held, ++loadSeq)
+      return
+    }
     if (!d.revert) setURL((url) => { if (d.version === 0) url.searchParams.delete('version'); else url.searchParams.set('version', String(d.version)) }, true)
     void load(d.version)
   }
   const cancelDiscard = () => {
     const d = discard()
     setDiscard(null)
+    if (d?.held) {
+      // The snapshot is dropped: the URL and the next Back name the version still open.
+      const i = info()
+      const open = i && i.version !== i.latestVersion ? i.version : 0
+      requested = open
+      setURL((url) => { if (open === 0) url.searchParams.delete('version'); else url.searchParams.set('version', String(open)) }, true)
+      return
+    }
     // Back was pressed: the URL returns to the version still open.
     if (d?.revert) {
       window.history.pushState({}, '', d.revert)
