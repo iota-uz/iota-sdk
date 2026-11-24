@@ -117,7 +117,7 @@ func (s *store) Connected(ctx context.Context, tenantID uuid.UUID) (map[catalog.
 	const op = serrors.Op("automation.connectors.Store.Connected")
 	out := map[catalog.ConnectorKind][]catalog.ConnectionRef{}
 	if s.keys != nil {
-		rows, err := s.db.Query(ctx, `SELECT `+connectionColumns+`, nonce, secret FROM automation.connections
+		rows, err := ambient(ctx, s.db).Query(ctx, `SELECT `+connectionColumns+`, nonce, secret FROM automation.connections
 			WHERE tenant_id = $1 AND status = $2 ORDER BY kind, created_at, name`, tenantID, string(StatusConnected))
 		if err != nil {
 			return nil, serrors.Wrap(op, err)

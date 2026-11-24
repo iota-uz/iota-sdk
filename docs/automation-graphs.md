@@ -99,6 +99,7 @@ pkg/automation/
   connectors/  connector interfaces, encrypted connection store, OAuth2, usage
   code/        Code node sandbox
   builtin/     built-in node types
+  mcpops/      MCP operations of agents: read tools, validate, dry run, changes kinds, guard
 modules/automations/        module: tables, controllers, pages, permissions
 web/automation-editor/      Solid editor, published as @iota-uz/sdk/automation-editor
 ```
@@ -601,8 +602,62 @@ Three actions are human-only and fail for an agent with `HUMAN_REQUIRED`:
 - answering a human node (a task);
 - managing connections.
 
-MCP operations for automations are declared in the SDK operation registry (#1084), which
-is where this rule is enforced.
+MCP operations for automations (#1340, `pkg/automation/mcpops`) live in the shared registry
+of `pkg/mcp` (#1084) and are reached through `lookup` / `execute` (#1314). Every call acts as
+`Actor{Origin: agent}` for the MCP principal's user; access is the grant's scopes
+(`automations:read`, `automations:author`) intersected with `Automations.Read` /
+`Automations.Author`, checked on every call. An author reads the graphs it edits
+(`Service.Get`/`GetVersion` admit `Automations.Author`).
+
+- Read-only tools: `automation_catalog` (projected for the principal), `automation_list`,
+  `automation_get` (with `revision` and `layout_revision`), `automation_runs`,
+  `automation_run_get` (steps derived from fields the principal may not read are hidden),
+  `automation_validate`, `automation_dry_run`. A dry run takes ≤ 50 events (the entries of a
+  batch counted one by one) and answers calls from context: `decisions` is `scripted` (default),
+  `cached` (decision nodes from the decision cache, else context) or `live`. Real calls happen
+  only with `allow_live: true`, only for decision nodes, at most 20; beyond either limit the
+  answer is `limit_exceeded`. Effect previews are offline (`StepContext.Offline`): only an
+  `engine.OfflinePreviewer` previews, without package code (`send_to_contact` does not check the
+  record's contact, `contact_checked: false`); any other effect is captured from context. Test node
+  is not offered: it makes a real external effect.
+- Writes are `changes.Kind`s of entity `automation` behind `prepare_changes` / `apply_changes`:
+  `automation.create` (`{graph, layout?}`), `automation.update` (`{graph, layout?, layout_revision?,
+  note?}`, `expected_revision` is the latest version; a stale one is the shared `revision_mismatch`;
+  `layout_revision` is required with `layout`; a stale one is `VERSION_CONFLICT` on
+  `/fields/layout_revision` in plan and at apply too: a layout another write moved after the plan
+  makes the apply fail with `conflict` (`SaveInput.StrictLayout`, checked under the graph's lock) and
+  nothing of the plan is saved — no version, no positions. The editor saves without `StrictLayout`:
+  there a stale base keeps the positions another tab moved, #1339) and `automation.layout`
+  (`fields: {id, base_revision, positions}`, the base is `layout_revision` — `0` for a new graph; a
+  stale one is `VERSION_CONFLICT` with the current revision, in plan and at apply through
+  `SaveLayoutAt`). Revisions are accepted as JSON integers or the strings `automation_get` returns. Plan validates
+  the graph as the principal (issues under `/fields/graph/...`). Fields naming what only a person
+  does — `enabled`, `enabled_version`, `decision`, `decisions`, `task`, `connection`,
+  `connections` — are issues `HUMAN_REQUIRED` with the page where the person does it, and the plan
+  is invalid; any other unknown field is `invalid_input`. No change needs approval: a saved
+  version never runs until a person enables it. Apply works in the transaction of the operation
+  (`engine.WithTx`, reads included), so a retried `apply_changes` never saves a graph twice and an
+  apply needs one connection; the receipt item's `result` is
+  `{id, version, enabled: false | <enabled_version>, editor_url}`.
+- Audit: a plan's `HUMAN_REQUIRED` refusals are entries of the MCP engine's audit (`mcp.Audit`).
+  Every applied change is an audit event (tool `changes:automation.<op>`, `OperationID`, `Item`)
+  stored in `mcp.operation_audit` in the transaction that commits the receipt, naming the
+  principal and client that applied it, and delivered after it; one left undelivered (lost commit response, stopped process) is delivered by the next call
+  about the operation or by `DispatchEffects` (`changes.Config.Auditor`).
+- A receipt item's `result` is shown on a retried `apply_changes` and on `operation_get` only
+  while the caller still passes the kind's policy; otherwise only status, ids and revisions.
+- `HUMAN_REQUIRED` is the shared failure `approval_required` / `open_approval` with an issue of
+  code `HUMAN_REQUIRED` and the URL of the page where the person acts. The engine marks
+  `automation.run` and `automation.call` human-only (`workflow.NativeContract.HumanOnly`), so the
+  extension runtime's workflow actions (signal, decide task, terminate, start v2, resolve, retry,
+  resume) on their instances and tasks answer it with the run's page (`Config.Links.RunURL`)
+  wherever the workflow tools are registered, the standard wiring included. Such an instance or task
+  never reaches the workflow service from these tools: a caller who passes the action's own check
+  (`Extensions.Operate`, or the right to decide the task) gets `HUMAN_REQUIRED` with the page, anyone
+  else that check's refusal without it. Reads stay (`ext_workflow_list`, `ext_workflow_get`),
+  reduced to an allowlist of fields with no business data (no input, results, errors, signal
+  payloads, task titles, decisions or delegation comments): `automation_run_get` shows the rest
+  projected for the viewer.
 
 ## 9. Code node
 

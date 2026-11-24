@@ -108,7 +108,7 @@ func NewPlatformGrants(db *pgxpool.Pool) PlatformGrants { return &grants{db: db}
 
 func (g *grants) Enabled(ctx context.Context, tenantID uuid.UUID, kind catalog.ConnectorKind) (bool, error) {
 	var enabled bool
-	err := g.db.QueryRow(ctx, `SELECT enabled FROM automation.platform_grants WHERE tenant_id = $1 AND kind = $2`, tenantID, string(kind)).Scan(&enabled)
+	err := ambient(ctx, g.db).QueryRow(ctx, `SELECT enabled FROM automation.platform_grants WHERE tenant_id = $1 AND kind = $2`, tenantID, string(kind)).Scan(&enabled)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
