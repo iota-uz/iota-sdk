@@ -81,11 +81,14 @@ func (p *provider) requests() []map[string]any {
 }
 
 func completion(content string, in, out int) (int, string) {
-	b, _ := json.Marshal(map[string]any{
+	b, err := json.Marshal(map[string]any{
 		"model":   "served-model",
 		"choices": []any{map[string]any{"finish_reason": "stop", "message": map[string]any{"content": content}}},
 		"usage":   map[string]any{"prompt_tokens": in, "completion_tokens": out},
 	})
+	if err != nil {
+		panic(err)
+	}
 	return http.StatusOK, string(b)
 }
 
@@ -403,11 +406,6 @@ func TestAIDryRunCachedDoesNotCallTheProviderAgain(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, ae.provider.requests(), before+2, "%s: a different input is a cache miss", tc.name)
 	}
-}
-
-func mustJSON(v any) []byte {
-	b, _ := json.Marshal(v)
-	return b
 }
 
 // The platform key is invisible to a tenant until its administrator enables it; the calls are then

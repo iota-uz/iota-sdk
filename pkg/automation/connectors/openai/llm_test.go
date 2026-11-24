@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"strings"
 	"testing"
@@ -54,7 +53,7 @@ func parsed(t *testing.T, n catalog.CallNode, raw map[string]any) map[string]any
 func callCode(t *testing.T, err error) *catalog.CallError {
 	t.Helper()
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce), "want a CallError, got %v", err)
+	require.ErrorAs(t, err, &ce, "want a CallError")
 	return ce
 }
 
@@ -119,10 +118,10 @@ func TestParams(t *testing.T) {
 
 func TestModelAliasesAndVision(t *testing.T) {
 	for _, alias := range []string{"gpt-4o-latest", "chatgpt-4o-latest", "latest", "claude-latest", "gpt-5-latest", "openrouter/auto", "openai/gpt-4o:latest"} {
-		assert.Error(t, aichat.CheckModel(alias), alias)
+		require.Error(t, aichat.CheckModel(alias), alias)
 	}
 	for _, exact := range []string{"gpt-4o-2024-08-06", "gpt-4o-mini-2024-07-18", "o3-2025-04-16", "anthropic/claude-3.5-sonnet", "meta-llama/llama-3-8b-instruct:free"} {
-		assert.NoError(t, aichat.CheckModel(exact), exact)
+		require.NoError(t, aichat.CheckModel(exact), exact)
 	}
 	for model, want := range map[string]bool{
 		"gpt-4o": true, "gpt-4o-mini-2024-07-18": true, "gpt-4.1": true, "gpt-5": true, "o3": true, "o4-mini": true,
@@ -198,7 +197,7 @@ func TestTextCall(t *testing.T) {
 	body := reqs[0].JSON(t)
 	assert.Equal(t, "gpt-4o-mini-2024-07-18", body["model"], "the default model of the connector")
 	assert.EqualValues(t, 2000, body["max_tokens"])
-	assert.EqualValues(t, 0.5, body["temperature"])
+	assert.InDelta(t, 0.5, body["temperature"], 1e-9)
 	assert.NotContains(t, body, "response_format")
 	assert.Equal(t, []any{
 		map[string]any{"role": "system", "content": "Be brief"},
@@ -409,7 +408,7 @@ func TestCostIsReportedWhenTheProviderGivesIt(t *testing.T) {
 	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), nil)
 	res, err := n.Execute(context.Background(), in)
 	require.NoError(t, err)
-	assert.Equal(t, 0.00042, res.Output["usage"].(map[string]any)["cost_usd"])
+	assert.InDelta(t, 0.00042, res.Output["usage"].(map[string]any)["cost_usd"], 1e-12)
 }
 
 func TestBadCallsAreRefusedBeforeAnyRequest(t *testing.T) {
@@ -498,12 +497,12 @@ func TestDeadlineEndsTheCall(t *testing.T) {
 
 type images map[string]openai.Image
 
-func (m images) Image(_ context.Context, _ uuid.UUID, id string, max int64) (openai.Image, error) {
+func (m images) Image(_ context.Context, _ uuid.UUID, id string, limit int64) (openai.Image, error) {
 	img, ok := m[id]
 	if !ok {
 		return openai.Image{}, openai.ErrImageNotFound
 	}
-	if int64(len(img.Data)) > max {
+	if int64(len(img.Data)) > limit {
 		return openai.Image{}, openai.ErrImageTooLarge
 	}
 	return img, nil
@@ -542,9 +541,8 @@ func TestImagesReachTheProvider(t *testing.T) {
 func TestImageFailures(t *testing.T) {
 	big := make([]byte, openai.MaxImageBytes+1)
 	copy(big, png)
-	n, _ := newNode(t, openai.WithImages(images{"1": {Data: png}, "big": {Data: big}, "text": {Data: []byte("plain text")}, "mislabeled": {MediaType: "image/jpeg", Data: png}}))
 	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("ok", 1, 1)})
-	n, _ = newNode(t, openai.WithTransport(srv.Transport()), openai.WithImages(images{"1": {Data: png}, "big": {Data: big}, "text": {Data: []byte("plain text")}, "mislabeled": {MediaType: "image/jpeg", Data: png}}))
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()), openai.WithImages(images{"1": {Data: png}, "big": {Data: big}, "text": {Data: []byte("plain text")}, "mislabeled": {MediaType: "image/jpeg", Data: png}}))
 
 	run := func(model string, ids ...any) error {
 		params := parsed(t, n, map[string]any{"prompt": "x", "model": model})
@@ -647,14 +645,14 @@ func TestConnectorTest(t *testing.T) {
 	assert.NotContains(t, err.Error(), "sk-test-key-123456")
 
 	_, err = c.Test(context.Background(), connectors.Credentials{"api_key": ""})
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = c.Test(context.Background(), connectors.Credentials{"api_key": "k", "base_url": "http://insecure.example.com"})
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	garbage := aitest.New(t, aitest.Reply{Body: `{"unexpected":true}`})
 	c = openai.New(openai.WithTransport(garbage.Transport()))
 	_, err = c.Test(context.Background(), connectors.Credentials{"api_key": "k", "base_url": garbage.URL})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestPlatformCredentials(t *testing.T) {
@@ -669,10 +667,10 @@ func TestPlatformCredentials(t *testing.T) {
 
 func TestCredentialsSchemaValidates(t *testing.T) {
 	d := openai.New().Descriptor()
-	assert.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"api_key": "sk-1"}))
-	assert.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"api_key": "sk-1", "base_url": "https://llm.example.com/v1"}))
-	assert.Error(t, connectors.ValidateCredentials(d, connectors.Credentials{"api_key": "sk-1", "base_url": "http://llm.example.com"}))
-	assert.Error(t, connectors.ValidateCredentials(d, connectors.Credentials{"base_url": "https://x.example.com"}))
+	require.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"api_key": "sk-1"}))
+	require.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"api_key": "sk-1", "base_url": "https://llm.example.com/v1"}))
+	require.Error(t, connectors.ValidateCredentials(d, connectors.Credentials{"api_key": "sk-1", "base_url": "http://llm.example.com"}))
+	require.Error(t, connectors.ValidateCredentials(d, connectors.Credentials{"base_url": "https://x.example.com"}))
 	assert.Equal(t, map[string]string{"base_url": "https://llm.example.com/v1"},
 		connectors.RedactedCredentials(d, connectors.Credentials{"api_key": "sk-1", "base_url": "https://llm.example.com/v1"}))
 }
@@ -687,11 +685,11 @@ func TestRollingIdsAreNotPinned(t *testing.T) {
 		"gpt-4o-2024-08-06", "gpt-4o-mini-2024-07-18", "gpt-4.1-2025-04-14", "gpt-5-2025-08-07", "o3-2025-04-16", "gpt-4-0613",
 		"openai/gpt-4o-mini-2024-07-18", "anthropic/claude-3.5-sonnet", "meta-llama/llama-3-8b-instruct", "typesafe/jev-1.14", "my-company-model",
 	} {
-		assert.NoError(t, aichat.CheckModel(pinned), pinned)
+		require.NoError(t, aichat.CheckModel(pinned), pinned)
 	}
-	assert.Error(t, aichat.CheckModel("~typesafe/jev-latest"))
+	require.Error(t, aichat.CheckModel("~typesafe/jev-latest"))
 	assert.Equal(t, "gpt-4o-mini-2024-07-18", openaiconfig.DefaultModel, "the shipped default is pinned")
-	assert.NoError(t, aichat.CheckModel(openaiconfig.DefaultModel))
+	require.NoError(t, aichat.CheckModel(openaiconfig.DefaultModel))
 }
 
 func TestVisionIsAVerifiedList(t *testing.T) {
@@ -824,7 +822,8 @@ func TestUndeclaredNullFieldIsRefused(t *testing.T) {
 	n, _ := newNode(t, openai.WithTransport(srv.Transport()))
 	res, err := n.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x", "format": "json", "schema": schemaParam(t)}), nil))
 	require.NoError(t, err)
-	raw, _ := json.Marshal(res.Output["json"])
+	raw, err := json.Marshal(res.Output["json"])
+	require.NoError(t, err)
 	assert.JSONEq(t, `{"summary":"fine","score":4}`, string(raw))
 }
 
@@ -851,7 +850,7 @@ func TestFractionalImageIDsAreRefused(t *testing.T) {
 	assert.Less(t, time.Since(started), time.Second)
 	assert.Empty(t, srv.Requests(), "nothing was sent for a fraction")
 	for _, whole := range []any{"7", 7, int64(7), 7.0, json.Number("7"), json.Number("7.0"), json.Number("0.7e1")} {
-		assert.NoError(t, run(whole), "%v", whole)
+		require.NoError(t, run(whole), "%v", whole)
 	}
 }
 
@@ -945,7 +944,7 @@ func (u slowUsage) Record(ctx context.Context, _ catalog.UsageEntry) error {
 // The write of the usage has a bound of its own: a database that stalls does not hold the node.
 func TestUsageWriteIsBounded(t *testing.T) {
 	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("ok", 3, 1)})
-	n, _ := newNode(t, openai.WithTransport(srv.Transport()), openai.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
+	n, _ := newNode(t, openai.WithTransport(srv.Transport()), openai.WithLogger(slog.New(slog.DiscardHandler)))
 	rec := slowUsage{deadline: make(chan time.Duration, 4)}
 	in := aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), rec)
 	ctx, cancel := context.WithCancel(context.Background())

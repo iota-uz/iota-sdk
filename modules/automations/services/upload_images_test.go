@@ -67,22 +67,22 @@ func TestUploadImages(t *testing.T) {
 	assert.Equal(t, tenant, f.seen, "the repository is asked as the tenant")
 
 	_, err = src.Image(ctx, tenant, "8", 1024)
-	assert.ErrorIs(t, err, openai.ErrImageNotFound, "another tenant's upload is not found")
+	require.ErrorIs(t, err, openai.ErrImageNotFound, "another tenant's upload is not found")
 	_, err = src.Image(ctx, tenant, "404", 1024)
-	assert.ErrorIs(t, err, openai.ErrImageNotFound)
+	require.ErrorIs(t, err, openai.ErrImageNotFound)
 	for _, bad := range []string{"", "0", "-1", "abc", "1.5", "99999999999"} {
 		_, err = src.Image(ctx, tenant, bad, 1024)
-		assert.ErrorIs(t, err, openai.ErrImageNotFound, bad)
+		require.ErrorIs(t, err, openai.ErrImageNotFound, bad)
 	}
 	_, err = src.Image(ctx, tenant, "9", 50)
-	assert.ErrorIs(t, err, openai.ErrImageTooLarge)
+	require.ErrorIs(t, err, openai.ErrImageTooLarge)
 	_, err = src.Image(ctx, tenant, "10", 50)
-	assert.ErrorIs(t, err, openai.ErrImageTooLarge, "the file is read up to the limit, whatever the record says")
+	require.ErrorIs(t, err, openai.ErrImageTooLarge, "the file is read up to the limit, whatever the record says")
 
 	none := services.UploadImages{}
 	_, err = none.Image(ctx, tenant, "7", 1024)
-	assert.ErrorIs(t, err, openai.ErrImagesUnavailable)
+	require.ErrorIs(t, err, openai.ErrImagesUnavailable)
 	down := services.UploadImages{Uploads: func() (services.UploadReader, error) { return nil, errors.New("no uploads module") }}
 	_, err = down.Image(ctx, tenant, "7", 1024)
-	assert.ErrorIs(t, err, openai.ErrImagesUnavailable)
+	require.ErrorIs(t, err, openai.ErrImagesUnavailable)
 }

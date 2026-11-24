@@ -67,13 +67,16 @@ func base(t *testing.T, n catalog.CallNode, extra map[string]any) map[string]any
 func callErr(t *testing.T, err error) *catalog.CallError {
 	t.Helper()
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce), "want a CallError, got %v", err)
+	require.ErrorAs(t, err, &ce, "want a CallError")
 	return ce
 }
 
 // decision is the answer of a chat model (the openai provider).
 func decision(choice string, probs map[string]float64) string {
-	b, _ := json.Marshal(map[string]any{"choice": choice, "probabilities": probs})
+	b, err := json.Marshal(map[string]any{"choice": choice, "probabilities": probs})
+	if err != nil {
+		panic(err)
+	}
 	return aitest.Chat(string(b), 120, 18)
 }
 
@@ -83,11 +86,14 @@ func typesafe(choice string, probs map[string]float64, confidence *float64) stri
 	if confidence != nil {
 		answer["confidence"] = *confidence
 	}
-	b, _ := json.Marshal(map[string]any{
+	b, err := json.Marshal(map[string]any{
 		"id": "gen-dec-1", "model": "typesafe/jev-1.14-20261014", "provider": "TypeSafe",
 		"answers": map[string]any{"decision": answer},
 		"usage":   map[string]any{"input_tokens": 120, "output_tokens": 18, "cost": 0.0042},
 	})
+	if err != nil {
+		panic(err)
+	}
 	return string(b)
 }
 
@@ -177,7 +183,7 @@ func TestDefaultsAreAppliedAndPinned(t *testing.T) {
 	assert.NotContains(t, raw, "prompt", "the argument is not changed")
 	assert.Equal(t, done, cn.CompleteParams(done))
 	assert.Equal(t, "my rules", cn.CompleteParams(map[string]any{"prompt": "my rules"})["prompt"])
-	assert.Equal(t, "", cn.CompleteParams(map[string]any{"prompt": ""})["prompt"], "an empty prompt is refused, not replaced")
+	assert.Empty(t, cn.CompleteParams(map[string]any{"prompt": ""})["prompt"], "an empty prompt is refused, not replaced")
 }
 
 type providers map[string]string
@@ -266,7 +272,7 @@ func (f failingProviders) Provider(context.Context, uuid.UUID, string) (string, 
 
 func TestShippedDefaultsArePinned(t *testing.T) {
 	for _, m := range []string{jev.DefaultModelOpenRouter, jev.DefaultModelOpenAI} {
-		assert.NoError(t, aichat.CheckModel(m), m)
+		require.NoError(t, aichat.CheckModel(m), m)
 	}
 	assert.Equal(t, "typesafe/jev-1.14", jev.DefaultModelOpenRouter)
 }
@@ -503,7 +509,7 @@ func TestRetryAfterOf429IsGivenToTheEngine(t *testing.T) {
 	in.Params["model"] = "typesafe/jev-1.14"
 	res, err := n.Execute(context.Background(), in)
 	require.NoError(t, err)
-	assert.EqualValues(t, 3e9, res.RetryAfter)
+	assert.Equal(t, 3*time.Second, res.RetryAfter)
 }
 
 func TestTheEngineTakesTheOutcomeOfTheAnswer(t *testing.T) {
@@ -853,7 +859,7 @@ func TestConnectorTestOpenRouter(t *testing.T) {
 	}
 	c = jev.New(jev.WithTransport(empty.Transport()))
 	_, err = c.Test(context.Background(), connectors.Credentials{"provider": "openrouter", "api_key": "sk-or-v1-secret"})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestConnectorTestOpenAI(t *testing.T) {
@@ -867,9 +873,9 @@ func TestConnectorTestOpenAI(t *testing.T) {
 	assert.Equal(t, "/v1/models", srv.Requests()[0].Path)
 
 	_, err = c.Test(context.Background(), connectors.Credentials{"provider": "gemini", "api_key": "k"})
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = c.Test(context.Background(), connectors.Credentials{"provider": "openai"})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestPlatformCredentials(t *testing.T) {
@@ -883,9 +889,9 @@ func TestPlatformCredentials(t *testing.T) {
 
 func TestCredentialsSchemaValidates(t *testing.T) {
 	d := jev.New().Descriptor()
-	assert.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"provider": "openrouter", "api_key": "k"}))
-	assert.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"provider": "openai", "api_key": "k"}))
-	assert.Error(t, connectors.ValidateCredentials(d, connectors.Credentials{"provider": "gemini", "api_key": "k"}))
-	assert.Error(t, connectors.ValidateCredentials(d, connectors.Credentials{"api_key": "k"}))
+	require.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"provider": "openrouter", "api_key": "k"}))
+	require.NoError(t, connectors.ValidateCredentials(d, connectors.Credentials{"provider": "openai", "api_key": "k"}))
+	require.Error(t, connectors.ValidateCredentials(d, connectors.Credentials{"provider": "gemini", "api_key": "k"}))
+	require.Error(t, connectors.ValidateCredentials(d, connectors.Credentials{"api_key": "k"}))
 	assert.Equal(t, map[string]string{"provider": "openai"}, connectors.RedactedCredentials(d, connectors.Credentials{"provider": "openai", "api_key": "k"}))
 }

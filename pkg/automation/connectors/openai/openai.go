@@ -222,8 +222,8 @@ func (c *connector) Test(ctx context.Context, creds connectors.Credentials) (con
 		return connectors.Identity{}, errors.New("openai: the provider's list of models could not be read")
 	}
 	id := connectors.Identity{
-		Display:  firstNonEmpty(resp.Header.Get("openai-project"), resp.Header.Get("openai-organization")),
-		External: firstNonEmpty(resp.Header.Get("openai-organization"), resp.Header.Get("openai-project")),
+		Display:  firstNonEmpty(resp.Header.Get("Openai-Project"), resp.Header.Get("Openai-Organization")),
+		External: firstNonEmpty(resp.Header.Get("Openai-Organization"), resp.Header.Get("Openai-Project")),
 	}
 	return id, nil
 }

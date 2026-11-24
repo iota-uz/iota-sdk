@@ -506,7 +506,7 @@ func (l lazyAvailability) PlatformWithheld(ctx context.Context, tenantID uuid.UU
 	if po, ok := st.(catalog.PlatformOffers); ok {
 		return po.PlatformWithheld(ctx, tenantID)
 	}
-	return nil, nil
+	return map[catalog.ConnectorKind]bool{}, nil // a store that does not offer platform keys withholds none
 }
 
 // lazyProviders tells the provider of a Jev connection (its provider credential field), resolving the

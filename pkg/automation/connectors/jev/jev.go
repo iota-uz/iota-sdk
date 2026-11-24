@@ -245,31 +245,37 @@ func (c *connector) Test(ctx context.Context, creds connectors.Credentials) (con
 		return connectors.Identity{}, errors.New("jev: " + err.Error())
 	}
 	cl := &aichat.Client{Transport: c.o.transport}
-	get := func(path string) (*http.Response, []byte, error) {
+	// reply is an answer read in full, its body closed.
+	type reply struct {
+		status int
+		header http.Header
+		body   []byte
+	}
+	get := func(path string) (reply, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(ep.BaseURL, "/")+path, nil)
 		if err != nil {
-			return nil, nil, err
+			return reply{}, err
 		}
 		req.Header.Set("Authorization", "Bearer "+ep.APIKey)
 		resp, err := cl.Do(ep, req)
 		if err != nil {
-			return nil, nil, err
+			return reply{}, err
 		}
 		defer func() { _ = resp.Body.Close() }()
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
-		return resp, raw, nil
+		return reply{status: resp.StatusCode, header: resp.Header, body: raw}, nil
 	}
-	fail := func(resp *http.Response, raw []byte) error {
-		return errors.New("jev: " + aichat.StatusError(resp, raw, ep.APIKey).Message)
+	fail := func(r reply) error {
+		return errors.New("jev: " + aichat.StatusError(&http.Response{StatusCode: r.status, Header: r.header}, r.body, ep.APIKey).Message)
 	}
 	var id connectors.Identity
 	if ep.OpenRouter {
-		resp, raw, err := get("/auth/key")
+		r, err := get("/auth/key")
 		if err != nil {
 			return connectors.Identity{}, errors.New("jev: the provider was not reached")
 		}
-		if resp.StatusCode != http.StatusOK {
-			return connectors.Identity{}, fail(resp, raw)
+		if r.status != http.StatusOK {
+			return connectors.Identity{}, fail(r)
 		}
 		var key struct {
 			Data *struct {
@@ -277,28 +283,28 @@ func (c *connector) Test(ctx context.Context, creds connectors.Credentials) (con
 			} `json:"data"`
 		}
 		// A key the provider authenticates comes with its data; an answer without it checked nothing.
-		if json.Unmarshal(raw, &key) != nil || key.Data == nil {
+		if json.Unmarshal(r.body, &key) != nil || key.Data == nil {
 			return connectors.Identity{}, errors.New("jev: the provider's answer about the key could not be read")
 		}
 		id = connectors.Identity{Display: strings.TrimSpace(key.Data.Label), External: strings.TrimSpace(key.Data.Label)}
 	}
-	resp, raw, err := get("/models")
+	models, err := get("/models")
 	if err != nil {
 		return connectors.Identity{}, errors.New("jev: the provider was not reached")
 	}
-	if resp.StatusCode != http.StatusOK {
-		return connectors.Identity{}, fail(resp, raw)
+	if models.status != http.StatusOK {
+		return connectors.Identity{}, fail(models)
 	}
 	var list struct {
 		Data []struct {
 			ID string `json:"id"`
 		} `json:"data"`
 	}
-	if json.Unmarshal(raw, &list) != nil || list.Data == nil {
+	if json.Unmarshal(models.body, &list) != nil || list.Data == nil {
 		return connectors.Identity{}, errors.New("jev: the provider's list of models could not be read")
 	}
 	if !ep.OpenRouter {
-		org, project := strings.TrimSpace(resp.Header.Get("openai-organization")), strings.TrimSpace(resp.Header.Get("openai-project"))
+		org, project := strings.TrimSpace(models.header.Get("Openai-Organization")), strings.TrimSpace(models.header.Get("Openai-Project"))
 		id = connectors.Identity{Display: firstNonEmpty(project, org), External: firstNonEmpty(org, project)}
 	}
 	return id, nil

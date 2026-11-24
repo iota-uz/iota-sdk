@@ -37,11 +37,11 @@ type Request struct {
 func (r Request) Host() string { return r.Header.Get(OriginalHost) }
 
 // JSON decodes the body of the request.
-func (r Request) JSON(t testing.TB) map[string]any {
-	t.Helper()
+func (r Request) JSON(tb testing.TB) map[string]any {
+	tb.Helper()
 	var m map[string]any
 	if err := json.Unmarshal(r.Body, &m); err != nil {
-		t.Fatalf("the request body is not JSON: %v", err)
+		tb.Fatalf("the request body is not JSON: %v", err)
 	}
 	return m
 }
@@ -64,8 +64,8 @@ type Server struct {
 }
 
 // New starts a provider over TLS (the connectors take https only); close it with the test.
-func New(t testing.TB, script ...Reply) *Server {
-	t.Helper()
+func New(tb testing.TB, script ...Reply) *Server {
+	tb.Helper()
 	s := &Server{script: script}
 	s.Server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
@@ -95,7 +95,7 @@ func New(t testing.TB, script ...Reply) *Server {
 		w.WriteHeader(reply.Status)
 		_, _ = w.Write([]byte(reply.Body))
 	}))
-	t.Cleanup(s.Close)
+	tb.Cleanup(s.Close)
 	return s
 }
 
@@ -125,17 +125,24 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { retu
 
 // Chat is the body of a chat completion that answers content.
 func Chat(content string, in, out int) string {
-	b, _ := json.Marshal(map[string]any{
+	return mustMarshal(map[string]any{
 		"model":   "test-model-2025-01-01",
 		"choices": []any{map[string]any{"finish_reason": "stop", "message": map[string]any{"role": "assistant", "content": content}}},
 		"usage":   map[string]any{"prompt_tokens": in, "completion_tokens": out},
 	})
-	return string(b)
 }
 
 // APIError is the body of an error answer.
 func APIError(message, typ, code string) string {
-	b, _ := json.Marshal(map[string]any{"error": map[string]any{"message": message, "type": typ, "code": code}})
+	return mustMarshal(map[string]any{"error": map[string]any{"message": message, "type": typ, "code": code}})
+}
+
+// mustMarshal is the JSON of a value built from maps, slices and scalars, which cannot fail.
+func mustMarshal(v any) string {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic("aitest: " + err.Error())
+	}
 	return string(b)
 }
 
@@ -230,39 +237,39 @@ func (b builtin) Spec() graph.NodeSpec              { return b.spec }
 func (b builtin) Requires() []catalog.ConnectorKind { return nil }
 
 // View is the catalog of a tenant that has one connection of each connector's kind.
-func View(t testing.TB, conns ...connectors.Connector) catalog.View {
-	t.Helper()
+func View(tb testing.TB, conns ...connectors.Connector) catalog.View {
+	tb.Helper()
 	avail := availability{}
 	for _, c := range conns {
 		avail[c.Kind()] = []catalog.ConnectionRef{{ID: uuid.NewString(), Name: "main"}}
 	}
 	reg := catalog.NewRegistry(avail)
 	if err := reg.RegisterTriggers(events{}); err != nil {
-		t.Fatalf("register the test event: %v", err)
+		tb.Fatalf("register the test event: %v", err)
 	}
 	for _, spec := range graph.BuiltinNodes(nil, nil) {
 		if err := reg.RegisterNode(builtin{spec}); err != nil {
-			t.Fatalf("register %s: %v", spec.Type, err)
+			tb.Fatalf("register %s: %v", spec.Type, err)
 		}
 	}
 	for _, c := range conns {
 		if err := reg.RegisterConnector(c); err != nil {
-			t.Fatalf("register %s: %v", c.Kind(), err)
+			tb.Fatalf("register %s: %v", c.Kind(), err)
 		}
 	}
 	v, err := reg.ForTenant(context.Background(), uuid.New())
 	if err != nil {
-		t.Fatalf("the catalog: %v", err)
+		tb.Fatalf("the catalog: %v", err)
 	}
 	return v
 }
 
 // Validate checks a graph document against the view as the engine does on save.
-func Validate(t testing.TB, v catalog.View, doc string) []graph.GraphError {
-	t.Helper()
+func Validate(tb testing.TB, v catalog.View, doc string) []graph.GraphError {
+	tb.Helper()
 	g, errs := graph.Decode([]byte(doc))
 	if len(errs) > 0 {
-		t.Fatalf("the graph does not decode: %v", errs)
+		tb.Fatalf("the graph does not decode: %v", errs)
 	}
 	return graph.Validate(v.Catalog, g, graph.Options{Rules: catalog.ConnectionRule(v)})
 }
@@ -283,15 +290,15 @@ func Doc(nodes, edges string) string {
 }
 
 // Interpreter is the interpreter of a valid graph, as the engine runs it.
-func Interpreter(t testing.TB, v catalog.View, doc string) *graph.Interpreter {
-	t.Helper()
+func Interpreter(tb testing.TB, v catalog.View, doc string) *graph.Interpreter {
+	tb.Helper()
 	g, errs := graph.Decode([]byte(doc))
 	if len(errs) > 0 {
-		t.Fatalf("the graph does not decode: %v", errs)
+		tb.Fatalf("the graph does not decode: %v", errs)
 	}
 	in, err := graph.NewInterpreter(v.Catalog, g, graph.Options{})
 	if err != nil {
-		t.Fatalf("the interpreter: %v", err)
+		tb.Fatalf("the interpreter: %v", err)
 	}
 	return in
 }

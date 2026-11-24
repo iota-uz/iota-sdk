@@ -76,7 +76,10 @@ type JevOutput struct {
 }
 
 func paramsSchema() string {
-	prompt, _ := json.Marshal(DefaultPrompt)
+	prompt, err := json.Marshal(DefaultPrompt)
+	if err != nil {
+		panic(err) // a string, which cannot fail
+	}
 	return `{
   "type": "object",
   "required": ["input", "choices"],
@@ -536,7 +539,7 @@ func answerSchema(choices []Choice) json.RawMessage {
 		values[i] = c.Value
 		props[c.Value] = map[string]any{"type": "number"}
 	}
-	b, _ := json.Marshal(map[string]any{
+	b, err := json.Marshal(map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			"choice": map[string]any{"type": "string", "enum": values},
@@ -547,6 +550,9 @@ func answerSchema(choices []Choice) json.RawMessage {
 		"required":             []any{"choice", "probabilities"},
 		"additionalProperties": false,
 	})
+	if err != nil {
+		panic(err) // maps, slices and scalars, which cannot fail
+	}
 	return b
 }
 
