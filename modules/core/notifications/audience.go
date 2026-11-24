@@ -88,10 +88,12 @@ type AudienceRequest struct {
 	// CheckContacts keeps a record recipient only when its entity's
 	// ContactResolver finds an address for it on one of Channels now; the
 	// others are skipped with SkipNoAddress, so a send to nobody reachable
-	// queues nothing. Without it a record is queued whenever its entity has a
-	// resolver, and the worker records a missing address at delivery. The
-	// resolver is called with the context of the send or the resolution, so
-	// inside SendTx it reads in the caller's transaction (composables.UseTx).
+	// queues nothing. Only a TxSafeContactResolver is asked: it runs with the
+	// context of the send or the resolution, so inside SendTx it reads in the
+	// caller's transaction, and Resolve writes nothing. The record of any
+	// other resolver (one that runs package code, say) is kept unchecked and
+	// the worker records a missing address at delivery. Without CheckContacts
+	// no resolver is asked before delivery.
 	CheckContacts bool
 }
 

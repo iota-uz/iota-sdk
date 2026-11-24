@@ -335,9 +335,11 @@ resolution without writing and lists dropped members in `Skipped` (`not_found` f
 missing or foreign user, group or role, `inactive` for a blocked or inactive user,
 `no_contact_resolver`, `unknown_participant`; `Kind` is `user`, `group`, `role`,
 `participant` or `record`); the receipt of `SendTx` carries the same list (`AudienceReceipt.Skipped`).
-With `AudienceRequest.CheckContacts` a record is kept only when its `ContactResolver` finds an address
-on one of the request's channels, in the context of the call (inside `SendTx` that is the caller's
-transaction); the others are skipped with `no_address`. Participant callbacks may name anyone, so their users
+With `AudienceRequest.CheckContacts` a record is kept only when its resolver finds an address on one of the
+request's channels, in the context of the call (inside `SendTx` that is the caller's transaction); the others are
+skipped with `no_address`. Only a `TxSafeContactResolver` (reads through the context's transaction, takes no other
+connection, writes nothing) is asked; the record of any other resolver, such as a package's, is kept unchecked and
+the worker resolves it at delivery. Participant callbacks may name anyone, so their users
 are filtered to the tenant like named users. A `Source` must be registered and
 belong to the context's tenant even without participants. `SendTx` drops `not_found` and
 `inactive` members and returns `Invalid` for the other two, for participants without

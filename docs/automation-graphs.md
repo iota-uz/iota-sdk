@@ -353,10 +353,13 @@ resolve no audience and check no access themselves.
   run's trigger event, used only to resolve `participants`.
 - An audience that resolves to nobody queues nothing: `no_recipients`. `send_to_contact` sets
   `AudienceRequest.CheckContacts`: the delivery layer checks the channel first, then asks the entity's
-  `ContactResolver` for an address on it, in the step's transaction (the resolver reads with
-  `composables.UseTx(ctx)`, so no second connection is needed), and leaves a record without one out with the
-  reason `no_address`; the node then takes `no_contact` and a dry run agrees. A channel that is not available is
-  `failed` / `unavailable` whether or not the record has an address.
+  contact resolver for an address on it and leaves a record without one out with the reason `no_address`; the
+  node then takes `no_contact` and a dry run agrees. Only a `notifications.TxSafeContactResolver` is asked (it
+  reads through the step's transaction, `composables.UseTx(ctx)`, and writes nothing), so no second connection
+  is taken and a dry run records nothing. A resolver that runs package code (the extension runtime's adapter)
+  is not one: its records are queued unchecked and the worker records a missing address at delivery, so
+  `no_contact` is only reliable for entities with a transaction-safe resolver. A channel that is not available
+  is `failed` / `unavailable` whether or not the record has an address.
 - `participants` need every trigger event that can reach the node to have a notification definition with those
   recipient keys; otherwise the graph is not saved (`params` error on `recipients.participants`). A run without
   an event (manual, schedule) fails with `no_trigger_event`.

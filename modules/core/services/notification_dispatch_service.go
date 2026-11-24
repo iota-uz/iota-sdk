@@ -254,7 +254,8 @@ func (s *NotificationDispatchService) send(ctx context.Context, req notification
 }
 
 // reachable drops the record recipients whose contact has no address on the channels (CheckContacts),
-// recording why in Skipped. The resolver runs with ctx, so a send reads in its own transaction. A resolver
+// recording why in Skipped. Only a TxSafeContactResolver is asked, with ctx, so a send reads in its own
+// transaction and a preview writes nothing; the record of any other is kept for the worker. A resolver
 // that fails is Unavailable: the caller may repeat.
 func (s *NotificationDispatchService) reachable(ctx context.Context, channels []notifications.Channel, resolved notifications.ResolvedAudience) (notifications.ResolvedAudience, error) {
 	tenant, err := composables.UseTenantID(ctx)
@@ -271,6 +272,10 @@ func (s *NotificationDispatchService) reachable(ctx context.Context, channels []
 		resolver, ok := s.router.platform.Contacts.Lookup(a.Record.Entity)
 		if !ok {
 			resolved.Skipped = append(resolved.Skipped, notifications.SkippedRecipient{Kind: notifications.RecipientRecord, Ref: ref, Reason: notifications.SkipNoContactResolver})
+			continue
+		}
+		if _, safe := resolver.(notifications.TxSafeContactResolver); !safe {
+			kept = append(kept, a) // asked at delivery: it may take its own connection or record its calls
 			continue
 		}
 		contact, err := resolver.ResolveContact(ctx, tenant, *a.Record)

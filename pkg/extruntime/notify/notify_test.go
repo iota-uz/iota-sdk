@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules"
@@ -353,6 +354,60 @@ func TestRecordRecipientUsesThePackagesContactResolver(t *testing.T) {
 	sent := e.sms.SentTo("+99890c-77")
 	require.Len(t, sent, 1, "record -> contact targets resolved by the package's server code")
 	require.Contains(t, sent[0].Text, "Policy P-2")
+}
+
+// CheckContacts (the contact check of a graph's send_to_contact) never runs a package's resolver inside the
+// caller's transaction or in a preview: the package code takes its own connections and records its calls. The
+// record is queued unchecked and the worker resolves it at delivery.
+func TestCheckContactsLeavesAPackageResolverToTheWorker(t *testing.T) {
+	e := newNenv(t)
+	e.publish("1.0.0")
+	e.activate("1.0.0")
+	_, err := e.svc.AssignOwner(context.Background(), e.admin, resolverID, e.owner)
+	require.NoError(t, err)
+	resolver, ok := e.contacts.Lookup(customerID)
+	require.True(t, ok)
+	_, safe := resolver.(notifications.TxSafeContactResolver)
+	require.False(t, safe, "a package resolver is not transaction-safe")
+
+	ref := notifications.ObjectRef{Entity: customerID, Key: "c-77"}
+	req := notifications.AudienceRequest{
+		Event:    notifications.Event{Key: notifications.TestEventKey, ID: uuid.NewString(), TenantID: e.f.TenantID()},
+		Audience: notifications.Audience{Records: []notifications.ObjectRef{ref}}, Channels: []notifications.Channel{notifications.ChannelSMS},
+		CheckContacts: true,
+	}
+	invocations := func() int {
+		return e.count(`SELECT COUNT(*) FROM extruntime.invocations WHERE contract = $1`, resolverID)
+	}
+	require.Zero(t, invocations())
+
+	// A preview writes nothing: no invocation of the resolver is recorded.
+	resolved, err := e.dispatch.Resolve(e.committed, req)
+	require.NoError(t, err)
+	require.Len(t, resolved.Addressees, 1, "the record is kept unchecked")
+	require.Zero(t, invocations(), "the preview did not run the package")
+
+	// A send in a transaction that holds the pool's only connection does not wait for a second one.
+	cfg, err := pgxpool.ParseConfig(e.f.Pool.Config().ConnString())
+	require.NoError(t, err)
+	cfg.MaxConns = 1
+	single, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	require.NoError(t, err)
+	t.Cleanup(single.Close)
+	ctx, cancel := context.WithTimeout(composables.WithTenantID(context.Background(), e.f.TenantID()), 20*time.Second)
+	defer cancel()
+	tx, err := single.Begin(ctx)
+	require.NoError(t, err)
+	receipt, err := e.dispatch.SendTx(ctx, tx, req)
+	require.NoError(t, err)
+	require.Equal(t, 1, receipt.Recipients)
+	require.NoError(t, tx.Commit(ctx))
+	require.Zero(t, invocations(), "the send did not run the package either")
+
+	// The worker resolves the contact at delivery, as for any record recipient.
+	e.drain()
+	require.Len(t, e.sms.SentTo("+99890c-77"), 1)
+	require.Positive(t, invocations())
 }
 
 func TestPendingDeliveriesKeepResolvingTheirSnapshotAfterDeactivationAndNewVersions(t *testing.T) {

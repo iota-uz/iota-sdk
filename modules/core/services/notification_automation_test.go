@@ -306,7 +306,7 @@ func TestAutomationNotify_NeedsNoSecondConnectionInTheStepTransaction(t *testing
 func TestAutomationSendToContact_SQLResolverUsesTheStepTransaction(t *testing.T) {
 	c := setupAutomation(t)
 	const entity = "acme.sqlcustomer"
-	require.NoError(t, c.contactRegistry.Register(entity, notifications.ContactResolverFunc(func(ctx context.Context, _ uuid.UUID, _ notifications.ObjectRef) (notifications.Contact, error) {
+	require.NoError(t, c.contactRegistry.Register(entity, notifications.TxSafeContactResolverFunc(func(ctx context.Context, _ uuid.UUID, _ notifications.ObjectRef) (notifications.Contact, error) {
 		db, err := composables.UseTx(ctx)
 		if err != nil {
 			return notifications.Contact{}, err
