@@ -347,3 +347,13 @@ export function graphPath(base: string, id: string, opts?: { tab?: 'runs'; run?:
   const s = q.toString()
   return s ? `${root}?${s}` : root
 }
+
+/** Why a version does not enable, in words (AL7): an unavailable connection or a missing right is named. */
+export function problemText(t: Translator, p: { code?: string; message: string }): string {
+  switch (p.code) {
+    case 'connection_unavailable': return t('Review.Problem.Connection')
+    case 'triggers_unreadable': return t('Review.Problem.Triggers')
+    case 'unknown_node_type': return t('Review.Problem.NodeType')
+  }
+  return t('Review.Problem.Invalid')
+}

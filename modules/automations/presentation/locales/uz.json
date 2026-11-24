@@ -236,7 +236,8 @@
         "LoadList": "avtomatlashtirishlarni yuklash",
         "LoadReview": "tekshiruvni yuklash",
         "LoadRuns": "ishga tushirishlarni yuklash",
-        "Run": "ishga tushirish"
+        "Run": "ishga tushirish",
+        "LoadLive": "kutilayotgan ishga tushirishlarni sanash"
       },
       "Columns": {
         "Attention": "Eʼtibor talab qiladi",
@@ -371,7 +372,14 @@
         "Secrets": "Sirlar:",
         "SourceOf": "{node} qadamining kodi",
         "Title": "Yoqishdan oldin tekshirish: {name} v{version}",
-        "Triggers": "Ishga tushadi"
+        "Triggers": "Ishga tushadi",
+        "Blocked": "Bu versiyani hozir yoqib boʻlmaydi:",
+        "Problem": {
+          "Connection": "u foydalanadigan ulanish mavjud emas: uni «Integratsiyalar» sahifasida tekshiring",
+          "Triggers": "uning triggerlari uchun sizda yoʻq huquq kerak",
+          "NodeType": "unda sizga ruxsat etilmagan yoki endi mavjud boʻlmagan qadam bor",
+          "Invalid": "graf tekshiruvdan oʻtmaydi: uni muharrirda ochib tuzating"
+        }
       },
       "Run": {
         "Blocked": "Bloklangan",
@@ -413,6 +421,10 @@
         "Enabled": "Yoqilgan v{version}",
         "Pending": "Yangi v{version} versiya bor",
         "PendingEnabled": "Yoqilgan v{enabled} · yangi v{version} versiya bor"
+      },
+      "Enable": {
+        "NoRight": "Avtomatlashtirishlarni «Avtomatlashtirishlarni yoqish» huquqiga ega inson yoqadi va oʻchiradi.",
+        "AgentNote": "Agent avtomatlashtirishlarni yoqmaydi: buni inson oʻz seansidan qiladi."
       }
     },
     "Title": "Avtomatlashtirishlar",

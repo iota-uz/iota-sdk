@@ -132,3 +132,45 @@ func TestCountLive(t *testing.T) {
 	_, err = p.rt.Service().CountLive(ctx, e.actor(e.newTenant(), 1, engine.OriginHuman), am.ID)
 	require.ErrorIs(t, err, engine.ErrNotFound)
 }
+
+// Enable{Latest} checks the version under the graph's lock: a version saved after the review is not
+// skipped. A version saved over a stale layout keeps the positions another tab saved. Runs filter by
+// version before the page is cut. The review tells why a version does not enable.
+func TestEnableLatestLayoutBaseAndRunsByVersion(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	ctx := context.Background()
+	human := e.human()
+	svc := p.rt.Service()
+	am := e.create(p, human, noteGraph("x"))
+
+	rv, err := svc.EnableReview(ctx, human, am.ID, 1)
+	require.NoError(t, err)
+	assert.Empty(t, rv.Problems)
+	_, err = svc.SaveVersion(ctx, human, am.ID, engine.SaveInput{BaseVersion: 1, Graph: json.RawMessage(noteGraph("y"))})
+	require.NoError(t, err)
+	_, err = svc.Enable(ctx, human, am.ID, engine.EnableInput{Version: 1, CodeDigest: rv.CodeDigest, Latest: true})
+	require.ErrorIs(t, err, engine.ErrReviewRequired, "v2 was saved after the review of v1")
+	_, err = svc.Enable(ctx, human, am.ID, engine.EnableInput{Version: 2, Latest: true})
+	require.NoError(t, err)
+
+	got, err := svc.Get(ctx, human, am.ID)
+	require.NoError(t, err)
+	base := got.LayoutRevision
+	_, err = svc.SaveLayoutAt(ctx, human, am.ID, base, graph.Layout{"note": {X: 10, Y: 20}})
+	require.NoError(t, err)
+	_, err = svc.SaveVersion(ctx, human, am.ID, engine.SaveInput{BaseVersion: 2, Graph: json.RawMessage(noteGraph("z")),
+		Layout: graph.Layout{"note": {X: 99, Y: 99}, "fin": {X: 5, Y: 5}}, LayoutBase: &base})
+	require.NoError(t, err)
+	got, err = svc.Get(ctx, human, am.ID)
+	require.NoError(t, err)
+	assert.Equal(t, graph.XY{X: 10, Y: 20}, got.Layout["note"], "the other tab's position stays")
+
+	e.publish(e.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	p.until(func() bool { return len(e.runs(p, human, engine.RunFilter{AutomationID: &am.ID})) == 1 }, "a run of v3")
+	runs := e.runs(p, human, engine.RunFilter{AutomationID: &am.ID, Version: 1})
+	assert.Empty(t, runs)
+	runs = e.runs(p, human, engine.RunFilter{AutomationID: &am.ID, Version: 3, Limit: 1})
+	require.Len(t, runs, 1)
+	assert.Equal(t, 3, runs[0].Version)
+}

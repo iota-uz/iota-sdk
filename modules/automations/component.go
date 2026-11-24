@@ -52,6 +52,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/settings"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -493,6 +494,9 @@ func (c *component) buildPages(b *composition.Builder) {
 		if err != nil {
 			return nil, err
 		}
+		// The webhooks authenticate by the connector's Verify, never by a session: every CSRF middleware of
+		// the application lets them through.
+		middleware.ExemptFromCSRF(graphs.HooksPath + "/")
 		hooks := graphs.NewHooksController(engine.InboundHandler(engine.InboundConfig{
 			Connections: store, Registry: reg, Inbound: rt.Inbound(), DB: db, Connectors: dir, Platform: platform,
 		}))

@@ -32,6 +32,7 @@ const fake: FakeOptions = {
   changeOnce: params.has('changeOnce'),
   layoutConflict: params.has('layoutConflict'),
   conflictOnce: params.has('conflictOnce'),
+  liveFailsOnce: params.has('liveFailsOnce'),
   can,
   calls: [],
 }

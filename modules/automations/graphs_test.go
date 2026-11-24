@@ -36,6 +36,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/wiring"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
 // codeNode is a Code node type: its source is reviewed before a version is enabled.
@@ -262,6 +263,23 @@ func TestCodeReviewBeforeEnabling(t *testing.T) {
 	require.Nil(t, rpc(t, s, graphs.MethodEnable, map[string]any{"id": id, "version": 3, "code_digest": latest.CodeDigest}, &enabled).Error)
 	require.True(t, enabled.OK)
 
+	// The editor's «Run» offers the enabled version's manual triggers.
+	var opened graphs.GetResponse
+	require.Nil(t, rpc(t, s, graphs.MethodGet, map[string]any{"id": id}, &opened).Error)
+	require.Len(t, opened.ManualTriggers, 1)
+	assert.Equal(t, "start", opened.ManualTriggers[0].TriggerID)
+	assert.Empty(t, latest.Problems)
+
+	// Runs filter by version in the engine; a graph that is not there is not found.
+	var runs graphs.RunsResponse
+	require.Nil(t, rpc(t, s, graphs.MethodRuns, map[string]any{"automation_id": id, "version": 1, "limit": 1}, &runs).Error)
+	require.Len(t, runs.Items, 1)
+	require.Nil(t, rpc(t, s, graphs.MethodRuns, map[string]any{"automation_id": id, "version": 3}, &runs).Error)
+	assert.Empty(t, runs.Items)
+	r := rpc(t, s, graphs.MethodRuns, map[string]any{"automation_id": uuid.NewString()}, nil)
+	require.NotNil(t, r.Error)
+	assert.Equal(t, "not_found", r.Error.Code)
+
 	var disabled graphs.DisableResponse
 	require.Nil(t, rpc(t, s, graphs.MethodDisable, map[string]any{"id": id}, &disabled).Error)
 	assert.True(t, disabled.OK)
@@ -286,6 +304,14 @@ func TestPermissionsAndLayoutConflict(t *testing.T) {
 	assert.False(t, lay.OK)
 	assert.Equal(t, graphs.ErrVersionConflict, lay.Error)
 	assert.Equal(t, graphs.XY{X: 10, Y: 20}, lay.Positions["code"], "the positions of the newer tab stay")
+
+	// A Save from the old tab carries its whole layout and the stale revision: the newer positions stay.
+	var saved graphs.SaveResult
+	require.Nil(t, rpc(t, s, graphs.MethodSave, map[string]any{"id": created.ID, "base": 1, "graph": codeGraph("Notes", "return 2"),
+		"layout": map[string]any{"code": map[string]any{"x": 99, "y": 99}}, "layout_revision": created.LayoutRevision}, &saved).Error)
+	require.True(t, saved.OK, "%+v", saved)
+	assert.True(t, saved.LayoutChanged)
+	assert.Equal(t, graphs.XY{X: 10, Y: 20}, saved.Positions["code"])
 
 	reader, _ := app(t, permissions.AutomationsRead)
 	_ = container // another composition: another tenant
@@ -327,7 +353,10 @@ func TestWebhookAndConnectionInUse(t *testing.T) {
 
 	h := hookHandler(t, s)
 	post := func(path, secret string) *httptest.ResponseRecorder {
-		req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(`{}`))
+		// A provider's request: cross-site, no cookie, no CSRF token.
+		req := httptest.NewRequest(http.MethodPost, "https://erp.test"+path, bytes.NewBufferString(`{}`))
+		req.Header.Set("Origin", "https://provider.example")
+		req.Header.Set("Sec-Fetch-Site", "cross-site")
 		if secret != "" {
 			req.Header.Set("X-Hooky-Secret", secret)
 		}
@@ -340,6 +369,7 @@ func TestWebhookAndConnectionInUse(t *testing.T) {
 	assert.Equal(t, "ack", rec.Header().Get("X-Hooky"))
 	assert.Equal(t, http.StatusNotFound, post(graphs.HooksPath+"/"+conn.ID.String(), "wrong").Code)
 	assert.Equal(t, http.StatusNotFound, post(graphs.HooksPath+"/"+uuid.NewString(), "s3cret").Code)
+	assert.Equal(t, http.StatusForbidden, post("/protected", "").Code, "the same chain refuses a cross-site POST elsewhere")
 
 	g := map[string]any{
 		"name": "Hooky notes", "run_as": "owner",
@@ -372,16 +402,21 @@ func hookHandler(t *testing.T, s *itf.Suite) http.Handler {
 	t.Helper()
 	for _, c := range s.Env().App.Controllers() {
 		if c.Descriptor().ID == graphs.HooksControllerID {
-			return routerOf(c)
+			return routerOf(s, c)
 		}
 	}
 	t.Fatal("no webhook controller")
 	return nil
 }
 
-func routerOf(c application.Controller) http.Handler {
+// routerOf is the application's chain for the controller: the middleware the composition contributes
+// and a CSRF middleware as an application installs it, with no exemption of its own.
+func routerOf(s *itf.Suite, c application.Controller) http.Handler {
 	r := mux.NewRouter()
+	r.Use(s.Env().Container.Middleware()...)
+	r.Use(middleware.CSRF(nil))
 	c.Register(r)
+	r.HandleFunc("/protected", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }).Methods(http.MethodPost)
 	return r
 }
 

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	csrf "filippo.io/csrf/gorilla"
 	"github.com/gorilla/mux"
@@ -105,9 +106,50 @@ func CSRF(authKey []byte, opts ...CSRFOption) mux.MiddlewareFunc {
 					return
 				}
 			}
+			if csrfExempted(r.URL.Path) {
+				next.ServeHTTP(w, r)
+				return
+			}
 			protected.ServeHTTP(w, r)
 		})
 	}
+}
+
+var exemptions struct {
+	mu       sync.RWMutex
+	prefixes []string
+}
+
+// ExemptFromCSRF exempts path prefixes from every CSRF middleware of the process (CSRF and
+// CSRFFromConfig), whatever options the application built it with. It is for endpoints a module
+// mounts that authenticate each request themselves and never act on a browser's cookies: a provider's
+// webhook verified by its signature. A module calls it when it is composed.
+func ExemptFromCSRF(prefixes ...string) {
+	exemptions.mu.Lock()
+	defer exemptions.mu.Unlock()
+	for _, p := range prefixes {
+		if p = strings.TrimSpace(p); p == "" || p == "/" {
+			continue
+		}
+		known := false
+		for _, have := range exemptions.prefixes {
+			known = known || have == p
+		}
+		if !known {
+			exemptions.prefixes = append(exemptions.prefixes, p)
+		}
+	}
+}
+
+func csrfExempted(path string) bool {
+	exemptions.mu.RLock()
+	defer exemptions.mu.RUnlock()
+	for _, p := range exemptions.prefixes {
+		if strings.HasPrefix(path, p) {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeTrustedOrigin(origin, defaultScheme string) (string, bool) {

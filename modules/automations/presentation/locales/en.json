@@ -236,7 +236,8 @@
         "LoadList": "load automations",
         "LoadReview": "load the review",
         "LoadRuns": "load runs",
-        "Run": "start the run"
+        "Run": "start the run",
+        "LoadLive": "count the pending runs"
       },
       "Columns": {
         "Attention": "Needs attention",
@@ -371,7 +372,14 @@
         "Secrets": "Secrets:",
         "SourceOf": "Code of {node}",
         "Title": "Review before enabling: {name} v{version}",
-        "Triggers": "Starts"
+        "Triggers": "Starts",
+        "Blocked": "This version cannot be enabled now:",
+        "Problem": {
+          "Connection": "a connection it uses is unavailable: check it on the integrations page",
+          "Triggers": "its triggers need a right you do not have",
+          "NodeType": "it uses a step you may not use or that is no longer available",
+          "Invalid": "the graph does not pass the check: open it in the editor and fix it"
+        }
       },
       "Run": {
         "Blocked": "Blocked",
@@ -413,6 +421,10 @@
         "Enabled": "On v{version}",
         "Pending": "New version v{version}",
         "PendingEnabled": "On v{enabled} · new version v{version}"
+      },
+      "Enable": {
+        "NoRight": "Turning automations on and off needs the right «Enable automations».",
+        "AgentNote": "An agent does not turn automations on: a person does it from their own session."
       }
     },
     "Title": "Automations",

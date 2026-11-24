@@ -9,8 +9,8 @@ import { useApp } from './context'
 import { DeleteDialog, DisableDialog, ReviewDialog } from './Dialogs'
 import { Icon } from './Icon'
 import {
-  absoluteTime, editorLocale, emptyGraph, errorText, graphPath, manualTriggers, relativeTime, runIcon, runStatusKey, runTone,
-  type ConnectionOptions, type GetResult,
+  absoluteTime, editorLocale, emptyGraph, errorText, graphPath, relativeTime, runIcon, runStatusKey, runTone,
+  type ConnectionOptions, type GetResult, type ManualTrigger,
 } from './model'
 import { RunDialog } from './RunDialog'
 
@@ -29,6 +29,8 @@ interface Info {
   version: number
   savedByAgent: boolean
   versions: GetResult['versions']
+  /** The manual triggers of the enabled version: what «Run» starts. */
+  manual: ManualTrigger[]
 }
 
 const TONE: Record<string, string> = { ok: 'text-green', bad: 'text-red-600', warn: 'text-yellow', muted: 'text-300' }
@@ -77,6 +79,7 @@ export default function EditorPage(): JSX.Element {
     setInfo({
       id: g.automation.id, name: g.automation.name, enabled: g.automation.enabled, enabledVersion: g.automation.enabled_version,
       latestVersion: g.automation.latest_version, version: g.version, savedByAgent: g.saved_by.origin === 'agent', versions: g.versions,
+      manual: manualOf(g),
     })
     setLoaded({
       graph: g.graph as AutomationGraph, layout: g.automation.layout, version: g.version, catalog: g.catalog as unknown as EditorCatalog,
@@ -109,9 +112,9 @@ export default function EditorPage(): JSX.Element {
     const i = info()
     if (!i) return
     try {
+      // The layout revision moves only with the positions it stands for (save, saveLayout, reload).
       const g = await app.call('automations.get', { id: i.id })
-      layoutRevision = g.automation.layout_revision
-      setInfo({ ...i, name: g.automation.name, enabled: g.automation.enabled, enabledVersion: g.automation.enabled_version, latestVersion: g.automation.latest_version, versions: g.versions })
+      setInfo({ ...i, name: g.automation.name, enabled: g.automation.enabled, enabledVersion: g.automation.enabled_version, latestVersion: g.automation.latest_version, versions: g.versions, manual: manualOf(g) })
     } catch (e) {
       console.warn('automations: refresh failed', e)
     }
@@ -135,15 +138,21 @@ export default function EditorPage(): JSX.Element {
       if (res.ok && res.id) {
         const id = res.id
         layoutRevision = res.layout_revision ?? 0
-        setInfo({ id, name: graph.name, enabled: false, enabledVersion: null, latestVersion: res.version ?? 1, version: res.version ?? 1, savedByAgent: false, versions: [] })
+        setInfo({ id, name: graph.name, enabled: false, enabledVersion: null, latestVersion: res.version ?? 1, version: res.version ?? 1, savedByAgent: false, versions: [], manual: [] })
         window.history.replaceState({}, '', graphPath(app.props.basePath, id))
         void refreshInfo()
       }
       return toSave(res)
     }
-    const res = await app.call('automations.save', { id: i.id, base, graph, layout })
+    const res = await app.call('automations.save', { id: i.id, base, graph, layout, ...(layoutStale ? {} : { layout_revision: layoutRevision }) })
     if (res.ok) {
       layoutRevision = res.layout_revision ?? layoutRevision
+      if (res.layout_changed) {
+        // Another tab moved steps meanwhile: its positions were kept; «Refresh» shows them.
+        layoutStale = true
+        latestPositions = res.positions ?? {}
+        notifyLayoutConflict()
+      }
       const v = res.version ?? base + 1
       setInfo({ ...i, name: graph.name, latestVersion: v, version: v, savedByAgent: false, enabledVersion: i.enabled && !res.pending_review ? v : i.enabledVersion })
       void refreshInfo()
@@ -182,7 +191,7 @@ export default function EditorPage(): JSX.Element {
     const g = await app.call('automations.get', { id: i.id })
     layoutRevision = g.automation.layout_revision
     layoutStale = false
-    setInfo({ ...i, enabled: g.automation.enabled, enabledVersion: g.automation.enabled_version, latestVersion: g.automation.latest_version, version: g.version, versions: g.versions, savedByAgent: g.saved_by.origin === 'agent' })
+    setInfo({ ...i, enabled: g.automation.enabled, enabledVersion: g.automation.enabled_version, latestVersion: g.automation.latest_version, version: g.version, versions: g.versions, savedByAgent: g.saved_by.origin === 'agent', manual: manualOf(g) })
     return { graph: g.graph as AutomationGraph, version: g.version, layout: g.automation.layout }
   }
   const api: EditorApi = {
@@ -227,10 +236,8 @@ export default function EditorPage(): JSX.Element {
     version: v.version, ...(v.note ? { note: v.note } : {}), ...(v.enabled ? { enabled: true } : {}),
     by: v.origin === 'agent' ? t('Editor.ByAgent', { name: v.by ?? '' }) : v.by ?? '',
   })))
-  const manual = createMemo(() => {
-    const data = loaded()
-    return data ? manualTriggers(data.graph, data.catalog) : []
-  })
+  // «Run» starts the enabled version: its manual triggers and input schemas, whatever version is open.
+  const manual = () => info()?.manual ?? []
   const isLatest = () => (info()?.version ?? 0) === (info()?.latestVersion ?? 0)
   const pending = () => {
     const i = info()
@@ -269,6 +276,10 @@ export default function EditorPage(): JSX.Element {
           <CopyButton text={window.location.href} showText labels={{ copy: t('Editor.CopyLink'), copied: t('Editor.LinkCopied') }} />
         </span>,
       )
+    }
+    if (i && !can().enable) {
+      // AL7: why there is no switch, in words.
+      parts.push(<span class="flex items-center gap-1" data-testid="enable-note"><Icon name="lock" />{app.props.agent ? t('Enable.AgentNote') : t('Enable.NoRight')}</span>)
     }
     if (i && !isLatest()) {
       parts.push(<Button variant="secondary" size="sm" onClick={() => openVersion(i.latestVersion)} data-testid="open-latest">{t('Editor.OpenLatest', { version: i.latestVersion })}</Button>)
@@ -409,4 +420,8 @@ function Runs(props: { id: string; run: string }): JSX.Element {
       </Show>
     </div>
   )
+}
+
+function manualOf(g: GetResult): ManualTrigger[] {
+  return g.manual_triggers.map((m) => ({ id: m.trigger_id, title: m.title, schema: m.input_schema ?? null }))
 }

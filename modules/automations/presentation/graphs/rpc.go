@@ -378,6 +378,17 @@ func (c *Controller) get(ctx context.Context, req GetRequest) (GetResponse, erro
 	if am.OwnerUserID != nil {
 		out.Automation.Owner = &UserRef{UserID: *am.OwnerUserID, Name: nameOf(names, *am.OwnerUserID)}
 	}
+	out.ManualTriggers = []ManualTrigger{}
+	if am.EnabledVersion != nil {
+		// A manual start runs the enabled version: its triggers and input schemas, whatever version is open.
+		enabled := v
+		if *am.EnabledVersion != v.Version {
+			if enabled, err = c.cfg.Engine.Service.GetVersion(ctx, a, id, *am.EnabledVersion); err != nil {
+				return GetResponse{}, mapErr(err)
+			}
+		}
+		out.ManualTriggers = manualTriggersOf(enabled.Graph, triggerTitles(ctx, view)[engine.EventManual])
+	}
 	for _, vi := range versions {
 		out.Versions = append(out.Versions, VersionEntry{
 			Version: vi.Version, Note: vi.Note, Enabled: vi.Enabled, By: nameOf(names, vi.SavedBy), Origin: Origin(vi.SavedOrigin), At: stamp(vi.CreatedAt),
@@ -446,7 +457,7 @@ func (c *Controller) save(ctx context.Context, req SaveRequest) (SaveResult, err
 	if req.Layout != nil {
 		layout = layoutOf(req.Layout)
 	}
-	v, err := c.cfg.Engine.Service.SaveVersion(ctx, a, id, engine.SaveInput{BaseVersion: req.Base, Graph: req.Graph, Layout: layout, Note: req.Note})
+	v, err := c.cfg.Engine.Service.SaveVersion(ctx, a, id, engine.SaveInput{BaseVersion: req.Base, Graph: req.Graph, Layout: layout, LayoutBase: req.LayoutRevision, Note: req.Note})
 	if err != nil {
 		return c.saveResult(ctx, a, err)
 	}
@@ -456,6 +467,11 @@ func (c *Controller) save(ctx context.Context, req SaveRequest) (SaveResult, err
 		return SaveResult{}, mapErr(err)
 	}
 	out.LayoutRevision = am.LayoutRevision
+	if req.LayoutRevision != nil && am.LayoutRevision != *req.LayoutRevision+1 {
+		// Another tab moved steps since: its positions were kept; the editor shows them on request.
+		out.LayoutChanged = true
+		out.Positions = layoutView(am.Layout)
+	}
 	// Saved but not running: the graph runs another version until a person reviews this one.
 	out.PendingReview = am.EnabledVersion != nil && *am.EnabledVersion != v.Version
 	return out, nil
@@ -530,7 +546,7 @@ func (c *Controller) enableReview(ctx context.Context, req ReviewRequest) (Revie
 	titles := triggerTitles(ctx, view)
 	out := ReviewResponse{
 		Version: rv.Version, CodeNodes: make([]CodeNodeView, 0, len(rv.CodeNodes)), Triggers: make([]ReviewTrigger, 0, len(rv.Triggers)),
-		RunAs: RunAsOwner, CodeDigest: rv.CodeDigest, Live: LiveView{Runs: live.Runs, Waits: live.Waits},
+		RunAs: RunAsOwner, CodeDigest: rv.CodeDigest, Live: LiveView{Runs: live.Runs, Waits: live.Waits}, Problems: graphErrors(rv.Problems),
 	}
 	if rv.RunAs == string(RunAsInitiator) {
 		out.RunAs = RunAsInitiator
@@ -571,15 +587,9 @@ func (c *Controller) enable(ctx context.Context, req EnableRequest) (EnableRespo
 		return EnableResponse{}, err
 	}
 	// A person enables the latest version they reviewed: a version saved after the review (other code)
-	// is reviewed again, never skipped by enabling an older one.
-	latest, err := c.cfg.Engine.Service.Get(ctx, readAs(a), id)
-	if err != nil {
-		return EnableResponse{}, mapErr(err)
-	}
-	if req.Version != latest.LatestVersion {
-		return EnableResponse{Error: ErrReviewRequired}, nil
-	}
-	am, err := c.cfg.Engine.Service.Enable(ctx, a, id, engine.EnableInput{Version: req.Version, CodeDigest: req.CodeDigest})
+	// is reviewed again, never skipped by enabling an older one. The engine checks it under the graph's
+	// lock, together with the enable.
+	am, err := c.cfg.Engine.Service.Enable(ctx, a, id, engine.EnableInput{Version: req.Version, CodeDigest: req.CodeDigest, Latest: true})
 	var verr *engine.ValidationError
 	switch {
 	case err == nil:
@@ -840,16 +850,16 @@ func (c *Controller) runs(ctx context.Context, req RunsRequest) (RunsResponse, e
 	if limit <= 0 || limit > maxRunsLimit {
 		limit = maxRunsLimit
 	}
-	// A version narrows the page after it is read: the engine filters by graph and status.
-	page, err := c.cfg.Engine.Service.ListRuns(ctx, a, engine.RunFilter{AutomationID: &id, Status: statusesOf(req.State), Cursor: req.Cursor, Limit: limit})
+	// A graph that is deleted or another tenant's is not found, not an empty page.
+	if _, err := c.cfg.Engine.Service.Get(ctx, a, id); err != nil {
+		return RunsResponse{}, mapErr(err)
+	}
+	page, err := c.cfg.Engine.Service.ListRuns(ctx, a, engine.RunFilter{AutomationID: &id, Version: req.Version, Status: statusesOf(req.State), Cursor: req.Cursor, Limit: limit})
 	if err != nil {
 		return RunsResponse{}, mapErr(err)
 	}
 	out := RunsResponse{Items: make([]RunSummary, 0, len(page.Items))}
 	for _, s := range page.Items {
-		if req.Version > 0 && s.Version != req.Version {
-			continue
-		}
 		out.Items = append(out.Items, runSummary(s))
 	}
 	if page.Next != "" {
@@ -972,4 +982,24 @@ func (c *Controller) runRestart(ctx context.Context, req RunRestartRequest) (Run
 		return RunRef{}, mapErr(err)
 	}
 	return RunRef{RunID: ref.RunID.String()}, nil
+}
+
+// manualTriggersOf are the manual triggers of a version with their input schemas.
+func manualTriggersOf(raw json.RawMessage, title string) []ManualTrigger {
+	g, errs := graph.Decode(raw)
+	if len(errs) > 0 {
+		return []ManualTrigger{}
+	}
+	out := []ManualTrigger{}
+	for _, t := range g.Triggers {
+		if t.Event != engine.EventManual {
+			continue
+		}
+		mt := ManualTrigger{TriggerID: t.ID, Title: title}
+		if schema, ok := t.Params["input_schema"].(map[string]any); ok {
+			mt.InputSchema = schema
+		}
+		out = append(out, mt)
+	}
+	return out
 }

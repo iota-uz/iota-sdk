@@ -236,7 +236,8 @@
         "LoadList": "carregar as automações",
         "LoadReview": "carregar a revisão",
         "LoadRuns": "carregar as execuções",
-        "Run": "iniciar a execução"
+        "Run": "iniciar a execução",
+        "LoadLive": "contar as execuções pendentes"
       },
       "Columns": {
         "Attention": "Requer atenção",
@@ -371,7 +372,14 @@
         "Secrets": "Segredos:",
         "SourceOf": "Código de {node}",
         "Title": "Revisão antes de ativar: {name} v{version}",
-        "Triggers": "Inicia"
+        "Triggers": "Inicia",
+        "Blocked": "Esta versão não pode ser ativada agora:",
+        "Problem": {
+          "Connection": "uma conexão usada está indisponível: verifique na página de integrações",
+          "Triggers": "seus gatilhos exigem uma permissão que você não tem",
+          "NodeType": "ela usa uma etapa que você não pode usar ou que não existe mais",
+          "Invalid": "o grafo não passa na verificação: abra-o no editor e corrija"
+        }
       },
       "Run": {
         "Blocked": "Bloqueada",
@@ -413,6 +421,10 @@
         "Enabled": "Ativa v{version}",
         "Pending": "Nova versão v{version}",
         "PendingEnabled": "Ativa v{enabled} · nova versão v{version}"
+      },
+      "Enable": {
+        "NoRight": "Ativar e desativar automações exige a permissão «Ativar automações».",
+        "AgentNote": "Um agente não ativa automações: uma pessoa faz isso na própria sessão."
       }
     },
     "Title": "Automações",

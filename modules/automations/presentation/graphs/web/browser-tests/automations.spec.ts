@@ -27,9 +27,9 @@ const states: { name: string; query: string; ready: (p: Page) => Promise<void>; 
   { name: 'loading', query: 'scenario=loading', ready: async (p) => { await expect(p.getByTestId('list-loading')).toBeVisible() } },
   { name: 'error', query: 'scenario=error', ready: async (p) => { await expect(p.getByTestId('list-error')).toBeVisible() } },
   {
-    name: 'review', query: '', scope: '[data-testid="review-dialog"]',
+    name: 'review-blocked', query: '', scope: '[data-testid="review-dialog"]',
     open: async (p) => { await listed(p); await toggleOf(p, STALE).click() },
-    ready: async (p) => { await expect(p.getByTestId('review-enable')).toBeEnabled() },
+    ready: async (p) => { await expect(p.getByTestId('review-blocked')).toBeVisible() },
   },
   {
     name: 'review-code', query: 'view=editor&id=' + DIGEST, scope: '[data-testid="review-dialog"]',
@@ -142,8 +142,8 @@ test('AL8: turning off names the pending runs, with the focus on Cancel', async 
   await toggleOf(page, DIGEST).click()
   const dialog = page.getByTestId('disable-dialog')
   await expect(dialog.getByTestId('disable-text')).toHaveText('Its pending runs will be cancelled (3).')
-  await expect(dialog.locator('[data-test-id="dialog-cancel-btn"]')).toBeFocused()
-  await dialog.locator('[data-test-id="dialog-confirm-btn"]').click()
+  await expect(dialog.getByTestId('confirm-cancel')).toBeFocused()
+  await dialog.getByTestId('confirm-action').click()
   await expect(page.getByText('The automation is turned off')).toBeVisible()
   await expect(page.getByTestId(`row-${DIGEST}`).getByTestId('status')).toContainText('Off')
 })
@@ -152,7 +152,7 @@ test('AL8: deleting names the runs and waits it cancels', async ({ page }) => {
   await page.goto(`/?view=editor&id=${DIGEST}`)
   await page.getByTestId('delete').click()
   await expect(page.getByTestId('delete-text')).toHaveText('Deleting cancels 3 runs and 2 waits.')
-  await expect(page.getByTestId('delete-dialog').locator('[data-test-id="dialog-cancel-btn"]')).toBeFocused()
+  await expect(page.getByTestId('delete-dialog').getByTestId('confirm-cancel')).toBeFocused()
 })
 
 test('AL9: a manual start sends one request for a double click and opens the run from the toast', async ({ page }) => {
@@ -203,4 +203,34 @@ test('layout: a save over positions of another tab is refused; Refresh shows the
   await page.getByRole('button', { name: 'Refresh' }).click()
   const saves = (await calls(page)).filter((c) => c.method === 'automations.save_layout')
   expect(saves).toHaveLength(1)
+})
+
+test('AL8: without the count of pending runs the action waits, and a failed count offers a retry', async ({ page }) => {
+  await page.goto('/?liveFailsOnce')
+  await listed(page)
+  await toggleOf(page, DIGEST).click()
+  const dialog = page.getByTestId('disable-dialog')
+  await expect(dialog.getByTestId('disable-dialog-load-error')).toBeVisible()
+  await expect(dialog.getByTestId('confirm-action')).toBeDisabled()
+  await dialog.getByRole('button', { name: 'Retry' }).click()
+  await expect(dialog.getByTestId('disable-text')).toHaveText('Its pending runs will be cancelled (3).')
+  await expect(dialog.getByTestId('confirm-action')).toBeEnabled()
+  expect((await calls(page)).some((c) => c.method === 'automations.disable')).toBe(false)
+})
+
+test('AL7: why enabling is off is said next to the button; without the right the status explains itself', async ({ page }) => {
+  await page.goto('/')
+  await listed(page)
+  await toggleOf(page, STALE).click()
+  const dialog = page.getByTestId('review-dialog')
+  await expect(dialog.getByTestId('review-blocked')).toContainText('a connection it uses is unavailable')
+  await expect(dialog.getByTestId('review-enable')).toBeDisabled()
+  await expect(dialog.getByTestId('review-enable')).toHaveAttribute('aria-describedby', 'review-blocked')
+
+  await page.goto('/?cannot=enable')
+  await listed(page)
+  await expect(page.getByTestId('toggle')).toHaveCount(0)
+  await expect(page.getByTestId('enable-note')).toContainText('needs the right')
+  await page.goto(`/?cannot=enable&view=editor&id=${WELCOME}`)
+  await expect(page.getByTestId('enable-note')).toBeVisible()
 })

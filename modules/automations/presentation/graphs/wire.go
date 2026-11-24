@@ -225,6 +225,16 @@ type GetResponse struct {
 	Connections map[string][]ConnectionOption `json:"connections"`
 	ReadOnly    *ReadOnly                     `json:"read_only"`
 	Can         Can                           `json:"can"`
+	// ManualTriggers are the manual triggers of the enabled version (what «Run» starts); empty when
+	// the graph is off.
+	ManualTriggers []ManualTrigger `json:"manual_triggers"`
+}
+
+// ManualTrigger is a manual trigger of the enabled version and the schema of its input.
+type ManualTrigger struct {
+	TriggerID   string         `json:"trigger_id"`
+	Title       string         `json:"title"`
+	InputSchema map[string]any `json:"input_schema,omitempty"`
 }
 
 // CatalogRequest is automations.catalog: the catalog of a new graph.
@@ -264,6 +274,10 @@ type SaveResult struct {
 	ID string `json:"id,omitempty"`
 	// LayoutRevision is the layout's revision after the save.
 	LayoutRevision int `json:"layout_revision,omitempty"`
+	// LayoutChanged: another tab moved steps since the layout revision the save was made over; its
+	// Positions were kept.
+	LayoutChanged bool          `json:"layout_changed,omitempty"`
+	Positions     map[string]XY `json:"positions,omitempty"`
 }
 
 // CreateRequest is automations.create.
@@ -278,7 +292,9 @@ type SaveRequest struct {
 	Base   int             `json:"base"`
 	Graph  json.RawMessage `json:"graph"`
 	Layout map[string]XY   `json:"layout"`
-	Note   string          `json:"note,omitempty"`
+	// LayoutRevision is the layout revision the editor's positions were made over.
+	LayoutRevision *int   `json:"layout_revision,omitempty"`
+	Note           string `json:"note,omitempty"`
 }
 
 // SaveLayoutRequest is automations.save_layout.
@@ -358,6 +374,8 @@ type ReviewResponse struct {
 	CodeDigest string          `json:"code_digest"`
 	// Live counts what disabling cancels now (the toggle's confirmation).
 	Live LiveView `json:"live"`
+	// Problems are why the version does not enable now; empty when it does.
+	Problems []GraphError `json:"problems"`
 }
 
 // LiveView is what disabling or deleting a graph cancels.

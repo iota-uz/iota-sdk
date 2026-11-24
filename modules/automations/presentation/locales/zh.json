@@ -236,7 +236,8 @@
         "LoadList": "加载自动化",
         "LoadReview": "加载审核",
         "LoadRuns": "加载运行记录",
-        "Run": "启动运行"
+        "Run": "启动运行",
+        "LoadLive": "统计待处理的运行"
       },
       "Columns": {
         "Attention": "需要关注",
@@ -371,7 +372,14 @@
         "Secrets": "密钥：",
         "SourceOf": "{node} 的代码",
         "Title": "启用前审核：{name} v{version}",
-        "Triggers": "启动方式"
+        "Triggers": "启动方式",
+        "Blocked": "此版本目前无法启用：",
+        "Problem": {
+          "Connection": "它使用的连接不可用：请在集成页面检查",
+          "Triggers": "其触发器需要您没有的权限",
+          "NodeType": "它使用了您无权使用或已不可用的步骤",
+          "Invalid": "图未通过检查：请在编辑器中打开并修复"
+        }
       },
       "Run": {
         "Blocked": "已阻塞",
@@ -413,6 +421,10 @@
         "Enabled": "已启用 v{version}",
         "Pending": "新版本 v{version}",
         "PendingEnabled": "已启用 v{enabled} · 新版本 v{version}"
+      },
+      "Enable": {
+        "NoRight": "启用和停用自动化需要“启用自动化”权限。",
+        "AgentNote": "代理不能启用自动化：须由人员在自己的会话中启用。"
       }
     },
     "Title": "自动化",

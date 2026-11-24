@@ -16,6 +16,8 @@ export interface FakeOptions {
   layoutConflict: boolean
   /** The first save meets a version saved by another user. */
   conflictOnce: boolean
+  /** The first count of live runs fails (the confirmation offers a retry). */
+  liveFailsOnce: boolean
   can: { author: boolean; enable: boolean; operate: boolean }
   calls: { method: string; params: unknown }[]
 }
@@ -129,6 +131,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
   let layoutConflict = opts.layoutConflict
   let conflictOnce = opts.conflictOnce
   let runSeq = 0
+  let liveFails = opts.liveFailsOnce
   const find = (id: string) => store.find((s) => s.item.id === id) ?? rpcError('not_found', 'automation not found')
   const digestOf = (s: Stored) => (s.code.length > 0 ? `digest-${s.item.latest_version}-${s.code.map((c) => c.source.length).join('.')}` : '')
   const handlers: { [K in keyof RPC]?: (p: RPC[K]['params']) => RPC[K]['result'] } = {
@@ -151,6 +154,9 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
         catalog: catalog as never, connections: { telegram: [{ id: 'c-1', name: 'Sales bot' }] },
         read_only: !opts.can.author ? { reason: 'You may not change automations', code: 'no_author' } : v.version !== s.item.latest_version ? { reason: 'An old version is open', code: 'old_version' } : null,
         can: opts.can,
+        manual_triggers: s.item.enabled_version === null ? [] : (s.versions.find((x) => x.version === s.item.enabled_version) ?? v).graph.triggers
+          .filter((tr) => tr.event === manualEvent)
+          .map((tr) => ({ trigger_id: tr.id, title: 'Manual start', ...(tr.params?.input_schema ? { input_schema: tr.params.input_schema as Record<string, unknown> } : {}) })),
       }
     },
     'automations.create': (p) => {
@@ -200,6 +206,8 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
         code_nodes: s.code.map((c) => ({ ...c, title: 'Format the digest', lang: 'ts' as const })),
         triggers: s.item.triggers.map((x, i) => ({ trigger_id: `t${i}`, kind: x.kind, title: x.title, event: null, schedule: null })),
         run_as: 'owner', code_digest: digestOf(s), live: s.live,
+        // The stale graph listens to a connector the tenant has no working connection of.
+        problems: s.item.id.endsWith('a3') ? [{ path: 'triggers[0].event', code: 'connection_unavailable', message: 'telegram.message.v1 needs a connection' }] : [],
       }
     },
     'automations.enable': (p) => {
@@ -234,7 +242,10 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       store.splice(i, 1)
       return { ok: true }
     },
-    'automations.live': (p) => find(p.id).live,
+    'automations.live': (p) => {
+      if (liveFails) { liveFails = false; rpcError('internal', 'internal error') }
+      return find(p.id).live
+    },
     'automations.run_manual': (p) => {
       const s = find(p.id)
       if (!s.item.enabled) return { ok: false, error: 'not_enabled' }

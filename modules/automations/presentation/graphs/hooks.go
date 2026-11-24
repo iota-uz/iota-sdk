@@ -12,8 +12,8 @@ import (
 const HooksControllerID = "automations.hooks"
 
 // HooksPath is where connectors' providers deliver webhooks: <HooksPath>/<connection_id> and
-// <HooksPath>/platform/<kind>. An application with a CSRF middleware exempts the prefix
-// (middleware.CSRFExemptPrefixes(graphs.HooksPath+"/")).
+// <HooksPath>/platform/<kind>. The module exempts it from the application's CSRF middleware
+// (middleware.ExemptFromCSRF).
 const HooksPath = "/automations/hooks"
 
 // HooksController mounts engine.InboundHandler without a session, CSRF or tenant middleware: the

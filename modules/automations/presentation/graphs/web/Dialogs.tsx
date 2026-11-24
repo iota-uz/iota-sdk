@@ -1,8 +1,8 @@
 import { For, Match, Show, Switch, createSignal, onMount, type JSX } from 'solid-js'
-import { Button, ConfirmationDialog, Dialog, DialogBusyStatus, Skeleton } from '@iota-uz/sdk/solid-ui'
+import { Button, Dialog, DialogBusyStatus, Skeleton } from '@iota-uz/sdk/solid-ui'
 import { useApp } from './context'
 import { Icon } from './Icon'
-import { counted, errorText, highlight, triggerIcon, type ReviewResult } from './model'
+import { counted, errorText, highlight, problemText, triggerIcon, type ReviewResult } from './model'
 
 type GraphError = { path: string; message: string; code?: string }
 
@@ -160,9 +160,17 @@ export function ReviewDialog(props: { id: string; version: number; name: string;
       </div>
       <footer class="border-t border-subtle px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <DialogBusyStatus class="mb-2" />
+        {/* AL7: why «Enable» is off, in text next to it (also on touch), not only in a title. */}
+        <Show when={(review()?.problems.length ?? 0) > 0}>
+          <div id="review-blocked" role="note" class="mb-3 flex flex-col gap-1 text-sm" data-testid="review-blocked">
+            <p class="flex items-start gap-2 font-medium"><Icon name="alert" class="mt-0.5 text-yellow" />{t('Review.Blocked')}</p>
+            <ul class="list-disc pl-6 text-200"><For each={review()!.problems}>{(p) => <li>{problemText(t, p)}</li>}</For></ul>
+          </div>
+        </Show>
         <menu class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Button variant="secondary" class="min-h-11 justify-center" data-dialog-close onClick={props.onClose} aria-disabled={busy() || undefined}>{t('Common.Cancel')}</Button>
-          <Button variant="primary" class="min-h-11 justify-center" loading={busy()} disabled={!review()} onClick={() => void enable()} data-testid="review-enable">
+          <Button variant="primary" class="min-h-11 justify-center" loading={busy()} disabled={!review() || review()!.problems.length > 0}
+            aria-describedby={(review()?.problems.length ?? 0) > 0 ? 'review-blocked' : undefined} onClick={() => void enable()} data-testid="review-enable">
             {busy() ? t('Review.Enabling') : t('Review.Enable', { version: review()?.version ?? props.version })}
           </Button>
         </menu>
@@ -171,28 +179,57 @@ export function ReviewDialog(props: { id: string; version: number; name: string;
   )
 }
 
-/** A confirmation whose default focus is «Cancel» (AL8): the danger action is never one Enter away. */
-function SafeConfirm(props: { heading: string; text: JSX.Element; confirm: string; busy: boolean; onConfirm: () => void; onClose: () => void; testid: string; children?: JSX.Element }): JSX.Element {
+/** What disabling or deleting cancels, read before the action may be confirmed. */
+function useLive(id: string) {
   const app = useApp()
-  let el: HTMLDialogElement | undefined
+  const [live, setLive] = createSignal<{ runs: number; waits: number }>()
+  const [error, setError] = createSignal<string>()
+  const load = async () => {
+    setError(undefined)
+    try {
+      setLive(await app.call('automations.live', { id }))
+    } catch (e) {
+      setError(errorText(app.t, e, app.t('Actions.LoadLive')))
+    }
+  }
+  onMount(() => void load())
+  return { live, error, load }
+}
+
+/**
+ * A confirmation of an irreversible action (AL8, U1): the default focus is «Cancel», the action is
+ * confirmed only once its consequence is known (ready), and a request in flight keeps it open (F4).
+ */
+function SafeConfirm(props: {
+  heading: string; text: JSX.Element; confirm: string; busy: boolean; ready: boolean; loadError?: string | undefined; onRetry: () => void
+  onConfirm: () => void; onClose: () => void; testid: string; error?: string | undefined
+}): JSX.Element {
+  const app = useApp()
+  const t = app.t
+  let cancel: HTMLButtonElement | undefined
   return (
-    <ConfirmationDialog
-      ref={(node: HTMLDialogElement) => { el = node }}
-      open
-      danger
-      busy={props.busy}
-      heading={props.heading}
-      text={props.text}
-      cancelText={app.t('Common.Cancel')}
-      confirmText={props.confirm}
-      closeLabel={app.t('Common.Close')}
-      initialFocus={() => el?.querySelector<HTMLElement>('[data-test-id="dialog-cancel-btn"]') ?? undefined}
-      onOpenChange={(open) => { if (!open) props.onClose() }}
-      onConfirm={props.onConfirm}
-      data-testid={props.testid}
-    >
-      {props.children}
-    </ConfirmationDialog>
+    <Dialog open busy={props.busy} onOpenChange={(open) => { if (!open) props.onClose() }} initialFocus={() => cancel} class="md:w-full md:max-w-md" aria-labelledby={`${props.testid}-title`} data-testid={props.testid}>
+      <header class="flex items-center justify-between gap-3 border-b border-subtle py-1 pl-4 pr-2">
+        <h3 id={`${props.testid}-title`} class="font-medium truncate" data-dialog-title tabindex="-1">{props.heading}</h3>
+        {closeButton(props.onClose, t('Common.Close'))}
+      </header>
+      <div class="flex min-h-24 flex-col justify-center gap-2 px-4 py-3" data-dialog-body>
+        <Show when={props.loadError} fallback={<p>{props.text}</p>}>
+          <div role="alert" class="flex flex-wrap items-center gap-2" data-testid={`${props.testid}-load-error`}>
+            <span>{props.loadError}</span>
+            <Button variant="secondary" size="sm" onClick={props.onRetry}>{t('Common.Retry')}</Button>
+          </div>
+        </Show>
+        <Show when={props.error}><p role="alert" class="text-sm text-red-600">{props.error}</p></Show>
+      </div>
+      <footer class="border-t border-subtle px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <DialogBusyStatus class="mb-2" />
+        <menu class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <Button ref={(el: HTMLButtonElement) => { cancel = el }} variant="secondary" class="min-h-11 justify-center" data-dialog-close data-testid="confirm-cancel" onClick={props.onClose} aria-disabled={props.busy || undefined}>{t('Common.Cancel')}</Button>
+          <Button variant="danger" class="min-h-11 justify-center" loading={props.busy} disabled={!props.ready} onClick={() => { if (props.ready && !props.busy) props.onConfirm() }} data-testid="confirm-action">{props.confirm}</Button>
+        </menu>
+      </footer>
+    </Dialog>
   )
 }
 
@@ -200,12 +237,9 @@ function SafeConfirm(props: { heading: string; text: JSX.Element; confirm: strin
 export function DisableDialog(props: { id: string; name: string; onDisabled: () => void; onClose: () => void }): JSX.Element {
   const app = useApp()
   const t = app.t
-  const [live, setLive] = createSignal<{ runs: number; waits: number }>()
+  const { live, error: loadError, load } = useLive(props.id)
   const [busy, setBusy] = createSignal(false)
   const [error, setError] = createSignal<string>()
-  onMount(async () => {
-    try { setLive(await app.call('automations.live', { id: props.id })) } catch { setLive({ runs: 0, waits: 0 }) }
-  })
   const disable = async () => {
     setBusy(true)
     setError(undefined)
@@ -225,12 +259,10 @@ export function DisableDialog(props: { id: string; name: string; onDisabled: () 
       heading={t('Disable.Title', { name: props.name || t('List.Untitled') })}
       text={<span data-testid="disable-text">{live() === undefined ? t('Common.Loading') : live()!.runs > 0 ? counted(t, 'Disable.Pending', live()!.runs, app.lang) : t('Disable.NoPending')}</span>}
       confirm={t('Disable.Confirm')}
-      busy={busy()}
+      busy={busy()} ready={live() !== undefined} loadError={loadError()} onRetry={() => void load()} error={error()}
       onConfirm={() => void disable()}
       onClose={props.onClose}
-    >
-      <Show when={error()}><p role="alert" class="text-sm text-red-600">{error()}</p></Show>
-    </SafeConfirm>
+    />
   )
 }
 
@@ -238,12 +270,9 @@ export function DisableDialog(props: { id: string; name: string; onDisabled: () 
 export function DeleteDialog(props: { id: string; name: string; onDeleted: () => void; onClose: () => void }): JSX.Element {
   const app = useApp()
   const t = app.t
-  const [live, setLive] = createSignal<{ runs: number; waits: number }>()
+  const { live, error: loadError, load } = useLive(props.id)
   const [busy, setBusy] = createSignal(false)
   const [error, setError] = createSignal<string>()
-  onMount(async () => {
-    try { setLive(await app.call('automations.live', { id: props.id })) } catch { setLive({ runs: 0, waits: 0 }) }
-  })
   const remove = async () => {
     setBusy(true)
     setError(undefined)
@@ -264,8 +293,10 @@ export function DeleteDialog(props: { id: string; name: string; onDeleted: () =>
     return t('Delete.Cancels', { runs: counted(t, 'Delete.Runs', l.runs, app.lang), waits: counted(t, 'Delete.Waits', l.waits, app.lang) })
   }
   return (
-    <SafeConfirm testid="delete-dialog" heading={t('Delete.Title', { name: props.name || t('List.Untitled') })} text={<span data-testid="delete-text">{text()}</span>} confirm={t('Delete.Confirm')} busy={busy()} onConfirm={() => void remove()} onClose={props.onClose}>
-      <Show when={error()}><p role="alert" class="text-sm text-red-600">{error()}</p></Show>
-    </SafeConfirm>
+    <SafeConfirm
+      testid="delete-dialog" heading={t('Delete.Title', { name: props.name || t('List.Untitled') })} text={<span data-testid="delete-text">{text()}</span>}
+      confirm={t('Delete.Confirm')} busy={busy()} ready={live() !== undefined} loadError={loadError()} onRetry={() => void load()} error={error()}
+      onConfirm={() => void remove()} onClose={props.onClose}
+    />
   )
 }

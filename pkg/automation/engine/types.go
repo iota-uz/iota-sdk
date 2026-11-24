@@ -166,7 +166,11 @@ type SaveInput struct {
 	BaseVersion int
 	Graph       json.RawMessage
 	Layout      graph.Layout // optional; saved together with the version
-	Note        string
+	// LayoutBase, when set, is the layout revision Layout was made over: when another write moved the
+	// layout since, the stored positions stay and only steps the layout does not place yet take
+	// Layout's.
+	LayoutBase *int
+	Note       string
 }
 
 // ListFilter selects graphs of a list.
@@ -225,6 +229,9 @@ type EnableReview struct {
 	CodeDigest string           // sha256 over code nodes (id, lang, source, declared secrets, fetch allow) of the version
 	Triggers   []TriggerReview  // event keys / schedules the version subscribes to
 	RunAs      string           // run_as of the version; shown to the human with the code
+	// Problems are why the version does not enable now (validation against the reviewer's catalog: an
+	// unavailable connection, a type the reviewer may not use); empty when it does.
+	Problems []graph.GraphError
 }
 
 // CodeNodeReview is a Code node of a version as the reviewer sees it.
@@ -243,6 +250,9 @@ type TriggerReview struct{ TriggerID, Kind, Event, Schedule string }
 type EnableInput struct {
 	Version    int
 	CodeDigest string
+	// Latest: the version must still be the graph's latest when the enable takes the graph's lock (a
+	// person enables what they reviewed; a version saved meanwhile → ErrReviewRequired).
+	Latest bool
 }
 
 // ManualStart starts a run from a manual trigger.
@@ -264,6 +274,7 @@ type RunRef struct {
 // RunFilter selects runs.
 type RunFilter struct {
 	AutomationID *uuid.UUID
+	Version      int // 0: every version
 	Status       []RunStatus
 	Subject      *SubjectRef
 	Since, Until *time.Time
@@ -444,6 +455,8 @@ const (
 	CodeEffectFailed          = "effect_failed"
 	CodeTimeout               = "timeout"
 	CodeCancelled             = "cancelled"
+	// CodeTriggersUnreadable: the reviewer may not read an event the version's triggers are on.
+	CodeTriggersUnreadable = "triggers_unreadable"
 )
 
 // SubjectLoader loads the subject entity for CEL scope `subject`, with the run-as rights.

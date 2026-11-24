@@ -140,7 +140,11 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 		for k, xy := range am.Layout {
 			merged[k] = xy
 		}
+		stale := in.LayoutBase != nil && *in.LayoutBase != am.LayoutRevision
 		for k, xy := range in.Layout {
+			if _, placed := am.Layout[k]; stale && placed {
+				continue // another tab moved the layout since: its positions stay
+			}
 			merged[k] = xy
 		}
 		layout, err := layoutJSON(graph.LayoutOf(v.g, merged))
@@ -541,7 +545,19 @@ func (s *service) EnableReview(ctx context.Context, a Actor, id uuid.UUID, versi
 	if err != nil {
 		return EnableReview{}, err
 	}
-	return reviewOf(s.r, view, v, g), nil
+	rv := reviewOf(s.r, view, v, g)
+	rv.Problems = []graph.GraphError{}
+	// The check Enable makes, told before the person presses Enable.
+	var verr *ValidationError
+	if _, err := s.r.validate(ctx, a, v.Graph); errors.As(err, &verr) {
+		rv.Problems = verr.Errors
+	} else if err != nil {
+		return EnableReview{}, err
+	}
+	if !triggersReadable(view, g) {
+		rv.Problems = append(rv.Problems, graph.GraphError{Code: CodeTriggersUnreadable, Message: "the triggers' events need a permission you do not have"})
+	}
+	return rv, nil
 }
 
 func (s *service) Enable(ctx context.Context, a Actor, id uuid.UUID, in EnableInput) (Automation, error) {
@@ -581,8 +597,12 @@ func (s *service) Enable(ctx context.Context, a Actor, id uuid.UUID, in EnableIn
 			return Automation{}, err
 		}
 		err = s.inTx(ctx, func(tx pgx.Tx) error {
-			if _, err := loadAutomation(ctx, tx, a.TenantID, id, true); err != nil {
+			locked, err := loadAutomation(ctx, tx, a.TenantID, id, true)
+			if err != nil {
 				return err
+			}
+			if in.Latest && locked.LatestVersion != in.Version {
+				return ErrReviewRequired
 			}
 			if err := s.r.enableTx(ctx, tx, a, id, in.Version, checked); err != nil {
 				return err

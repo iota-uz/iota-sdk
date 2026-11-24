@@ -195,6 +195,10 @@ export function List(): JSX.Element {
           </For>
         </div>
       </div>
+      <Show when={data() && data()!.items.length > 0 && !can().enable}>
+        {/* AL7: why the rows have no switch, in words. */}
+        <p class="flex items-center gap-2 text-sm text-200" data-testid="enable-note"><Icon name="lock" />{app.props.agent ? t('Enable.AgentNote') : t('Enable.NoRight')}</p>
+      </Show>
       <Show when={error() && data()}>
         <p role="alert" class="flex flex-wrap items-center gap-2 text-sm text-300" data-testid="list-stale">
           <Icon name="alert" class="text-yellow" />{t('List.Stale', { time: loadedAt() ? absoluteTime(loadedAt()!.toISOString(), app.lang) : '' })}
