@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -25,6 +26,9 @@ import (
 
 type fakeProcess struct {
 	killed chan struct{}
+	// killOnce makes Kill safe to call concurrently (serve exit and Release
+	// can both kill the process).
+	killOnce sync.Once
 	// childFile, if set, is this fake process's retained copy of the inherited
 	// child socket fd. Holding it open keeps the socketpair peer alive so the
 	// spawned kernel's Serve blocks on read (modeling a real inherited child);
@@ -37,11 +41,7 @@ func newFakeProcess() *fakeProcess { return &fakeProcess{killed: make(chan struc
 func (*fakeProcess) PID() int                 { return 4242 }
 func (*fakeProcess) Signal(_ os.Signal) error { return nil }
 func (p *fakeProcess) Kill() error {
-	select {
-	case <-p.killed:
-	default:
-		close(p.killed)
-	}
+	p.killOnce.Do(func() { close(p.killed) })
 	if p.childFile != nil {
 		_ = p.childFile.Close()
 	}

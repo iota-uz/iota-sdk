@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"pykernel: identify a session workdir by device, inode and birth time, so a recreated workdir that reuses the old inode is reported as a reset without preserved files."}
