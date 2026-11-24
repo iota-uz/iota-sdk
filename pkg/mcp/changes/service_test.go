@@ -130,7 +130,7 @@ func (k createNote) Apply(ctx context.Context, c changes.Change) (changes.Applie
 	if err != nil {
 		return changes.Applied{}, err
 	}
-	return changes.Applied{ID: id, Revision: "1", Effects: []changes.Effect{{Kind: "notify", Payload: payload}}}, nil
+	return changes.Applied{ID: id, Revision: "1", Result: json.RawMessage(`{"secret":"result"}`), Effects: []changes.Effect{{Kind: "notify", Payload: payload}}}, nil
 }
 
 type patchNote struct{ *notes }
