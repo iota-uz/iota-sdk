@@ -353,7 +353,7 @@ func (f *guardedFetcher) Fetch(ctx context.Context, req FetchRequest) (*FetchRes
 		return nil, fmt.Errorf("read response body: %w", err)
 	}
 	if int64(len(data)) > f.maxBody {
-		return nil, fmt.Errorf("%w: more than %d bytes", ErrResponseTooLarge, f.maxBody)
+		return nil, fmt.Errorf("%w: it exceeds %d bytes", ErrResponseTooLarge, f.maxBody)
 	}
 	return &FetchResponse{
 		Status:     resp.StatusCode,
