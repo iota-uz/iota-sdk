@@ -327,6 +327,8 @@ func connection(rereadOnline bool) templ.Attributes {
 		"@htmx:after-request":  `if ($event.detail.successful) { offline = false; lastSubmit = null }`,
 		"@htmx:send-error":     "offline = true",
 		"@offline.window":      "offline = true",
-		"@online.window":       "if (offline) { offline = false; if (rereadOnline && !lastSubmit) location.reload() }",
+		// Back online: a failed action keeps the banner until Retry sends it again; otherwise the banner
+		// goes and a list reads itself again.
+		"@online.window": "if (offline && !lastSubmit) { offline = false; if (rereadOnline) location.reload() }",
 	}
 }

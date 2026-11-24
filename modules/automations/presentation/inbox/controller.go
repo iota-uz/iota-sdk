@@ -511,7 +511,7 @@ func (c *Controller) delegates(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		opts = nil
 	}
-	c.render(w, r, DelegateOptions(opts))
+	c.render(w, r, DelegateOptions(strings.TrimSpace(r.URL.Query().Get("q")), opts))
 }
 
 // ---- badge ----

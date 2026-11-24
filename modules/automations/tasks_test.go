@@ -379,8 +379,8 @@ func TestInboxMembershipAndDelegation(t *testing.T) {
 
 	s.AsUser(dina)
 	opts := s.GET("/automations/tasks/" + task.String() + "/delegates?q=Ole").Expect(t).Status(http.StatusOK).Body()
-	assert.Contains(t, opts, fmt.Sprintf(`value="%d"`, oleg.ID()))
-	assert.NotContains(t, opts, fmt.Sprintf(`value="%d"`, dina.ID()), "not to oneself")
+	assert.Contains(t, opts, fmt.Sprintf(`data-value="%d"`, oleg.ID()))
+	assert.NotContains(t, opts, fmt.Sprintf(`data-value="%d"`, dina.ID()), "not to oneself")
 	s.POST("/automations/tasks/" + task.String() + "/delegate").HTMX().Form(url.Values{"to": {fmt.Sprint(dina.ID())}}).
 		Expect(t).Status(http.StatusOK).Contains(`data-testid="automations-task-delegate-error"`)
 	done := s.POST("/automations/tasks/" + task.String() + "/delegate").HTMX().Form(url.Values{"to": {fmt.Sprint(oleg.ID())}, "delegate_comment": {"you know this client"}}).

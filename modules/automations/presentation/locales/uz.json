@@ -532,7 +532,8 @@
         "NotFound": "Hech kim topilmadi",
         "Comment": "Hamkasb uchun izoh",
         "Submit": "Vazifani topshirish",
-        "Submitting": "Topshirilmoqda…"
+        "Submitting": "Topshirilmoqda…",
+        "NothingFor": "«{{.Query}}» bo‘yicha hech kim topilmadi"
       },
       "OpenRun": "Ishga tushirishni ochish",
       "Copy": "Nusxalash",

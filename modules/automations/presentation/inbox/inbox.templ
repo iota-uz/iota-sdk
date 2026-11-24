@@ -6,8 +6,6 @@ import (
 
 	icons "github.com/iota-uz/icons/phosphor"
 
-	"github.com/iota-uz/iota-sdk/components/base"
-	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/automations/tasks"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 )
@@ -45,7 +43,6 @@ templ BadgeCount(c tasks.TaskCounts) {
 }
 
 // ---- list ----
-
 templ ListPage(p *ListProps) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{BaseProps: layouts.BaseProps{Title: tr(ctx, "Title")}}) {
 		@ListScreen(p)
@@ -226,7 +223,7 @@ templ meta(v tasks.TaskView, compact bool) {
 				}
 				<time datetime={ isoTime(*v.DueAt) } title={ dateTime(ctx, *v.DueAt) }>
 					<span data-relative-time={ isoTime(*v.DueAt) }>{ relative(ctx, *v.DueAt) }</span>
-					<span class="text-300">({ dateTime(ctx, *v.DueAt) })</span>
+					<span class="text-200">({ dateTime(ctx, *v.DueAt) })</span>
 				</time>
 			</span>
 		}
@@ -279,7 +276,6 @@ templ relativeTimes() {
 }
 
 // ---- one task ----
-
 templ TaskPage(p *TaskProps) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{BaseProps: layouts.BaseProps{Title: p.Task.Title}}) {
 		@TaskScreen(p)
@@ -337,7 +333,7 @@ templ TaskScreen(p *TaskProps) {
 				@delegatePanel(p)
 			}
 		</section>
-		<p class="mt-10 flex flex-wrap items-center gap-2 text-xs text-300">
+		<p class="mt-10 flex flex-wrap items-center gap-2 text-xs text-200">
 			if p.CanReadRun {
 				<a class="inline-flex min-h-6 items-center gap-1 hover:underline" href={ templ.SafeURL(p.RunURL) } data-testid="automations-task-run-link">
 					@icons.FlowArrow(icons.Props{Size: "14"})
@@ -441,7 +437,7 @@ templ decisionForm(p *TaskProps) {
 			</div>
 		}
 		<div class="flex flex-col">
-			<label for="automations-task-comment" class="form-control-label mb-2">
+			<label for="automations-task-comment" class="mb-2 text-sm font-medium text-100">
 				{ tr(ctx, "Comment.Label") }
 				if p.allCommentRequired() {
 					<span class="text-red-600">*</span>
@@ -541,7 +537,7 @@ templ field(f Field) {
 				{ f.Title }
 			</label>
 		} else {
-			<label for={ id } class="form-control-label mb-2">
+			<label for={ id } class="mb-2 text-sm font-medium text-100">
 				{ f.Title }
 				if f.Required {
 					<span class="text-red-600" aria-hidden="true">*</span>
@@ -590,60 +586,131 @@ templ delegatePanel(p *TaskProps) {
 			{ tr(ctx, "Delegate.Open") }
 			@icons.CaretDown(icons.Props{Size: "14", Class: "ml-auto duration-200 group-open:rotate-180"})
 		</summary>
-		<form
-			method="post"
-			action={ templ.SafeURL(p.postURL("delegate")) }
-			hx-post={ p.postURL("delegate") }
-			hx-target={ "#" + screenID }
-			hx-swap="outerHTML"
-			hx-sync="this:drop"
-			hx-disabled-elt="find button[type='submit']"
+		<div
 			class="flex flex-col gap-3 border-t border-subtle px-4 py-4"
-			x-data="{ pending: false }"
-			@htmx:before-request="pending = true"
-			@htmx:after-request="pending = false"
+			x-data="{ q: '', open: false, active: -1, chosen: '', label: '',
+			items() { return Array.from(this.$refs.list.querySelectorAll('[role=option]')) },
+			mark() { this.items().forEach((el, i) => el.setAttribute('aria-selected', i === this.active ? 'true' : 'false')) },
+			move(d) { const it = this.items(); if (!it.length) return; this.open = true; this.active = (this.active + d + it.length) % it.length; this.mark(); it[this.active].scrollIntoView({ block: 'nearest' }) },
+			pick(el) { this.chosen = el.dataset.value; this.label = el.dataset.label; this.q = el.dataset.label; this.open = false; this.active = -1 },
+			enter() { const it = this.items(); if (this.open && it[this.active]) this.pick(it[this.active]) } }"
 		>
-			@base.Combobox(base.ComboboxProps{
-				Label:        tr(ctx, "Delegate.To"),
-				Placeholder:  tr(ctx, "Delegate.Search"),
-				Name:         "to",
-				Searchable:   true,
-				Endpoint:     p.delegatesURL(),
-				NotFoundText: tr(ctx, "Delegate.NotFound"),
-				Attrs:        templ.Attributes{"required": true, "data-testid": "automations-task-delegate-to"},
-			})
-			@input.TextArea(&input.TextAreaProps{
-				Label: tr(ctx, "Delegate.Comment"),
-				Value: p.DelegateComment,
-				Attrs: templ.Attributes{"name": "delegate_comment", "rows": "2", "maxlength": "2000",
-					"@keydown.enter": "if (($event.metaKey || $event.ctrlKey) && !$event.isComposing) { $event.preventDefault(); $el.form.requestSubmit() }"},
-			})
-			if p.DelegateError != "" {
-				<p role="alert" class="text-sm text-red-600" data-testid="automations-task-delegate-error">{ p.DelegateError }</p>
-			}
-			<div>
-				<button type="submit" class="btn btn-secondary btn-normal min-h-11 w-full justify-center sm:w-auto" data-testid="automations-task-delegate-submit">
-					<span x-show="!pending">{ tr(ctx, "Delegate.Submit") }</span>
-					<span x-show="pending" x-cloak>{ tr(ctx, "Delegate.Submitting") }</span>
-				</button>
-			</div>
-		</form>
+			@delegatePicker(p)
+			<form
+				method="post"
+				action={ templ.SafeURL(p.postURL("delegate")) }
+				hx-post={ p.postURL("delegate") }
+				hx-target={ "#" + screenID }
+				hx-swap="outerHTML"
+				hx-disabled-elt="find button[type='submit']"
+				class="flex flex-col gap-3"
+				x-data="{ pending: false }"
+				@htmx:before-request="if ($event.target === $el) { if (pending) { $event.preventDefault() } else { pending = true } }"
+				@htmx:after-request="if ($event.target === $el) pending = false"
+			>
+				<input type="hidden" name="to" :value="chosen"/>
+				<div class="flex flex-col">
+					<label for="automations-task-delegate-comment" class="mb-2 text-sm font-medium text-100">{ tr(ctx, "Delegate.Comment") }</label>
+					<textarea
+						id="automations-task-delegate-comment"
+						name="delegate_comment"
+						rows="2"
+						maxlength="2000"
+						class="form-control form-control-input w-full"
+						@keydown.enter="if (($event.metaKey || $event.ctrlKey) && !$event.isComposing) { $event.preventDefault(); $el.form.requestSubmit() }"
+					>{ p.DelegateComment }</textarea>
+				</div>
+				if p.DelegateError != "" {
+					<p role="alert" class="text-sm text-red-600" data-testid="automations-task-delegate-error">{ p.DelegateError }</p>
+				}
+				<div>
+					<button type="submit" class="btn btn-secondary btn-normal min-h-11 w-full justify-center sm:w-auto" data-testid="automations-task-delegate-submit" :disabled="!chosen">
+						<span x-show="!pending">{ tr(ctx, "Delegate.Submit") }</span>
+						<span x-show="pending" x-cloak>{ tr(ctx, "Delegate.Submitting") }</span>
+					</button>
+				</div>
+			</form>
+		</div>
 	</details>
 }
 
-templ DelegateOptions(list []tasks.UserOption) {
-	for _, u := range list {
-		<option value={ fmt.Sprint(u.ID) }>
-			{ u.Name }
+// delegatePicker is the colleague search (K5): ↑ ↓ move, Enter picks, Esc closes; the server lists
+// the active users of the tenant the task may go to. Its state lives in the delegate form.
+templ delegatePicker(p *TaskProps) {
+	<div
+		class="flex flex-col"
+		@htmx:after-settle="if ($event.target === $refs.list) { open = true; active = -1; mark() }"
+		@click.outside="open = false"
+		data-testid="automations-task-delegate-to"
+	>
+		<label for="automations-task-delegate-search" class="mb-2 text-sm font-medium text-100">{ tr(ctx, "Delegate.To") }</label>
+		<input
+			id="automations-task-delegate-search"
+			type="text"
+			role="combobox"
+			name="q"
+			autocomplete="off"
+			aria-autocomplete="list"
+			aria-controls="automations-task-delegates"
+			:aria-expanded="open ? 'true' : 'false'"
+			:aria-activedescendant="active >= 0 && items()[active] ? items()[active].id : null"
+			placeholder={ tr(ctx, "Delegate.Search") }
+			class="form-control form-control-input min-h-11 w-full"
+			x-model="q"
+			@input="chosen = ''"
+			@focus="if (items().length) open = true"
+			@keydown.down.prevent="move(1)"
+			@keydown.up.prevent="move(-1)"
+			@keydown.enter.prevent="enter()"
+			@keydown.escape.prevent="open = false"
+			hx-get={ p.delegatesURL() }
+			hx-trigger="input changed delay:250ms, focus once"
+			hx-sync="this:replace"
+			hx-target="#automations-task-delegates"
+			hx-swap="innerHTML"
+		/>
+		<ul
+			id="automations-task-delegates"
+			x-ref="list"
+			role="listbox"
+			aria-label={ tr(ctx, "Delegate.To") }
+			x-show="open"
+			x-cloak
+			class="mt-1 max-h-60 overflow-y-auto overscroll-contain rounded-lg border border-default bg-surface-300 py-1"
+		></ul>
+	</div>
+}
+
+// DelegateOptions are the colleagues matching the search, as options of the picker.
+templ DelegateOptions(query string, list []tasks.UserOption) {
+	for i, u := range list {
+		<li
+			id={ fmt.Sprintf("automations-task-delegate-%d", i) }
+			role="option"
+			aria-selected="false"
+			data-value={ fmt.Sprint(u.ID) }
+			data-label={ u.Name }
+			class="flex min-h-11 cursor-pointer flex-col justify-center px-3 py-1 text-sm text-100 hover:bg-surface-100 aria-selected:bg-surface-100"
+			@click="pick($el)"
+		>
+			<span>{ u.Name }</span>
 			if u.Hint != "" {
-				{ " · " + u.Hint }
+				<span class="text-xs text-200">{ u.Hint }</span>
 			}
-		</option>
+		</li>
+	}
+	if len(list) == 0 {
+		<li role="presentation" class="px-3 py-2 text-sm text-200">
+			if query != "" {
+				{ trf(ctx, "Delegate.NothingFor", map[string]any{"Query": query}) }
+			} else {
+				{ tr(ctx, "Delegate.NotFound") }
+			}
+		</li>
 	}
 }
 
 // ---- a task the user cannot open ----
-
 templ MissingPage(p *MissingProps) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{BaseProps: layouts.BaseProps{Title: tr(ctx, "Title")}}) {
 		<div id={ screenID } class="mx-auto w-full max-w-3xl px-4 py-10 md:px-8" data-testid="automations-task-missing">

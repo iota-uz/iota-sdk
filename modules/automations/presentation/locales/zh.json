@@ -532,7 +532,8 @@
         "NotFound": "No one matches",
         "Comment": "Comment for the colleague",
         "Submit": "Pass the task",
-        "Submitting": "Passing…"
+        "Submitting": "Passing…",
+        "NothingFor": "No one matches «{{.Query}}»"
       },
       "OpenRun": "Open the run",
       "Copy": "Copy",
