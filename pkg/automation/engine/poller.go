@@ -266,15 +266,16 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 	if c.Status != connectors.StatusConnected {
 		return now.Add(p.cfg.Rescan), nil // re-authorization comes first; a rescan sees it
 	}
-	// The next poll is due an interval after this one starts, whenever the pass began.
-	now = p.cfg.Clock()
-	state, owner, wait, err := p.claim(ctx, t, now, interval)
+	state, owner, wait, err := p.claim(ctx, t, interval)
 	if err != nil {
-		return now.Add(interval), err
+		return p.cfg.Clock().Add(interval), err
 	}
 	if owner == "" {
 		return wait, nil // another process (or before a restart) polled it, or polls it now
 	}
+	// The next poll is due an interval after this one starts (after the claim, however long its lock
+	// waited), whenever the pass began.
+	now = p.cfg.Clock()
 	// release ends the claim keeping the cursor (a poll that moved nothing).
 	release := func() error {
 		return p.saveState(ctx, t, owner, pollState{Cursor: state.Cursor, NextAt: ptrTime(now.Add(interval))})
@@ -340,7 +341,8 @@ const pollLease = 5 * time.Minute
 // state it returns is the one to poll from, with the claim's owner token. When the connection is not the
 // caller's to poll, owner is empty and wait is when to look again. The claim also sets the next poll an
 // interval away, so the polls of a connection are at least an interval apart whichever process runs them.
-func (p *InboundPoller) claim(ctx context.Context, t polled, now time.Time, interval time.Duration) (pollState, string, time.Time, error) {
+// Its time is read under the lock: a claim that waited for the lock is due by when it got it.
+func (p *InboundPoller) claim(ctx context.Context, t polled, interval time.Duration) (pollState, string, time.Time, error) {
 	var st pollState
 	var owner string
 	var wait time.Time
@@ -352,6 +354,7 @@ func (p *InboundPoller) claim(ctx context.Context, t polled, now time.Time, inte
 				all = inboundState{}
 			}
 		}
+		now := p.cfg.Clock()
 		st = pollState{}
 		if b, ok := all[pollKey]; ok {
 			_ = json.Unmarshal(b, &st)
