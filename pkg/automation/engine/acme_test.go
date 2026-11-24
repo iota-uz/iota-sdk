@@ -56,6 +56,7 @@ type acme struct {
 	pollQ    [][]engine.InboundEvent
 	pollErr  error
 	onAsk    func(token string) // runs inside the ask's Execute (answers that come before its wait opens)
+	onPoll   func()             // runs once inside the next Poll (another poller meanwhile)
 	// answerKey is the answer event the ask names (default acme.answer.v1).
 	answerKey atomic.Value
 }
@@ -101,7 +102,7 @@ func (a *acme) Test(context.Context, connectors.Credentials) (connectors.Identit
 func (a *acme) Nodes() []catalog.NodeType {
 	return []catalog.NodeType{
 		&acmeSend{a: a, typ: "acme.send"}, &acmeSend{a: a, typ: "acme.fetch", idempotent: true},
-		&acmeAsk{a: a}, &acmeHTTP{a: a}, &acmeClassify{a: a},
+		&acmeAsk{a: a}, &acmeHTTP{a: a}, &acmeClassify{a: a}, &acmePick{},
 	}
 }
 
@@ -177,6 +178,13 @@ func (a *acme) Interval(connectors.Connection) time.Duration { return 30 * time.
 
 func (a *acme) Poll(_ context.Context, c connectors.Connection, _ connectors.Credentials, cursor json.RawMessage) ([]engine.InboundEvent, json.RawMessage, error) {
 	a.polls.Add(1)
+	a.mu.Lock()
+	hook := a.onPoll
+	a.onPoll = nil
+	a.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.pollErr != nil {
@@ -268,8 +276,14 @@ func (n *acmeAsk) Execute(ctx context.Context, in catalog.CallInput) (catalog.Ca
 	if n.a.onAsk != nil {
 		n.a.onAsk(c.Token)
 	}
-	if mode, _ := in.Params["mode"].(string); mode == "429_once" && prior == 0 {
+	mode, _ := in.Params["mode"].(string)
+	if mode == "429_once" && prior == 0 {
 		return catalog.CallResult{RetryAfter: 50 * time.Millisecond}, nil
+	}
+	if mode == "crash_once" && prior == 0 {
+		n.a.entered <- "acme.ask"
+		<-ctx.Done()
+		return catalog.CallResult{}, ctx.Err()
 	}
 	return catalog.CallResult{Outcome: "yes", Output: map[string]any{"message_id": "q-1"}}, nil
 }
@@ -327,6 +341,21 @@ func (n *acmeClassify) Execute(_ context.Context, in catalog.CallInput) (catalog
 func (n *acmeClassify) DecisionKey(in catalog.CallInput) (string, bool) {
 	text, _ := in.Params["text"].(string)
 	return engine.DecisionKey("classify", text, "acme-1", nil)
+}
+
+// acmePick names no outcome: its answer rule takes it from the label it returns.
+type acmePick struct{}
+
+func (n *acmePick) Spec() graph.NodeSpec {
+	return graph.NodeSpec{Type: "acme.pick", Title: "Pick", Behavior: graph.BehaviorCall, DryRun: graph.DryRunExecute,
+		Params: graph.MustSchemaParams(acmeParams), Outcomes: []string{"sales", "support", "failed"}, FailedOutcome: "failed",
+		Answer: &graph.AnswerSpec{Choice: "label"}, Output: expr.Fields{{Name: "label", Field: expr.OptionalOf(expr.StringField)}}}
+}
+func (n *acmePick) Requires() []catalog.ConnectorKind { return nil }
+func (n *acmePick) Idempotent() bool                  { return true }
+func (n *acmePick) Execute(_ context.Context, in catalog.CallInput) (catalog.CallResult, error) {
+	label, _ := in.Params["text"].(string)
+	return catalog.CallResult{Output: map[string]any{"label": label}}, nil
 }
 
 // acmeEnv is an env whose catalog has the acme connector with one connection of the tenant.

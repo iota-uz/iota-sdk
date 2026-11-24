@@ -300,6 +300,53 @@ func TestPollerPublishesAndStopsOnReauth(t *testing.T) {
 	assert.Equal(t, connectors.StatusNeedsReauth, c.Status)
 }
 
+// One poller at a time polls a connection: another one (of any process) skips it while the claim lives,
+// and a poll that outlived its claim saves nothing over the newer owner's state.
+func TestPollerClaimsTheConnection(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), messageGraph(`{"id": "m", "event": "acme.message.v1"}`))
+	ctx := context.Background()
+	now := time.Now()
+	clock := func(at *time.Time) func() time.Time { return func() time.Time { return *at } }
+	a := p.rt.NewPoller(engine.PollerConfig{Connections: ae.store, Connectors: ae.dir, Clock: clock(&now)})
+	bNow := now
+	b := p.rt.NewPoller(engine.PollerConfig{Connections: ae.store, Connectors: ae.dir, Clock: clock(&bNow)})
+	inner := make(chan time.Time, 2)
+	ae.acme.onPoll = func() {
+		// A polls: B, as due as A, skips the connection A holds.
+		next, err := b.PollOnce(ctx)
+		require.NoError(t, err)
+		inner <- next
+	}
+	_, err := a.PollOnce(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), ae.acme.polls.Load(), "B did not poll while A held the connection")
+	assert.True(t, (<-inner).After(now), "B looks again after A's claim")
+
+	// A's next poll outlives its claim: B takes the connection over and A's late save is dropped.
+	now = now.Add(engine.MinPollInterval)
+	bNow = now.Add(engine.MinPollInterval + 10*time.Minute)
+	ae.acme.onPoll = func() {
+		_, err := b.PollOnce(ctx)
+		require.NoError(t, err)
+	}
+	_, err = a.PollOnce(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), ae.acme.polls.Load(), "B polled after A's claim ran out")
+	var raw []byte
+	require.NoError(t, ae.db.QueryRow(ctx, `SELECT inbound FROM automation.connections WHERE tenant_id = $1 AND id = $2`, ae.tenant, ae.conn.ID).Scan(&raw))
+	var st struct {
+		Poll struct {
+			NextAt time.Time `json:"next_at"`
+			Owner  string    `json:"owner"`
+		} `json:"poll"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &st))
+	assert.Empty(t, st.Poll.Owner, "B released its claim")
+	assert.WithinDuration(t, bNow.Add(engine.MinPollInterval), st.Poll.NextAt, time.Second, "B's state stands, not A's")
+}
+
 // An idle engine and poller run no pass between their planned ones.
 func TestIdleWorkersDoNotSpin(t *testing.T) {
 	ae := newAcmeEnv(t)

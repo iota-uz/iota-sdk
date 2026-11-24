@@ -340,6 +340,9 @@ func (c *CallRunner) Run(ctx context.Context, nr workflow.NativeRun) (json.RawMe
 		var parent uuid.UUID
 		err := c.r.cfg.DB.QueryRow(ctx, `SELECT parent_instance_id FROM extruntime.workflow_instances WHERE tenant_id = $1 AND id = $2`,
 			req.TenantID, nr.Instance().ID).Scan(&parent)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, infra(serrors.FromDB(opCall, err)) // a database failure is retried, never the call's
+		}
 		if err != nil || parent != req.ParentInstance {
 			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: "automation.invalidInput", Message: "the call request names another parent than the instance's"}
 		}

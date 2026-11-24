@@ -131,6 +131,20 @@ func TestTestNodeRunsOnceWithoutARun(t *testing.T) {
 	assert.ErrorIs(t, err, engine.ErrForbidden)
 }
 
+// A tested call whose executor names no outcome takes it from its answer rule, as in a run.
+func TestTestNodeTakesTheOutcomeFromTheAnswer(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	g := graphJSON("Classify", `{"id": "created", "event": "acme.order.created.v1"}`,
+		`{"id": "cls", "type": "acme.pick", "params": {"text": "sales"}}, {"id": "fin", "type": "end", "params": {}}`,
+		`{"from": {"node": "created", "outcome": "fired"}, "to": "cls"}, {"from": {"node": "cls", "outcome": "sales"}, "to": "fin"},
+		 {"from": {"node": "cls", "outcome": "support"}, "to": "fin"}, {"from": {"node": "cls", "outcome": "failed"}, "to": "fin"}`)
+	res, err := p.rt.Authoring().TestNode(context.Background(), ae.human(), engine.TestNodeInput{Graph: json.RawMessage(g), NodeID: "cls"})
+	require.NoError(t, err)
+	require.Nil(t, res.Error)
+	assert.Equal(t, "sales", res.Outcome)
+}
+
 // A node type with an effect must declare what a dry run does with it.
 func TestCatalogRefusesAnUndeclaredDryRun(t *testing.T) {
 	spec := graph.NodeSpec{Type: "acme.mystery", Title: "Mystery", Behavior: graph.BehaviorCall, Outcomes: []string{"ok"},

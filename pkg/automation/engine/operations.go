@@ -132,8 +132,14 @@ func (o *operations) Retry(ctx context.Context, a Actor, runID uuid.UUID, waitID
 	if errors.Is(err, workflow.ErrConflict) || errors.Is(err, workflow.ErrNotAccepting) {
 		return fmt.Errorf("%w: the call's attempt changed (or it is no longer blocked); look at it again", ErrInvalidInput)
 	}
+	if errors.Is(err, errAskExpired) {
+		return fmt.Errorf("%w: the question's correlation expired; resolve the call instead", ErrInvalidInput)
+	}
 	return serrors.Wrap(opOperate, err)
 }
+
+// errAskExpired: a Retry of an ask whose correlation token is gone.
+var errAskExpired = errors.New("automation: the ask's correlation expired")
 
 // renew gives the retried attempt the node's timeout again from now: its deadline may be gone.
 func (o *operations) renew(ctx context.Context, tx pgx.Tx, a Actor, b blockedCall) error {
@@ -156,11 +162,17 @@ func (o *operations) renew(ctx context.Context, tx pgx.Tx, a Actor, b blockedCal
 	}
 	// An ask's token lives as long as its renewed attempt may still be answered.
 	if req.AnswerWaitID != "" {
-		if _, err := tx.Exec(ctx, `
+		tag, err := tx.Exec(ctx, `
 			UPDATE automation.correlations SET expires_at = greatest(expires_at, now() + $4::interval)
-			WHERE tenant_id = $1 AND run_id = $2 AND wait_id = $3`, a.TenantID, req.RunID, req.AnswerWaitID,
-			pgInterval((timeout + o.r.cfg.Limits.WaitMax).Seconds())); err != nil {
+			WHERE tenant_id = $1 AND run_id = $2 AND wait_id = $3 AND expires_at > now()`, a.TenantID, req.RunID, req.AnswerWaitID,
+			pgInterval((timeout + o.r.cfg.Limits.WaitMax).Seconds()))
+		if err != nil {
 			return serrors.FromDB(opOperate, err)
+		}
+		if tag.RowsAffected() == 0 {
+			// The question's token expired (or was pruned): a retried question could not be answered.
+			// The retry is refused before the call resumes; Resolve still settles the call by hand.
+			return errAskExpired
 		}
 	}
 	return nil

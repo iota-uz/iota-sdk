@@ -362,17 +362,77 @@ func TestStaleRetryChangesNothing(t *testing.T) {
 	require.Len(t, ae.acme.callsOf("acme.send"), 2, "one retry, one repeat")
 }
 
+// A Retry of an ask whose correlation token expired is refused (a repeated question could not be
+// answered) and changes nothing; Resolve still settles the call.
+func TestRetryOfAnExpiredAskIsRefused(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	// The failed edge ignored: an unknown outcome of the question blocks the run.
+	g := strings.Replace(askGraph, `"params": {"text": "approve?"}`, `"params": {"text": "approve?", "mode": "crash_once"}`, 1)
+	g = strings.Replace(g, `{"from": {"node": "ask", "outcome": "failed"}, "to": "bad"}`, `{"from": {"node": "ask", "outcome": "failed"}, "to": "ignore"}`, 1)
+	g = strings.Replace(g, `{"from": {"node": "ask", "outcome": "timeout"}, "to": "late"}`, `{"from": {"node": "ask", "outcome": "timeout"}, "to": "late"}, {"from": {"node": "late", "outcome": "done"}, "to": "bad"}`, 1)
+	g = strings.Replace(g, `{"from": {"node": "late", "outcome": "done"}, "to": "fin"}, `, ``, 1)
+	ae.create(p, ae.human(), g)
+	ae.publish(ae.tenant, orderCreated, "o-1", order{}, 0)
+	crash(t, ae)
+	p2 := ae.proc()
+	p2.until(func() bool { return ae.status(p2, runOf(t, ae.env, p2).RunID) == engine.RunBlocked }, "blocked")
+	run := runOf(t, ae.env, p2)
+	var waitID string
+	for _, w := range ae.run(p2, ae.human(), run.RunID).Waits {
+		if w.Kind == "call" && w.Status == "open" {
+			waitID = w.WaitID
+		}
+	}
+	ctx := context.Background()
+	require.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.correlations WHERE run_id = $1`, run.RunID))
+	_, err := ae.db.Exec(ctx, `UPDATE automation.correlations SET expires_at = now() - interval '1 second' WHERE run_id = $1`, run.RunID)
+	require.NoError(t, err)
+	ops := p2.rt.Operations()
+	require.ErrorIs(t, ops.Retry(ctx, ae.human(), run.RunID, waitID), engine.ErrInvalidInput)
+	assert.Equal(t, engine.RunBlocked, ae.status(p2, run.RunID), "the refused retry resumed nothing")
+	assert.Len(t, ae.acme.callsOf("acme.ask"), 1)
+	require.NoError(t, ops.Resolve(ctx, ae.human(), run.RunID, waitID, "no", nil))
+	p2.until(func() bool { return ae.status(p2, run.RunID) == engine.RunDone }, "the resolved ask goes on")
+	assert.Equal(t, []string{"no:no"}, ae.effects(run.RunID))
+}
+
 // The run reconciles a call child that ended without delivering its result (the observer could not
 // signal): the wait gets outcome_unknown and the run goes on.
 func TestEndedCallIsReconciledByTheRun(t *testing.T) {
 	ae := newAcmeEnv(t)
-	p, run, _, child := blockedCall(t, ae, "")
+	p, run, child := interruptedCall(t, ae)
 	p.rt.QuietCallObserver()
 	require.NoError(t, p.wf.Terminate(context.Background(), ae.tenant, child))
 	p.until(func() bool { return ae.status(p, run.RunID) == engine.RunDone }, "the run reconciles the ended call")
 	var code string
 	require.NoError(t, ae.db.QueryRow(context.Background(), `SELECT error->>'code' FROM automation.steps WHERE run_id = $1 AND node_id = 'send'`, run.RunID).Scan(&code))
 	assert.Equal(t, engine.CodeOutcomeUnknown, code)
+	requireBadNote(t, ae, run.RunID)
+}
+
+// interruptedCall stops a process mid-call of a graph whose failed edge leads to the bad note (so the
+// call does not block on an unknown outcome) and returns a process that has not resumed it yet, the run
+// and the call's child instance.
+func interruptedCall(t *testing.T, ae *acmeEnv) (*proc, engine.RunSummary, uuid.UUID) {
+	t.Helper()
+	p := ae.proc()
+	ae.create(p, ae.human(), sendGraph("acme.send", "crash", "", true))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	crash(t, ae)
+	p2 := ae.proc()
+	run := runOf(t, ae.env, p2)
+	var child uuid.UUID
+	require.NoError(t, ae.db.QueryRow(context.Background(), `SELECT id FROM extruntime.workflow_instances WHERE workflow = $1`, engine.CallWorkflowID).Scan(&child))
+	return p2, run, child
+}
+
+// requireBadNote asserts the run took the call's failed edge: the bad note ran with the error's code.
+func requireBadNote(t *testing.T, ae *acmeEnv, run uuid.UUID) {
+	t.Helper()
+	effects := ae.effects(run)
+	require.Len(t, effects, 1, effects)
+	assert.True(t, strings.HasPrefix(effects[0], "bad:"+engine.CodeOutcomeUnknown+": "), effects)
 }
 
 // MaxAttempts counts attempts across occurrences: an interrupted attempt and a retryable answer are two,
@@ -392,13 +452,14 @@ func TestAttemptsCountAcrossOccurrences(t *testing.T) {
 // had started, and the run goes on instead of waiting for ever.
 func TestTerminatedCallChildEndsTheWait(t *testing.T) {
 	ae := newAcmeEnv(t)
-	p, run, _, child := blockedCall(t, ae, "")
+	p, run, child := interruptedCall(t, ae)
 	require.NoError(t, p.wf.Terminate(context.Background(), ae.tenant, child))
 	p.until(func() bool { return ae.status(p, run.RunID) == engine.RunDone }, "the run takes the call's failed edge")
 	require.Len(t, ae.acme.callsOf("acme.send"), 1)
 	var code string
 	require.NoError(t, ae.db.QueryRow(context.Background(), `SELECT error->>'code' FROM automation.steps WHERE run_id = $1 AND node_id = 'send'`, run.RunID).Scan(&code))
 	assert.Equal(t, engine.CodeOutcomeUnknown, code)
+	requireBadNote(t, ae, run.RunID)
 }
 
 // An automation.call started from elsewhere with another tenant's request opens nothing.

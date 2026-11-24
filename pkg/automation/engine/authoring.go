@@ -342,6 +342,17 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 		if dr.masker != nil {
 			masker = dr.masker
 		}
+		// As in a run: a call whose answer names its outcome by a choice field takes it from the output.
+		if dr.err == nil && dr.outcome == "" && interp.View().Catalog().Nodes[node.Type].Answer != nil {
+			out, _ := decodeMap(dr.output)
+			o, fst := interp.CallOutcome(node.ID, out)
+			if fst != nil {
+				e := stepErr(*fst)
+				res.Error = &e
+			} else {
+				res.Outcome = o
+			}
+		}
 	case graph.StepOutcome, graph.StepWait:
 		res.Outcome = st.Outcome
 		if st.Output != nil {

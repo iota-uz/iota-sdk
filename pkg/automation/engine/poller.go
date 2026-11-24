@@ -38,6 +38,10 @@ type PollerConfig struct {
 type pollState struct {
 	Cursor json.RawMessage `json:"cursor,omitempty"`
 	NextAt *time.Time      `json:"next_at,omitempty"`
+	// Owner holds the connection's poll from its claim to its save, until LeaseUntil: one poller (of
+	// any process) reads, polls, commits and saves a connection at a time, so a cursor never moves back.
+	Owner      string     `json:"owner,omitempty"`
+	LeaseUntil *time.Time `json:"lease_until,omitempty"`
 }
 
 // inboundState is the inbound state of a connection: the poller's part beside what a connector keeps.
@@ -262,30 +266,34 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 	if c.Status != connectors.StatusConnected {
 		return now.Add(p.cfg.Rescan), nil // re-authorization comes first; a rescan sees it
 	}
-	state, err := p.state(ctx, t)
+	// The next poll is due an interval after this one starts, whenever the pass began.
+	now = p.cfg.Clock()
+	state, owner, wait, err := p.claim(ctx, t, now, interval)
 	if err != nil {
 		return now.Add(interval), err
 	}
-	if state.NextAt != nil && now.Before(*state.NextAt) {
-		return *state.NextAt, nil // another process (or before a restart) polled it
+	if owner == "" {
+		return wait, nil // another process (or before a restart) polled it, or polls it now
 	}
-	// The next poll is due an interval after this one starts, whenever the pass began.
-	now = p.cfg.Clock()
+	// release ends the claim keeping the cursor (a poll that moved nothing).
+	release := func() error {
+		return p.saveState(ctx, t, owner, pollState{Cursor: state.Cursor, NextAt: ptrTime(now.Add(interval))})
+	}
 	evs, next, err := poller.Poll(ctx, c, creds, state.Cursor)
 	if err != nil {
 		p.r.metrics.pollError(ctx, string(t.kind))
 		if errors.Is(err, connectors.ErrNeedsReauth) || isUnauthorized(err) {
 			// Polling stops until the connection is authorized again.
 			if serr := p.cfg.Connections.SetStatus(ctx, t.tenant, t.id, connectors.StatusNeedsReauth, "the provider refused the credentials"); serr != nil {
-				return now.Add(interval), serrors.Wrap(opPoll, serr)
+				return now.Add(interval), errors.Join(serrors.Wrap(opPoll, serr), release())
 			}
-			return now.Add(p.cfg.Rescan), nil
+			return now.Add(p.cfg.Rescan), release()
 		}
 		// A network failure keeps the cursor: the next poll asks again from it. The provider's error may
 		// echo the credentials the connector used: it is logged masked.
 		p.r.cfg.Logger.Warn("automation poller: poll failed", "connection_id", t.id.String(), "kind", string(t.kind),
 			"error", code.NewMasker(map[string]string(creds)).Mask(err.Error()))
-		return now.Add(interval), p.saveState(ctx, t, pollState{Cursor: state.Cursor, NextAt: ptrTime(now.Add(interval))})
+		return now.Add(interval), release()
 	}
 	if len(evs) > 0 {
 		in := p.r.Inbound()
@@ -310,11 +318,11 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 			return nil
 		})
 		if err != nil {
-			return now.Add(interval), serrors.Wrap(opPoll, err) // the cursor stays: the events come again
+			return now.Add(interval), errors.Join(serrors.Wrap(opPoll, err), release()) // the cursor stays: the events come again
 		}
 	}
 	// The cursor moves after the events are committed.
-	return now.Add(interval), p.saveState(ctx, t, pollState{Cursor: next, NextAt: ptrTime(now.Add(interval))})
+	return now.Add(interval), p.saveState(ctx, t, owner, pollState{Cursor: next, NextAt: ptrTime(now.Add(interval))})
 }
 
 func isUnauthorized(err error) bool {
@@ -324,22 +332,18 @@ func isUnauthorized(err error) bool {
 
 func ptrTime(t time.Time) *time.Time { return &t }
 
-func (p *InboundPoller) state(ctx context.Context, t polled) (pollState, error) {
-	var st pollState
-	err := p.cfg.Connections.UpdateInbound(ctx, t.tenant, t.id, func(raw json.RawMessage) (json.RawMessage, error) {
-		var all inboundState
-		if len(raw) > 0 {
-			_ = json.Unmarshal(raw, &all)
-		}
-		if b, ok := all[pollKey]; ok {
-			_ = json.Unmarshal(b, &st)
-		}
-		return raw, nil
-	})
-	return st, serrors.Wrap(opPoll, err)
-}
+// pollLease is how long a claim holds a connection beyond its interval: a poll (and its commit) that
+// outlives it loses the connection to the next claim, and its save is dropped.
+const pollLease = 5 * time.Minute
 
-func (p *InboundPoller) saveState(ctx context.Context, t polled, st pollState) error {
+// claim takes the connection's poll under the row lock when it is due and no live claim holds it: the
+// state it returns is the one to poll from, with the claim's owner token. When the connection is not the
+// caller's to poll, owner is empty and wait is when to look again. The claim also sets the next poll an
+// interval away, so the polls of a connection are at least an interval apart whichever process runs them.
+func (p *InboundPoller) claim(ctx context.Context, t polled, now time.Time, interval time.Duration) (pollState, string, time.Time, error) {
+	var st pollState
+	var owner string
+	var wait time.Time
 	err := p.cfg.Connections.UpdateInbound(ctx, t.tenant, t.id, func(raw json.RawMessage) (json.RawMessage, error) {
 		all := inboundState{}
 		if len(raw) > 0 {
@@ -347,6 +351,55 @@ func (p *InboundPoller) saveState(ctx context.Context, t polled, st pollState) e
 			if all == nil {
 				all = inboundState{}
 			}
+		}
+		st = pollState{}
+		if b, ok := all[pollKey]; ok {
+			_ = json.Unmarshal(b, &st)
+		}
+		if st.Owner != "" && st.LeaseUntil != nil && now.Before(*st.LeaseUntil) {
+			wait = *st.LeaseUntil
+			if st.NextAt != nil && st.NextAt.After(wait) {
+				wait = *st.NextAt
+			}
+			return raw, nil
+		}
+		if st.NextAt != nil && now.Before(*st.NextAt) {
+			wait = *st.NextAt
+			return raw, nil
+		}
+		owner = uuid.NewString()
+		claimed := st
+		claimed.Owner, claimed.LeaseUntil, claimed.NextAt = owner, ptrTime(now.Add(interval+pollLease)), ptrTime(now.Add(interval))
+		b, err := json.Marshal(claimed)
+		if err != nil {
+			return nil, err
+		}
+		all[pollKey] = b
+		return json.Marshal(all)
+	})
+	if err != nil {
+		return pollState{}, "", time.Time{}, serrors.Wrap(opPoll, err)
+	}
+	return st, owner, wait, nil
+}
+
+// saveState ends the owner's claim with the state it polled to. A claim lost to another (its lease ran
+// out) saves nothing: the newer owner's cursor stands.
+func (p *InboundPoller) saveState(ctx context.Context, t polled, owner string, st pollState) error {
+	err := p.cfg.Connections.UpdateInbound(ctx, t.tenant, t.id, func(raw json.RawMessage) (json.RawMessage, error) {
+		all := inboundState{}
+		if len(raw) > 0 {
+			_ = json.Unmarshal(raw, &all)
+			if all == nil {
+				all = inboundState{}
+			}
+		}
+		var cur pollState
+		if b, ok := all[pollKey]; ok {
+			_ = json.Unmarshal(b, &cur)
+		}
+		if cur.Owner != owner {
+			return raw, nil
 		}
 		b, err := json.Marshal(st)
 		if err != nil {

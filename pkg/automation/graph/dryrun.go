@@ -447,7 +447,7 @@ func (d *dryRun) walk(t *dryToken, current string) {
 			}
 		}
 		if step.Kind == StepFailed {
-			if fo, took := d.takeFailed(t, node.ID, step.Message); took {
+			if fo, took := d.takeFailed(t, node.ID, step.Message, step.Code); took {
 				t.from = node.ID
 				current, ok = i.Next(node.ID, fo)
 				continue

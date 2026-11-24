@@ -95,6 +95,7 @@
       "outcome": "failed",
       "context_patch": {
         "output": {
+          "code": "EXPRESSION_FAILED",
           "error": "*"
         }
       }
