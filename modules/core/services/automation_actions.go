@@ -11,8 +11,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions/servicectx"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
 
@@ -24,40 +24,65 @@ const (
 	ActionGroupRemoveUser = "core.group.remove_user"
 )
 
-// ContributeAutomationActions offers the user and group operations of the core services to automation
-// graphs: they run as the run-as user, with its rights, through the same services the UI calls.
-func ContributeAutomationActions(b *composition.Builder) {
-	actions.ContributeFunc(b, func(c *composition.Container) ([]actions.Action, error) {
-		pool, err := composition.Resolve[*pgxpool.Pool](c)
+// automationActions are the core module's automation actions, one registration each (actions.Native):
+// the user and group operations of the core services, run as the run-as user with its rights through the
+// same services the UI calls.
+func automationActions() ([]native.Item, error) {
+	env := func(d native.Deps) (coreActionEnv, error) {
+		pool, err := native.Use[*pgxpool.Pool](d)
+		if err != nil {
+			return coreActionEnv{}, err
+		}
+		users, err := native.Use[user.Repository](d)
+		if err != nil {
+			return coreActionEnv{}, err
+		}
+		return coreActionEnv{pool: pool, users: users}, nil
+	}
+	userAction := func(build func(coreActionEnv, *UserService) actions.Action) func(native.Deps) (actions.Action, error) {
+		return func(d native.Deps) (actions.Action, error) {
+			e, err := env(d)
+			if err != nil {
+				return nil, err
+			}
+			svc, err := native.Use[*UserService](d)
+			if err != nil {
+				return nil, err
+			}
+			return build(e, svc), nil
+		}
+	}
+	groupAction := func(add bool) func(native.Deps) (actions.Action, error) {
+		return func(d native.Deps) (actions.Action, error) {
+			e, err := env(d)
+			if err != nil {
+				return nil, err
+			}
+			svc, err := native.Use[*GroupService](d)
+			if err != nil {
+				return nil, err
+			}
+			return groupMemberAction{env: e, groups: svc, add: add}, nil
+		}
+	}
+	list := []struct {
+		template actions.Action
+		build    func(native.Deps) (actions.Action, error)
+	}{
+		{userBlockAction{}, userAction(func(e coreActionEnv, s *UserService) actions.Action { return userBlockAction{env: e, users: s} })},
+		{userUnblockAction{}, userAction(func(e coreActionEnv, s *UserService) actions.Action { return userUnblockAction{env: e, users: s} })},
+		{groupMemberAction{add: true}, groupAction(true)},
+		{groupMemberAction{add: false}, groupAction(false)},
+	}
+	out := make([]native.Item, 0, len(list))
+	for _, a := range list {
+		it, err := actions.Native(a.template, a.build)
 		if err != nil {
 			return nil, err
 		}
-		users, err := composition.Resolve[user.Repository](c)
-		if err != nil {
-			return nil, err
-		}
-		userService, err := composition.Resolve[*UserService](c)
-		if err != nil {
-			return nil, err
-		}
-		groupService, err := composition.Resolve[*GroupService](c)
-		if err != nil {
-			return nil, err
-		}
-		env := coreActionEnv{pool: pool, users: users}
-		return []actions.Action{
-			userBlockAction{env: env, users: userService},
-			userUnblockAction{env: env, users: userService},
-			groupMemberAction{env: env, groups: groupService, add: true},
-			groupMemberAction{env: env, groups: groupService, add: false},
-		}, nil
-	})
-}
-
-// automationActionTemplates are the core actions without dependencies: the specs of their native
-// command contracts (Natives).
-func automationActionTemplates() []actions.Action {
-	return []actions.Action{userBlockAction{}, userUnblockAction{}, groupMemberAction{add: true}, groupMemberAction{add: false}}
+		out = append(out, it)
+	}
+	return out, nil
 }
 
 type coreActionEnv struct {
@@ -189,6 +214,7 @@ func (a groupMemberAction) Spec() actions.ActionSpec {
 			{Name: "members", Type: manifest.Type{Kind: manifest.KindInt}},
 		}},
 		Permission: permissions.GroupUpdate.Name(),
+		Errors:     []string{"user_not_found"},
 	}
 }
 

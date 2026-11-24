@@ -120,17 +120,17 @@ type CallInput struct {
 	Credentials Credentials     // decrypted by the engine; the node neither keeps nor logs them
 	Deadline    time.Time
 	Usage       UsageRecorder
-	// Commands invokes SDK commands for the call (wf.call): nil outside a call's child instance.
-	Commands Commands
 }
 
-// Commands invokes a native or package command as the call's run-as, with the call's invocation ID
-// (InvocationIDOf of its idempotency key): a repeat of a finished invocation returns its recorded output
-// without running it again, one without a recorded outcome is a CallError outcome_unknown. A refusal of
-// the command is a *CallError with its code (forbidden for a missing right); any other error is
-// infrastructure.
-type Commands interface {
-	Invoke(ctx context.Context, command string, input json.RawMessage) (json.RawMessage, error)
+// CommandCall is an optional interface of a CallNode whose call is a command: the engine calls it with
+// the workflow's call primitive (wf.call, NativeRun.CallAs) under the call's invocation ID (InvocationIDOf
+// of its idempotency key), so the workflow journal and the host's invocation record keep its outcome and
+// a call that may have run is never repeated blindly. Execute is not used for such a call.
+type CommandCall interface {
+	// Command is the command and its input for the call; a *CallError refuses the call before it is made.
+	Command(in CallInput) (command string, input json.RawMessage, err error)
+	// CommandResult is the call's result from the command's output; a *CallError fails it.
+	CommandResult(in CallInput, output json.RawMessage) (CallResult, error)
 }
 
 // InvocationIDOf is the invocation ID (a UUID) a call node passes to SDK commands: derived from the

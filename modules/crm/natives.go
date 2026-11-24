@@ -3,7 +3,6 @@ package crm
 import (
 	"github.com/iota-uz/iota-sdk/modules/crm/extension"
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
-	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 )
 
@@ -23,11 +22,11 @@ func Natives(s *native.Set) error {
 	if err := services.Natives(s); err != nil {
 		return err
 	}
-	commands, err := actions.Commands(chatSendAction{})
+	chat, err := chatSendNative()
 	if err != nil {
 		return err
 	}
-	if err := s.Add(commands...); err != nil {
+	if err := s.Add(chat); err != nil {
 		return err
 	}
 	return s.Add(append([]native.Item{native.Route(ClientsRoute, ClientsPath)}, extension.Items(ClientsPath)...)...)

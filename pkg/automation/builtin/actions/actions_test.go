@@ -12,6 +12,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
 
@@ -30,6 +32,7 @@ func (f fake) Run(ctx context.Context, _ spi.Subject, args json.RawMessage) (str
 func spec() actions.ActionSpec {
 	return actions.ActionSpec{
 		Label: manifest.Label{"en": "Assign", "ru": "Назначить"}, Permission: "Clients.Update", Outcomes: []string{"assigned", "skipped"},
+		Errors: []string{"client.archived"},
 		Args: &manifest.Type{Kind: manifest.KindObject, Properties: []manifest.Property{
 			{Name: "client_id", Type: manifest.Type{Kind: manifest.KindUUID}},
 			{Name: "user_id", Type: manifest.Type{Kind: manifest.KindInt}},
@@ -74,10 +77,8 @@ func TestNodesAreCheckedAndUnique(t *testing.T) {
 	}
 }
 
-func TestExecuteValidatesChecksAndMapsErrors(t *testing.T) {
-	var gotInvocation string
+func TestCommandValidatesAndRunMapsErrors(t *testing.T) {
 	act := fake{key: "crm.client.assign", spec: spec(), run: func(ctx context.Context, args json.RawMessage) (string, json.RawMessage, error) {
-		gotInvocation = actions.InvocationID(ctx)
 		var in struct {
 			UserID int `json:"user_id"`
 		}
@@ -86,7 +87,7 @@ func TestExecuteValidatesChecksAndMapsErrors(t *testing.T) {
 		case 0:
 			return "", nil, actions.ErrForbidden
 		case 1:
-			return "", nil, &actions.ActionError{Code: "client_archived", Message: "the client is archived"}
+			return "", nil, &actions.ActionError{Code: "client.archived", Message: "the client is archived"}
 		}
 		return "assigned", json.RawMessage(`{"by": 7}`), nil
 	}}
@@ -94,14 +95,9 @@ func TestExecuteValidatesChecksAndMapsErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cn := nodes[0].(catalog.CallNode)
-	idx, err := actions.NewIndex(act)
-	if err != nil {
-		t.Fatal(err)
-	}
+	cc := nodes[0].(catalog.CommandCall)
 	in := func(args map[string]any, perms ...string) catalog.CallInput {
-		sub := spi.Subject{Permissions: perms}
-		return catalog.CallInput{TenantID: uuid.New(), IdempotencyKey: "r:n:t:1", Params: map[string]any{"args": args}, RunAs: sub, Commands: idx.Local(sub)}
+		return catalog.CallInput{TenantID: uuid.New(), IdempotencyKey: "r:n:t:1", Params: map[string]any{"args": args}, RunAs: spi.Subject{Permissions: perms}}
 	}
 	code := func(err error) string {
 		var ce *catalog.CallError
@@ -111,28 +107,74 @@ func TestExecuteValidatesChecksAndMapsErrors(t *testing.T) {
 		return ce.Code
 	}
 	cid := uuid.NewString()
-	if _, err := cn.Execute(context.Background(), in(map[string]any{"client_id": cid, "user_id": 5})); code(err) != actions.CodeForbidden {
-		t.Fatal("ran without the permission")
+	if _, _, err := cc.Command(in(map[string]any{"client_id": cid, "user_id": 5})); code(err) != actions.CodeForbidden {
+		t.Fatal("a command without the permission")
 	}
-	if _, err := cn.Execute(context.Background(), in(map[string]any{"client_id": "nope", "user_id": 5}, "Clients.Update")); code(err) != actions.CodeInvalidArgs {
-		t.Fatal("ran with invalid args")
+	if _, _, err := cc.Command(in(map[string]any{"client_id": "nope", "user_id": 5}, "Clients.Update")); code(err) != actions.CodeInvalidArgs {
+		t.Fatal("a command with invalid args")
 	}
-	if _, err := cn.Execute(context.Background(), in(map[string]any{"client_id": cid, "user_id": 0}, "Clients.Update")); code(err) != actions.CodeForbidden {
-		t.Fatal("ErrForbidden is not forbidden")
+	command, input, err := cc.Command(in(map[string]any{"client_id": cid, "user_id": 5}, "Clients.Update"))
+	if err != nil || command != "crm.client.assign" {
+		t.Fatalf("%s %v", command, err)
 	}
-	if _, err := cn.Execute(context.Background(), in(map[string]any{"client_id": cid, "user_id": 1}, "Clients.Update")); code(err) != "client_archived" {
-		t.Fatal("an ActionError lost its code")
+	// The command's body.
+	sub := spi.Subject{Permissions: []string{"Clients.Update"}}
+	out, err := actions.Run(context.Background(), act, sub, input)
+	if err != nil {
+		t.Fatal(err)
 	}
-	res, err := cn.Execute(context.Background(), in(map[string]any{"client_id": cid, "user_id": 5}, "Clients.Update"))
+	res, err := cc.CommandResult(in(nil), out)
 	if err != nil || res.Outcome != "assigned" || res.Output["by"] != float64(7) {
 		t.Fatalf("%v %+v", err, res)
 	}
-	_ = gotInvocation // set by the command host (the engine's test checks it)
-	// Without a command host the call fails before anything runs.
-	noHost := in(map[string]any{"client_id": cid, "user_id": 5}, "Clients.Update")
-	noHost.Commands = nil
-	if _, err := cn.Execute(context.Background(), noHost); code(err) != catalog.CallUnavailable {
-		t.Fatal("ran without a command host")
+	wire := func(err error) *pool.WireError {
+		var we *pool.WireError
+		if !errors.As(err, &we) {
+			t.Fatalf("want a wire error, got %v", err)
+		}
+		return we
+	}
+	_, err = actions.Run(context.Background(), act, spi.Subject{}, input)
+	if we := wire(err); we.Kind != pool.ErrKindDenied {
+		t.Fatalf("no permission: %+v", we)
+	}
+	zero, _ := json.Marshal(map[string]any{"client_id": cid, "user_id": 0})
+	_, err = actions.Run(context.Background(), act, sub, zero)
+	if we := wire(err); we.Kind != pool.ErrKindDomain || we.Code != "automation.forbidden" {
+		t.Fatalf("ErrForbidden: %+v", we)
+	}
+	one, _ := json.Marshal(map[string]any{"client_id": cid, "user_id": 1})
+	_, err = actions.Run(context.Background(), act, sub, one)
+	if we := wire(err); we.Code != "automation.client.archived" {
+		t.Fatalf("ActionError: %+v", we)
+	}
+	// Direct execution has no command to call.
+	if _, err := nodes[0].(catalog.CallNode).Execute(context.Background(), in(nil)); code(err) != catalog.CallUnavailable {
+		t.Fatal("Execute ran an action")
+	}
+}
+
+// Native registers the action's command contract once; the action commands of a set are its nodes.
+func TestNativeIsTheOneRegistration(t *testing.T) {
+	act := fake{key: "crm.client.reassign", spec: spec()}
+	item, err := actions.Native(act, func(native.Deps) (actions.Action, error) { return act, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	set := native.NewSet()
+	if err := set.Add(item); err != nil {
+		t.Fatal(err)
+	}
+	if err := set.Add(actions.MustNative(act, func(native.Deps) (actions.Action, error) { return act, nil })); err == nil {
+		t.Fatal("a key twice was accepted")
+	}
+	nodes, err := actions.NodesOf(set)
+	if err != nil || len(nodes) != 1 || nodes[0].Spec().Type != "action.crm.client.reassign" {
+		t.Fatalf("%v %v", err, nodes)
+	}
+	d, ok := set.Contract("crm.client.reassign")
+	if !ok || d.Permission() != "Clients.Update" {
+		t.Fatalf("contract %v", d)
 	}
 }
 

@@ -17,10 +17,11 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/access"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions"
+	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions/actionstest"
 	sandbox "github.com/iota-uz/iota-sdk/pkg/automation/code"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
-	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
 
@@ -52,6 +53,7 @@ const permBlock = "Users.Block"
 
 // blockAction records the users it blocked: its effect.
 type blockAction struct {
+	inv     string
 	mu      sync.Mutex
 	blocked []string
 	calls   atomic.Int32
@@ -83,6 +85,9 @@ func (a *blockAction) Run(ctx context.Context, actor spi.Subject, args json.RawM
 		return "", nil, errors.New("no invocation id")
 	}
 	a.mu.Lock()
+	a.inv = actions.InvocationID(ctx)
+	a.mu.Unlock()
+	a.mu.Lock()
 	a.blocked = append(a.blocked, in.UserID)
 	a.mu.Unlock()
 	out, err := json.Marshal(map[string]string{"blocked": in.UserID})
@@ -93,13 +98,24 @@ func (a *blockAction) Run(ctx context.Context, actor spi.Subject, args json.RawM
 type builtinEnv struct {
 	*env
 	rt     atomic.Pointer[engine.Runtime]
-	host   *commandHost
 	action *blockAction
 }
 
 func newBuiltinEnv(t *testing.T) *builtinEnv {
 	t.Helper()
 	be := &builtinEnv{env: newEnv(t), action: &blockAction{}}
+	// The action is registered once, as a native command; the command host runs its Go default, as the
+	// extension runtime's wiring does without Node.
+	set := native.NewSet()
+	require.NoError(t, set.Add(actions.MustNative(be.action, func(native.Deps) (actions.Action, error) { return be.action, nil })))
+	h, cat, err := actionstest.Host(be.db, set, actionstest.NoDeps{}, nil)
+	require.NoError(t, err)
+	be.commands, be.commandCatalog = h, cat
+	nodes, err := actions.NodesOf(set)
+	require.NoError(t, err)
+	for _, n := range nodes {
+		require.NoError(t, be.reg.RegisterNode(n))
+	}
 	require.NoError(t, builtin.Register(be.reg, builtin.Deps{
 		Engine:  testSandbox(t),
 		Secrets: fixedSecrets{"API_KEY": "sk-live-7f3a9c1d"},
@@ -109,48 +125,14 @@ func newBuiltinEnv(t *testing.T) *builtinEnv {
 			}
 			return nil, errors.New("no runtime yet")
 		},
-		Actions: []actions.Action{be.action},
 	}))
 	return be
 }
 
 func (be *builtinEnv) proc(tune ...func(*engine.Config)) *proc {
-	idx, err := actions.NewIndex(be.action)
-	require.NoError(be.t, err)
-	be.host = &commandHost{idx: idx}
-	p := be.env.proc(append([]func(*engine.Config){func(c *engine.Config) { c.Commands = be.host }}, tune...)...)
+	p := be.env.proc(tune...)
 	be.rt.Store(p.rt)
 	return p
-}
-
-// commandHost is the command host double: it runs an action's command body as the request's subject
-// and keeps the outcome of each invocation ID, as the host's invocation record does.
-type commandHost struct {
-	idx  *actions.Index
-	mu   sync.Mutex
-	seen map[string]json.RawMessage
-	ids  []string
-}
-
-func (h *commandHost) Invoke(ctx context.Context, req host.Request) (host.Result, error) {
-	h.mu.Lock()
-	if h.seen == nil {
-		h.seen = map[string]json.RawMessage{}
-	}
-	h.ids = append(h.ids, req.InvocationID)
-	if out, ok := h.seen[req.InvocationID]; ok {
-		h.mu.Unlock()
-		return host.Result{InvocationID: req.InvocationID, Output: out}, nil
-	}
-	h.mu.Unlock()
-	out, err := h.idx.Run(actions.WithInvocation(ctx, req.InvocationID), req.Contract, req.Subject, req.Input)
-	if err != nil {
-		return host.Result{InvocationID: req.InvocationID}, err
-	}
-	h.mu.Lock()
-	h.seen[req.InvocationID] = out
-	h.mu.Unlock()
-	return host.Result{InvocationID: req.InvocationID, Output: out}, nil
 }
 
 // step is the step of a node of a run.
@@ -311,10 +293,10 @@ func TestActionRunsAsTheRunAs(t *testing.T) {
 	p.until(func() bool { return be.status(p, run.RunID) == engine.RunDone }, "the action runs")
 	assert.Equal(t, []string{"ok:u-9"}, be.effects(run.RunID))
 	assert.Equal(t, []string{"u-9"}, be.action.blocked)
-	// The action went through the command host with the call's invocation ID.
-	require.Len(t, be.host.ids, 1)
-	_, err := uuid.Parse(be.host.ids[0])
-	require.NoError(t, err)
+	// The action went through wf.call: the workflow journaled the command under the call's invocation ID,
+	// and the host recorded that invocation.
+	assert.Equal(t, 1, be.count(`SELECT count(*) FROM extruntime.workflow_occurrences WHERE name = 'command' AND kind = 'call' AND status = 'completed'`))
+	assert.Equal(t, 1, be.count(`SELECT count(*) FROM extruntime.invocations WHERE contract = 'test.user.block' AND id::text = $1`, be.action.invocation()))
 	s := be.step(p, run.RunID, "block")
 	assert.Equal(t, "done", s.Outcome)
 }
@@ -560,4 +542,10 @@ func TestCodeContextIsNotInTheInstanceInput(t *testing.T) {
 	assert.Equal(t, []string{"ok:classified-77"}, be.effects(run.RunID), "the code read the context")
 	assert.Zero(t, be.count(`SELECT count(*) FROM extruntime.workflow_instances WHERE workflow = 'automation.call' AND input::text LIKE '%classified-77%'`))
 	assert.Zero(t, be.count(`SELECT count(*) FROM automation.call_contexts`), "the context goes with the call's result")
+}
+
+func (a *blockAction) invocation() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.inv
 }

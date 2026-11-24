@@ -4,11 +4,12 @@
 // Permission is checked against the run-as on every call (an author's right is never carried to the run)
 // and an author without it does not see the action in the palette.
 //
-// A module contributes its actions at composition (Contribute, ContributeFunc) and their command contracts
-// to its native.Set (Commands); the automations module registers them in the catalog when the application
-// starts, and a key registered twice fails the start. A call of an action is wf.call of its command: a
-// host request as the run-as with the call's invocation ID (the idempotency key's), so the host records
-// the invocation and a repeat returns its outcome.
+// A module registers an action once, in its native.Set (Native): the action's command contract, whose Go
+// implementation the action is. A key registered twice fails the composition of the set. The automations
+// module turns the action commands of the application's set into node types when the application starts.
+// A call of an action is wf.call of its command (catalog.CommandCall): the workflow's call primitive under
+// the call's invocation ID (from its idempotency key), journaled by the workflow and recorded by the host,
+// so a repeat returns the recorded outcome and a call that may have run is never repeated blindly.
 //
 // A graph names an action as {"type": "action", "params": {"action": "core.user.block", "args": {...}}}:
 // the action node dispatches (graph.Dispatch) to the node type "action." + key, which declares the
@@ -29,7 +30,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
@@ -54,6 +54,9 @@ type ActionSpec struct {
 	Permission         string         // checked against the run-as on every call; empty is not allowed
 	Idempotent         bool           // the action dedupes by InvocationID itself
 	Subjects           []string       // subject entities it applies to; empty = any
+	// Errors are the codes the action raises as an *ActionError, declared in its command's contract; an
+	// undeclared code is action_failed with the code in the message.
+	Errors []string
 }
 
 // Errors of an action's Run.
@@ -105,22 +108,6 @@ func InvocationID(ctx context.Context) string {
 	return host.InvocationID(ctx)
 }
 
-// Contribute adds actions to the application's composition.
-func Contribute(b *composition.Builder, a ...Action) {
-	list := append([]Action(nil), a...)
-	composition.Contribute(b, func(*composition.Container) ([]Action, error) { return list, nil })
-}
-
-// ContributeFunc adds the actions a factory builds from the container (the services they call).
-func ContributeFunc(b *composition.Builder, f func(*composition.Container) ([]Action, error)) {
-	composition.Contribute(b, f)
-}
-
-// Contributed lists the contributed actions of a compiled container.
-func Contributed(c *composition.Container) ([]Action, error) {
-	return composition.Contributions[Action](c)
-}
-
 var keyPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(\.[a-z][a-zA-Z0-9_]*)+$`)
 
 // Nodes are the node types of actions, checked: a key in the native grammar, each once, a permission, an
@@ -170,6 +157,7 @@ type node struct {
 }
 
 var (
+	_ catalog.CommandCall      = (*node)(nil)
 	_ catalog.CallNode         = (*node)(nil)
 	_ catalog.PermissionedNode = (*node)(nil)
 	_ catalog.LocalizedNode    = (*node)(nil)
@@ -296,13 +284,17 @@ func label(l manifest.Label, locale, fallback string) string {
 	return fallback
 }
 
-// Execute validates the args and calls the action's command through the call's command host (wf.call):
-// as the run-as, with the call's invocation ID, so a repeat after a crash returns the recorded outcome.
-// The engine checked Permission already (PermissionedNode); it is checked again here, and the host checks
-// it a third time, so no path runs an action for a subject without it.
-func (n *node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallResult, error) {
+// Execute is not used: an action's call is its command (Command, CommandResult). A direct execution (a
+// test of the node) has no command to call.
+func (n *node) Execute(context.Context, catalog.CallInput) (catalog.CallResult, error) {
+	return catalog.CallResult{}, &catalog.CallError{Code: catalog.CallUnavailable, Message: "an action runs only as the command of a run's call"}
+}
+
+// Command validates the args and names the action's command. The engine checked Permission already
+// (PermissionedNode); it is checked again here, and the host checks it a third time.
+func (n *node) Command(in catalog.CallInput) (string, json.RawMessage, error) {
 	if !in.RunAs.Has(n.spec.Permission) {
-		return catalog.CallResult{}, &catalog.CallError{Code: CodeForbidden, Message: "the run-as may not " + n.a.Key()}
+		return "", nil, &catalog.CallError{Code: CodeForbidden, Message: "the run-as may not " + n.a.Key()}
 	}
 	args, _ := in.Params["args"].(map[string]any)
 	if args == nil {
@@ -310,20 +302,18 @@ func (n *node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 	}
 	raw, err := json.Marshal(args)
 	if err != nil {
-		return catalog.CallResult{}, &catalog.CallError{Code: CodeInvalidArgs, Message: "the args are not JSON"}
+		return "", nil, &catalog.CallError{Code: CodeInvalidArgs, Message: "the args are not JSON"}
 	}
 	if n.spec.Args != nil {
 		if err := manifest.ValidateValue(*n.spec.Args, raw); err != nil {
-			return catalog.CallResult{}, &catalog.CallError{Code: CodeInvalidArgs, Message: err.Error()}
+			return "", nil, &catalog.CallError{Code: CodeInvalidArgs, Message: err.Error()}
 		}
 	}
-	if in.Commands == nil {
-		return catalog.CallResult{}, &catalog.CallError{Code: catalog.CallUnavailable, Message: "actions run only in a call of a run", Retryable: true}
-	}
-	out, err := in.Commands.Invoke(ctx, n.a.Key(), raw)
-	if err != nil {
-		return catalog.CallResult{}, err
-	}
+	return n.a.Key(), raw, nil
+}
+
+// CommandResult is the call's result from the command's {outcome, output}.
+func (n *node) CommandResult(_ catalog.CallInput, out json.RawMessage) (catalog.CallResult, error) {
 	var res commandOutput
 	if err := json.Unmarshal(out, &res); err != nil {
 		return catalog.CallResult{}, &catalog.CallError{Code: CodeInvalidOutput, Message: "the command's output is not an action result"}

@@ -529,6 +529,9 @@ func (x *callExec) run(ctx context.Context) (WaitResult, error) {
 	if !ok || !isCall {
 		return x.failed(nil, CodeUnsupported, req.NodeType+" has no call executor in this process", false), nil
 	}
+	if cc, ok := cn.(catalog.CommandCall); ok {
+		return x.command(ctx, cn, cc)
+	}
 	token, afterSeq := "", int64(0)
 	if _, asks := nt.(Asker); asks && req.AnswerWaitID != "" {
 		var err error
@@ -911,7 +914,6 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, prior int, 
 		TenantID: req.TenantID, AutomationID: req.AutomationID, RunID: req.RunID, NodeID: req.NodeID,
 		Attempt: prior + a.Attempt, IdempotencyKey: req.IdempotencyKey, Params: params, Subject: req.Subject,
 		RunAs: req.RunAs, Connection: conn.info, Credentials: conn.creds, Deadline: req.Deadline, Usage: x.c.r.cfg.Usage,
-		Commands: hostCommands{inv: x.c.r.cfg.Commands, req: req, instance: x.nr.Instance().ID},
 	}
 	callCtx, cancel := context.WithDeadline(ctx, req.Deadline)
 	defer cancel()
@@ -1042,50 +1044,62 @@ func watermark(ctx context.Context, q querier) (int64, error) {
 	return seq, serrors.FromDB(opCall, err)
 }
 
-// hostCommands invokes the commands of a call through the command host: the run-as as the subject, the
-// call's invocation ID, the child instance as the producer.
-type hostCommands struct {
-	inv      workflow.CommandInvoker
-	req      CallRequest
-	instance uuid.UUID
+// command is a call whose node calls a command (catalog.CommandCall): wf.call through the workflow's call
+// primitive under the call's invocation ID. The workflow journals it (KindCall) and the host records the
+// invocation: a call that started and has no recorded outcome is resolved from that record, or blocks the
+// instance as ambiguous, and is never repeated blindly.
+func (x *callExec) command(ctx context.Context, cn catalog.CallNode, cc catalog.CommandCall) (WaitResult, error) {
+	req := x.req
+	conn, refused, err := x.open(ctx, cn)
+	if err != nil {
+		return WaitResult{}, err
+	}
+	if refused != nil {
+		return x.failed(cn, refused.Code, refused.Message, false), nil
+	}
+	params, err := decodeMap(req.Input)
+	if err != nil {
+		return x.failed(cn, CodeInvalidInput, "the params are not an object", false), nil
+	}
+	in := catalog.CallInput{
+		TenantID: req.TenantID, AutomationID: req.AutomationID, RunID: req.RunID, NodeID: req.NodeID, Attempt: 1,
+		IdempotencyKey: req.IdempotencyKey, Params: params, Subject: req.Subject, RunAs: req.RunAs,
+		Connection: conn.info, Credentials: conn.creds, Deadline: req.Deadline, Usage: x.c.r.cfg.Usage,
+	}
+	command, input, err := cc.Command(in)
+	if err != nil {
+		var ce *catalog.CallError
+		if errors.As(err, &ce) {
+			return x.failed(cn, callCode(ce.Code, conn.masker), conn.masker.Mask(ce.Message), ce.Retryable), nil
+		}
+		return WaitResult{}, err
+	}
+	out, err := x.nr.CallAs(ctx, "command", 0, command, input, catalog.InvocationIDOf(req.IdempotencyKey))
+	if err != nil {
+		if we, ok := pool.AsWireError(err); ok && (we.Kind == pool.ErrKindDomain || we.Kind == pool.ErrKindValidation) {
+			return x.failed(cn, callCode(CommandErrorCode(we.Code), conn.masker), conn.masker.Mask(we.Message), false), nil
+		}
+		return WaitResult{}, err // suspend, a blocked instance, infrastructure: the workflow decides
+	}
+	res, err := cc.CommandResult(in, out)
+	if err != nil {
+		var ce *catalog.CallError
+		if errors.As(err, &ce) {
+			return x.failed(cn, callCode(ce.Code, conn.masker), conn.masker.Mask(ce.Message), ce.Retryable), nil
+		}
+		return WaitResult{}, err
+	}
+	raw, err := json.Marshal(nonNilMap(res.Output))
+	if err != nil {
+		return x.failed(cn, graph.FailInvalidAnswer, "the output of "+req.NodeID+" is not JSON", false), nil
+	}
+	x.c.r.metrics.call(ctx, x.connector(cn), req.NodeType, "ok")
+	return WaitResult{Outcome: res.Outcome, Output: conn.masker.MaskJSON(raw)}, nil
 }
 
-func (h hostCommands) Invoke(ctx context.Context, command string, input json.RawMessage) (json.RawMessage, error) {
-	if h.inv == nil {
-		return nil, &catalog.CallError{Code: catalog.CallUnavailable, Message: "this process has no command host", Retryable: true}
-	}
-	sub := h.req.RunAs
-	sub.TenantID = h.req.TenantID
-	if len(input) == 0 {
-		input = json.RawMessage(`null`)
-	}
-	id := catalog.InvocationIDOf(h.req.IdempotencyKey)
-	res, err := h.inv.Invoke(ctx, host.Request{
-		Contract: command, Input: input, Subject: sub, InvocationID: id, StartKeyBase: "automation.call:" + id,
-		Trigger:  host.Trigger{Kind: host.TriggerWorkflow, Ref: h.instance.String()},
-		Producer: spi.Producer{InstanceID: h.instance.String()},
-	})
-	if err == nil {
-		return res.Output, nil
-	}
-	if host.IsInfrastructure(err) || ctx.Err() != nil {
-		return nil, err
-	}
-	we, ok := pool.AsWireError(err)
-	if !ok {
-		return nil, err
-	}
-	switch {
-	case we.Code == host.CodeInvocationUnfinished:
-		return nil, &catalog.CallError{Code: catalog.CallOutcomeUnknown, Message: "an earlier attempt of " + command + " has no recorded outcome"}
-	case we.Kind == pool.ErrKindDenied:
-		return nil, &catalog.CallError{Code: CodeForbidden, Message: "the run-as may not call " + command}
-	case we.Kind == pool.ErrKindDomain || we.Kind == pool.ErrKindValidation:
-		code := we.Code
-		if i := strings.LastIndex(code, "."); i >= 0 {
-			code = code[i+1:]
-		}
-		return nil, &catalog.CallError{Code: code, Message: we.Message}
-	}
-	return nil, err
-}
+// CommandErrorPrefix starts the code of a domain error a command of an automation action raises; the
+// call's output.error.code is the code without it (an action's own code keeps its dots).
+const CommandErrorPrefix = "automation."
+
+// CommandErrorCode is the call's error code of a command's domain error code.
+func CommandErrorCode(code string) string { return strings.TrimPrefix(code, CommandErrorPrefix) }

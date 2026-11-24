@@ -13,30 +13,31 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions/servicectx"
-	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
 
 // ActionChatSendMessage is the key of the automation action that sends a message to a client's chat.
 const ActionChatSendMessage = "crm.chat.send_message"
 
-// contributeAutomationActions offers the chat operation of the CRM services to automation graphs.
-func contributeAutomationActions(b *composition.Builder) {
-	actions.ContributeFunc(b, func(c *composition.Container) ([]actions.Action, error) {
-		pool, err := composition.Resolve[*pgxpool.Pool](c)
+// chatSendNative is the one registration of crm.chat.send_message (actions.Native): the chat operation of
+// the CRM services, run as the run-as user.
+func chatSendNative() (native.Item, error) {
+	return actions.Native(chatSendAction{}, func(d native.Deps) (actions.Action, error) {
+		pool, err := native.Use[*pgxpool.Pool](d)
 		if err != nil {
 			return nil, err
 		}
-		users, err := composition.Resolve[user.Repository](c)
+		users, err := native.Use[user.Repository](d)
 		if err != nil {
 			return nil, err
 		}
-		chats, err := composition.Resolve[*services.ChatService](c)
+		chats, err := native.Use[*services.ChatService](d)
 		if err != nil {
 			return nil, err
 		}
-		return []actions.Action{chatSendAction{pool: pool, users: users, chats: chats}}, nil
+		return chatSendAction{pool: pool, users: users, chats: chats}, nil
 	})
 }
 
@@ -70,6 +71,7 @@ func (chatSendAction) Spec() actions.ActionSpec {
 			{Name: "message_id", Type: manifest.Type{Kind: manifest.KindInt}},
 		}},
 		Permission: crmPermissions.ClientUpdate.Name(),
+		Errors:     []string{"transport_unavailable"},
 	}
 }
 

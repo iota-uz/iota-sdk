@@ -64,7 +64,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	notifications.ContributeDefinitions(builder, eventNotifications()...)
 	composition.ProvideFunc(builder, services.NewClientService)
 	composition.ProvideFunc(builder, newCRMChatService)
-	contributeAutomationActions(builder)
 	composition.ProvideFunc(builder, services.NewMessageTemplateService)
 	composition.ProvideFunc(builder, handlers.NewClientHandler)
 

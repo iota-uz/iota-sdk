@@ -127,6 +127,10 @@ type NativeRun interface {
 	// as started before dispatch, and a started call without a result blocks
 	// the instance (ambiguous).
 	Call(ctx context.Context, name string, n int, command string, input json.RawMessage) (json.RawMessage, error)
+	// CallAs is Call with a pre-allocated invocation ID the caller derives from its own idempotency key:
+	// every attempt of the occurrence is that invocation, so the host returns a recorded outcome instead of
+	// running the command again.
+	CallAs(ctx context.Context, name string, n int, command string, input json.RawMessage, invocationID string) (json.RawMessage, error)
 	// Start starts a child instance with start key instance:name:n and the
 	// current instance as parent.
 	Start(ctx context.Context, name string, n int, workflow string, input json.RawMessage, opts StartOptions) (uuid.UUID, error)
@@ -518,7 +522,11 @@ type nativeCaller struct {
 	cmds CommandInvoker
 	name string
 	n    int
+	// preset is the invocation ID the caller chose (CallAs); empty: the engine allocates one.
+	preset string
 }
+
+func (c nativeCaller) presetInvocation() string { return c.preset }
 
 func (c nativeCaller) request(command string, input json.RawMessage) host.Request {
 	inst := c.r.rs.inst
@@ -544,6 +552,17 @@ func callResultOf(res host.Result) host.CallResult {
 }
 
 func (r *nativeRun) Call(ctx context.Context, name string, n int, command string, input json.RawMessage) (json.RawMessage, error) {
+	return r.call(ctx, name, n, command, input, "")
+}
+
+func (r *nativeRun) CallAs(ctx context.Context, name string, n int, command string, input json.RawMessage, invocationID string) (json.RawMessage, error) {
+	if _, err := uuid.Parse(invocationID); err != nil {
+		return nil, serrors.Wrap(opNative, fmt.Errorf("%w: invocation ID %q is not a UUID", ErrInvalid, invocationID))
+	}
+	return r.call(ctx, name, n, command, input, invocationID)
+}
+
+func (r *nativeRun) call(ctx context.Context, name string, n int, command string, input json.RawMessage, preset string) (json.RawMessage, error) {
 	o, ok, err := r.lookup(ctx, name, n, KindCall)
 	if err != nil {
 		return nil, err
@@ -575,7 +594,7 @@ func (r *nativeRun) Call(ctx context.Context, name string, n int, command string
 	if len(input) == 0 {
 		input = json.RawMessage(`null`)
 	}
-	caller := nativeCaller{r: r, cmds: deps.commands, name: name, n: n}
+	caller := nativeCaller{r: r, cmds: deps.commands, name: name, n: n, preset: preset}
 	if ok {
 		out, handled, err := r.e.resolveStarted(ctx, r.rs, o, command)
 		if handled {
@@ -599,6 +618,7 @@ func (r *nativeRun) callAtomic(ctx context.Context, c nativeCaller, name string,
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	req := c.request(command, input)
 	req.Tx, req.StartKeyBase = tx, idempotencyKey(r.rs, name, n)
+	req.InvocationID = c.preset
 	res, err := c.cmds.Invoke(ctx, req)
 	if err != nil {
 		_ = tx.Rollback(context.WithoutCancel(ctx))

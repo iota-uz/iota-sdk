@@ -16,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -43,33 +44,35 @@ func registerBuiltins(reg catalog.Registry, container *composition.Container) er
 	})
 }
 
-// actionsHook registers the actions modules contributed (actions.Contribute) when the application starts;
-// a key contributed twice fails the start.
+// actionsHook registers the node types of the action commands (actions.Native) of the application's
+// native set when the application starts. The set refused a key registered twice when it was composed.
 func actionsHook(container *composition.Container) composition.Hook {
 	return composition.Hook{
 		Name: "automations.actions",
 		Start: func(context.Context) (composition.StopFn, error) {
 			const op = serrors.Op("automations.actions")
-			list, err := actions.Contributed(container)
+			if !composition.Has[*native.Set](container) {
+				return nil, nil // no extension runtime wiring: no native commands, no actions
+			}
+			set, err := composition.Resolve[*native.Set](container)
 			if err != nil {
 				return nil, serrors.Wrap(op, err)
 			}
-			if len(list) == 0 {
+			nodes, err := actions.NodesOf(set)
+			if err != nil {
+				return nil, serrors.Wrap(op, err)
+			}
+			if len(nodes) == 0 {
 				return nil, nil
-			}
-			idx, err := composition.Resolve[*actions.Index](container)
-			if err != nil {
-				return nil, serrors.Wrap(op, err)
-			}
-			if err := idx.Add(list...); err != nil {
-				return nil, serrors.Wrap(op, err)
 			}
 			reg, err := composition.Resolve[catalog.Registry](container)
 			if err != nil {
 				return nil, serrors.Wrap(op, err)
 			}
-			if err := actions.Register(reg, list...); err != nil {
-				return nil, serrors.Wrap(op, err)
+			for _, n := range nodes {
+				if err := reg.RegisterNode(n); err != nil {
+					return nil, serrors.Wrap(op, err)
+				}
 			}
 			return nil, nil
 		},

@@ -5,8 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
-	"strings"
+	"slices"
 	"sync"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
@@ -67,91 +66,112 @@ type commandOutput struct {
 	Output  json.RawMessage `json:"output,omitempty"`
 }
 
-// Index is the contributed actions by key; the automations module provides it from the composition.
-type Index struct {
-	mu sync.RWMutex
-	m  map[string]Action
-}
+// ErrorPrefix starts the code of an action command's domain error; the call's output.error.code is the
+// code after it, dots and all.
+const ErrorPrefix = "automation."
 
-// NewIndex indexes actions; a key twice or an action Nodes refuses is an error.
-func NewIndex(list ...Action) (*Index, error) {
-	if _, err := Nodes(list...); err != nil {
-		return nil, err
-	}
-	m := make(map[string]Action, len(list))
-	for _, a := range list {
-		if a != nil {
-			m[a.Key()] = a
-		}
-	}
-	return &Index{m: m}, nil
-}
+var (
+	templatesMu sync.RWMutex
+	templates   = map[string]Action{}
+)
 
-// Add indexes more actions (the automations module adds the contributed ones when the application
-// starts); a key already indexed is an error and nothing is added.
-func (i *Index) Add(list ...Action) error {
-	if _, err := Nodes(list...); err != nil {
-		return err
-	}
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	if i.m == nil {
-		i.m = map[string]Action{}
-	}
-	for _, a := range list {
-		if a == nil {
-			continue
-		}
-		if _, dup := i.m[a.Key()]; dup {
-			return fmt.Errorf("automation action %s is registered twice", a.Key())
-		}
-	}
-	for _, a := range list {
-		if a != nil {
-			i.m[a.Key()] = a
-		}
-	}
-	return nil
-}
-
-// Get is the action of a key.
-func (i *Index) Get(key string) (Action, bool) {
-	if i == nil {
-		return nil, false
-	}
-	i.mu.RLock()
-	defer i.mu.RUnlock()
-	a, ok := i.m[key]
+// Template is the action registered (Native) for a command ID: its key and spec.
+func Template(key string) (Action, bool) {
+	templatesMu.RLock()
+	defer templatesMu.RUnlock()
+	a, ok := templates[key]
 	return a, ok
 }
 
-// Keys are the keys of the index, sorted.
-func (i *Index) Keys() []string {
-	i.mu.RLock()
-	defer i.mu.RUnlock()
-	out := make([]string, 0, len(i.m))
-	for k := range i.m {
-		out = append(out, k)
+// Native is the one registration of an action: its command contract for the module's native.Set. The ID
+// is the key, the permission the action's, the input its args and the output {outcome, output}; the
+// implementation is the action build returns from the application's dependencies (the services it
+// calls), run in a transaction of the host as the invocation's subject. template gives the key and the
+// spec; its dependencies are not used. The automations module makes the node type of every action command
+// of the application's set (NodesOf).
+func Native(template Action, build func(native.Deps) (Action, error)) (native.Item, error) {
+	key, spec := template.Key(), template.Spec()
+	if _, err := newNode(template); err != nil {
+		return nil, err
 	}
-	sort.Strings(out)
-	return out
+	input := &manifest.Type{Kind: manifest.KindObject}
+	if spec.Args != nil {
+		input = spec.Args
+	}
+	outputProps := []manifest.Property{{Name: "outcome", Type: manifest.Type{Kind: manifest.KindString}}}
+	if spec.Output != nil {
+		o := *spec.Output
+		o.Optional = true
+		outputProps = append(outputProps, manifest.Property{Name: "output", Type: o})
+	}
+	declared := []string{ErrorPrefix + CodeForbidden, ErrorPrefix + CodeActionFailed, ErrorPrefix + CodeInvalidOutput}
+	for _, c := range spec.Errors {
+		declared = append(declared, ErrorPrefix+c)
+	}
+	def, err := native.NewCommand[json.RawMessage, json.RawMessage](key, native.Spec{
+		Permission: spec.Permission, Label: spec.Label, Description: label(spec.Description, "en", ""), Errors: declared,
+		Input: input, Output: &manifest.Type{Kind: manifest.KindObject, Properties: outputProps},
+	}, func(d native.Deps) (native.CommandFunc[json.RawMessage, json.RawMessage], error) {
+		a, err := build(d)
+		if err != nil {
+			return nil, err
+		}
+		if a == nil || a.Key() != key {
+			return nil, fmt.Errorf("automation action %s: build returned another action", key)
+		}
+		return func(ctx context.Context, c native.CommandContext, in json.RawMessage) (json.RawMessage, error) {
+			var out json.RawMessage
+			err := c.Transaction(ctx, func(ctx context.Context, tx native.Tx) error {
+				var runErr error
+				out, runErr = Run(ctx, a, tx.Subject(), in)
+				return runErr
+			})
+			return out, err
+		}, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("automation action %s: %w", key, err)
+	}
+	templatesMu.Lock()
+	templates[key] = template
+	templatesMu.Unlock()
+	return def, nil
 }
 
-// Run runs the action of a key as subject: the body of its command. A refusal is a *pool.WireError the
-// engine maps to the node's failure: denied (forbidden), validation (invalid_args), domain (an
-// ActionError's code, or action_failed); an infrastructure error stays one.
-func (i *Index) Run(ctx context.Context, key string, subject spi.Subject, args json.RawMessage) (json.RawMessage, error) {
-	a, ok := i.Get(key)
-	if !ok {
-		return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: "automation.action_missing", Message: "no action " + key + " in this process"}
+// MustNative is Native for actions declared in Go: it panics on an invalid action.
+func MustNative(template Action, build func(native.Deps) (Action, error)) native.Item {
+	it, err := Native(template, build)
+	if err != nil {
+		panic(err)
 	}
-	spec := a.Spec()
+	return it
+}
+
+// NodesOf are the node types of the action commands of a native set (Native).
+func NodesOf(set *native.Set) ([]catalog.NodeType, error) {
+	if set == nil {
+		return nil, nil
+	}
+	var list []Action
+	for _, d := range set.Contracts() {
+		if a, ok := Template(d.ID()); ok {
+			list = append(list, a)
+		}
+	}
+	return Nodes(list...)
+}
+
+// Run runs an action as subject: the body of its command. A refusal is a *pool.WireError the engine maps
+// to the node's failure: denied (forbidden), validation (invalid_args), domain (an ActionError's code, or
+// action_failed); an infrastructure error stays one.
+func Run(ctx context.Context, a Action, subject spi.Subject, args json.RawMessage) (json.RawMessage, error) {
+	key, spec := a.Key(), a.Spec()
 	if !subject.Has(spec.Permission) {
-		return nil, &pool.WireError{Kind: pool.ErrKindDenied, Code: "automation.forbidden", Message: "permission " + spec.Permission + " is required"}
+		return nil, &pool.WireError{Kind: pool.ErrKindDenied, Code: ErrorPrefix + CodeForbidden, Message: "permission " + spec.Permission + " is required"}
 	}
 	if spec.Args != nil {
 		if err := manifest.ValidateValue(*spec.Args, args); err != nil {
-			return nil, &pool.WireError{Kind: pool.ErrKindValidation, Code: "automation." + CodeInvalidArgs, Message: err.Error()}
+			return nil, &pool.WireError{Kind: pool.ErrKindValidation, Code: ErrorPrefix + CodeInvalidArgs, Message: err.Error()}
 		}
 	}
 	outcome, out, err := a.Run(ctx, subject, args)
@@ -159,15 +179,18 @@ func (i *Index) Run(ctx context.Context, key string, subject spi.Subject, args j
 		var ae *ActionError
 		switch {
 		case errors.Is(err, ErrForbidden):
-			return nil, &pool.WireError{Kind: pool.ErrKindDenied, Code: "automation.forbidden", Message: "the run-as may not " + key}
+			// A refusal of the action itself (the service's own check): a domain failure the graph handles.
+			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + CodeForbidden, Message: "the run-as may not " + key}
 		case errors.Is(err, ErrInvalidArgs):
-			return nil, &pool.WireError{Kind: pool.ErrKindValidation, Code: "automation." + CodeInvalidArgs, Message: err.Error()}
+			return nil, &pool.WireError{Kind: pool.ErrKindValidation, Code: ErrorPrefix + CodeInvalidArgs, Message: err.Error()}
+		case errors.As(err, &ae) && slices.Contains(spec.Errors, ae.Code):
+			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + ae.Code, Message: ae.Message}
 		case errors.As(err, &ae):
-			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: "automation." + ae.Code, Message: ae.Message}
+			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + CodeActionFailed, Message: ae.Code + ": " + ae.Message}
 		case ctx.Err() != nil, host.IsInfrastructure(err):
 			return nil, err
 		}
-		return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: "automation." + CodeActionFailed, Message: err.Error()}
+		return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + CodeActionFailed, Message: err.Error()}
 	}
 	if outcome == "" {
 		outcome = OutcomeDone
@@ -177,85 +200,8 @@ func (i *Index) Run(ctx context.Context, key string, subject spi.Subject, args j
 	}
 	if len(out) > 0 && string(out) != "null" && spec.Output != nil {
 		if err := manifest.ValidateValue(*spec.Output, out); err != nil {
-			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: "automation." + CodeInvalidOutput, Message: err.Error()}
+			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + CodeInvalidOutput, Message: err.Error()}
 		}
 	}
 	return json.Marshal(commandOutput{Outcome: outcome, Output: out})
-}
-
-// Commands are the native command contracts of actions, for the module's native.Set: the ID is the key,
-// the permission the action's, the input its args and the output {outcome, output}. The implementation
-// runs the contributed action of the key (the Index the composition provides) in a transaction of the
-// host, as the invocation's subject. templates give the specs; their dependencies are not used.
-func Commands(templates ...Action) ([]native.Item, error) {
-	out := make([]native.Item, 0, len(templates))
-	for _, a := range templates {
-		key, spec := a.Key(), a.Spec()
-		if _, err := newNode(a); err != nil {
-			return nil, err
-		}
-		input := &manifest.Type{Kind: manifest.KindObject}
-		if spec.Args != nil {
-			input = spec.Args
-		}
-		outputProps := []manifest.Property{{Name: "outcome", Type: manifest.Type{Kind: manifest.KindString}}}
-		if spec.Output != nil {
-			o := *spec.Output
-			o.Optional = true
-			outputProps = append(outputProps, manifest.Property{Name: "output", Type: o})
-		}
-		def, err := native.NewCommand[json.RawMessage, json.RawMessage](key, native.Spec{
-			Permission: spec.Permission, Label: spec.Label, Description: label(spec.Description, "en", ""),
-			Input: input, Output: &manifest.Type{Kind: manifest.KindObject, Properties: outputProps},
-		}, func(d native.Deps) (native.CommandFunc[json.RawMessage, json.RawMessage], error) {
-			idx, err := native.Use[*Index](d)
-			if err != nil {
-				return nil, err
-			}
-			return func(ctx context.Context, c native.CommandContext, in json.RawMessage) (json.RawMessage, error) {
-				var out json.RawMessage
-				err := c.Transaction(ctx, func(ctx context.Context, tx native.Tx) error {
-					var runErr error
-					out, runErr = idx.Run(ctx, key, tx.Subject(), in)
-					return runErr
-				})
-				return out, err
-			}, nil
-		})
-		if err != nil {
-			return nil, fmt.Errorf("automation action %s: %w", key, err)
-		}
-		out = append(out, def)
-	}
-	return out, nil
-}
-
-// Local is catalog.Commands that runs the index's actions in process as subject, with the refusals
-// mapped as the engine maps the command host's: a test of a node, a process without a command host.
-func (i *Index) Local(subject spi.Subject) catalog.Commands {
-	return localCommands{i: i, subject: subject}
-}
-
-type localCommands struct {
-	i       *Index
-	subject spi.Subject
-}
-
-func (l localCommands) Invoke(ctx context.Context, command string, input json.RawMessage) (json.RawMessage, error) {
-	out, err := l.i.Run(ctx, command, l.subject, input)
-	if err == nil {
-		return out, nil
-	}
-	var we *pool.WireError
-	if !errors.As(err, &we) {
-		return nil, err
-	}
-	code := we.Code
-	if j := strings.LastIndex(code, "."); j >= 0 {
-		code = code[j+1:]
-	}
-	if we.Kind == pool.ErrKindDenied {
-		code = CodeForbidden
-	}
-	return nil, &catalog.CallError{Code: code, Message: we.Message}
 }

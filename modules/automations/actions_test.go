@@ -15,16 +15,30 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 )
 
-// The built-in node types are in the module's registry and the SDK's actions join it at start.
+// nativesComponent provides the application's native set, as the extension runtime's wiring does.
+type nativesComponent struct{ set *native.Set }
+
+func (nativesComponent) Descriptor() composition.Descriptor { return composition.Descriptor{Name: "test_natives"} }
+func (nativesComponent) LocaleFS() []*embed.FS               { return nil }
+func (c nativesComponent) Build(b *composition.Builder) error {
+	composition.Provide[*native.Set](b, c.set)
+	return nil
+}
+
+// The built-in node types are in the module's registry, and the actions of the application's native
+// set (registered once, actions.Native) join it at start.
 func TestBuiltinNodesAndSDKActionsAreInTheCatalog(t *testing.T) {
-	f := itf.Setup(t, itf.WithComponents(modules.Components()...), itf.WithUser(itf.User()))
+	set, err := native.Compose(modules.Natives()...)
+	require.NoError(t, err)
+	f := itf.Setup(t, itf.WithComponents(append(modules.Components(), nativesComponent{set: set})...), itf.WithUser(itf.User()))
 	reg, err := composition.Resolve[catalog.Registry](f.Container)
 	require.NoError(t, err)
-	for _, typ := range []string{"set", "code", "http", "start_automation", "run_automation",
+	for _, typ := range []string{"set", "code", "http", "start_automation", "run_automation", "action",
 		"action.core.user.block", "action.core.user.unblock", "action.core.group.add_user", "action.core.group.remove_user",
 		"action.crm.chat.send_message"} {
 		_, ok := reg.Node(typ)
@@ -48,21 +62,12 @@ func (dupAction) Run(context.Context, spi.Subject, json.RawMessage) (string, jso
 	return "done", nil, nil
 }
 
-type dupComponent struct{}
-
-func (dupComponent) Descriptor() composition.Descriptor {
-	return composition.Descriptor{Name: "dup_actions"}
-}
-func (dupComponent) LocaleFS() []*embed.FS { return nil }
-func (dupComponent) Build(b *composition.Builder) error {
-	actions.Contribute(b, dupAction{})
-	return nil
-}
-
-// A key contributed twice fails the start of the application.
-func TestDuplicateActionKeyFailsTheStart(t *testing.T) {
-	db := itf.NewHarness(t, itf.HarnessConfig{Name: "automations_actions"}).Scope(t)
-	_, _, err := itf.SetupApplication(db.Pool, append(modules.Components(), dupComponent{}))
+// A key registered twice fails the composition of the native set.
+func TestDuplicateActionKeyFailsTheComposition(t *testing.T) {
+	dup := func(s *native.Set) error {
+		return s.Add(actions.MustNative(dupAction{}, func(native.Deps) (actions.Action, error) { return dupAction{}, nil }))
+	}
+	_, err := native.Compose(append(modules.Natives(), dup)...)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "core.user.block")
 }
