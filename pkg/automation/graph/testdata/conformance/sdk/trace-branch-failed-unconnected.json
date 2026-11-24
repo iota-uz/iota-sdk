@@ -190,7 +190,11 @@
       "outcome": "failed",
       "context_patch": {
         "output": {
-          "error": "the model is not available"
+          "error": {
+            "code": "*",
+            "message": "the model is not available",
+            "retryable": false
+          }
         }
       },
       "token": "split.legal"

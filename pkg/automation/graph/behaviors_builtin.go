@@ -180,6 +180,10 @@ func (callBehavior) OutcomeRule(spec NodeSpec) OutcomeRule {
 		from := *spec.OutcomesFrom
 		r.From = &from
 	}
+	if spec.Optional != nil {
+		o := *spec.Optional
+		r.Optional = &o
+	}
 	return r
 }
 

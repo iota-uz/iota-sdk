@@ -120,7 +120,7 @@ func telegramConnector(t *testing.T) *telegram {
 	p, err := graph.FieldsParams(expr.Fields{{Name: "text", Field: expr.StringField}})
 	require.NoError(t, err)
 	return &telegram{
-		nodes: []catalog.NodeType{node{spec: graph.NodeSpec{Type: "telegram.send", Behavior: graph.BehaviorCall, Params: p, Outcomes: []string{"sent"}}}},
+		nodes: []catalog.NodeType{node{spec: graph.NodeSpec{Type: "telegram.send", Behavior: graph.BehaviorCall, DryRun: graph.DryRunCapture, Params: p, Outcomes: []string{"sent"}}}},
 		sources: []catalog.TriggerSource{source{events: []graph.EventSpec{{Key: "telegram.message", Subject: graph.SubjectConversation,
 			Payload: expr.Fields{{Name: "text", Field: expr.StringField}}}}}},
 	}

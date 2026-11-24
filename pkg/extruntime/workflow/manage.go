@@ -637,6 +637,25 @@ func (e *Engine) lockBlocked(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUI
 // chosen by an operator (for example the outcome of an ambiguous command found
 // by inspecting the data). Call Resume afterwards.
 func (e *Engine) Resolve(ctx context.Context, tenant, id uuid.UUID, name string, n int, result json.RawMessage) error {
+	return e.resolve(ctx, tenant, id, name, n, result, nil)
+}
+
+// ResolveIf is Resolve and Resume of the occurrence an operator observed, in one transaction: its
+// updated_at must still be observedAt under the instance's lock, else nothing changes and the error is
+// ErrConflict (a newer attempt took its place). within, when set, writes the caller's own state in the
+// same transaction, before the instance is resumed.
+func (e *Engine) ResolveIf(ctx context.Context, tenant, id uuid.UUID, name string, n int, observedAt time.Time, result json.RawMessage, within func(ctx context.Context, tx pgx.Tx) error) error {
+	return e.resolve(ctx, tenant, id, name, n, result, &opIf{observedAt: observedAt, within: within})
+}
+
+// opIf binds a management operation to the occurrence an operator observed, and resumes the instance
+// with it.
+type opIf struct {
+	observedAt time.Time
+	within     func(ctx context.Context, tx pgx.Tx) error
+}
+
+func (e *Engine) resolve(ctx context.Context, tenant, id uuid.UUID, name string, n int, result json.RawMessage, cond *opIf) error {
 	if !json.Valid(result) {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: result is not valid JSON", ErrInvalid))
 	}
@@ -646,6 +665,9 @@ func (e *Engine) Resolve(ctx context.Context, tenant, id uuid.UUID, name string,
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	if err := e.lockBlocked(ctx, tx, tenant, id); err != nil {
+		return err
+	}
+	if err := sameOccurrence(ctx, tx, tenant, id, name, n, cond); err != nil {
 		return err
 	}
 	tag, err := tx.Exec(ctx, `
@@ -659,6 +681,9 @@ func (e *Engine) Resolve(ctx context.Context, tenant, id uuid.UUID, name string,
 	if tag.RowsAffected() == 0 {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: occurrence %s#%d is not an unresolved call or step", ErrNotFound, name, n))
 	}
+	if err := e.resumeIf(ctx, tx, tenant, id, cond); err != nil {
+		return err
+	}
 	return serrors.FromDB(opManage, tx.Commit(ctx))
 }
 
@@ -666,12 +691,24 @@ func (e *Engine) Resolve(ctx context.Context, tenant, id uuid.UUID, name string,
 // new. For an ambiguous command this accepts the risk of a duplicate effect.
 // Call Resume afterwards.
 func (e *Engine) Retry(ctx context.Context, tenant, id uuid.UUID, name string, n int) error {
+	return e.retry(ctx, tenant, id, name, n, nil)
+}
+
+// RetryIf is Retry and Resume of the occurrence an operator observed, in one transaction (as ResolveIf).
+func (e *Engine) RetryIf(ctx context.Context, tenant, id uuid.UUID, name string, n int, observedAt time.Time, within func(ctx context.Context, tx pgx.Tx) error) error {
+	return e.retry(ctx, tenant, id, name, n, &opIf{observedAt: observedAt, within: within})
+}
+
+func (e *Engine) retry(ctx context.Context, tenant, id uuid.UUID, name string, n int, cond *opIf) error {
 	tx, err := e.cfg.DB.Begin(ctx)
 	if err != nil {
 		return serrors.FromDB(opManage, err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	if err := e.lockBlocked(ctx, tx, tenant, id); err != nil {
+		return err
+	}
+	if err := sameOccurrence(ctx, tx, tenant, id, name, n, cond); err != nil {
 		return err
 	}
 	tag, err := tx.Exec(ctx, `
@@ -684,7 +721,50 @@ func (e *Engine) Retry(ctx context.Context, tenant, id uuid.UUID, name string, n
 	if tag.RowsAffected() == 0 {
 		return serrors.Wrap(opManage, fmt.Errorf("%w: occurrence %s#%d is not retryable", ErrNotFound, name, n))
 	}
+	if err := e.resumeIf(ctx, tx, tenant, id, cond); err != nil {
+		return err
+	}
 	return serrors.FromDB(opManage, tx.Commit(ctx))
+}
+
+// sameOccurrence checks, under the instance's lock, that the occurrence is still the one observed.
+func sameOccurrence(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID, name string, n int, cond *opIf) error {
+	if cond == nil {
+		return nil
+	}
+	observedAt := &cond.observedAt
+	var at time.Time
+	err := tx.QueryRow(ctx, `SELECT updated_at FROM extruntime.workflow_occurrences WHERE instance_id = $1 AND tenant_id = $2 AND name = $3 AND n = $4`,
+		id, tenant, name, n).Scan(&at)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return serrors.Wrap(opManage, fmt.Errorf("%w: occurrence %s#%d is gone", ErrConflict, name, n))
+	}
+	if err != nil {
+		return serrors.FromDB(opManage, err)
+	}
+	if !at.Equal(*observedAt) {
+		return serrors.Wrap(opManage, fmt.Errorf("%w: occurrence %s#%d changed since it was observed", ErrConflict, name, n))
+	}
+	return nil
+}
+
+// resumeIf runs the caller's writes and resumes the instance in the operation's transaction (opIf).
+func (e *Engine) resumeIf(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID, cond *opIf) error {
+	if cond == nil {
+		return nil
+	}
+	if cond.within != nil {
+		if err := cond.within(ctx, tx); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE extruntime.workflow_instances
+		SET status = 'running', blocked_reason = '', blocked_detail = '', failures = 0, lease_owner = NULL, lease_until = NULL, wake_at = NULL, updated_at = now()
+		WHERE id = $1 AND tenant_id = $2 AND status = 'blocked'`, id, tenant); err != nil {
+		return serrors.FromDB(opManage, err)
+	}
+	return notify(ctx, tx)
 }
 
 // Resume makes a blocked instance runnable again: after the cause was removed

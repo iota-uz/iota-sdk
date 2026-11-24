@@ -247,7 +247,14 @@ func (m *mover) call(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	if err != nil {
 		return serrors.FromDB(opRun, err)
 	}
-	ws, err := begin(ctx, sp, m.stepContext(tok, seq), node, raw)
+	sc := m.stepContext(tok, seq)
+	if fo := m.in().FailedOutcome(node.ID); fo != "" {
+		// Connected to a node that handles the failure: an edge to ignore (or none, inside a construct)
+		// would end the path silently on a call that may have been made, so such a call blocks instead.
+		to, ok := m.in().Next(node.ID, fo)
+		sc.FailedConnected = ok && to != graph.Ignore
+	}
+	ws, err := begin(ctx, sp, sc, node, raw)
 	if err != nil {
 		_ = sp.Rollback(ctx)
 		if host.IsInfrastructure(err) || ctx.Err() != nil {
@@ -478,7 +485,7 @@ func (m *mover) noEdge(ctx context.Context, tok *tokenRow) error {
 	reason := "an outcome of " + tok.From + " has no edge"
 	for _, w := range tok.Writes {
 		if w.Node == tok.From {
-			if msg, ok := w.State.Output["error"].(string); ok && msg != "" {
+			if msg := graph.FailureMessage(w.State.Output); msg != "" {
 				reason = msg
 			}
 		}
@@ -518,8 +525,16 @@ func (m *mover) nodeFailed(ctx context.Context, tok *tokenRow, nodeID, behavior 
 	if fo == "" {
 		return m.fail(ctx, tok, nodeID, seq, e, behavior, input)
 	}
-	out := map[string]any{"error": e.Message, "code": e.Code}
-	out["error"] = m.fitError(e.Message, out)
+	var out map[string]any
+	if m.in().StructuredFailure(nodeID) {
+		// output.error {code, message, retryable}: templates of the failed branch read it. The message
+		// was masked by the call that failed.
+		out = graph.FailedOutput(e.Code, "", e.Retryable)
+		out = graph.FailedOutput(e.Code, m.fitError(e.Message, out), e.Retryable)
+	} else {
+		out = map[string]any{"error": e.Message, "code": e.Code}
+		out["error"] = m.fitError(e.Message, out)
+	}
 	if big := m.tooLarge(out, "the failed output of "+nodeID); big != nil {
 		// Even the fixed fields do not fit: the run fails.
 		return m.stop(ctx, tok, nodeID, behavior, seq, input, *big)
@@ -541,8 +556,18 @@ func (m *mover) fitError(message string, with map[string]any) string {
 	for k, v := range with {
 		out[k] = v
 	}
+	structured, _ := out["error"].(map[string]any)
 	fits := func(s string) bool {
-		out["error"] = s
+		if structured != nil {
+			e := map[string]any{}
+			for k, v := range structured {
+				e[k] = v
+			}
+			e["message"] = s
+			out["error"] = e
+		} else {
+			out["error"] = s
+		}
 		return m.tooLarge(out, "") == nil
 	}
 	for !fits(message) && message != "" {
@@ -870,7 +895,10 @@ func (m *mover) timedOut(ctx context.Context, tok *tokenRow, w waitRow) error {
 		}
 		tok.Flow.State.TimedOut = true
 		return m.decideJoin(ctx, tok)
-	case waitTask, waitCall:
+	case waitTask, waitCall, waitEvent:
+		if w.Kind == waitEvent && w.Spec.Ask == nil {
+			break
+		}
 		_, spec, _ := m.spec(w.NodeID)
 		for _, o := range m.in().View().Outcomes(w.NodeID) {
 			if o == CodeTimeout {
@@ -915,6 +943,12 @@ func (m *mover) wakeEvent(ctx context.Context, tok *tokenRow, w waitRow, ev inbo
 		gev[k] = v
 	}
 	gev["kind"] = ev.Kind
+	if w.Spec.Ask != nil {
+		var changed bool
+		m.s.sensitive, changed = mergeRefs(m.s.sensitive, refs)
+		m.s.sensitiveChanged = m.s.sensitiveChanged || changed
+		return m.answer(ctx, tok, w, gev)
+	}
 	gctx, err := m.context(ctx, tok)
 	if err != nil {
 		return err
@@ -965,6 +999,9 @@ func (m *mover) result(ctx context.Context, tok *tokenRow, w waitRow, wr WaitRes
 	}
 	outcome := wr.Outcome
 	fo := m.in().FailedOutcome(w.NodeID)
+	if wr.Await != nil && wr.Error == nil {
+		return m.awaitAnswer(ctx, tok, w, *wr.Await, wr.Output)
+	}
 	if wr.Error != nil && (outcome == "" || outcome == fo) {
 		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, *wr.Error)
 	}
@@ -980,6 +1017,90 @@ func (m *mover) result(ctx context.Context, tok *tokenRow, w waitRow, wr WaitRes
 		if o == outcome {
 			known = true
 		}
+	}
+	if !known {
+		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, StepError{Code: graph.FailUnknownOutcome, Message: fmt.Sprintf("%s has no outcome %q", w.NodeID, outcome)})
+	}
+	return m.applyResult(ctx, tok, w, outcome, output, nil)
+}
+
+// awaitAnswer opens the answer wait of an ask node whose question was sent: the token keeps waiting on
+// the node's step; the inbound event that carries the correlation token wakes it (Asker.Answer), its
+// timeout takes the timeout outcome.
+func (m *mover) awaitAnswer(ctx context.Context, tok *tokenRow, call waitRow, aw AwaitSpec, sent json.RawMessage) error {
+	if aw.Event == "" || !validToken(aw.Token) {
+		_, spec, _ := m.spec(call.NodeID)
+		return m.nodeFailed(ctx, tok, call.NodeID, string(spec.Behavior), call.Spec.Seq, nil, StepError{Code: graph.FailInvalidAnswer, Message: call.NodeID + " asked for an answer without an event"})
+	}
+	ev, token := aw.Event, aw.Token
+	w := waitRow{RunID: m.x.run.ID, TokenID: tok.ID, WaitID: call.WaitID + "/answer", Kind: waitEvent, NodeID: call.NodeID,
+		EventKind: &ev, AfterSeq: aw.AfterSeq, Correlation: &token, Spec: waitSpecJSON{Seq: call.Spec.Seq, Ask: &askSpec{Single: aw.Single, Sent: sent}}}
+	timeout := m.capWait(time.Duration(aw.TimeoutMS) * time.Millisecond)
+	if timeout <= 0 {
+		timeout = m.x.r.cfg.Limits.WaitMax
+	}
+	at := m.s.now.Add(timeout)
+	w.TimeoutAt, w.Spec.Timer = &at, true
+	// The token was issued with the answer event and policy the node named before sending; the wait
+	// keeps them, and the token lives as long as the wait (an answer that came early spent a single
+	// token already: it stays, spent, and the wait's catch-up delivers that answer).
+	tag, err := m.tx.Exec(ctx, `UPDATE automation.correlations SET expires_at = $4 WHERE tenant_id = $1 AND run_id = $2 AND token = $3 AND expires_at > now()`,
+		m.x.tenant, m.x.run.ID, token, at)
+	if err != nil {
+		return serrors.FromDB(opRun, err)
+	}
+	if tag.RowsAffected() == 0 {
+		// The token is gone (it expired before the answer wait could open): no answer can find the wait.
+		_, spec, _ := m.spec(call.NodeID)
+		return m.nodeFailed(ctx, tok, call.NodeID, string(spec.Behavior), call.Spec.Seq, nil,
+			StepError{Code: CodeTimeout, Message: call.NodeID + "'s correlation expired before its answer wait opened"})
+	}
+	if err := insertWait(ctx, m.tx, m.x.tenant, w); err != nil {
+		return err
+	}
+	if _, err := m.tx.Exec(ctx, `UPDATE automation.steps SET output = $5 WHERE tenant_id = $1 AND run_id = $2 AND token_id = $3 AND seq = $4`,
+		m.x.tenant, m.x.run.ID, tok.ID, call.Spec.Seq, []byte(nonNull(sent))); err != nil {
+		return serrors.FromDB(opRun, err)
+	}
+	return nil
+}
+
+// answer applies the inbound answer of an ask node: Asker.Answer maps it to an outcome.
+func (m *mover) answer(ctx context.Context, tok *tokenRow, w waitRow, gev graph.Event) error {
+	_, spec, _ := m.spec(w.NodeID)
+	behavior := string(spec.Behavior)
+	if err := closeWait(ctx, m.tx, m.x.tenant, w, waitFired); err != nil {
+		return err
+	}
+	nt, _ := m.x.r.cfg.Catalog.Node(spec.Type)
+	asker, ok := nt.(Asker)
+	if !ok {
+		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, StepError{Code: CodeUnsupported, Message: spec.Type + " does not take answers in this process"})
+	}
+	payload := map[string]any{}
+	for k, v := range gev {
+		if k != "kind" {
+			payload[k] = v
+		}
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	outcome, out, err := asker.Answer(raw)
+	if err != nil {
+		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, StepError{Code: graph.FailInvalidAnswer, Message: err.Error()})
+	}
+	output, err := decodeMap(out)
+	if err != nil {
+		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, StepError{Code: graph.FailInvalidAnswer, Message: "the answer is not a JSON object"})
+	}
+	if serr := m.tooLarge(output, "the answer of "+w.NodeID); serr != nil {
+		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, *serr)
+	}
+	known := false
+	for _, o := range m.in().View().Outcomes(w.NodeID) {
+		known = known || o == outcome
 	}
 	if !known {
 		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, StepError{Code: graph.FailUnknownOutcome, Message: fmt.Sprintf("%s has no outcome %q", w.NodeID, outcome)})
@@ -1097,7 +1218,32 @@ func (m *mover) context(ctx context.Context, tok *tokenRow) (graph.Context, erro
 	if err != nil {
 		return graph.Context{}, err
 	}
-	return graph.Context{Event: event, Nodes: nodes, Vars: vars, Now: m.s.now, Tenant: map[string]any{"id": m.x.tenant.String()}, Foreach: each}, nil
+	evs, err := runEvents(m.x.run.Events)
+	if err != nil {
+		return graph.Context{}, err
+	}
+	return m.x.r.BuildRunContext(ctx, RunContextInput{
+		TenantID: m.x.tenant, AutomationID: m.x.run.AutomationID, RunID: m.x.run.ID, Subject: m.x.run.Subject, RunAs: m.x.subject,
+		Event: event, Events: evs, Nodes: nodes, Foreach: each, Now: m.s.now, Vars: vars,
+	})
+}
+
+// runEvents reads the merged events of a run (runs.events).
+func runEvents(raw json.RawMessage) ([]map[string]any, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var list []any
+	if err := expr.UnmarshalJSON(raw, &list); err != nil {
+		return nil, err
+	}
+	out := make([]map[string]any, 0, len(list))
+	for _, v := range list {
+		if m, ok := v.(map[string]any); ok {
+			out = append(out, m)
+		}
+	}
+	return out, nil
 }
 
 // subjectVars loads the subject's variables with the run-as rights, once per step.

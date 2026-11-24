@@ -263,6 +263,60 @@ queued conversation runs, runs of disabled graphs, retention.
   transaction); call and human nodes go through `Config.Calls` / `Config.Tasks`; a Code node
   type implements `engine.CodeNode` so `EnableReview` shows its code and digest.
 
+### Calls, answers, inbound and authoring (#1336)
+
+- **Calls.** `Config.Calls` left nil is the engine's `CallRunner`: each call node runs in a child
+  instance of the native contract `automation.call` (registered by `Runtime.Natives()` next to
+  `automation.run`), started in the step's transaction with the start key
+  `automation.call:<run:node:token:seq>`. The child opens the connection
+  (`Config.Credentials`, a `connectors.CredentialSource`), checks the run-as's right to the node,
+  calls `Execute` in the journaled `Effect` `call#k` and signals the parent's `inbox` with a
+  `WaitResult` in the transaction of its receipt. Credentials are opened outside the `Effect` and
+  never journaled; outputs and error messages are masked with them. A 429 (`RetryAfter` or
+  `rate_limited`) and a retryable error of an idempotent node are repeated after
+  `max(RetryAfter, backoff)` while the deadline holds (`CallLimits`); an attempt after a crash of a
+  node that is not idempotent is `outcome_unknown`: the failed outcome when it leads to a node,
+  otherwise the child blocks (`workflow.Ambiguous`) and the run shows `blocked` (`call_blocked`).
+  `Runtime.Operations()` resolves or retries such a call (`Automations.Operate`). A failed call or
+  effect puts `output.error {code, message, retryable}` (`nodes.<id>.output.error.message`). A node type
+  whose static `Output` declares its own `error` keeps that field as it declares it (a string error has
+  no `.message`); an `OutputFrom` schema's `error` is replaced by the object.
+- **Ask.** A call node that implements `engine.Asker` gets a correlation token
+  (`CorrelationFrom(ctx)`, base62, 12 characters, `automation.correlations`) before `Execute`;
+  after it the parent opens an event wait that only inbound events carrying the token wake;
+  `Asker.Answer` maps the event to the outcome, the wait's timeout to `timeout`. A single wait
+  closes with the first answer: a later one is `ErrCorrelationClosed`. An ask also implements `engine.AnswerEventer`: it names
+  its answer event and single policy before sending, the token is issued with them, and only that
+  event takes it, before or after the wait opens (an ask without it is refused when a graph is saved).
+- **Inbound.** `Runtime.Inbound()` writes connector events into the outbox in the caller's
+  transaction, deduplicated by `automation.inbound_dedup` and with
+  `cause = {inbound: {connection_id, correlation, by_self}}`. `engine.InboundHandler` serves the
+  webhooks of `connectors.Connector`s that implement `WebhookReceiver` (404 for an unknown or
+  foreign connection and a failed `Verify`, 413 over `MaxBody`, 200 after the commit, 5xx on a
+  database failure); `Runtime.NewPoller` polls `Poller` connectors of connections an enabled graph
+  uses and moves the cursor (`UpdateInbound`) after the commit. A trigger's `collect` merges
+  inbound events with one key inside a window into one run (`events`; `automation.inbound_collect`).
+- **Loops.** A trigger does not start on an event its own graph's step published (the `Origin` in
+  `cause.automation_id`) nor on a message its connector sent itself (`event.by_self`), unless the
+  trigger sets `include_self`.
+- **Human node.** `engine.NewHumanNode()` (type `human`) with `engine.NewHumanBridge` as
+  `Config.Tasks` opens a task of #1327 (assignees, quorum, veto, delegation, escalation); its
+  buttons are its outcomes, its timeout `timeout`; the observer below also refuses a decision without
+  the comment its button requires or with fields its form refuses. `engine.NewTaskAssignedObserver` is the
+  `workflow.TaskObserver` that publishes `automation.task.assigned.v1` (`engine.TaskAssigned`)
+  with the newly assigned users on creation, delegation and escalation, in the task's transaction.
+- **Context.** `Runtime.BuildRunContext` is the one builder of a run's context (live trigger and
+  step, dry run, test node): `event`, `events`, `nodes`, the subject's variables, `subject {entity,
+  key, url}`, `run {id, url}` (`Config.Links`, `engine.NewLinks`), `tenant`, `now`.
+  `engine.CheckRunContext` lists the required fields a context leaves out.
+- **Authoring.** `Runtime.Authoring()`: `DryRun` runs the interpreter with the node types'
+  `DryRun` modes (an `execute` call node runs for real unless `Decisions` is `scripted`; an effect node
+  never runs in a dry run, `execute` or not: its effects are traced, as `capture`; `capture` traces the
+  rendered params, `forbid` stops on entry; every node type declares its mode, `dry_run_undeclared`);
+  `cached` decisions of `engine.DecisionNode`s come from `automation.decision_cache` (30 days).
+  `TestNode` runs one node once as the author: no run, no steps; an effect node's transaction is
+  rolled back. `SearchSubjects` uses an optional `SubjectSearcher` of the subject loader.
+
 ## 6. Triggers and the event catalog
 
 - **Domain events** come from the outbox through the event catalog (`native.Event`, D7).

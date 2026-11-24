@@ -86,7 +86,7 @@ func callNode(t *testing.T, typ string) node {
 	p, err := graph.FieldsParams(expr.Fields{{Name: "text", Field: expr.StringField}})
 	require.NoError(t, err)
 	return node{spec: graph.NodeSpec{
-		Type: typ, Title: typ, Behavior: graph.BehaviorCall, Params: p, Templates: []string{"text"},
+		Type: typ, Title: typ, Behavior: graph.BehaviorCall, DryRun: graph.DryRunCapture, Params: p, Templates: []string{"text"},
 		Outcomes: []string{"sent", "failed"},
 	}}
 }
@@ -473,7 +473,7 @@ func TestWaitOnAnUnavailableEventHidesTheNode(t *testing.T) {
 	p, err := graph.FieldsParams(expr.Fields{})
 	require.NoError(t, err)
 	require.NoError(t, reg.RegisterNode(node{spec: graph.NodeSpec{
-		Type: "telegram.await", Behavior: graph.BehaviorWait, Params: p,
+		Type: "telegram.await", Behavior: graph.BehaviorWait, DryRun: graph.DryRunExecute, Params: p,
 		Wait: &graph.WaitSpec{Event: graph.ValueOrParam{Value: "telegram.message"}, Matched: "matched"},
 	}}))
 	v, err := reg.ForTenant(context.Background(), uuid.New())

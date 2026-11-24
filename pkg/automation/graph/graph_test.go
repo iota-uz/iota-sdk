@@ -64,7 +64,7 @@ func testCatalog(t *testing.T) graph.Catalog {
 		t.Fatal(err)
 	}
 	nodes["notify"] = graph.NodeSpec{
-		Type: "notify", Title: "Notify", Behavior: graph.BehaviorEffect, Params: notify,
+		Type: "notify", Title: "Notify", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture, Params: notify,
 		Templates: []string{"text"}, Outcomes: []string{"done", "failed"}, DoneOutcome: "done", FailedOutcome: "failed",
 	}
 	order := expr.ObjectOf(expr.Fields{{Name: "total", Field: expr.DoubleField}, {Name: "status", Field: expr.StringField}})

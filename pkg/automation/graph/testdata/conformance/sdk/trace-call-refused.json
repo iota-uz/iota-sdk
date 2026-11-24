@@ -91,7 +91,11 @@
       "outcome": "failed",
       "context_patch": {
         "output": {
-          "error": "no connection"
+          "error": {
+            "code": "*",
+            "message": "no connection",
+            "retryable": false
+          }
         }
       }
     },

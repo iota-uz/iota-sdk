@@ -150,6 +150,10 @@ type ConnectionStore interface {
 	// creds == nil on an update keeps the credentials.
 	Save(ctx context.Context, c Connection, creds Credentials) (Connection, error)
 	SetStatus(ctx context.Context, tenantID, id uuid.UUID, s ConnectionStatus, reason string) error
+	// SetStatusIf sets the status only when cond holds for the inbound state and the row's version, both
+	// under the row lock (a poller sets needs_reauth only while it still owns the connection's poll and
+	// the credentials it used are still the connection's); it reports whether the status was set.
+	SetStatusIf(ctx context.Context, tenantID, id uuid.UUID, s ConnectionStatus, reason string, cond func(state json.RawMessage, version int) bool) (bool, error)
 	// Delete refuses a connection in use with ErrConnectionInUse (an *InUseError).
 	Delete(ctx context.Context, tenantID, id uuid.UUID) error
 	// UpdateInbound changes the inbound state (a polling cursor, a subscription id) under the row lock.

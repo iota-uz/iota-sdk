@@ -32,7 +32,7 @@ func (bigNode) ApplyEffect(ctx context.Context, tx pgx.Tx, run engine.StepContex
 
 func TestOversizedEffectOutputRollsTheEffectBack(t *testing.T) {
 	e := newEnv(t)
-	require.NoError(t, e.reg.RegisterNode(bigNode{specNode{graph.NodeSpec{Type: "acme.big", Title: "Big", Behavior: graph.BehaviorEffect,
+	require.NoError(t, e.reg.RegisterNode(bigNode{specNode{graph.NodeSpec{Type: "acme.big", Title: "Big", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture,
 		FailedOutcome: "failed", Outcomes: []string{"done", "failed"},
 		Params: graph.MustSchemaParams(`{"type":"object","properties":{"size":{"type":"integer"}},"required":["size"],"additionalProperties":false}`)}}}))
 	p := e.proc(func(c *engine.Config) { c.Limits.PayloadBytes = 4096 })

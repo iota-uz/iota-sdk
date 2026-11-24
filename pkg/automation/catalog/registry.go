@@ -213,6 +213,9 @@ func (r *registry) checkNode(n NodeType, seen map[string]bool) error {
 	if declaresConnection(spec.Params) {
 		return fmt.Errorf("node type %s: %s is a reserved param", typ, ConnectionParam)
 	}
+	if err := graph.CheckDryRun(spec); err != nil {
+		return err
+	}
 	if err := spec.Output.Validate(); err != nil {
 		return fmt.Errorf("node type %s: output: %w", typ, err)
 	}
@@ -242,6 +245,11 @@ func (r *registry) checkTriggers(s TriggerSource, seen map[string]bool) error {
 		if _, ok := e.Payload.Get("kind"); ok {
 			return fmt.Errorf("event %s: payload: kind is the event's own field", e.Key)
 		}
+		// by_self is the engine's own field of inbound events (an optional bool it sets): a source may
+		// declare it only as that.
+		if f, ok := e.Payload.Get(BySelfField); ok && f.String() != expr.OptionalOf(expr.BoolField).String() {
+			return fmt.Errorf("event %s: payload: %s is the engine's optional bool of inbound events", e.Key, BySelfField)
+		}
 		if declaresConnection(e.TriggerParams) {
 			return fmt.Errorf("event %s: %s is a reserved param", e.Key, ConnectionParam)
 		}
@@ -269,8 +277,24 @@ func (r *registry) addNode(n NodeType, kind ConnectorKind) {
 func (r *registry) addTriggers(s TriggerSource, kind ConnectorKind) {
 	req := requirements(s.Requires(), kind)
 	for _, e := range s.Events() {
+		if len(req) > 0 {
+			e = withBySelf(e)
+		}
 		r.events[e.Key] = eventEntry{source: s, spec: e, requires: req}
 	}
+}
+
+// BySelfField is the payload field the engine sets on an inbound event of a connector: true for a
+// message the connector sent itself (its own bot, its own mailbox).
+const BySelfField = "by_self"
+
+// withBySelf declares by_self on an inbound event that does not declare it.
+func withBySelf(e graph.EventSpec) graph.EventSpec {
+	if _, ok := e.Payload.Get(BySelfField); ok {
+		return e
+	}
+	e.Payload = append(e.Payload.Clone(), expr.Prop{Name: BySelfField, Field: expr.OptionalOf(expr.BoolField)})
+	return e
 }
 
 // requirements are the declared kinds and the contributing connector's kind, each once.

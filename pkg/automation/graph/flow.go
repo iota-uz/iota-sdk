@@ -101,19 +101,19 @@ func flowNode(b Behavior, subjects []string) NodeSpec {
 		return NodeSpec{
 			Type: "parallel", Title: "Parallel", Behavior: BehaviorParallel,
 			Description: "Starts every branch at once, each as its own token.",
-			Params:      MustSchemaParams(parallelSchema()), Subjects: subjects,
+			Params:      MustSchemaParams(parallelSchema()), Subjects: subjects, DryRun: DryRunExecute,
 		}
 	case BehaviorJoin:
 		return NodeSpec{
 			Type: "join", Title: "Join", Behavior: BehaviorJoin,
 			Description: "Waits for all, any or n branches of its parallel, or its timeout counted from the fork.",
-			Params:      MustSchemaParams(joinSchema()), Subjects: subjects, Output: joinOutput.Clone(),
+			Params:      MustSchemaParams(joinSchema()), Subjects: subjects, DryRun: DryRunExecute, Output: joinOutput.Clone(),
 		}
 	case BehaviorForeach:
 		return NodeSpec{
 			Type: "foreach", Title: "For each", Behavior: BehaviorForeach,
 			Description: "Runs the body from item to its collect once per item of a CEL list.",
-			Params:      MustSchemaParams(foreachSchema()), Subjects: subjects,
+			Params:      MustSchemaParams(foreachSchema()), Subjects: subjects, DryRun: DryRunExecute,
 			Expressions: []ExprParam{{Param: "items", Type: expr.TypeList}},
 			Output:      foreachOutput.Clone(), FailedOutcome: OutcomeFailed,
 		}
@@ -121,7 +121,7 @@ func flowNode(b Behavior, subjects []string) NodeSpec {
 		return NodeSpec{
 			Type: "collect", Title: "Collect", Behavior: BehaviorCollect,
 			Description: "Ends the body of a foreach for one item, with an optional CEL value as its result.",
-			Params:      MustSchemaParams(collectSchema()), Subjects: subjects,
+			Params:      MustSchemaParams(collectSchema()), Subjects: subjects, DryRun: DryRunExecute,
 			Expressions: []ExprParam{{Param: "value", Type: expr.TypeAny}},
 		}
 	}

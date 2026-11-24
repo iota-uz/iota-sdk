@@ -27,8 +27,12 @@ var nameRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)
 const (
 	maxDisplayName  = 200
 	maxStatusReason = 2000
-	maxInboundBytes = 1 << 20
+	maxInboundBytes = MaxInboundBytes
 )
+
+// MaxInboundBytes is the most a connection's inbound state (a polling cursor, a subscription id) holds,
+// as JSON: UpdateInbound refuses more, and so does whoever writes the state in its own transaction.
+const MaxInboundBytes = 1 << 20
 
 // IsName reports whether s is a valid connection name.
 func IsName(s string) bool { return nameRe.MatchString(s) }
@@ -463,6 +467,42 @@ func (s *store) SetStatus(ctx context.Context, tenantID, id uuid.UUID, status Co
 		return serrors.Wrap(op, ErrNotFound)
 	}
 	return nil
+}
+
+func (s *store) SetStatusIf(ctx context.Context, tenantID, id uuid.UUID, status ConnectionStatus, reason string, cond func(state json.RawMessage, version int) bool) (bool, error) {
+	const op = serrors.Op("automation.connectors.Store.SetStatusIf")
+	if err := s.configured(); err != nil {
+		return false, serrors.Wrap(op, err)
+	}
+	if !status.valid() {
+		return false, serrors.Wrap(op, fmt.Errorf("%w: status %q", ErrInvalid, status))
+	}
+	if utf8.RuneCountInString(reason) > maxStatusReason {
+		return false, serrors.Wrap(op, fmt.Errorf("%w: status reason is longer than %d", ErrInvalid, maxStatusReason))
+	}
+	set := false
+	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		var state []byte
+		var version int
+		err := tx.QueryRow(ctx, `SELECT inbound, version FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, tenantID, id).Scan(&state, &version)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if !cond(json.RawMessage(state), version) {
+			return nil
+		}
+		_, err = tx.Exec(ctx, `UPDATE automation.connections SET status = $3, status_reason = $4, version = version + 1, updated_at = now()
+			WHERE tenant_id = $1 AND id = $2`, tenantID, id, string(status), reason)
+		set = err == nil
+		return err
+	})
+	if err != nil {
+		return false, serrors.Wrap(op, err)
+	}
+	return set, nil
 }
 
 func (s *store) Delete(ctx context.Context, tenantID, id uuid.UUID) error {

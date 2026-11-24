@@ -198,6 +198,14 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 		} else if len(t.Params) > 0 {
 			errs.add(at+".params", CodeParams, "a trigger on %s takes no params", t.Event)
 		}
+		if col := t.Collect; col != nil {
+			if _, ok := col.WindowDuration(); !ok {
+				errs.add(at+".collect.window", CodeParams, "the window is a duration from %s to %s", CollectMinWindow, CollectMaxWindow)
+			}
+			if col.Max < 0 || col.Max > CollectMaxEvents {
+				errs.add(at+".collect.max", CodeParams, "max is 1..%d", CollectMaxEvents)
+			}
+		}
 		if event.MatchHook != "" && o.MatchHooks[event.MatchHook] == nil {
 			errs.add(at+".event", CodeInvalid, "%s matches by %s, a rule this product does not have", t.Event, event.MatchHook)
 		}
@@ -424,6 +432,11 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 		if t.Filter != "" {
 			if _, ok := c.Events[t.Event]; ok {
 				check(t.ID, fmt.Sprintf("triggers[%d].filter", i), t.Event, false, t.Filter, expr.TypeBool)
+			}
+		}
+		if t.Collect != nil && t.Collect.Key != "" {
+			if _, ok := c.Events[t.Event]; ok {
+				check(t.ID, fmt.Sprintf("triggers[%d].collect.key", i), t.Event, false, t.Collect.Key, expr.TypeAny)
 			}
 		}
 	}

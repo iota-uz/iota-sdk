@@ -11,9 +11,11 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/big"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -44,6 +46,46 @@ type Trigger struct {
 	Event  string         `json:"event"`            // an event key of the catalog
 	Filter string         `json:"filter,omitempty"` // CEL bool, ≤ 2000
 	Params map[string]any `json:"params,omitempty"` // by EventSpec.TriggerParams or Match
+	// IncludeSelf lets the trigger start on events the graph caused itself: an event published by a step
+	// of a run of this graph (its Origin) or an inbound message the connector sent itself (event.by_self).
+	// By default such events start nothing, so a graph does not loop on its own effects.
+	IncludeSelf bool `json:"include_self,omitempty"`
+	// Collect merges inbound events with one key inside a window into one run (an inbound trigger only).
+	Collect *Collect `json:"collect,omitempty"`
+}
+
+// Collect is how a trigger merges inbound events: events whose Key (CEL over event) is the same inside
+// Window start one run, in which event is the last one and events all of them in order. Each new event
+// extends the window, up to 2×Window from the first one and Max events.
+type Collect struct {
+	Key    string `json:"key"`           // CEL, the merge key; its value is turned into a string
+	Window string `json:"window"`        // duration as in timeouts (30s, 5m), 10s..30m
+	Max    int    `json:"max,omitempty"` // 1..50, default 50
+}
+
+// Limits of Collect.
+const (
+	CollectMinWindow = 10 * time.Second
+	CollectMaxWindow = 30 * time.Minute
+	CollectMaxEvents = 50
+)
+
+// WindowDuration is the parsed window; ok is false for a window that is not a duration in range.
+func (c Collect) WindowDuration() (time.Duration, bool) {
+	ms, ok := DurationMs(c.Window)
+	d := time.Duration(ms) * time.Millisecond
+	if !ok || d < CollectMinWindow || d > CollectMaxWindow {
+		return 0, false
+	}
+	return d, true
+}
+
+// MaxEvents is Max with its default.
+func (c Collect) MaxEvents() int {
+	if c.Max <= 0 || c.Max > CollectMaxEvents {
+		return CollectMaxEvents
+	}
+	return c.Max
 }
 
 // Node is one step of the graph: a node type of the catalog with its params.
@@ -136,7 +178,19 @@ const graphSchema = `{
           "id": {"$ref": "#/$defs/id"},
           "event": {"$ref": "#/$defs/key"},
           "filter": {"type": "string", "maxLength": 2000, "description": "CEL of type bool."},
-          "params": {"type": "object", "description": "By the event's trigger_params or match fields."}
+          "params": {"type": "object", "description": "By the event's trigger_params or match fields."},
+          "include_self": {"type": "boolean", "description": "Start also on events this graph caused itself (its own steps, its connector's own messages)."},
+          "collect": {
+            "type": "object",
+            "description": "Inbound triggers: events with one key inside the window start one run (event: the last, events: all).",
+            "properties": {
+              "key": {"type": "string", "minLength": 1, "maxLength": 2000, "description": "CEL, the merge key."},
+              "window": {"type": "string", "pattern": "^[1-9][0-9]{0,5}(s|m|h)$", "description": "10s..30m"},
+              "max": {"type": "integer", "minimum": 1, "maximum": 50}
+            },
+            "required": ["key", "window"],
+            "additionalProperties": false
+          }
         },
         "required": ["id", "event"],
         "additionalProperties": false
@@ -234,6 +288,23 @@ func Decode(raw []byte) (Graph, []GraphError) {
 		}
 		if p, ok := tm["params"].(map[string]any); ok {
 			tr.Params = p
+		}
+		if b, ok := tm["include_self"].(bool); ok {
+			tr.IncludeSelf = b
+		}
+		if c, ok := tm["collect"].(map[string]any); ok {
+			col := &Collect{}
+			col.Key, _ = c["key"].(string)
+			col.Window, _ = c["window"].(string)
+			if n, ok := c["max"].(json.Number); ok {
+				// 4, 4.0 and 4e0 are the same integer (the schema checked it is one); a value that is not an
+				// integer stays out of range, so validation refuses it.
+				col.Max = -1
+				if r, ok := new(big.Rat).SetString(string(n)); ok && r.IsInt() && r.Num().IsInt64() && r.Num().Int64() <= CollectMaxEvents {
+					col.Max = int(r.Num().Int64())
+				}
+			}
+			tr.Collect = col
 		}
 		g.Triggers = append(g.Triggers, tr)
 	}

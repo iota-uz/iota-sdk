@@ -86,7 +86,7 @@ func TestEnableIsRefusedWhenItsConnectionWasDeletedAfterValidation(t *testing.T)
 	for _, spec := range append(graph.BuiltinNodes(nil, []string{evPaid, evCreated, engine.EventRunFinished}), graph.FlowNodes(nil)...) {
 		require.NoError(t, reg.RegisterNode(specNode{spec}))
 	}
-	require.NoError(t, reg.RegisterNode(mailNode{specNode{graph.NodeSpec{Type: "acme.mail", Title: "Mail", Behavior: graph.BehaviorEffect,
+	require.NoError(t, reg.RegisterNode(mailNode{specNode{graph.NodeSpec{Type: "acme.mail", Title: "Mail", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture,
 		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}}}))
 	conn := uuid.New()
 	_, err := e.db.Exec(ctx, `INSERT INTO automation.connections (tenant_id, id, kind, name, display_name, status, key_id, nonce, secret, version)
@@ -604,7 +604,7 @@ func TestConnectionDeleteAndEnableShareASmallPool(t *testing.T) {
 	for _, spec := range append(graph.BuiltinNodes(nil, []string{engine.EventRunFinished}), graph.FlowNodes(nil)...) {
 		require.NoError(t, reg.RegisterNode(specNode{spec}))
 	}
-	require.NoError(t, reg.RegisterNode(botNode{specNode{graph.NodeSpec{Type: "acme.bot", Title: "Bot", Behavior: graph.BehaviorEffect,
+	require.NoError(t, reg.RegisterNode(botNode{specNode{graph.NodeSpec{Type: "acme.bot", Title: "Bot", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture,
 		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}}}))
 	rt := runtimeOn(t, e, p, pool, reg)
 	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": []byte("0123456789abcdef0123456789abcdef")})
@@ -668,7 +668,7 @@ func TestConnectionDeleteSeesAResolutionThatChangedBeforeItsLock(t *testing.T) {
 	for _, spec := range append(graph.BuiltinNodes(nil, []string{engine.EventRunFinished}), graph.FlowNodes(nil)...) {
 		require.NoError(t, reg.RegisterNode(specNode{spec}))
 	}
-	require.NoError(t, reg.RegisterNode(botNode{specNode{graph.NodeSpec{Type: "acme.bot", Title: "Bot", Behavior: graph.BehaviorEffect,
+	require.NoError(t, reg.RegisterNode(botNode{specNode{graph.NodeSpec{Type: "acme.bot", Title: "Bot", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture,
 		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}}}))
 	cat := &changingCatalog{Registry: reg}
 	rt := runtimeOn(t, e, p, e.db, cat)
@@ -709,7 +709,7 @@ func TestConnectionDeleteIsRefusedWhileAnOmittedConnectionMayResolveToIt(t *test
 	for _, spec := range append(graph.BuiltinNodes(nil, []string{engine.EventRunFinished}), graph.FlowNodes(nil)...) {
 		require.NoError(t, reg.RegisterNode(specNode{spec}))
 	}
-	require.NoError(t, reg.RegisterNode(botNode{specNode{graph.NodeSpec{Type: "acme.bot", Title: "Bot", Behavior: graph.BehaviorEffect,
+	require.NoError(t, reg.RegisterNode(botNode{specNode{graph.NodeSpec{Type: "acme.bot", Title: "Bot", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture,
 		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}}}))
 	rt := runtimeOn(t, e, p, e.db, reg)
 	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": []byte("0123456789abcdef0123456789abcdef")})
@@ -767,7 +767,7 @@ func botRuntime(t *testing.T, e *env, p *proc, db *pgxpool.Pool, platform connec
 	for _, spec := range append(graph.BuiltinNodes(nil, []string{engine.EventRunFinished}), graph.FlowNodes(nil)...) {
 		require.NoError(t, reg.RegisterNode(specNode{spec}))
 	}
-	require.NoError(t, reg.RegisterNode(botNode{specNode{graph.NodeSpec{Type: "acme.bot", Title: "Bot", Behavior: graph.BehaviorEffect,
+	require.NoError(t, reg.RegisterNode(botNode{specNode{graph.NodeSpec{Type: "acme.bot", Title: "Bot", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture,
 		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}}}))
 	cat := &hookCatalog{Registry: reg}
 	rt := runtimeOn(t, e, p, db, cat)

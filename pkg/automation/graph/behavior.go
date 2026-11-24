@@ -438,6 +438,10 @@ func copyNodeSpec(n NodeSpec) NodeSpec {
 		r := *n.OutputFrom
 		n.OutputFrom = &r
 	}
+	if n.Optional != nil {
+		o := *n.Optional
+		n.Optional = &o
+	}
 	if n.Answer != nil {
 		a := *n.Answer
 		if a.Confidence != nil {

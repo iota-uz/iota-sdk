@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
@@ -299,7 +300,7 @@ func (x *execution) tx(ctx context.Context, label string, fn func(ctx context.Co
 		if seq != n {
 			return nil, fmt.Errorf("run %s: transaction %d expected, the run is at %d", x.run.ID, n, seq)
 		}
-		cause, _ := json.Marshal(map[string]any{"run_id": x.run.ID.String(), "depth": x.run.Depth})
+		cause, _ := json.Marshal(map[string]any{"run_id": x.run.ID.String(), "depth": x.run.Depth, "automation_id": x.run.AutomationID.String()})
 		if _, err := tx.Exec(ctx, `SELECT set_config('app.automation_cause', $1, true)`, string(cause)); err != nil {
 			return nil, serrors.FromDB(opRun, err)
 		}
@@ -423,6 +424,9 @@ func (x *execution) stepOne(ctx context.Context) (bool, error) {
 
 // timers fires the first due timer of the run's open waits and opens the tasks waits asked for.
 func (x *execution) timers(ctx context.Context) (bool, error) {
+	if done, err := x.endedCalls(ctx); err != nil || done {
+		return done, err
+	}
 	waits, err := queryWaits(ctx, x.r.cfg.DB, `SELECT `+waitCols+` FROM automation.waits WHERE tenant_id = $1 AND run_id = $2 AND status = 'open' ORDER BY created_at, wait_id`, x.tenant, x.run.ID)
 	if err != nil {
 		return false, err
@@ -497,6 +501,56 @@ func (x *execution) timers(ctx context.Context) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// endedCalls gives a call wait whose child ended without a result (failed, terminated) that result,
+// when the child's own signal did not arrive (a run-as refused when it ended): the run never waits for
+// a call that cannot answer.
+func (x *execution) endedCalls(ctx context.Context) (bool, error) {
+	rows, err := x.r.cfg.DB.Query(ctx, `
+		SELECT w.wait_id, c.id, c.status, c.input FROM automation.waits w
+		JOIN extruntime.workflow_instances c ON c.id = (w.spec->'exec'->>'child')::uuid AND c.tenant_id = w.tenant_id
+		WHERE w.tenant_id = $1 AND w.run_id = $2 AND w.status = 'open' AND w.kind = 'call' AND c.status IN ('failed', 'terminated')
+		ORDER BY w.created_at LIMIT 1`, x.tenant, x.run.ID)
+	if err != nil {
+		return false, serrors.FromDB(opRun, err)
+	}
+	var (
+		waitID, status string
+		child          uuid.UUID
+		input          []byte
+		found          bool
+	)
+	for rows.Next() {
+		if err := rows.Scan(&waitID, &child, &status, &input); err != nil {
+			rows.Close()
+			return false, serrors.FromDB(opRun, err)
+		}
+		found = true
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil || !found {
+		return false, serrors.FromDB(opRun, err)
+	}
+	req, _ := readCallRequest(input)
+	req.WaitID = waitID
+	wr, err := x.r.calls.endedResult(ctx, x.r.cfg.DB, x.tenant, child, req, status)
+	if err != nil {
+		return false, err
+	}
+	err = x.tx(ctx, "call-ended", func(ctx context.Context, tx pgx.Tx, s *stepState) error {
+		ws, err := queryWaits(ctx, tx, `SELECT `+waitCols+` FROM automation.waits WHERE tenant_id = $1 AND run_id = $2 AND wait_id = $3 FOR UPDATE`, x.tenant, x.run.ID, waitID)
+		if err != nil || len(ws) == 0 || ws[0].Status != waitOpen {
+			return err
+		}
+		tok, err := loadToken(ctx, tx, x.tenant, x.run.ID, ws[0].TokenID, true)
+		if err != nil || tok.Status != tokWaiting {
+			return err
+		}
+		m := &mover{x: x, tx: tx, s: s}
+		return m.result(ctx, &tok, ws[0], wr)
+	})
+	return err == nil, err
 }
 
 // release cancels what closed waits armed: timer and task occurrences, child instances.
@@ -741,19 +795,22 @@ func (x *execution) catchUp(ctx context.Context, w waitRow) (bool, error) {
 		seq      int64
 		payload  []byte
 		occurred time.Time
+		inbound  *bool // by_self of an inbound event (its cause), as the router sets it
 	}
 	rows, err := x.r.cfg.DB.Query(ctx, `
-		SELECT id, seq, payload, occurred_at FROM extruntime.outbox_events
+		SELECT id, seq, payload, occurred_at, CASE WHEN cause ? 'inbound' THEN coalesce((cause->'inbound'->>'by_self')::boolean, false) END
+		FROM extruntime.outbox_events
 		WHERE tenant_id = $1 AND event = $2 AND seq > $3 AND seq <= $4
 		  AND ($5::text IS NULL OR (subject_entity = $5 AND subject_key = $6))
-		ORDER BY seq LIMIT $7`, x.tenant, *w.EventKind, after, until, entity, key, maxCatchUp)
+		  AND ($8::text IS NULL OR cause->'inbound'->>'correlation' = $8)
+		ORDER BY seq LIMIT $7`, x.tenant, *w.EventKind, after, until, entity, key, maxCatchUp, w.Correlation)
 	if err != nil {
 		return false, serrors.FromDB(opRun, err)
 	}
 	page := make([]found, 0, maxCatchUp)
 	for rows.Next() {
 		var f found
-		if err := rows.Scan(&f.id, &f.seq, &f.payload, &f.occurred); err != nil {
+		if err := rows.Scan(&f.id, &f.seq, &f.payload, &f.occurred, &f.inbound); err != nil {
 			rows.Close()
 			return false, serrors.FromDB(opRun, err)
 		}
@@ -777,6 +834,9 @@ func (x *execution) catchUp(ctx context.Context, w waitRow) (bool, error) {
 			}
 			if payload, err = proj.project(ctx, *w.EventKind, payload, &x.subject); err != nil {
 				return &host.InfraError{Err: err}
+			}
+			if f.inbound != nil {
+				payload[catalog.BySelfField] = *f.inbound // as the live path sets it
 			}
 			raw, err := json.Marshal(payload)
 			if err != nil {

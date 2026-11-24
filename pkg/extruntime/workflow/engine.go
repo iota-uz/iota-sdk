@@ -516,6 +516,8 @@ var (
 	ErrAlreadyDecided = errors.New("extruntime workflow: actor already decided this task")
 	// ErrDelegation: the task does not allow delegation, or not to that user.
 	ErrDelegation = errors.New("extruntime workflow: delegation is not allowed")
+	// ErrConflict: the state an operator acted on changed meanwhile (ResolveIf, RetryIf).
+	ErrConflict = errors.New("extruntime workflow: the observed state changed")
 )
 
 // Fencing errors surface to the worker as wire errors that end the run.

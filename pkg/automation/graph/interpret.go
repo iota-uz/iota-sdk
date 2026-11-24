@@ -40,6 +40,12 @@ type Context struct {
 	Tenant map[string]any
 	// Foreach is foreach.<id> inside the body of a foreach: the token's item and its index.
 	Foreach map[string]ForeachItem
+	// Events are the events of a run that a trigger's collect merged, in order (event is the last); nil:
+	// the one event.
+	Events []map[string]any
+	// Subject is `subject`: {entity, key, url}; Run is `run`: {id, url}. Nil: empty strings.
+	Subject map[string]any
+	Run     map[string]any
 }
 
 // ForeachItem is what the body of a foreach reads as foreach.<id>.
@@ -88,6 +94,8 @@ const (
 	FailLimit = "LIMIT"
 	// FailJoinIncomplete: a join's branches can no longer give what it waits for and it has no timeout.
 	FailJoinIncomplete = "JOIN_INCOMPLETE"
+	// FailDryRunForbidden: a dry run reached a node whose type forbids dry runs (DryRunForbid).
+	FailDryRunForbidden = "DRY_RUN_FORBIDDEN"
 )
 
 // Step is one decision of the interpreter. Nothing in it is applied: the engine applies effects and calls.
@@ -365,14 +373,39 @@ func jsonOut(v any) (any, error) {
 	return v, nil
 }
 
+// infoOf is an info object with every field a string ("" when left out).
+func infoOf(m map[string]any, fields ...string) map[string]any {
+	out := make(map[string]any, len(fields))
+	for _, f := range fields {
+		s, _ := m[f].(string)
+		out[f] = s
+	}
+	return out
+}
+
 // varsOf is a context as CEL variables.
 func varsOf(ctx Context) map[string]any {
-	vars := make(map[string]any, len(ctx.Vars)+4)
+	vars := make(map[string]any, len(ctx.Vars)+8)
+	// subject and run are the run's own unless the subject's context declares a variable of that name.
+	vars["subject"] = infoOf(ctx.Subject, "entity", "key", "url")
+	vars["run"] = infoOf(ctx.Run, "id", "url")
 	for k, v := range ctx.Vars {
 		vars[k] = v
 	}
 	if ctx.Event != nil {
 		vars["event"] = ctx.Event
+	}
+	switch {
+	case len(ctx.Events) > 0:
+		list := make([]any, len(ctx.Events))
+		for i, e := range ctx.Events {
+			list[i] = e
+		}
+		vars["events"] = list
+	case ctx.Event != nil:
+		vars["events"] = []any{ctx.Event}
+	default:
+		vars["events"] = []any{}
 	}
 	nodes := make(map[string]any, len(ctx.Nodes))
 	for id, st := range ctx.Nodes {
@@ -565,6 +598,40 @@ func (i *Interpreter) TriggerMismatch(trigger string, ev Event, ctx Context) (st
 	return "", nil
 }
 
+// SubjectDeclares reports whether the context of a subject declares a variable: one named subject or
+// run overrides the run's own.
+func (i *Interpreter) SubjectDeclares(entity, name string) bool {
+	_, ok := i.view.catalog.Subjects[entity].Context.Get(name)
+	return ok
+}
+
+// Trigger is a trigger of the graph by its id.
+func (i *Interpreter) Trigger(id string) (Trigger, bool) { return i.trigger(id) }
+
+// CollectKey evaluates a trigger's collect key over an event: the key as a string. ok is false for a
+// trigger without collect; a non-nil step is why the key cannot be read.
+func (i *Interpreter) CollectKey(trigger string, ev Event, ctx Context) (string, bool, *Step) {
+	t, ok := i.trigger(trigger)
+	if !ok || t.Collect == nil || t.Collect.Key == "" {
+		return "", false, nil
+	}
+	sc := &StepContext{Ctx: ctx, in: i, node: t.ID}
+	sc.Ctx.Event = ev
+	v, st := sc.eval(t.Event, false, sc.Ctx, t.Collect.Key, expr.TypeAny)
+	if st != nil {
+		return "", true, st
+	}
+	if s, isString := v.(string); isString {
+		return s, true, nil
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		st := failed(FailInvalidInput, "the collect key of %s is not JSON: %v", t.ID, err)
+		return "", true, &st
+	}
+	return string(b), true, nil
+}
+
 // TriggerMatches reports whether a trigger fires on an event; a non-nil step is why it cannot tell.
 func (i *Interpreter) TriggerMatches(trigger string, ev Event, ctx Context) (bool, *Step) {
 	m, st := i.TriggerMismatch(trigger, ev, ctx)
@@ -729,3 +796,12 @@ func (i *Interpreter) FailedOutcome(nodeID string) string {
 	node, _ := i.view.Node(nodeID)
 	return i.view.catalog.Nodes[node.Type].FailedOutcome
 }
+
+// structuredFailure reports whether the node's failed output is output.error {code, message, retryable}.
+func (i *Interpreter) structuredFailure(nodeID string) bool {
+	node, _ := i.view.Node(nodeID)
+	return i.view.catalog.Nodes[node.Type].StructuredFailure()
+}
+
+// StructuredFailure is structuredFailure for the engine.
+func (i *Interpreter) StructuredFailure(nodeID string) bool { return i.structuredFailure(nodeID) }

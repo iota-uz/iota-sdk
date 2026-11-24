@@ -54,6 +54,15 @@ func (o *observer) InstanceStatusChanged(ctx context.Context, tx pgx.Tx, inst wo
 		WHERE tenant_id = $1 AND run_id = $2 AND status = 'open'`, inst.TenantID, run.ID); err != nil {
 		return serrors.FromDB(opObserve, err)
 	}
+	// Open correlations go with their waits: a late answer gets ErrCorrelationClosed. The run row is
+	// locked first: a child issuing a token holds it shared and rechecks the run, so no token commits
+	// after this cleanup.
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM automation.runs WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, inst.TenantID, run.ID); err != nil {
+		return serrors.FromDB(opObserve, err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM automation.correlations WHERE tenant_id = $1 AND run_id = $2`, inst.TenantID, run.ID); err != nil {
+		return serrors.FromDB(opObserve, err)
+	}
 	if _, err := tx.Exec(ctx, `UPDATE automation.steps SET outcome = 'cancelled', ended_at = now()
 		WHERE tenant_id = $1 AND run_id = $2 AND ended_at IS NULL`, inst.TenantID, run.ID); err != nil {
 		return serrors.FromDB(opObserve, err)

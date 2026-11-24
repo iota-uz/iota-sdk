@@ -127,12 +127,13 @@ func TestReviewRoundTwoGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.Nodes["ask"] = graph.NodeSpec{Type: "ask", Behavior: graph.BehaviorCall, Params: ask, Outcomes: []string{"ok", "failed"}, FailedOutcome: "failed"}
+	c.Nodes["ask"] = graph.NodeSpec{Type: "ask", Behavior: graph.BehaviorCall, DryRun: graph.DryRunCapture, Params: ask, Outcomes: []string{"ok", "failed"}, FailedOutcome: "failed"}
 	cg := mustDecode(t, `{"name": "x", "triggers": [{"id": "t", "event": "order.created"}],
 		"nodes": [{"id": "a", "type": "ask", "params": {"q": "?"}}],
 		"edges": [{"from": {"node": "t", "outcome": "fired"}, "to": "a"}, {"from": {"node": "a", "outcome": "ok"}, "to": "ignore"},
 			{"from": {"node": "a", "outcome": "failed"}, "to": "ignore"}]}`)
-	in, err := graph.NewInterpreter(c, cg, graph.Options{Limits: graph.Limits{MaxValueBytes: 64}})
+	// 100 bytes hold the structured failure's envelope, not the 100-character message: it is shortened.
+	in, err := graph.NewInterpreter(c, cg, graph.Options{Limits: graph.Limits{MaxValueBytes: 100}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,8 +146,11 @@ func TestReviewRoundTwoGraph(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if b := b2; len(b) > 64 {
+	if b := b2; len(b) > 100 || trace[1].ContextPatch["output"] == nil {
 		t.Errorf("failed output has %d bytes: %s", len(b), b)
+	}
+	if last := trace[len(trace)-1]; last.Node != "ignore" {
+		t.Errorf("the failed edge is taken to ignore: %+v", trace)
 	}
 }
 
@@ -154,7 +158,7 @@ func TestReviewRoundTwoGraph(t *testing.T) {
 func TestBuiltinKindsDeclareNoFakeEnds(t *testing.T) {
 	c := testCatalog(t)
 	empty := graph.MustSchemaParams(`{"type": "object"}`)
-	c.Nodes["ask"] = graph.NodeSpec{Type: "ask", Behavior: graph.BehaviorCall, Params: empty}
+	c.Nodes["ask"] = graph.NodeSpec{Type: "ask", Behavior: graph.BehaviorCall, DryRun: graph.DryRunCapture, Params: empty}
 	if err := c.Check(nil); err == nil {
 		t.Error("Check accepts a call with no outcomes")
 	}
