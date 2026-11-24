@@ -749,3 +749,54 @@ func TestANodeMayDeclareALargerOutput(t *testing.T) {
 	p.until(func() bool { return be.status(p, run.RunID) == engine.RunDone }, "the run ends")
 	assert.Equal(t, []string{"ok:3145728"}, be.effects(run.RunID))
 }
+
+// nulNode answers with text that carries a NUL byte, as an HTTP response body may.
+type nulNode struct{ specNode }
+
+func (nulNode) Idempotent() bool { return true }
+func (nulNode) Execute(context.Context, catalog.CallInput) (catalog.CallResult, error) {
+	return catalog.CallResult{Outcome: "done", Output: map[string]any{"body": "a\x00b", "a\x00key": "v"}}, nil
+}
+
+// A call's output with a NUL byte is recorded (jsonb refuses \u0000): the byte becomes U+FFFD, the call
+// is not repeated and the next node reads the rest.
+func TestAnOutputWithANulByteIsRecorded(t *testing.T) {
+	be := newBuiltinEnv(t)
+	spec := graph.NodeSpec{Type: "acme.nul", Title: "Nul", Behavior: graph.BehaviorCall, DryRun: graph.DryRunCapture, Outcomes: []string{"done", "failed"}, FailedOutcome: "failed",
+		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`), Output: expr.Fields{{Name: "body", Field: expr.StringField}}}
+	require.NoError(t, be.reg.RegisterNode(nulNode{specNode{spec}}))
+	p := be.proc()
+	a := be.human()
+	be.create(p, a, graphJSON("Nul", `{"id": "created", "event": "acme.order.created.v1"}`,
+		`{"id": "get", "type": "acme.nul", "params": {}},
+		 {"id": "ok", "type": "acme.note", "params": {"text": "{{ nodes.get.output.body }}"}},
+		 {"id": "bad", "type": "acme.note", "params": {"text": "{{ nodes.get.output.error.code }}"}},
+		 {"id": "fin", "type": "end", "params": {}}`,
+		`{"from": {"node": "created", "outcome": "fired"}, "to": "get"},
+		 {"from": {"node": "get", "outcome": "done"}, "to": "ok"}, {"from": {"node": "get", "outcome": "failed"}, "to": "bad"},
+		 {"from": {"node": "ok", "outcome": "done"}, "to": "fin"}, {"from": {"node": "ok", "outcome": "failed"}, "to": "fin"},
+		 {"from": {"node": "bad", "outcome": "done"}, "to": "fin"}, {"from": {"node": "bad", "outcome": "failed"}, "to": "fin"}`))
+	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	run := onlyRun(t, be.env, p, a)
+	p.until(func() bool { return be.status(p, run.RunID) == engine.RunDone }, "the run ends")
+	assert.Equal(t, []string{"ok:a�b"}, be.effects(run.RunID))
+	assert.Equal(t, 1, be.count(`SELECT count(*) FROM extruntime.workflow_occurrences WHERE name = 'call' AND status = 'completed' AND attempts = 1`))
+}
+
+// A set value with a NUL byte is recorded too.
+func TestASetValueWithANulByteIsRecorded(t *testing.T) {
+	be := newBuiltinEnv(t)
+	p := be.proc()
+	a := be.human()
+	be.create(p, a, graphJSON("Set", `{"id": "created", "event": "acme.order.created.v1"}`,
+		`{"id": "calc", "type": "set", "params": {"values": {"text": "'a\\x00b'"}}},
+		 {"id": "ok", "type": "acme.note", "params": {"text": "{{ nodes.calc.output.text }}"}},
+		 {"id": "fin", "type": "end", "params": {}}`,
+		`{"from": {"node": "created", "outcome": "fired"}, "to": "calc"},
+		 {"from": {"node": "calc", "outcome": "done"}, "to": "ok"},
+		 {"from": {"node": "ok", "outcome": "done"}, "to": "fin"}, {"from": {"node": "ok", "outcome": "failed"}, "to": "fin"}`))
+	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	run := onlyRun(t, be.env, p, a)
+	p.until(func() bool { return be.status(p, run.RunID) != engine.RunRunning && be.status(p, run.RunID) != engine.RunWaiting }, "the run ends")
+	assert.Equal(t, engine.RunDone, be.status(p, run.RunID))
+}

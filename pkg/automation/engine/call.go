@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -582,6 +583,8 @@ func (x *callExec) failed(nt catalog.NodeType, code, message string, retryable b
 	if err != nil {
 		out = json.RawMessage(`{}`)
 	}
+	out = withoutNUL(out)
+	message = strings.ReplaceAll(message, "\x00", "\uFFFD")
 	fo := ""
 	if nt != nil {
 		fo = nt.Spec().FailedOutcome
@@ -963,7 +966,7 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, prior int, 
 	if err != nil {
 		return callRecord{Kind: "failed", Code: graph.FailInvalidAnswer, Message: "the output of " + req.NodeID + " is not JSON"}, nil
 	}
-	rec := callRecord{Kind: "result", Outcome: res.Outcome, Output: masker.MaskJSON(out)}
+	rec := callRecord{Kind: "result", Outcome: res.Outcome, Output: withoutNUL(masker.MaskJSON(out))}
 	if asker, ok := cn.(Asker); ok && token != "" {
 		aw, err := asker.Await(in, res)
 		if err != nil {
@@ -1120,7 +1123,7 @@ func (x *callExec) command(ctx context.Context, cn catalog.CallNode, cc catalog.
 		return x.failed(cn, graph.FailInvalidAnswer, "the output of "+req.NodeID+" is not JSON", false), nil
 	}
 	x.c.r.metrics.call(ctx, x.connector(cn), req.NodeType, "ok")
-	return WaitResult{Outcome: res.Outcome, Output: conn.masker.MaskJSON(raw)}, nil
+	return WaitResult{Outcome: res.Outcome, Output: withoutNUL(conn.masker.MaskJSON(raw))}, nil
 }
 
 // CommandErrorPrefix starts the code of a domain error a command of an automation action raises; the
@@ -1129,3 +1132,42 @@ const CommandErrorPrefix = "automation."
 
 // CommandErrorCode is the call's error code of a command's domain error code.
 func CommandErrorCode(code string) string { return strings.TrimPrefix(code, CommandErrorPrefix) }
+
+// withoutNUL is a JSON value with every U+0000 of its strings and keys replaced by U+FFFD: PostgreSQL's
+// jsonb (the journal, the steps, the run's context) refuses \u0000, so an output that carries one (a
+// response body with a NUL byte) would never be recorded and the call would be repeated as if it failed.
+func withoutNUL(raw json.RawMessage) json.RawMessage {
+	if !bytes.Contains(raw, []byte(`\u0000`)) {
+		return raw
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var v any
+	if err := dec.Decode(&v); err != nil {
+		return raw
+	}
+	out, err := json.Marshal(replaceNUL(v))
+	if err != nil {
+		return raw
+	}
+	return out
+}
+
+func replaceNUL(v any) any {
+	switch x := v.(type) {
+	case string:
+		return strings.ReplaceAll(x, "\x00", "\uFFFD")
+	case []any:
+		for i := range x {
+			x[i] = replaceNUL(x[i])
+		}
+		return x
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, e := range x {
+			out[strings.ReplaceAll(k, "\x00", "\uFFFD")] = replaceNUL(e)
+		}
+		return out
+	}
+	return v
+}

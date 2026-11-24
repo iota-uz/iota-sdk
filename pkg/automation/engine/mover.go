@@ -129,6 +129,10 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 			output = out
 		}
 	}
+	if output != nil {
+		// jsonb refuses U+0000: a value with a NUL byte (a CEL string) keeps the rest of its text.
+		output, _ = replaceNUL(output).(map[string]any)
+	}
 	if _, err := m.record(ctx, tok, node.ID, behavior, input, st.Outcome, output, nil, true); err != nil {
 		return behavior, err
 	}
@@ -1216,7 +1220,11 @@ func jsonOrNil(v any) ([]byte, error) {
 			return nil, nil
 		}
 	}
-	return json.Marshal(v)
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return withoutNUL(b), nil // jsonb refuses U+0000
 }
 
 // activeTokens counts the tokens that run: not finished and not waiting for their own branches.
