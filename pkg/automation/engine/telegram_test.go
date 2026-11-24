@@ -651,6 +651,13 @@ func TestTelegramReadImplicitConnectionAndChat(t *testing.T) {
 	p.until(func() bool { return fired() == 1 && te.status(p, runID) == engine.RunDone }, "a text in the awaited chat fires the original wait, and its run finishes")
 	assert.Contains(t, noteTexts(t, te.env), "got the reply in 701")
 	assert.Zero(t, stillOpen(), "and it was fired, not cancelled or timed out")
+	// The effect is the original run's own: its "got" node wrote it (not another run's, and not the failed branch).
+	var written []string
+	rows, err := te.db.Query(context.Background(), `SELECT text FROM test_effects WHERE run_id = $1 AND node_id = 'got'`, runID)
+	require.NoError(t, err)
+	written, err = pgx.CollectRows(rows, pgx.RowTo[string])
+	require.NoError(t, err)
+	assert.Equal(t, []string{"got the reply in 701"}, written, "the original run's got node wrote the reply")
 }
 
 // A run of no conversation (an order was created) waits for a message in a chat of the tenant's bot.

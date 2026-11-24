@@ -337,4 +337,36 @@ describe('a field with an options source (a chat)', () => {
     expect(screen.queryByRole('option', { name: 'Alfred' })).toBeNull()
     expect(screen.queryByRole('option', { name: 'Alice' })).toBeNull()
   })
+
+  // A search of the first connection that is still on the way when the connection changes is for a picker that is gone:
+  // when it ends, the second connection's options stay as they were.
+  it('ignores a search of the previous connection that ends after the connection changed', async () => {
+    let finishA!: (o: { value: string; label: string; group: string }[]) => void
+    const searchOptions = vi.fn(async (_source: string, query: string, ctx: { params: Record<string, unknown> }) => {
+      if (ctx.params.connection === 'one' && query === 'al') return new Promise<{ value: string; label: string; group: string }[]>((resolve) => { finishA = resolve })
+      return ctx.params.connection === 'two' ? [{ value: '2', label: 'Bob', group: 'private' }] : [{ value: '1', label: 'Alice', group: 'private' }]
+    })
+    const [value, setValue] = createSignal<Record<string, unknown>>({ connection: 'one' })
+    render(() => (
+      <SchemaForm
+        schema={{ type: 'object', properties: { chat_id: (schema.properties as Record<string, JsonSchema>).chat_id! } }} value={value()} onChange={setValue}
+        readOnly={false} locale="en" nodeType="t" nodeId="n" graph={graph} expressions={[]} templates={[]} completions={() => []} searchOptions={searchOptions}
+      />
+    ))
+    await vi.waitFor(() => expect(searchOptions).toHaveBeenCalledTimes(1))
+    const picker = document.querySelector('[role="combobox"], [data-param="chat_id"] input') as HTMLElement
+    fireEvent.click(picker)
+    fireEvent.input(picker, { target: { value: 'al' } })
+    await vi.waitFor(() => expect(searchOptions).toHaveBeenCalledWith('telegram.chats', 'al', { nodeType: 't', params: { connection: 'one' } }))
+    // The connection changes while that search has not answered.
+    setValue({ connection: 'two' })
+    await vi.waitFor(() => expect(searchOptions).toHaveBeenLastCalledWith('telegram.chats', '', { nodeType: 't', params: { connection: 'two' } }))
+    fireEvent.click(document.querySelector('[role="combobox"], [data-param="chat_id"] input') as HTMLElement)
+    expect(await screen.findByRole('option', { name: 'Bob' })).toBeInTheDocument()
+    // Now the first connection's search ends.
+    finishA([{ value: '3', label: 'Alfred', group: 'private' }])
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(screen.queryByRole('option', { name: 'Alfred' })).toBeNull()
+    expect(screen.getByRole('option', { name: 'Bob' })).toBeInTheDocument()
+  })
 })
