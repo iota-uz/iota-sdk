@@ -2,8 +2,10 @@ package access_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -105,5 +107,29 @@ func TestFromResolverMapsConnectionSecrets(t *testing.T) {
 	}
 	if _, err := s.Secret(context.Background(), uuid.New(), spi.Subject{}, "NOPE__X"); !errors.Is(err, access.ErrSecretMissing) {
 		t.Fatalf("missing: %v", err)
+	}
+}
+
+// An API that reflects a token in a header name, an escaped JSON string or a JSON key does not hand it
+// to the code: the response is redacted before the sandbox sees it.
+func TestRedactResponseCoversNamesAndJSON(t *testing.T) {
+	const tok = "tok-5ecret-9"
+	resp := &code.FetchResponse{
+		Status: 200, StatusText: "OK " + tok, URL: "https://api.example.com/?k=" + tok,
+		Header: http.Header{"X-Echo-" + tok: {"v"}, "X-Auth": {"Bearer " + tok}},
+		Body:   []byte(`{"escaped": "tok-5ecret-9", "` + tok + `": 1, "nested": {"list": ["Bearer ` + tok + `"]}}`),
+	}
+	out := access.RedactResponse(resp, access.Masker(tok))
+	var all strings.Builder
+	for k, vs := range out.Header {
+		all.WriteString(k + strings.Join(vs, ","))
+	}
+	all.WriteString(string(out.Body) + out.URL + out.StatusText)
+	if strings.Contains(all.String(), "5ecret") || strings.Contains(all.String(), `tok`) {
+		t.Fatalf("the token reached the code: %s", all.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(out.Body, &body); err != nil {
+		t.Fatalf("the body is no longer JSON: %v", err)
 	}
 }

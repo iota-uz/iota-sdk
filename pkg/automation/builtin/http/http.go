@@ -38,6 +38,9 @@ const (
 	OutcomeFailed  = "failed"
 )
 
+// CodeRedirectRefused: a repeatable change (idempotency_header) was redirected to another origin.
+const CodeRedirectRefused = "redirect_refused"
+
 // MaxResponseBytes is the largest response body the node reads.
 const MaxResponseBytes = 10 << 20
 
@@ -323,6 +326,11 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 	if h, _ := p["idempotency_header"].(string); h != "" {
 		header.Set(h, in.IdempotencyKey)
 		freq.Sensitive = append(freq.Sensitive, h)
+		if method != nethttp.MethodGet && method != nethttp.MethodHead {
+			// The key makes the request repeatable only where it arrives: a redirect off the origin would
+			// carry the change without it, so it is refused.
+			freq.SameOrigin = true
+		}
 	}
 	freq.Header = header
 	timeout := 30 * time.Second
@@ -336,8 +344,10 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 		var blocked *sandbox.NetworkBlockedError
 		var left *sandbox.OriginError
 		switch {
-		case errors.As(err, &left):
+		case errors.As(err, &left) && a != nil && a.Connection != "":
 			return catalog.CallResult{}, fail(access.CodeConnectionOriginMismatch, "the request through connection %s was redirected off its origin", a.Connection)
+		case errors.As(err, &left):
+			return catalog.CallResult{}, fail(CodeRedirectRefused, "the request was redirected off its origin, where its idempotency key does not go: %s", left.To)
 		case errors.As(err, &blocked):
 			return catalog.CallResult{}, fail(access.CodeNetworkBlocked, "%s", access.BlockedMessage(blocked))
 		case errors.Is(err, sandbox.ErrResponseTooLarge):

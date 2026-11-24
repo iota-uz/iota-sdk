@@ -298,3 +298,24 @@ func TestBodyTemplate(t *testing.T) {
 		t.Fatalf("%+v", errs)
 	}
 }
+
+func TestRepeatableChangeStaysOnItsOrigin(t *testing.T) {
+	ff := &fakeFetcher{err: &sandbox.OriginError{From: "https://api.example.com:443", To: "https://other.example.com:443"}}
+	n := httpnode.New(httpnode.Deps{Fetcher: ff})
+	_, err := n.Execute(context.Background(), call(map[string]any{"method": "POST", "url": "https://api.example.com/pay", "idempotency_header": "Idempotency-Key"}))
+	if got := codeOf(t, err); got != httpnode.CodeRedirectRefused {
+		t.Fatalf("code %s", got)
+	}
+	if !ff.got[0].SameOrigin || len(ff.got[0].Sensitive) != 1 {
+		t.Fatalf("request %+v", ff.got[0])
+	}
+	// A GET with the key may follow: it changes nothing.
+	ff = &fakeFetcher{resp: jsonResp(200, `{}`)}
+	n = httpnode.New(httpnode.Deps{Fetcher: ff})
+	if _, err := n.Execute(context.Background(), call(map[string]any{"url": "https://api.example.com/", "idempotency_header": "Idempotency-Key"})); err != nil {
+		t.Fatal(err)
+	}
+	if ff.got[0].SameOrigin {
+		t.Fatal("a GET was kept on its origin")
+	}
+}

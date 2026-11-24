@@ -5,6 +5,7 @@ package access
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -375,8 +376,10 @@ func AddedValues(before, after http.Header) []string {
 	return out
 }
 
-// RedactResponse is a response with the masker's values replaced in its headers, body and URL: what
-// an API reflects of the credentials never reaches the code.
+// RedactResponse is a response with the masker's values replaced in its header names and values, its
+// body and its URL: what an API reflects of the credentials never reaches the code. A JSON body is
+// redacted as JSON (its strings, keys and numbers decoded first, so an escaped spelling of a credential is
+// found too); any other body as text.
 func RedactResponse(r *code.FetchResponse, m code.Masker) *code.FetchResponse {
 	if r == nil {
 		return nil
@@ -384,11 +387,16 @@ func RedactResponse(r *code.FetchResponse, m code.Masker) *code.FetchResponse {
 	out := *r
 	out.Header = make(http.Header, len(r.Header))
 	for k, vs := range r.Header {
+		name := m.Mask(k)
 		for _, v := range vs {
-			out.Header.Add(k, m.Mask(v))
+			out.Header.Add(name, m.Mask(v))
 		}
 	}
-	out.Body = []byte(m.Mask(string(r.Body)))
+	if json.Valid(r.Body) {
+		out.Body = m.MaskJSON(r.Body)
+	} else {
+		out.Body = []byte(m.Mask(string(r.Body)))
+	}
 	out.URL = m.Mask(r.URL)
 	out.StatusText = m.Mask(r.StatusText)
 	return &out

@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions/actionstest"
 	sandbox "github.com/iota-uz/iota-sdk/pkg/automation/code"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
@@ -565,4 +566,83 @@ func (a *blockAction) invocation() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.inv
+}
+
+// The input a run computes from a sensitive event field carries that field to the run it starts: its
+// steps are hidden from a viewer who may not read it, and a run-as who may not read it is refused.
+func TestStartedRunInheritsTheSensitiveFieldsOfItsCaller(t *testing.T) {
+	be := newBuiltinEnv(t)
+	p := be.proc()
+	a := be.human()
+	var withoutSecret []string
+	for _, perm := range allPerms {
+		if perm != permSec {
+			withoutSecret = append(withoutSecret, perm)
+		}
+	}
+	be.subjects.Grant(2, withoutSecret...)
+	child := be.create(p, a, childGraph)
+	other := be.create(p, be.actor(be.tenant, 2, engine.OriginHuman, withoutSecret...), childGraph)
+	be.create(p, a, strings.Replace(parentGraph("start_automation", child.ID), `"input": {"amount": "event.amount"}`, `"input": {"amount": "event.amount", "code": "event.secret"}`, 1))
+	be.create(p, a, strings.Replace(parentGraph("start_automation", other.ID), `"input": {"amount": "event.amount"}`, `"input": {"amount": "event.amount", "code": "event.secret"}`, 1))
+	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 5, Secret: "s-41"}, 0)
+	var kids []engine.RunSummary
+	p.until(func() bool { kids = be.runsOf(p, child.ID); return len(kids) == 1 && kids[0].Status == engine.RunWaiting }, "the child runs")
+	assert.Positive(t, be.count(`SELECT jsonb_array_length(sensitive) FROM automation.runs WHERE id = $1`, kids[0].RunID), "the child carries the field")
+	viewer := be.actor(be.tenant, 3, engine.OriginHuman, withoutSecret...)
+	d, err := p.rt.Service().GetRun(context.Background(), viewer, kids[0].RunID)
+	require.NoError(t, err)
+	require.NotEmpty(t, d.Steps)
+	for _, s := range d.Steps {
+		assert.True(t, s.Hidden, "step %s of the child is hidden from a viewer without the field's right", s.NodeID)
+	}
+	// The other child's owner may not read the field: its start is refused, nothing runs.
+	p.until(func() bool {
+		for _, r := range be.runs(p, a, engine.RunFilter{}) {
+			for _, e := range be.effects(r.RunID) {
+				if e == "bad:forbidden" {
+					return true
+				}
+			}
+		}
+		return false
+	}, "the start for a run-as without the field's right is refused")
+	assert.Empty(t, be.runsOf(p, other.ID))
+}
+
+// run_automation in a run about a conversation keeps the conversation: the run it starts takes its turn
+// inside the waiting run's instead of queuing behind it.
+func TestRunAutomationKeepsTheConversation(t *testing.T) {
+	ae := newAcmeEnv(t)
+	var rt atomic.Pointer[engine.Runtime]
+	require.NoError(t, builtin.Register(ae.reg, builtin.Deps{Runs: func() (engine.RunStarter, error) { return rt.Load(), nil }}))
+	p := ae.proc()
+	rt.Store(p.rt)
+	a := ae.human()
+	child := ae.create(p, a, `{"name": "Reply", "triggers": [{"id": "m", "event": "automation.called.v1"}],
+	 "nodes": [{"id": "note", "type": "acme.note", "params": {"text": "child {{ subject.entity }}"}}, {"id": "fin", "type": "end", "params": {"reason": "replied"}}],
+	 "edges": [{"from": {"node": "m", "outcome": "fired"}, "to": "note"}, {"from": {"node": "note", "outcome": "done"}, "to": "fin"}, {"from": {"node": "note", "outcome": "failed"}, "to": "fin"}]}`)
+	parent := ae.create(p, a, graphJSON("Inbox", `{"id": "msg", "event": "`+evMessage+`"}`,
+		`{"id": "call", "type": "run_automation", "params": {"automation_id": "`+child.ID.String()+`"}},
+		 {"id": "ok", "type": "acme.note", "params": {"text": "{{ nodes.call.output.output.reason }}"}},
+		 {"id": "bad", "type": "acme.note", "params": {"text": "bad {{ nodes.call.output.error.code }}"}},
+		 {"id": "fin", "type": "end", "params": {}}`,
+		`{"from": {"node": "msg", "outcome": "fired"}, "to": "call"},
+		 {"from": {"node": "call", "outcome": "done"}, "to": "ok"}, {"from": {"node": "call", "outcome": "failed"}, "to": "bad"},
+		 {"from": {"node": "call", "outcome": "timeout"}, "to": "bad"},
+		 {"from": {"node": "ok", "outcome": "done"}, "to": "fin"}, {"from": {"node": "ok", "outcome": "failed"}, "to": "fin"},
+		 {"from": {"node": "bad", "outcome": "done"}, "to": "fin"}, {"from": {"node": "bad", "outcome": "failed"}, "to": "fin"}`))
+	h := ae.handler(p, nil)
+	ae.hook(h, ae.hookPath(), acmeSig, acmeUpdate{ID: "u-1", Text: "hello", From: "ann"})
+	var pr []engine.RunSummary
+	p.until(func() bool {
+		pr = ae.runs(p, a, engine.RunFilter{AutomationID: &parent.ID})
+		return len(pr) == 1 && len(ae.effects(pr[0].RunID)) == 1
+	}, "the parent continues with the child's output")
+	assert.Equal(t, []string{"ok:replied"}, ae.effects(pr[0].RunID))
+	kids := ae.runs(p, a, engine.RunFilter{AutomationID: &child.ID})
+	require.Len(t, kids, 1)
+	assert.Equal(t, pr[0].Subject, kids[0].Subject, "the child is about the parent's conversation")
+	assert.Equal(t, graph.SubjectConversation, kids[0].Subject.Entity)
+	assert.Equal(t, []string{"note:child conversation"}, ae.effects(kids[0].RunID))
 }

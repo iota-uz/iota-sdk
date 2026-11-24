@@ -43,6 +43,12 @@ type startRequest struct {
 	// parent is the instance the run's instance is a child of (a run a step started to wait for it):
 	// terminating the parent's tree terminates it.
 	parent *uuid.UUID
+	// shares is the run that holds the conversation and waits for this one (run_automation): the run
+	// takes its turn on the conversation inside that run's, instead of queuing behind it.
+	shares *uuid.UUID
+	// inherited are sensitive fields the run's data derives from besides its events' (the run whose step
+	// started it read them): its steps are hidden from a viewer who may not read them.
+	inherited []sensitiveRef
 	// startState and reason, when set, record a run that does not start.
 	startState string
 	reason     string
@@ -166,6 +172,7 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 		}
 		all, _ = mergeRefs(all, refs)
 	}
+	all, _ = mergeRefs(all, req.inherited)
 	if len(all) > 0 {
 		if sensitive, err = json.Marshal(all); err != nil {
 			return RunRef{}, err
@@ -238,7 +245,11 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 		if err := lockSubjects(ctx, tx, subjectLockKey(req.tenant, subject, id)); err != nil {
 			return RunRef{}, err
 		}
-		busy, err := subjectBusy(ctx, tx, req.tenant, subject, id)
+		except := []uuid.UUID{id}
+		if req.shares != nil {
+			except = append(except, *req.shares)
+		}
+		busy, err := subjectBusy(ctx, tx, req.tenant, subject, except...)
 		if err != nil {
 			return RunRef{}, err
 		}
@@ -286,11 +297,11 @@ func (r *Runtime) startInstance(ctx context.Context, tx pgx.Tx, tenant, run uuid
 }
 
 // subjectBusy reports whether another run of the subject is active.
-func subjectBusy(ctx context.Context, q querier, tenant uuid.UUID, s SubjectRef, except uuid.UUID) (bool, error) {
+func subjectBusy(ctx context.Context, q querier, tenant uuid.UUID, s SubjectRef, except ...uuid.UUID) (bool, error) {
 	var busy bool
 	err := q.QueryRow(ctx, `
 		SELECT EXISTS (SELECT 1`+runFrom+`
-			WHERE r.tenant_id = $1 AND r.subject_entity = $2 AND r.subject_key = $3 AND r.id <> $4 AND `+liveSQL+` AND NOT `+supersededSQL+`)`,
+			WHERE r.tenant_id = $1 AND r.subject_entity = $2 AND r.subject_key = $3 AND r.id <> ALL($4::uuid[]) AND `+liveSQL+` AND NOT `+supersededSQL+`)`,
 		tenant, s.Entity, s.Key, except).Scan(&busy)
 	return busy, serrors.FromDB(opStart, err)
 }

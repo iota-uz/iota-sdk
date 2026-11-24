@@ -134,13 +134,15 @@ func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 		input = parsed
 	}
 	subject := normSubject(run.Subject)
-	if subject.Entity == graph.SubjectConversation && in.Attached && in.Subject == nil {
-		// The step's run holds its conversation and waits for the run: one about the conversation would
-		// only start after it. A detached run keeps the conversation and queues behind this run.
-		subject = SubjectRef{Entity: graph.SubjectNone}
-	}
+	var shares *uuid.UUID
 	if in.Subject != nil {
 		subject = normSubject(*in.Subject)
+	}
+	if in.Attached && subject.Entity == graph.SubjectConversation && subject == normSubject(run.Subject) && run.RunID != uuid.Nil {
+		// The step's run holds the conversation and waits for this run: the run takes its turn inside
+		// that one's instead of queuing behind it (a detached run queues, and starts when it ends).
+		holder := run.RunID
+		shares = &holder
 	}
 	user := run.RunAs.UserID
 	now := time.Now()
@@ -158,6 +160,7 @@ func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 		cause := run.RunID
 		req.cause = &cause
 	}
+	req.shares = shares
 	if in.Attached && run.Native != nil {
 		parent := run.Native.Instance().ID
 		req.parent = &parent
@@ -189,6 +192,26 @@ func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 		return RunRef{}, err
 	}
 	req.runAs = &runAs
+	// The input derives from what the step's run read: its sensitive fields go with the new run (a
+	// viewer who may not read them does not see its steps), and its run-as must be allowed to read them.
+	var raw []byte
+	if err := tx.QueryRow(ctx, `SELECT sensitive FROM automation.runs WHERE tenant_id = $1 AND id = $2`, run.TenantID, run.RunID).Scan(&raw); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return RunRef{}, err
+	}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &req.inherited); err != nil {
+			return RunRef{}, err
+		}
+	}
+	if len(req.inherited) > 0 {
+		ok, err := r.projector(run.TenantID).readable(ctx, req.inherited, &runAs)
+		if err != nil {
+			return RunRef{}, &host.InfraError{Err: err}
+		}
+		if !ok {
+			return refuse(CodeForbidden, "the run-as of %s may not read the event fields the input derives from", in.AutomationID)
+		}
+	}
 	gctx := graph.Context{Event: gev, Now: now, Tenant: map[string]any{"id": run.TenantID.String()}}
 	mismatch, st := ie.in.TriggerMismatch(trig.ID, gev, gctx)
 	switch {
