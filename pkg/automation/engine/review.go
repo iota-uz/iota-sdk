@@ -152,6 +152,12 @@ func (r *Runtime) executorRule(view catalog.View, g graph.Graph) []graph.GraphEr
 		if r.cfg.Calls == nil {
 			out = append(out, graph.GraphError{Path: fmt.Sprintf("nodes[%d].type", i), Code: CodeConnectionUnavailable, Message: "external calls are not available"})
 		}
+		if _, asks := nt.(Asker); asks {
+			if _, names := nt.(AnswerEventer); !names {
+				out = append(out, graph.GraphError{Path: fmt.Sprintf("nodes[%d].type", i), Code: CodeUnsupported,
+					Message: n.Type + " waits for an answer without naming its answer event (AnswerEventer)"})
+			}
+		}
 	}
 	return out
 }

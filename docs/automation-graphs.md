@@ -279,9 +279,9 @@ queued conversation runs, runs of disabled graphs, retention.
   (`CorrelationFrom(ctx)`, base62, 12 characters, `automation.correlations`) before `Execute`;
   after it the parent opens an event wait that only inbound events carrying the token wake;
   `Asker.Answer` maps the event to the outcome, the wait's timeout to `timeout`. A single wait
-  closes with the first answer: a later one is `ErrCorrelationClosed`. An ask that implements `engine.AnswerEventer` names
-  its answer event when the token is issued, so only that event takes the token even before the wait
-  opens; without it, early repeats are recognized only for answer-only (`NoTrigger`) events.
+  closes with the first answer: a later one is `ErrCorrelationClosed`. An ask also implements `engine.AnswerEventer`: it names
+  its answer event and single policy before sending, the token is issued with them, and only that
+  event takes it, before or after the wait opens (an ask without it is refused when a graph is saved).
 - **Inbound.** `Runtime.Inbound()` writes connector events into the outbox in the caller's
   transaction, deduplicated by `automation.inbound_dedup` and with
   `cause = {inbound: {connection_id, correlation, by_self}}`. `engine.InboundHandler` serves the

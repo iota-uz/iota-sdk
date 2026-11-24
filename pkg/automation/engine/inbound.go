@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -152,7 +151,7 @@ func (in *inbound) publish(ctx context.Context, tx pgx.Tx, ev InboundEvent) (boo
 		return false, nil
 	}
 	if ev.Correlation != "" {
-		if err := in.takeCorrelation(ctx, tx, ev.TenantID, ev.Correlation, ev.Event, spec.NoTrigger); err != nil {
+		if err := in.takeCorrelation(ctx, tx, ev.TenantID, ev.Correlation, ev.Event); err != nil {
 			return false, err
 		}
 	}
@@ -180,43 +179,29 @@ func (in *inbound) publish(ctx context.Context, tx pgx.Tx, ev InboundEvent) (boo
 	return true, nil
 }
 
-// takeCorrelation checks that the token names an open wait of the tenant; a single answer closes it, so
-// a second answer is ErrCorrelationClosed.
-// Only the answer event of the wait takes the token: an event of another key with the token passes
-// through and closes nothing. The answer event is known from the token's issue when the node names it
-// (AnswerEventer), else once the wait opens. Until then the answer-only events (NoTrigger) that came
-// with the token are remembered (answered_events) and a repeat of one is closed; an ordinary message
-// with the token is never taken for an answer. The wait checks them when it opens (awaitAnswer).
-func (in *inbound) takeCorrelation(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, token, event string, answerOnly bool) error {
+// takeCorrelation checks that the token names an open wait of the tenant. Only the answer event the
+// ask named when the token was issued (AnswerEventer) takes it; an event of another key with the token
+// passes through and closes nothing. A single answer is spent by its first delivery, before or after
+// the wait opened, so a second one is ErrCorrelationClosed.
+func (in *inbound) takeCorrelation(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, token, event string) error {
 	if !validToken(token) {
 		return ErrCorrelationClosed
 	}
 	var single bool
-	var waits *string
-	var answered []string
-	err := tx.QueryRow(ctx, `SELECT single, event, answered_events FROM automation.correlations
-		WHERE token = $1 AND tenant_id = $2 AND expires_at > now() FOR UPDATE`, token, tenant).Scan(&single, &waits, &answered)
+	var answer string
+	err := tx.QueryRow(ctx, `SELECT single, event FROM automation.correlations
+		WHERE token = $1 AND tenant_id = $2 AND expires_at > now() FOR UPDATE`, token, tenant).Scan(&single, &answer)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrCorrelationClosed
 	}
 	if err != nil {
 		return serrors.FromDB(opInbound, err)
 	}
-	switch {
-	case waits != nil && *waits != event:
+	if answer != event {
 		return nil // not the answer: it does not touch the wait's token
-	case waits != nil:
-		if single {
-			if _, err := tx.Exec(ctx, `DELETE FROM automation.correlations WHERE token = $1`, token); err != nil {
-				return serrors.FromDB(opInbound, err)
-			}
-		}
-	case !answerOnly:
-		return nil // an ordinary message: not an answer
-	case slices.Contains(answered, event):
-		return ErrCorrelationClosed // the same answer again before the wait opened
-	default:
-		if _, err := tx.Exec(ctx, `UPDATE automation.correlations SET answered_events = array_append(answered_events, $2) WHERE token = $1`, token, event); err != nil {
+	}
+	if single {
+		if _, err := tx.Exec(ctx, `DELETE FROM automation.correlations WHERE token = $1`, token); err != nil {
 			return serrors.FromDB(opInbound, err)
 		}
 	}

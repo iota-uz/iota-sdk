@@ -1012,18 +1012,12 @@ func (m *mover) awaitAnswer(ctx context.Context, tok *tokenRow, call waitRow, aw
 	if err := insertWait(ctx, m.tx, m.x.tenant, w); err != nil {
 		return err
 	}
-	// The correlation the child issued points at this wait; single answers close it with the first one.
-	// From now on only the answer event takes the token. An answer that came before the wait opened
-	// (answered_events) already closes a single wait: the wait's catch-up delivers it.
-	if _, err := m.tx.Exec(ctx, `UPDATE automation.correlations SET single = $4, expires_at = $5, event = $6 WHERE tenant_id = $1 AND run_id = $2 AND token = $3`,
-		m.x.tenant, m.x.run.ID, token, aw.Single, at, aw.Event); err != nil {
+	// The token was issued with the answer event and policy the node named before sending; the wait
+	// keeps them, and the token lives as long as the wait (an answer that came early spent a single
+	// token already: the wait's catch-up delivers it).
+	if _, err := m.tx.Exec(ctx, `UPDATE automation.correlations SET expires_at = $4 WHERE tenant_id = $1 AND run_id = $2 AND token = $3`,
+		m.x.tenant, m.x.run.ID, token, at); err != nil {
 		return serrors.FromDB(opRun, err)
-	}
-	if aw.Single {
-		if _, err := m.tx.Exec(ctx, `DELETE FROM automation.correlations WHERE tenant_id = $1 AND run_id = $2 AND token = $3 AND $4 = ANY(answered_events)`,
-			m.x.tenant, m.x.run.ID, token, aw.Event); err != nil {
-			return serrors.FromDB(opRun, err)
-		}
 	}
 	if _, err := m.tx.Exec(ctx, `UPDATE automation.steps SET output = $5 WHERE tenant_id = $1 AND run_id = $2 AND token_id = $3 AND seq = $4`,
 		m.x.tenant, m.x.run.ID, tok.ID, call.Spec.Seq, []byte(nonNull(sent))); err != nil {

@@ -22,12 +22,13 @@ type Asker interface {
 	Answer(payload json.RawMessage) (outcome string, output json.RawMessage, err error)
 }
 
-// AnswerEventer is an optional interface of an Asker: the inbound event its answer comes as, known
-// before the question is sent. With it only that event takes the token from the moment it is issued;
-// without it, until the wait opens, a repeat is recognized only for an event that wakes waits alone
-// (EventSpec.NoTrigger), so ordinary messages that carry the token are never taken for answers.
+// AnswerEventer is what an Asker must also implement: its answer as known before the question is sent —
+// the inbound event key it comes as and whether the first one closes the wait. The token is issued
+// with them, so from that moment only that event takes it (an event of another key with the token
+// passes and closes nothing) and a single answer is spent by its first delivery, before or after the
+// wait opens. An Asker without it is refused when a graph is saved; Await must name the same event.
 type AnswerEventer interface {
-	AnswerEvent(in catalog.CallInput) string
+	AnswerEvent(in catalog.CallInput) (event string, single bool)
 }
 
 // Correlation is issued by the engine before Execute and passed in ctx.

@@ -455,10 +455,10 @@ func TestStaleSweepLeavesAnExtendedWindow(t *testing.T) {
 	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.runs`))
 }
 
-// A node that does not name its answer event (no AnswerEventer): before the wait opened, ordinary
-// messages with the token pass (two distinct ones too); a repeat of an answer-only event is closed;
-// once the wait opens with that answer, the token is spent.
-func TestCorrelationBeforeTheWaitOpens(t *testing.T) {
+// The token takes only the answer the ask named before sending, before or after the wait opens:
+// ordinary messages and unrelated wait-only events with the token pass (distinct ones too); a single
+// answer is spent by its first delivery, also when the answer is an event that can start graphs.
+func TestCorrelationTakesOnlyTheNamedAnswer(t *testing.T) {
 	ae := newAcmeEnv(t)
 	p := ae.proc()
 	ae.create(p, ae.human(), askGraph)
@@ -467,32 +467,69 @@ func TestCorrelationBeforeTheWaitOpens(t *testing.T) {
 	ctx := context.Background()
 	var runID uuid.UUID
 	require.NoError(t, ae.db.QueryRow(ctx, `SELECT id FROM automation.runs`).Scan(&runID))
-	token := engine.NewCorrelationToken()
-	_, err := ae.db.Exec(ctx, `INSERT INTO automation.correlations (token, tenant_id, run_id, wait_id, expires_at) VALUES ($1, $2, $3, 'w/answer', now() + interval '1 hour')`,
-		token, ae.tenant, runID)
-	require.NoError(t, err)
-	publish := func(id, event string) error {
+	issue := func(answer string) string {
+		token := engine.NewCorrelationToken()
+		_, err := ae.db.Exec(ctx, `INSERT INTO automation.correlations (token, tenant_id, run_id, wait_id, expires_at, event, single)
+			VALUES ($1, $2, $3, 'w/answer', now() + interval '1 hour', $4, true)`, token, ae.tenant, runID, answer)
+		require.NoError(t, err)
+		return token
+	}
+	publish := func(token, id, event string) error {
 		ev := acmeUpdate{ID: id, Event: event, Text: "t", Choice: "yes", From: "ann", Correlation: token}.event(ae.conn.ID.String())
 		ev.TenantID, ev.ConnectionID = ae.tenant, ae.conn.ID.String()
 		return pgx.BeginFunc(ctx, ae.db, func(tx pgx.Tx) error { _, err := p.rt.Inbound().Publish(ctx, tx, ev); return err })
 	}
-	require.NoError(t, publish("b-1", evAnswer), "the first answer")
-	require.ErrorIs(t, publish("b-2", evAnswer), engine.ErrCorrelationClosed, "its repeat")
-	require.NoError(t, publish("b-3", evMessage), "an ordinary message passes")
-	require.NoError(t, publish("b-3b", evMessage), "and a second, distinct ordinary message too")
-	require.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.correlations WHERE token = $1`, token))
-	// The wait opens on the answer event: from now on only it takes the token.
-	_, err = ae.db.Exec(ctx, `UPDATE automation.correlations SET event = $2, answered_events = '{}' WHERE token = $1`, token, evAnswer)
-	require.NoError(t, err)
-	require.NoError(t, publish("b-4", evMessage), "another key after the wait opened")
-	require.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.correlations WHERE token = $1`, token), "it did not take the token")
-	require.NoError(t, publish("b-5", evAnswer))
-	require.ErrorIs(t, publish("b-6", evAnswer), engine.ErrCorrelationClosed)
+
+	// The answer is a wait-only event.
+	token := issue(evAnswer)
+	require.NoError(t, publish(token, "a-1", evMessage), "an ordinary message passes")
+	require.NoError(t, publish(token, "a-2", evMessage), "and a second, distinct one")
+	require.NoError(t, publish(token, "a-3", evReceipt), "an unrelated wait-only event passes")
+	require.NoError(t, publish(token, "a-4", evReceipt), "and a second, distinct one")
+	require.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.correlations WHERE token = $1`, token), "none of them took the token")
+	require.NoError(t, publish(token, "a-5", evAnswer), "the answer")
+	require.ErrorIs(t, publish(token, "a-6", evAnswer), engine.ErrCorrelationClosed, "a second press")
+
+	// The answer is an event that can also start graphs.
+	token = issue(evMessage)
+	require.NoError(t, publish(token, "b-1", evAnswer), "another event passes")
+	require.NoError(t, publish(token, "b-2", evMessage), "the answer")
+	require.ErrorIs(t, publish(token, "b-3", evMessage), engine.ErrCorrelationClosed, "a second, distinct answer is already answered")
 }
 
-// An ordinary message and two presses of the answer, all before the wait opens (the ask names its answer
-// event): the second press is already answered, one answer reaches the outbox, the message is
-// published, and the run moves once.
+// An ask that does not name its answer event is refused when the graph is saved.
+func TestAskWithoutAnswerEventIsRefused(t *testing.T) {
+	ae := newAcmeEnv(t)
+	require.NoError(t, ae.reg.RegisterNode(bareAsk{acmeAsk{a: ae.acme}}))
+	p := ae.proc()
+	_, _, err := p.rt.Service().Create(context.Background(), ae.human(), engine.CreateInput{Graph: json.RawMessage(strings.ReplaceAll(askGraph, `"acme.ask"`, `"acme.ask_bare"`))})
+	var ve *engine.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, engine.CodeUnsupported, ve.Errors[0].Code)
+}
+
+// bareAsk is an Asker without AnswerEventer.
+type bareAsk struct{ inner acmeAsk }
+
+func (b bareAsk) Spec() graph.NodeSpec {
+	s := b.inner.Spec()
+	s.Type = "acme.ask_bare"
+	return s
+}
+func (b bareAsk) Requires() []catalog.ConnectorKind { return nil }
+func (b bareAsk) Idempotent() bool                  { return false }
+func (b bareAsk) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallResult, error) {
+	return b.inner.Execute(ctx, in)
+}
+func (b bareAsk) Await(in catalog.CallInput, res catalog.CallResult) (engine.Await, error) {
+	return b.inner.Await(in, res)
+}
+func (b bareAsk) Answer(payload json.RawMessage) (string, json.RawMessage, error) {
+	return b.inner.Answer(payload)
+}
+
+// An ordinary message and two presses of the answer, all before the wait opens: the second press is
+// already answered, one answer reaches the outbox, the message is published, and the run moves once.
 func TestEarlyAnswersAfterAnUnrelatedEvent(t *testing.T) {
 	ae := newAcmeEnv(t)
 	p := ae.proc()

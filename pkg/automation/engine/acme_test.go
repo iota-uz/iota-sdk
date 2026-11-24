@@ -32,6 +32,7 @@ const (
 	kindAcme  = catalog.ConnectorKind("acme")
 	evMessage = "acme.message.v1"
 	evAnswer  = "acme.answer.v1"
+	evReceipt = "acme.receipt.v1" // a wait-only event that is not the ask's answer
 	acmeToken = "tok-SECRET-42"
 	acmeSig   = "sig-SECRET-7"
 )
@@ -104,6 +105,8 @@ func (acmeEvents) Events() []graph.EventSpec {
 			Payload: expr.Fields{{Name: "text", Field: expr.StringField}, {Name: "from", Field: expr.StringField}}},
 		{Key: evAnswer, Title: "Answer", Subject: graph.SubjectConversation, NoTrigger: true,
 			Payload: expr.Fields{{Name: "choice", Field: expr.StringField}}},
+		{Key: evReceipt, Title: "Receipt", Subject: graph.SubjectConversation, NoTrigger: true,
+			Payload: expr.Fields{{Name: "choice", Field: expr.StringField}}},
 	}
 }
 
@@ -130,7 +133,7 @@ type acmeUpdate struct {
 
 func (u acmeUpdate) event(connection string) engine.InboundEvent {
 	payload := map[string]any{"text": u.Text, "from": u.From}
-	if u.Event == evAnswer {
+	if u.Event == evAnswer || u.Event == evReceipt {
 		payload = map[string]any{"choice": u.Choice}
 	}
 	raw, err := json.Marshal(payload)
@@ -254,7 +257,7 @@ func (n *acmeAsk) Execute(ctx context.Context, in catalog.CallInput) (catalog.Ca
 func (n *acmeAsk) Await(catalog.CallInput, catalog.CallResult) (engine.Await, error) {
 	return engine.Await{Event: evAnswer, Timeout: time.Hour, Single: true}, nil
 }
-func (n *acmeAsk) AnswerEvent(catalog.CallInput) string { return evAnswer }
+func (n *acmeAsk) AnswerEvent(catalog.CallInput) (string, bool) { return evAnswer, true }
 
 func (n *acmeAsk) Answer(payload json.RawMessage) (string, json.RawMessage, error) {
 	var p struct {

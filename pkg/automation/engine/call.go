@@ -287,6 +287,9 @@ type callExec struct {
 	c   *CallRunner
 	nr  workflow.NativeRun
 	req CallRequest
+	// answer and single are what an ask named before sending (AnswerEventer): its wait keeps them.
+	answer string
+	single bool
 }
 
 func (x *callExec) run(ctx context.Context) (WaitResult, error) {
@@ -300,6 +303,10 @@ func (x *callExec) run(ctx context.Context) (WaitResult, error) {
 	if _, asks := nt.(Asker); asks && req.AnswerWaitID != "" {
 		var err error
 		if token, afterSeq, err = x.correlation(ctx, nt); err != nil {
+			var se *StepError
+			if errors.As(err, &se) {
+				return x.failed(nt, se.Code, se.Message, false), nil
+			}
 			return WaitResult{}, err
 		}
 	}
@@ -449,15 +456,18 @@ func (x *callExec) release(ctx context.Context) {
 // answer wait the parent opens.
 func (x *callExec) correlation(ctx context.Context, nt catalog.NodeType) (string, int64, error) {
 	req := x.req
-	// The answer event, when the node names it before sending: only it takes the token from the start.
-	var event any
-	if ae, ok := nt.(AnswerEventer); ok {
-		params, _ := decodeMap(req.Input)
-		if e := ae.AnswerEvent(catalog.CallInput{TenantID: req.TenantID, AutomationID: req.AutomationID, RunID: req.RunID,
-			NodeID: req.NodeID, Params: params, Subject: req.Subject, RunAs: req.RunAs}); e != "" {
-			event = e
-		}
+	// The answer, as the node names it before sending: only that event takes the token from the start.
+	ae, ok := nt.(AnswerEventer)
+	if !ok {
+		return "", 0, &StepError{Code: CodeUnsupported, Message: req.NodeType + " asks without naming its answer event"}
 	}
+	params, _ := decodeMap(req.Input)
+	event, single := ae.AnswerEvent(catalog.CallInput{TenantID: req.TenantID, AutomationID: req.AutomationID, RunID: req.RunID,
+		NodeID: req.NodeID, Params: params, Subject: req.Subject, RunAs: req.RunAs})
+	if event == "" {
+		return "", 0, &StepError{Code: CodeUnsupported, Message: req.NodeType + " names no answer event"}
+	}
+	x.answer, x.single = event, single
 	raw, err := x.nr.Transaction(ctx, "correlation", 0, func(ctx context.Context, tx pgx.Tx) (json.RawMessage, error) {
 		mark, err := watermark(ctx, tx)
 		if err != nil {
@@ -467,8 +477,8 @@ func (x *callExec) correlation(ctx context.Context, nt catalog.NodeType) (string
 		for i := 0; i < 5; i++ {
 			token := NewCorrelationToken()
 			tag, err := tx.Exec(ctx, `
-				INSERT INTO automation.correlations (token, tenant_id, run_id, wait_id, expires_at, event)
-				VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (token) DO NOTHING`, token, req.TenantID, req.RunID, req.AnswerWaitID, expires, event)
+				INSERT INTO automation.correlations (token, tenant_id, run_id, wait_id, expires_at, event, single)
+				VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (token) DO NOTHING`, token, req.TenantID, req.RunID, req.AnswerWaitID, expires, event, single)
 			if err != nil {
 				return nil, serrors.FromDB(opCall, err)
 			}
@@ -476,7 +486,7 @@ func (x *callExec) correlation(ctx context.Context, nt catalog.NodeType) (string
 				return json.Marshal(map[string]any{"token": token, "after_seq": mark})
 			}
 		}
-		return nil, fmt.Errorf("no free correlation token")
+		return nil, errors.New("no free correlation token")
 	})
 	if err != nil {
 		return "", 0, err
@@ -664,7 +674,11 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, k int, a wo
 		if most := x.c.r.cfg.Limits.WaitMax; timeout <= 0 || timeout > most {
 			timeout = most
 		}
-		rec.Await = &AwaitSpec{Event: aw.Event, TimeoutMS: timeout.Milliseconds(), Single: aw.Single, Token: token, AfterSeq: afterSeq}
+		if aw.Event != x.answer {
+			return callRecord{Kind: "failed", Code: graph.FailInvalidAnswer, Message: fmt.Sprintf("%s awaits %s but named %s as its answer", req.NodeID, aw.Event, x.answer)}, nil
+		}
+		// The token was issued with the named answer and policy: the wait keeps them.
+		rec.Await = &AwaitSpec{Event: x.answer, TimeoutMS: timeout.Milliseconds(), Single: x.single, Token: token, AfterSeq: afterSeq}
 	}
 	return rec, nil
 }
