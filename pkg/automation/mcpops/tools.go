@@ -117,6 +117,7 @@ func Tools(svc engine.Service, auth engine.Authoring, reg catalog.Registry, urls
 			"; more is limit_exceeded. At most 50 events, the entries of a batch counted one by one. Requires " + engine.PermAuthor + ".",
 		Input: dryRunSchema(), Annotations: readOnly("Dry-run automation"), Policy: AuthorPolicy,
 	}, t.dryRun))
+	t.addState(add, readOnly)
 	if len(errs) > 0 {
 		return nil, serrors.Wrap(op, errors.Join(errs...))
 	}

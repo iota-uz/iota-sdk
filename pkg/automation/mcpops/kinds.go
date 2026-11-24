@@ -34,7 +34,7 @@ const (
 // HUMAN_REQUIRED.
 func Kinds(svc engine.Service, auth engine.Authoring, urls URLs, opts ...Option) []changes.Kind {
 	b := base{svc: svc, auth: auth, urls: urls, o: buildOptions(opts)}
-	return []changes.Kind{createKind{b}, updateKind{b}, layoutKind{b}}
+	return append([]changes.Kind{createKind{b}, updateKind{b}, layoutKind{b}}, stateKinds(b)...)
 }
 
 type base struct {
