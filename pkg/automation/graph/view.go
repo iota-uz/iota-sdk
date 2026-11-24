@@ -97,7 +97,7 @@ func View(c Catalog, b *Behaviors) CatalogView {
 		if impl, ok := b.impl(n.Behavior); ok {
 			nv.OutcomeRule = impl.OutcomeRule(n)
 		}
-		if len(n.Output) > 0 && (n.OutputFrom == nil || n.OutputFrom.Field != "") && n.OutputKeys == nil {
+		if len(n.Output) > 0 && n.OutputKeys == nil && (n.OutputFrom == nil || n.OutputFrom.Field != "") {
 			nv.Output = n.Output.JSONSchema()
 		}
 		v.Nodes = append(v.Nodes, nv)
