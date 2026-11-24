@@ -66,17 +66,18 @@ type telegram struct {
 	nodes        []catalog.NodeType
 
 	// lifecycle (connectors.Provisioner and connectors.Advisor)
-	lmu           sync.Mutex
-	provisioned   []string // the tokens a connection was set up with, in order
-	deprovisioned []string
-	provisionErr  error
-	warnings      []connectors.Warning
-	advisedFor    []*connectors.Connection
-	exclusive     bool
-	consents      [][]string
-	needConsent   []connectors.Warning // what Provision itself asks the person to confirm
-	adviseErr     error
-	live          bool // the webhook is set at the provider
+	lmu              sync.Mutex
+	provisioned      []string // the tokens a connection was set up with, in order
+	deprovisioned    []string
+	provisionErr     error
+	warnings         []connectors.Warning
+	advisedFor       []*connectors.Connection
+	exclusive        bool
+	consents         [][]string
+	needConsent      []connectors.Warning // what Provision itself asks the person to confirm
+	adviseErr        error
+	live             bool // the webhook is set at the provider
+	provisionApplied bool // a failed Provision changed the provider all the same
 }
 
 // ExternalID makes the fake an exclusive-identity connector when exclusive is set: its account is the token.
@@ -92,6 +93,7 @@ func (c *telegram) Provision(_ context.Context, _ connectors.Connection, creds c
 	defer c.lmu.Unlock()
 	c.consents = append(c.consents, consent)
 	if c.provisionErr != nil {
+		c.live = c.provisionApplied // a lost answer: the provider may have applied the change
 		return nil, c.provisionErr
 	}
 	if len(c.needConsent) > 0 {
@@ -1497,7 +1499,7 @@ func TestConcurrentEnablesChangeTheProviderOnce(t *testing.T) {
 			require.ErrorIs(t, err, connectors.ErrVersionConflict)
 		}
 	}
-	assert.Equal(t, before+1, len(e.tg.provisioned))
+	assert.Len(t, e.tg.provisioned, before+1)
 	list, err := e.store.List(e.ctx, e.tenant, catalog.KindTelegramBot)
 	require.NoError(t, err)
 	assert.Equal(t, connectors.StatusConnected, list[0].Status)
@@ -1603,4 +1605,18 @@ func TestPlatformReservationIsReleasedAndTheCredentialWithdrawn(t *testing.T) {
 	_, _, has = platform.Platform(catalog.KindTelegramBot)
 	assert.False(t, has, "a withdrawn credential is not served to anyone")
 	assert.Empty(t, platform.(connectors.PlatformCatalog).Kinds())
+}
+
+// A setup whose answer was lost may have changed the provider: the save that failed has it undone.
+func TestAFailedSetupThatMayHaveAppliedIsCleanedUp(t *testing.T) {
+	e := newEnv(t)
+	e.tg.provisionErr = errors.New("telegram setWebhook: the request timed out")
+	e.tg.provisionApplied = true
+	_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "main", Credentials: map[string]any{"token": goodToken}})
+	var failed *services.TestFailedError
+	require.ErrorAs(t, err, &failed)
+	e.tg.lmu.Lock()
+	defer e.tg.lmu.Unlock()
+	assert.False(t, e.tg.live, "what the failed setup may have set is removed")
+	assert.Equal(t, []string{goodToken}, e.tg.deprovisioned)
 }

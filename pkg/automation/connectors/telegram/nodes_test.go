@@ -3,7 +3,7 @@ package telegram_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -56,10 +56,7 @@ func (r *rig) input(params map[string]any, u *usage) catalog.CallInput {
 
 func num(n int64) json.Number { return json.Number(jsonInt(n)) }
 
-func jsonInt(n int64) string {
-	b, _ := json.Marshal(n)
-	return string(b)
-}
+func jsonInt(n int64) string { return strconv.FormatInt(n, 10) }
 
 func TestSendDeliversTheMessageAndCountsIt(t *testing.T) {
 	r := newRig(t)
@@ -105,7 +102,7 @@ func TestSendAcceptsAnIDFromAnExpressionAndAUsername(t *testing.T) {
 	assert.Len(t, r.bot.Sent(), 2)
 	_, err = r.node(telegram.NodeSend).Execute(context.Background(), r.input(map[string]any{"chat_id": "nonsense", "text": "c"}, nil))
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, catalog.CallInvalidRequest, ce.Code)
 }
 
@@ -124,7 +121,7 @@ func TestSendToATopicAndToTheGeneralChat(t *testing.T) {
 
 	_, err = r.node(telegram.NodeSend).Execute(ctx, r.input(map[string]any{"chat_id": num(-1003), "thread_id": num(99), "text": "x"}, nil))
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, catalog.CallRejected, ce.Code, "a topic that does not exist")
 }
 
@@ -157,7 +154,7 @@ func TestSendWithFiles(t *testing.T) {
 
 	_, err = r.node(telegram.NodeSend).Execute(ctx, r.input(map[string]any{"chat_id": num(700), "text": "x", "files": []any{"missing"}}, nil))
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, catalog.CallInvalidRequest, ce.Code)
 }
 
@@ -167,12 +164,12 @@ func TestBlockedBotIsRejectedAndTheConnectionStaysConnected(t *testing.T) {
 	r.bot.Block(700)
 	_, err := r.node(telegram.NodeSend).Execute(context.Background(), r.input(map[string]any{"chat_id": num(700), "text": "hi"}, nil))
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, catalog.CallRejected, ce.Code)
 	assert.Empty(t, r.st.status, "the connection is not touched")
 
 	_, err = r.node(telegram.NodeSend).Execute(context.Background(), r.input(map[string]any{"chat_id": num(12345), "text": "hi"}, nil))
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, catalog.CallRejected, ce.Code, "chat not found")
 }
 
@@ -182,7 +179,7 @@ func TestUnauthorizedMarksTheConnectionNeedsReauth(t *testing.T) {
 	r.bot.Fail(telegramtest.Failure{Method: "sendMessage", Code: 401, Description: "Unauthorized"})
 	_, err := r.node(telegram.NodeSend).Execute(context.Background(), r.input(map[string]any{"chat_id": num(700), "text": "hi"}, nil))
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, catalog.CallUnauthorized, ce.Code)
 	assert.Equal(t, connectors.StatusNeedsReauth, r.st.status)
 	assert.Equal(t, "reauth", r.st.reason)
@@ -215,7 +212,7 @@ func TestALostAnswerIsAnUnknownOutcomeWithoutTheToken(t *testing.T) {
 	_, err := r.node(telegram.NodeSend).Execute(context.Background(), r.input(map[string]any{"chat_id": num(700), "text": "hi"}, nil))
 	require.Error(t, err)
 	var ce *catalog.CallError
-	assert.False(t, errors.As(err, &ce), "not a refusal")
+	assert.NotErrorAs(t, err, &ce, "not a refusal")
 	assert.Len(t, r.bot.Sent(), 1, "the message was sent")
 	assert.NotContains(t, err.Error(), tenantToken)
 	assert.NotContains(t, err.Error(), "AAAAAAAA")
@@ -237,7 +234,7 @@ func TestSendRefusesAnOverlongText(t *testing.T) {
 	}
 	_, err := r.node(telegram.NodeSend).Execute(context.Background(), r.input(map[string]any{"chat_id": num(700), "text": string(long)}, nil))
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, catalog.CallInvalidRequest, ce.Code)
 	assert.Empty(t, r.bot.CallsOf("sendMessage"), "refused before it is sent")
 }
@@ -254,12 +251,12 @@ func TestClientSendForOtherCode(t *testing.T) {
 	_, err = c.Send(context.Background(), catalog.ConnectionInfo{}, catalog.Credentials{"token": tenantToken},
 		telegram.Message{ChatID: 700, Text: "x", Buttons: [][]telegram.Button{{{Text: "both", URL: "https://x", CallbackData: "d"}}}})
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce), "a button has exactly one of URL and CallbackData")
+	require.ErrorAs(t, err, &ce, "a button has exactly one of URL and CallbackData")
 
 	r.bot.Fail(telegramtest.Failure{Method: "sendMessage", Code: 429, RetryAfter: 2})
 	_, err = c.Send(context.Background(), catalog.ConnectionInfo{}, catalog.Credentials{"token": tenantToken}, telegram.Message{ChatID: 700, Text: "x"})
 	var ra *telegram.RetryAfterError
-	require.True(t, errors.As(err, &ra))
+	require.ErrorAs(t, err, &ra)
 	assert.Equal(t, 2*time.Second, ra.After)
 }
 
@@ -298,7 +295,7 @@ func TestAskSendsButtonsWithTheCorrelationToken(t *testing.T) {
 			assert.LessOrEqual(t, len(b.CallbackData), 64)
 		}
 	}
-	assert.Equal(t, telegram.CallbackData(askToken, 1), "a:"+askToken+":1")
+	assert.Equal(t, "a:"+askToken+":1", telegram.CallbackData(askToken, 1))
 
 	_, err = r.node(telegram.NodeAsk).Execute(context.Background(), r.input(map[string]any{"chat_id": num(700), "text": "x", "options": options(2)}, nil))
 	require.Error(t, err, "no correlation token: not an ask")
@@ -485,7 +482,7 @@ func TestAnAlbumTakesNoButtons(t *testing.T) {
 	// …and before anything is sent.
 	_, err := r.node(telegram.NodeSend).Execute(context.Background(), r.input(params, nil))
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, catalog.CallInvalidRequest, ce.Code)
 	assert.Empty(t, r.bot.Sent())
 	// One file keeps its buttons.
@@ -549,4 +546,24 @@ func (r *rig) read() interface{ Spec() graph.NodeSpec } {
 	}
 	r.t.Fatal("no read node")
 	return nil
+}
+
+// A 401 of a send that used a token the connection no longer holds marks nothing: the replacement works.
+func TestAStale401DoesNotMarkAReplacedToken(t *testing.T) {
+	r := newRig(t)
+	r.api.Chat(telegramtest.Chat{ID: 700, Type: "private"})
+	r.bot.Fail(telegramtest.Failure{Method: "sendMessage", Code: 401, Description: "Unauthorized"})
+	r.st.token = "999999:ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ" // replaced while the send was in flight
+	_, err := r.node(telegram.NodeSend).Execute(context.Background(), r.input(map[string]any{"chat_id": num(700), "text": "hi"}, nil))
+	var ce *catalog.CallError
+	require.ErrorAs(t, err, &ce)
+	assert.Equal(t, catalog.CallUnauthorized, ce.Code)
+	assert.Empty(t, r.st.status, "the connection stays as it is")
+
+	// The token the connection holds is the one refused: it is marked.
+	r.st.token = ""
+	r.bot.Fail(telegramtest.Failure{Method: "sendMessage", Code: 401, Description: "Unauthorized"})
+	_, err = r.node(telegram.NodeSend).Execute(context.Background(), r.input(map[string]any{"chat_id": num(700), "text": "hi"}, nil))
+	require.ErrorAs(t, err, &ce)
+	assert.Equal(t, connectors.StatusNeedsReauth, r.st.status)
 }

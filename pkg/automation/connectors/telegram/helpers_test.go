@@ -81,12 +81,16 @@ func (u *uploads) Open(_ context.Context, _ uuid.UUID, id string) (telegram.Uplo
 
 // state records the writes of the connector to its connection.
 type state struct {
-	mu      sync.Mutex
-	status  connectors.ConnectionStatus
-	reason  string
-	inbound json.RawMessage
-	exists  map[uuid.UUID]bool // connections of the application that are alive
-	owner   uuid.UUID          // the connection the inbound state is of
+	mu         sync.Mutex
+	status     connectors.ConnectionStatus
+	reason     string
+	inbound    json.RawMessage
+	exists     map[uuid.UUID]bool // connections of the application that are alive
+	owner      uuid.UUID          // the connection the inbound state is of
+	done       map[string]bool    // updates recorded as handled (connectors.InboundOnce)
+	failWrites int                // inbound writes that fail
+	token      string             // the token the connection holds now ("" : the tenant bot's)
+	version    int
 }
 
 func (s *state) ConnectionExists(_ context.Context, id uuid.UUID) (bool, error) {
@@ -95,16 +99,49 @@ func (s *state) ConnectionExists(_ context.Context, id uuid.UUID) (bool, error) 
 	return s.exists[id], nil
 }
 
-func (s *state) SetStatus(_ context.Context, _, _ uuid.UUID, st connectors.ConnectionStatus, reason string) error {
+func (s *state) Get(context.Context, uuid.UUID, uuid.UUID) (connectors.Connection, connectors.Credentials, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	token := s.token
+	if token == "" {
+		token = tenantToken
+	}
+	return connectors.Connection{Version: s.version}, connectors.Credentials{"token": token}, nil
+}
+
+func (s *state) SetStatusIf(_ context.Context, _, _ uuid.UUID, st connectors.ConnectionStatus, reason string, cond func(json.RawMessage, int) bool) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if cond != nil && !cond(s.inbound, s.version) {
+		return false, nil
+	}
 	s.status, s.reason = st, reason
+	return true, nil
+}
+
+func (s *state) InboundSeen(_ context.Context, _ uuid.UUID, connection, event, key string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.done[connection+"/"+event+"/"+key], nil
+}
+
+func (s *state) InboundDone(_ context.Context, _ uuid.UUID, connection, event, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.done == nil {
+		s.done = map[string]bool{}
+	}
+	s.done[connection+"/"+event+"/"+key] = true
 	return nil
 }
 
 func (s *state) UpdateInbound(_ context.Context, _, _ uuid.UUID, fn func(json.RawMessage) (json.RawMessage, error)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.failWrites > 0 {
+		s.failWrites--
+		return errors.New("storage is down")
+	}
 	next, err := fn(s.inbound)
 	if err != nil {
 		return err

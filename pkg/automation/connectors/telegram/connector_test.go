@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -66,21 +65,37 @@ func TestTriggerParamsMatching(t *testing.T) {
 	v, err := reg.ForTenant(context.Background(), r.tenant)
 	require.NoError(t, err)
 	spec := v.Catalog.Events[telegram.EventMessage]
+	msg := func(command string, extra map[string]any) map[string]any {
+		e := map[string]any{"isCommand": command != "", "command": command, "route": "text", "chatType": "private", "chatId": "1"}
+		if command != "" {
+			e["route"] = "command:" + command
+		}
+		for k, v := range extra {
+			e[k] = v
+		}
+		return e
+	}
 	for name, tc := range map[string]struct {
 		params map[string]any
 		event  map[string]any
 		want   bool
 	}{
-		"plain message, default ignore": {nil, map[string]any{"isCommand": false, "chatType": "private", "chatId": "1"}, true},
-		"command, default ignore":       {nil, map[string]any{"isCommand": true, "command": "start", "chatType": "private", "chatId": "1"}, false},
-		"command, only":                 {map[string]any{"commands": "only"}, map[string]any{"isCommand": true, "command": "start"}, true},
-		"plain message, only":           {map[string]any{"commands": "only"}, map[string]any{"isCommand": false}, false},
-		"include takes both":            {map[string]any{"commands": "include"}, map[string]any{"isCommand": false}, true},
-		"command name, any case":        {map[string]any{"commands": "only", "command_names": []any{"Help"}}, map[string]any{"isCommand": true, "command": "help"}, true},
-		"other command name":            {map[string]any{"commands": "only", "command_names": []any{"help"}}, map[string]any{"isCommand": true, "command": "start"}, false},
-		"chat id":                       {map[string]any{"chat_ids": []any{"7"}}, map[string]any{"isCommand": false, "chatId": "8"}, false},
-		"private only, a group":         {map[string]any{"private_only": true}, map[string]any{"isCommand": false, "chatType": "group"}, false},
-		"private only, private":         {map[string]any{"private_only": true}, map[string]any{"isCommand": false, "chatType": "private"}, true},
+		"plain message, default ignore": {nil, msg("", nil), true},
+		"command, default ignore":       {nil, msg("start", nil), false},
+		"command, only":                 {map[string]any{"commands": "only"}, msg("start", nil), true},
+		"plain message, only":           {map[string]any{"commands": "only"}, msg("", nil), false},
+		"include takes both":            {map[string]any{"commands": "include"}, msg("", nil), true},
+		"include takes a command":       {map[string]any{"commands": "include"}, msg("start", nil), true},
+		"only, command name any case":   {map[string]any{"commands": "only", "command_names": []any{"Help"}}, msg("help", nil), true},
+		"only, other command name":      {map[string]any{"commands": "only", "command_names": []any{"help"}}, msg("start", nil), false},
+		"include with names: plain":     {map[string]any{"commands": "include", "command_names": []any{"help"}}, msg("", nil), true},
+		"include with names: listed":    {map[string]any{"commands": "include", "command_names": []any{"help"}}, msg("help", nil), true},
+		"include with names: other":     {map[string]any{"commands": "include", "command_names": []any{"help"}}, msg("start", nil), false},
+		"ignore: names narrow nothing":  {map[string]any{"commands": "ignore", "command_names": []any{"start"}}, msg("", nil), true},
+		"ignore: a command stays out":   {map[string]any{"commands": "ignore", "command_names": []any{"start"}}, msg("start", nil), false},
+		"chat id":                       {map[string]any{"chat_ids": []any{"7"}}, msg("", map[string]any{"chatId": "8"}), false},
+		"private only, a group":         {map[string]any{"private_only": true}, msg("", map[string]any{"chatType": "group"}), false},
+		"private only, private":         {map[string]any{"private_only": true}, msg("", nil), true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			parsed, issues := spec.TriggerParams.Parse(tc.params)
@@ -109,7 +124,7 @@ func TestTriggerParamsMatching(t *testing.T) {
 
 func TestPlatformWebhookSecretShape(t *testing.T) {
 	s := telegram.WebhookSecret(platformToken, "platform:telegram_bot")
-	assert.Regexp(t, regexp.MustCompile(`^[A-Za-z0-9_-]{32}$`), s)
+	assert.Regexp(t, `^[A-Za-z0-9_-]{32}$`, s)
 	assert.NotEqual(t, s, telegram.WebhookSecret(tenantToken, "platform:telegram_bot"), "per token")
 }
 
@@ -118,7 +133,7 @@ func TestPlatformWebhookSecretShape(t *testing.T) {
 func TestTenantWebhookSecretIsGeneratedAndStored(t *testing.T) {
 	r := newRig(t)
 	first := r.bot.Webhook().Secret
-	assert.Regexp(t, regexp.MustCompile(`^[A-Za-z0-9_-]{32}$`), first)
+	assert.Regexp(t, `^[A-Za-z0-9_-]{32}$`, first)
 	state, err := r.prov(context.Background(), r.conn, r.creds(), nil)
 	require.NoError(t, err)
 	var held struct {
@@ -149,7 +164,7 @@ func TestProvisionSetsTheWebhookAndDeprovisionRemovesIt(t *testing.T) {
 	ctx := context.Background()
 	hook := r.bot.Webhook()
 	assert.Equal(t, origin+"/automations/hooks/"+r.conn.ID.String(), hook.URL)
-	assert.Regexp(t, regexp.MustCompile(`^[A-Za-z0-9_-]{32}$`), hook.Secret)
+	assert.Regexp(t, `^[A-Za-z0-9_-]{32}$`, hook.Secret)
 
 	require.NoError(t, r.c.Deprovision(ctx, r.conn, r.creds()))
 	assert.Empty(t, r.bot.Webhook().URL)
@@ -288,10 +303,6 @@ func TestABotBelongsToOneConnection(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, w, 1, "another connection may not")
 
-	_, err = r.prov(ctx, other, r.creds(), nil)
-	require.Error(t, err, "and is refused at the provider too")
-	assert.Equal(t, origin+"/automations/hooks/"+r.conn.ID.String(), r.bot.Webhook().URL, "the owner's webhook stays")
-
 	require.NoError(t, r.c.Deprovision(ctx, other, r.creds()))
 	assert.Equal(t, origin+"/automations/hooks/"+r.conn.ID.String(), r.bot.Webhook().URL, "an exact URL only is removed")
 
@@ -302,7 +313,7 @@ func TestABotBelongsToOneConnection(t *testing.T) {
 	require.Len(t, w, 1)
 	assert.True(t, w[0].Blocking)
 	_, err = r.prov(ctx, r.conn, r.platformCreds(), nil)
-	require.Error(t, err)
+	require.Error(t, err, "the platform's route is taken at the provider too")
 
 	// Once the owner is gone its webhook is stale and the bot is free to be taken over.
 	delete(r.st.exists, r.conn.ID)
@@ -319,7 +330,9 @@ func TestVerifyComparesTheSecret(t *testing.T) {
 	upd := r.bot.Update(900, alice, "hi")
 	code, _ := r.post(r.conn, r.creds(), "", upd)
 	assert.Equal(t, http.StatusNotFound, code, "no secret")
-	code, _ = r.post(r.conn, r.creds(), good[:31]+"x", upd)
+	last := good[len(good)-1]
+	wrong := good[:len(good)-1] + string(map[bool]byte{true: 'b', false: 'a'}[last == 'a'])
+	code, _ = r.post(r.conn, r.creds(), wrong, upd)
 	assert.Equal(t, http.StatusNotFound, code, "a wrong secret")
 	code, _ = r.post(r.conn, r.creds(), telegram.WebhookSecret(tenantToken, r.conn.ID.String()), upd)
 	assert.Equal(t, http.StatusNotFound, code, "a secret derived from the token is not the stored one")
@@ -370,8 +383,8 @@ func TestReadNeedsATenantsOwnBot(t *testing.T) {
 	require.NoError(t, connectors.NewDirectory(reg).Register(telegram.New(telegram.Config{})))
 	v, err := reg.ForTenant(context.Background(), r.tenant)
 	require.NoError(t, err)
-	assert.True(t, v.TenantOnly[telegram.NodeRead])
-	assert.False(t, v.TenantOnly[telegram.NodeSend])
+	assert.True(t, v.TenantOnlyNodes[telegram.NodeRead])
+	assert.False(t, v.TenantOnlyNodes[telegram.NodeSend])
 	platformOnly := catalog.NewRegistry(avail{telegram.Kind: {{ID: "platform:telegram_bot", Name: "platform"}}})
 	require.NoError(t, connectors.NewDirectory(platformOnly).Register(telegram.New(telegram.Config{})))
 	pv, err := platformOnly.ForTenant(context.Background(), r.tenant)

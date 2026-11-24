@@ -597,6 +597,21 @@ func (s *store) WithLatest(ctx context.Context, kind catalog.ConnectorKind, tena
 	return serrors.Wrap(op, err)
 }
 
+// InboundSeen reports whether an update was recorded as handled (InboundOnce).
+func (s *store) InboundSeen(ctx context.Context, tenantID uuid.UUID, connection, event, key string) (bool, error) {
+	var seen bool
+	err := s.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM automation.inbound_dedup WHERE tenant_id = $1 AND connection_id = $2 AND event = $3 AND dedup_key = $4)`,
+		tenantID, connection, event, key).Scan(&seen)
+	return seen, serrors.Wrap("automation.connectors.Store.InboundSeen", err)
+}
+
+// InboundDone records an update as handled (InboundOnce).
+func (s *store) InboundDone(ctx context.Context, tenantID uuid.UUID, connection, event, key string) error {
+	_, err := s.db.Exec(ctx, `INSERT INTO automation.inbound_dedup (tenant_id, connection_id, event, dedup_key) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+		tenantID, connection, event, key)
+	return serrors.Wrap("automation.connectors.Store.InboundDone", err)
+}
+
 // ConnectionExists reports whether a connection of any tenant has the id.
 func (s *store) ConnectionExists(ctx context.Context, id uuid.UUID) (bool, error) {
 	var found bool

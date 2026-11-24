@@ -200,7 +200,7 @@ func (e *BlockedError) Error() string {
 	return "automation connections: the provider account belongs to another connection"
 }
 
-// ErrIdentityTaken: the exclusive identity belongs to another connection or to the platform credential.
+// ErrIdentityTaken is returned when the exclusive identity belongs to another connection or to the platform credential.
 var ErrIdentityTaken = errors.New("automation connections: the provider account belongs to another connection")
 
 func identityLockKey(kind catalog.ConnectorKind, external string) string {
@@ -237,23 +237,32 @@ func ReserveIdentity(ctx context.Context, tx pgx.Tx, kind catalog.ConnectorKind,
 	return ErrIdentityTaken
 }
 
-// IdentityHolder is who holds an exclusive identity: the connection, whether it is the platform credential's, and
-// whether anyone holds it.
-func IdentityHolder(ctx context.Context, q interface {
+// identityHolder is who holds an exclusive identity.
+type identityHolder struct {
+	connection uuid.UUID // the holding connection; uuid.Nil for the platform credential
+	platform   bool
+	held       bool
+}
+
+func holderOf(ctx context.Context, q interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-}, kind catalog.ConnectorKind, external string) (connectionID uuid.UUID, platform, held bool, err error) {
-	var holder *uuid.UUID
-	err = q.QueryRow(ctx, `SELECT connection_id, platform FROM automation.exclusive_identities WHERE kind = $1 AND external = $2`, string(kind), external).Scan(&holder, &platform)
+}, kind catalog.ConnectorKind, external string) (identityHolder, error) {
+	var (
+		holder   *uuid.UUID
+		platform bool
+	)
+	err := q.QueryRow(ctx, `SELECT connection_id, platform FROM automation.exclusive_identities WHERE kind = $1 AND external = $2`, string(kind), external).Scan(&holder, &platform)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return uuid.Nil, false, false, nil
+		return identityHolder{}, nil
 	}
 	if err != nil {
-		return uuid.Nil, false, false, err
+		return identityHolder{}, err
 	}
+	out := identityHolder{platform: platform, held: true}
 	if holder != nil {
-		connectionID = *holder
+		out.connection = *holder
 	}
-	return connectionID, platform, true, nil
+	return out, nil
 }
 
 // ReservePlatformIdentity gives the exclusive identity to the platform credential, under the same lock as a
@@ -270,13 +279,13 @@ func ReservePlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog
 		if _, err := tx.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE platform AND kind = $1 AND external <> $2`, string(kind), external); err != nil {
 			return err
 		}
-		holder, platform, held, err := IdentityHolder(ctx, tx, kind, external)
+		holder, err := holderOf(ctx, tx, kind, external)
 		switch {
 		case err != nil:
 			return err
-		case held && platform:
+		case holder.held && holder.platform:
 			return nil
-		case held && holder != uuid.Nil:
+		case holder.held && holder.connection != uuid.Nil:
 			return ErrIdentityTaken
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO automation.exclusive_identities (kind, external, platform) VALUES ($1, $2, TRUE)`, string(kind), external)
@@ -299,4 +308,14 @@ func InboundTx(ctx context.Context, tx pgx.Tx, tenantID, id uuid.UUID) (json.Raw
 func ReleasePlatformIdentities(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind) error {
 	_, err := db.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE platform AND kind = $1`, string(kind))
 	return err
+}
+
+// InboundOnce is an optional interface of a ConnectionStore: a record of provider updates a connector handled
+// itself (no event was published for them), by the provider's id, on the table of the engine's own dedup
+// (automation.inbound_dedup, pruned with it). A connector checks it before it acts on a repeated delivery
+// and records the update once it has completed, so an update whose answer to the provider was lost is not
+// acted on twice.
+type InboundOnce interface {
+	InboundSeen(ctx context.Context, tenantID uuid.UUID, connection, event, key string) (bool, error)
+	InboundDone(ctx context.Context, tenantID uuid.UUID, connection, event, key string) error
 }

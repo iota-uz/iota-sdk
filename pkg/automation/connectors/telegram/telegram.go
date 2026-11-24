@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/google/uuid"
@@ -73,7 +74,8 @@ type Config struct {
 
 // ConnectionState is the part of connectors.ConnectionStore the connector writes to.
 type ConnectionState interface {
-	SetStatus(ctx context.Context, tenantID, id uuid.UUID, s connectors.ConnectionStatus, reason string) error
+	Get(ctx context.Context, tenantID, id uuid.UUID) (connectors.Connection, connectors.Credentials, error)
+	SetStatusIf(ctx context.Context, tenantID, id uuid.UUID, s connectors.ConnectionStatus, reason string, cond func(state json.RawMessage, version int) bool) (bool, error)
 	UpdateInbound(ctx context.Context, tenantID, id uuid.UUID, fn func(state json.RawMessage) (json.RawMessage, error)) error
 }
 
@@ -84,6 +86,8 @@ type Connector struct {
 	starts  starts
 	chats   chatMemory
 	presses presses
+	// usernames caches the username of a bot by its token (the addressee of a command).
+	usernames sync.Map
 	// platformToken is the platform credential StartPlatform was given (the effective one).
 	platformToken atomic.Pointer[string]
 }
@@ -165,7 +169,7 @@ const (
 // ownerOf classifies the webhook URL of a bot against own, the URL the connection being saved would set
 // (empty for a new one). A URL of this application that names a connection is another's while that
 // connection exists; one whose connection is gone is nobody's and may be taken over without a word.
-func (c *Connector) ownerOf(ctx context.Context, url, own string) (hookOwner, error) {
+func (c *Connector) ownerOf(ctx context.Context, url, own string, lookup bool) (hookOwner, error) {
 	switch {
 	case url == "":
 		return hookFree, nil
@@ -183,7 +187,13 @@ func (c *Connector) ownerOf(ctx context.Context, url, own string) (hookOwner, er
 	}
 	id, err := uuid.Parse(rest)
 	if err != nil {
-		return hookForeign, nil
+		return hookForeign, nil //nolint:nilerr // not the URL of a connection: another service's
+	}
+	if !lookup {
+		// Inside the save's transaction no second database connection is taken: the account is reserved for
+		// the connection being saved by now, which no other reserved connection can hold, and what the
+		// advice (outside the transaction) found is not asked again.
+		return hookFree, nil
 	}
 	checker, ok := c.cfg.Connections.(connectors.ExistenceChecker)
 	if !ok {
@@ -205,7 +215,7 @@ func (c *Connector) ownerOf(ctx context.Context, url, own string) (hookOwner, er
 // is a warning the person confirms. With no webhook at all, whether another service reads the bot by polling
 // (getUpdates) cannot be told without disturbing it (a request for updates takes over the long poll of the
 // service that has it), so taking such a bot over needs the person's word that nobody does.
-func (c *Connector) assess(ctx context.Context, creds connectors.Credentials, existing *connectors.Connection) ([]connectors.Warning, error) {
+func (c *Connector) assess(ctx context.Context, creds connectors.Credentials, existing *connectors.Connection, lookup bool) ([]connectors.Warning, error) {
 	b := c.bot(creds["token"])
 	info, err := b.webhookInfo(ctx)
 	if err != nil {
@@ -215,7 +225,7 @@ func (c *Connector) assess(ctx context.Context, creds connectors.Credentials, ex
 	if existing != nil {
 		own = c.hookURL(*existing)
 	}
-	owner, err := c.ownerOf(ctx, info.Url, own)
+	owner, err := c.ownerOf(ctx, info.Url, own, lookup)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +244,7 @@ func (c *Connector) assess(ctx context.Context, creds connectors.Credentials, ex
 
 // Advise warns before a bot is connected (see assess). It changes nothing at Telegram.
 func (c *Connector) Advise(ctx context.Context, existing *connectors.Connection, creds connectors.Credentials) ([]connectors.Warning, error) {
-	return c.assess(ctx, creds, existing)
+	return c.assess(ctx, creds, existing, true)
 }
 
 // secretKey is the key of the connection's inbound state the webhook secret is kept under.
@@ -258,7 +268,7 @@ func (c *Connector) Provision(ctx context.Context, conn connectors.Connection, c
 		return nil, errors.New("telegram: the application's public origin is not configured (status 400)")
 	}
 	token := creds["token"]
-	warnings, err := c.assess(ctx, creds, &conn)
+	warnings, err := c.assess(ctx, creds, &conn, false)
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +308,7 @@ func (c *Connector) Provision(ctx context.Context, conn connectors.Connection, c
 
 // heldSecret reads the webhook secret and the account it is bound to from a connection's inbound state. An
 // empty state has none; a state that is not readable is an error.
-func heldSecret(held json.RawMessage) (secret, account string, err error) {
+func heldSecret(held json.RawMessage) (string, string, error) {
 	if len(held) == 0 {
 		return "", "", nil
 	}

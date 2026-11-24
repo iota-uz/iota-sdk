@@ -212,8 +212,8 @@ func TestStartWithARegisteredPrefixGoesToItsHandlerAndPublishesNothing(t *testin
 	r := newRig(t)
 	h := &linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}
 	require.NoError(t, r.c.RegisterStart(h))
-	assert.Error(t, r.c.RegisterStart(&linkHandler{prefix: "u_"}), "a prefix twice")
-	assert.Error(t, r.c.RegisterStart(&linkHandler{prefix: "users_"}), "a prefix is 1-4 letters and an underscore")
+	require.Error(t, r.c.RegisterStart(&linkHandler{prefix: "u_"}), "a prefix twice")
+	require.Error(t, r.c.RegisterStart(&linkHandler{prefix: "users_"}), "a prefix is 1-4 letters and an underscore")
 
 	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
 	code, evs := r.platformUpdate(r.platform.Update(800, alice, "/start u_abc"))
@@ -325,4 +325,95 @@ func TestChatOptionsAreGroupedPrivateAndGroups(t *testing.T) {
 	none, err := r.c.Options(context.Background(), r.tenant, r.conn.ID, "other.source", "")
 	require.NoError(t, err)
 	assert.Empty(t, none)
+}
+
+// A command addressed to another bot of a group is that bot's: this connector neither dispatches nor
+// publishes it.
+func TestACommandForAnotherBotIsNotOurs(t *testing.T) {
+	r := newRig(t)
+	h := &linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}
+	require.NoError(t, r.c.RegisterStart(h))
+	r.api.Chat(telegramtest.Chat{ID: 700, Type: "private"})
+	_, evs := r.tenantUpdate(r.bot.Update(700, alice, "/start@other_bot u_abc"))
+	assert.Empty(t, evs)
+	assert.Empty(t, h.got, "not this bot's /start")
+	_, evs = r.tenantUpdate(r.bot.Update(700, alice, "/help@other_bot"))
+	assert.Empty(t, evs, "nor a command message")
+	_, evs = r.tenantUpdate(r.bot.Update(700, alice, "/start@tenant_bot u_abc"))
+	assert.Empty(t, evs)
+	assert.Len(t, h.got, 1, "addressed to this bot")
+	_, evs = r.tenantUpdate(r.bot.Update(700, alice, "/help@tenant_bot"))
+	assert.Len(t, evs, 1)
+}
+
+// A /start that was handled completely is not handled again when Telegram redelivers it.
+func TestAHandledStartIsNotHandledTwice(t *testing.T) {
+	r := newRig(t)
+	h := &linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}
+	require.NoError(t, r.c.RegisterStart(h))
+	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
+	u := r.platform.Update(800, alice, "/start u_abc")
+	r.platformUpdate(u)
+	r.platformUpdate(u)
+	assert.Len(t, h.got, 1, "the handler ran once")
+	assert.Len(t, r.platform.Sent(), 1, "and its reply was sent once")
+
+	// A handler that failed is repeated: it did not complete.
+	h2 := &linkHandler{prefix: "v_", tenant: r.tenant, known: map[string]bool{"v_x": true}, err: assert.AnError}
+	require.NoError(t, r.c.RegisterStart(h2))
+	u2 := r.platform.Update(800, alice, "/start v_x")
+	code, _ := r.platformUpdate(u2)
+	assert.Equal(t, 503, code)
+	h2.err = nil
+	r.platformUpdate(u2)
+	assert.Len(t, h2.got, 2)
+}
+
+// A failed write of a chat does not hold the next message of the chat back.
+func TestAFailedChatWriteIsRetriedWithTheNextMessage(t *testing.T) {
+	r := newRig(t)
+	r.st.failWrites = 1
+	r.tenantUpdate(r.bot.Update(700, alice, "one"))
+	got, err := r.c.KnownChats(context.Background(), r.tenant, r.conn.ID, "", 10)
+	require.NoError(t, err)
+	assert.Empty(t, got, "the storage was down")
+	r.tenantUpdate(r.bot.Update(700, alice, "two"))
+	got, err = r.c.KnownChats(context.Background(), r.tenant, r.conn.ID, "", 10)
+	require.NoError(t, err)
+	assert.Len(t, got, 1, "the next message wrote it")
+	r.tenantUpdate(r.bot.Update(700, alice, "three"))
+	got, err = r.c.KnownChats(context.Background(), r.tenant, r.conn.ID, "", 10)
+	require.NoError(t, err)
+	assert.Len(t, got, 1, "and a repeat of a written chat adds nothing")
+}
+
+// The keyboard of an answered question is taken off even when Telegram fails a few times.
+func TestKeyboardCleanupSurvivesTransientFailures(t *testing.T) {
+	r := newRig(t)
+	m := r.asked()
+	r.in.open[askToken] = r.tenant
+	u := r.pressUpdate(m, alice, 0)
+	_, evs := r.tenantUpdate(u)
+	require.Len(t, evs, 1)
+	r.bot.Fail(telegramtest.Failure{Method: "editMessageText", Code: 502, Description: "Bad Gateway", Times: 3})
+	r.bot.Fail(telegramtest.Failure{Method: "editMessageReplyMarkup", Code: 502, Description: "Bad Gateway", Times: 1})
+	r.c.AnswerPublished(context.Background(), evs[0], r.conn, r.creds())
+	got, _ := r.bot.Message(700, m.ID)
+	assert.Empty(t, got.Markup, "the keyboard is gone")
+}
+
+// Two documents with one name are two files.
+func TestTwoDocumentsWithOneNameAreTwoFiles(t *testing.T) {
+	r := newRig(t)
+	a := r.documentUpdate(700, "", "report.pdf", "application/pdf", []byte("first"))
+	b := r.documentUpdate(700, "", "report.pdf", "application/pdf", []byte("second"))
+	_, evA := r.tenantUpdate(a)
+	_, evB := r.tenantUpdate(b)
+	require.Len(t, evA, 1)
+	require.Len(t, evB, 1)
+	idA := payloadOf(t, evA[0])["files"].([]any)[0].(map[string]any)["upload_id"].(string)
+	idB := payloadOf(t, evB[0])["files"].([]any)[0].(map[string]any)["upload_id"].(string)
+	assert.Equal(t, []byte("first"), r.up.files[idA].Data)
+	assert.Equal(t, []byte("second"), r.up.files[idB].Data)
+	assert.Equal(t, "report.pdf", r.up.files[idB].Name, "the name is kept")
 }

@@ -499,6 +499,11 @@ func (s *IntegrationsService) within(conn connectors.Connector, creds connectors
 			state, err := p.Provision(ctx, saved, creds, confirmed, held)
 			if err != nil {
 				var blocked *connectors.BlockedError
+				// A refusal before the provider was touched changed nothing; any other failure (a lost answer
+				// to setWebhook) may have changed it, so the cleanup of an uncommitted save covers it too.
+				if !errors.As(err, &blocked) && !errors.Is(err, connectors.ErrConfirmationRequired) && run != nil {
+					run.ran, run.saved = true, saved
+				}
 				switch {
 				case ctx.Err() != nil:
 					return ctx.Err()
@@ -562,19 +567,6 @@ func (s *IntegrationsService) reconcile(ctx context.Context, conn connectors.Con
 		return
 	}
 	s.cleanup(ctx, conn, run.saved, creds)
-}
-
-// deprovisionNow tells the provider that a connection's credentials are no longer used; it never fails the
-// caller: the connection is removed whether or not the provider could be reached. A cleanup that can race
-// with a save of the connection goes through cleanup instead.
-func (s *IntegrationsService) deprovisionNow(ctx context.Context, conn connectors.Connector, c connectors.Connection, creds connectors.Credentials) {
-	p, ok := conn.(connectors.Provisioner)
-	if !ok || creds == nil {
-		return
-	}
-	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), releaseTimeout)
-	defer cancel()
-	_ = p.Deprovision(cctx, c, creds)
 }
 
 // request is a reserved idempotency key; the zero value (no key) completes and releases nothing.
@@ -919,7 +911,7 @@ func (s *IntegrationsService) Delete(ctx context.Context, a Actor, id uuid.UUID)
 	}
 	if readErr == nil && cur.Status != connectors.StatusDisabled {
 		if conn, ok := s.dir.Get(cur.Kind); ok {
-			s.deprovisionNow(ctx, conn, cur, creds)
+			s.cleanup(ctx, conn, cur, creds) // the row is gone: under the account's lock, so a replacement's setup is never raced
 		}
 	}
 	return nil

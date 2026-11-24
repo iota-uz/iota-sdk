@@ -189,7 +189,7 @@ func ConnectionRule(v View) func(graph.Graph) []graph.GraphError {
 				continue
 			}
 			connections := v.Connections
-			if v.TenantOnly[t.Event] {
+			if v.TenantOnlyEvents[t.Event] {
 				connections = ownRefs(connections)
 			}
 			checkIn(fmt.Sprintf("triggers[%d]", i), connections, v.EventRequires[t.Event], t.Params)
@@ -201,7 +201,7 @@ func ConnectionRule(v View) func(graph.Graph) []graph.GraphError {
 				continue
 			}
 			connections := v.Connections
-			if v.TenantOnly[n.Type] {
+			if v.TenantOnlyNodes[n.Type] {
 				connections = ownRefs(connections)
 			}
 			checkIn(fmt.Sprintf("nodes[%d]", i), connections, v.NodeRequires[n.Type], n.Params)

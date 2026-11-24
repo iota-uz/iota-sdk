@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@solidjs/testing-library'
 import { createSignal } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 import type { CompletionPath } from './completion'
-import { humanize, manualText, manualValue, parseDuration, SchemaForm, sourceModeOf, type SchemaFormProps } from './SchemaForm'
+import { chatOfSelection, humanize, manualText, manualValue, parseDuration, SchemaForm, sourceModeOf, type SchemaFormProps } from './SchemaForm'
 import type { AutomationGraph, JsonSchema } from './types'
 
 const graph: AutomationGraph = { name: 'g', run_as: 'owner', triggers: [], nodes: [{ id: 'n', type: 't', params: {} }], edges: [] }
@@ -172,5 +172,51 @@ describe('a field with an options source (a chat)', () => {
   it('without a host list says so and still takes an id', () => {
     mount(schema, {})
     expect(screen.getByText(/list is not available here/)).toBeInTheDocument()
+  })
+
+  it('follows the stored value when it changes from outside, and keeps the mode while the field types', () => {
+    const [value, setValue] = createSignal<Record<string, unknown>>({ chat_id: 700 })
+    const { container } = render(() => (
+      <SchemaForm
+        schema={schema} value={value()} onChange={setValue} readOnly={false} locale="en" nodeType="t" nodeId="n" graph={graph}
+        expressions={[]} templates={[]} completions={() => []} searchOptions={async () => []}
+      />
+    ))
+    fireEvent.click(screen.getByRole('radio', { name: 'Expression' }))
+    fireEvent.input(container.querySelector('[data-param="chat_id"] textarea') as HTMLTextAreaElement, { target: { value: 'event.chatId' } })
+    expect(value().chat_id).toBe('event.chatId')
+    // Undo puts the id back: the stored value is an id, not an expression, so the field reads as a list again.
+    setValue({ chat_id: 700 })
+    expect(screen.getByRole('radio', { name: 'From chats' })).toHaveAttribute('aria-checked', 'true')
+    // While an id is typed by hand the mode stays manual.
+    fireEvent.click(screen.getByRole('radio', { name: 'Id or @username' }))
+    const input = () => container.querySelector('[data-param="chat_id"] input') as HTMLInputElement
+    fireEvent.input(input(), { target: { value: '12' } })
+    fireEvent.input(input(), { target: { value: '123' } })
+    expect(input().value).toBe('123')
+    expect(screen.getByRole('radio', { name: 'Id or @username' })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('reads a selection of the chat picker: an id, nothing when it was removed', () => {
+    expect(chatOfSelection('-1001')).toBe(-1001)
+    expect(chatOfSelection(['700'])).toBe(700)
+    expect(chatOfSelection('')).toBeUndefined()
+    expect(chatOfSelection(undefined)).toBeUndefined()
+    expect(chatOfSelection('group:private')).toBeNull()
+  })
+
+  it('asks again when the connection of the step changes', async () => {
+    const searchOptions = vi.fn(async () => [{ value: '1', label: 'A', group: 'private' }])
+    const [value, setValue] = createSignal<Record<string, unknown>>({ connection: 'one' })
+    render(() => (
+      <SchemaForm
+        schema={{ type: 'object', properties: { chat_id: (schema.properties as Record<string, JsonSchema>).chat_id! } }} value={value()} onChange={setValue}
+        readOnly={false} locale="en" nodeType="t" nodeId="n" graph={graph} expressions={[]} templates={[]} completions={() => []} searchOptions={searchOptions}
+      />
+    ))
+    await vi.waitFor(() => expect(searchOptions).toHaveBeenCalledTimes(1))
+    setValue({ connection: 'two' })
+    await vi.waitFor(() => expect(searchOptions).toHaveBeenCalledTimes(2))
+    expect(searchOptions).toHaveBeenLastCalledWith('telegram.chats', '', { nodeType: 't', params: { connection: 'two' } })
   })
 })

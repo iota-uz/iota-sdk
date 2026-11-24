@@ -444,14 +444,15 @@ func (h *inboundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // publish writes the events of one request in one transaction; an event of another tenant than the
 // connection's is dropped. closed are the events whose correlation closed meanwhile; published are the
 // events that were new.
-func (h *inboundHandler) publish(ctx context.Context, evs []InboundEvent, connID string, tenant uuid.UUID, platform bool) (closed, published []InboundEvent, err error) {
+func (h *inboundHandler) publish(ctx context.Context, evs []InboundEvent, connID string, tenant uuid.UUID, platform bool) ([]InboundEvent, []InboundEvent, error) {
 	if len(evs) == 0 {
 		return nil, nil, nil
 	}
 	if h.cfg.DB == nil || h.cfg.Inbound == nil {
 		return nil, nil, errors.New("automation inbound: no database")
 	}
-	err = publishInTx(ctx, h.cfg.DB, func(ctx context.Context, tx pgx.Tx) error {
+	var closed, published []InboundEvent
+	err := publishInTx(ctx, h.cfg.DB, func(ctx context.Context, tx pgx.Tx) error {
 		closed, published = closed[:0], published[:0]
 		for _, ev := range evs {
 			ev.ConnectionID = connID

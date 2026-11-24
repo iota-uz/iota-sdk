@@ -12,7 +12,7 @@ tg := telegram.New(telegram.Config{
     PlatformToken: cfg.App.TelegramBotToken, // APP_TELEGRAMBOTTOKEN; пусто — платформенного бота нет
     PublicOrigin:  origin,                   // https-origin приложения для setWebhook
     Inbound:       runtime.Inbound(),        // engine.Inbound
-    Uploads:       services.NewTelegramUploads(uploadService, pool), // вложения; без него файл не сохраняется
+    Uploads:       uploads.NewTelegramUploads(uploadService, pool), // вложения; без него файл не сохраняется
     Connections:   store,                    // needs_reauth и список известных чатов
 })
 automations.NewComponent(automations.WithConnectors(tg))

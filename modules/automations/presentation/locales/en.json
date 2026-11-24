@@ -136,7 +136,7 @@
         },
         "ConfirmWarning": "Connect anyway",
         "ConfirmRequired": "Confirm to connect this bot: the other service will stop receiving its messages.",
-        "BotInUse": "This bot is already connected here as another connection. Disconnect that one first."
+        "BotInUse": "This bot is already connected here as another connection. Delete that connection first (disabling it keeps the bot reserved)."
       },
       "Test": {
         "Running": "Checking…",

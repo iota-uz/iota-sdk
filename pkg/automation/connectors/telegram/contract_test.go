@@ -2,7 +2,6 @@ package telegram_test
 
 import (
 	"context"
-	"errors"
 	"os"
 	"strconv"
 	"testing"
@@ -71,7 +70,7 @@ func TestBotAPIContract(t *testing.T) {
 	t.Run("a refused token is unauthorized", func(t *testing.T) {
 		_, err := c.Send(ctx, catalog.ConnectionInfo{}, catalog.Credentials{"token": "1:" + "x0000000000000000000000000000000000"}, telegram.Message{ChatID: tg.chat, Text: "x"})
 		var ce *catalog.CallError
-		require.True(t, errors.As(err, &ce), "%v", err)
+		require.ErrorAs(t, err, &ce)
 		assert.Equal(t, catalog.CallUnauthorized, ce.Code)
 	})
 	t.Run("a text and its button reach the chat", func(t *testing.T) {
@@ -87,7 +86,7 @@ func TestBotAPIContract(t *testing.T) {
 		_, err := c.Send(ctx, catalog.ConnectionInfo{}, creds, telegram.Message{ChatID: tg.chat, Text: "<b>unclosed", ParseMode: "HTML"})
 		var ce *catalog.CallError
 		if tg.apiURL == "" { // only Telegram parses HTML
-			require.True(t, errors.As(err, &ce), "%v", err)
+			require.ErrorAs(t, err, &ce)
 			assert.Equal(t, catalog.CallInvalidRequest, ce.Code)
 		}
 	})
@@ -98,7 +97,7 @@ func TestBotAPIContract(t *testing.T) {
 		}
 		_, err := c.Send(ctx, catalog.ConnectionInfo{}, creds, telegram.Message{ChatID: chat, Text: "x"})
 		var ce *catalog.CallError
-		require.True(t, errors.As(err, &ce), "%v", err)
+		require.ErrorAs(t, err, &ce)
 		assert.Equal(t, catalog.CallRejected, ce.Code)
 	})
 	t.Run("the webhook is readable", func(t *testing.T) {

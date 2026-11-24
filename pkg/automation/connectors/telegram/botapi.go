@@ -219,7 +219,7 @@ func (b *bot) download(ctx context.Context, f *gotgbot.File, limit int64) ([]byt
 	if err != nil {
 		return nil, &transportError{Method: "file", kind: "the download failed"}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, &apiError{Method: "file", Code: resp.StatusCode, Description: "the file was not served"}
 	}

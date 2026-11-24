@@ -406,7 +406,7 @@ func (m *mover) keyedSubject(ctx context.Context, node graph.Node, params map[st
 	}
 	if kinds := view.NodeRequires[node.Type]; len(kinds) > 0 {
 		connections := view.Connections
-		if view.TenantOnly[node.Type] {
+		if view.TenantOnlyNodes[node.Type] {
 			connections = catalog.OwnConnections(connections)
 		}
 		ref, _, err := catalog.ResolveConnection(connections, kinds, params[catalog.ConnectionParam])

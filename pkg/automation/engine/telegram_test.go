@@ -160,6 +160,18 @@ func (te *tgEnv) provision() {
 	require.NoError(te.t, te.tg.StartPlatform(ctx, connectors.Credentials{"token": tgPlatformToken}))
 }
 
+// ok requires that a delivery of Telegram's reached the webhook and was accepted (200).
+func (te *tgEnv) ok(d telegramtest.Delivery, err error) {
+	te.t.Helper()
+	require.NoError(te.t, err)
+	require.Equal(te.t, http.StatusOK, d.Status, "the update was not accepted")
+}
+
+// messages is the number of message events in the outbox.
+func (te *tgEnv) messages() int {
+	return te.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = 'telegram.message_received.v1'`)
+}
+
 func (te *tgEnv) chat(id int64) { te.api.Chat(telegramtest.Chat{ID: id, Type: "private"}) }
 
 var tgAlice = telegramtest.User{ID: 501, Username: "alice", FirstName: "Alice"}
@@ -325,10 +337,8 @@ func TestTelegramPlatformMessagesAndCommands(t *testing.T) {
 	assert.Zero(t, te.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = 'telegram.message_received.v1'`))
 
 	// The tenant's own bot: a command is ignored by the default trigger…
-	_, err = te.bot.SendText(700, tgAlice, "/help me")
-	require.NoError(t, err)
-	_, err = te.bot.SendText(700, tgAlice, "plain")
-	require.NoError(t, err)
+	te.ok(te.bot.SendText(700, tgAlice, "/help me"))
+	te.ok(te.bot.SendText(700, tgAlice, "plain"))
 	p.until(func() bool { return len(noteTexts(t, te.env)) >= 1 }, "the plain message runs")
 	p.pass()
 	assert.Equal(t, []string{"plain||700|0"}, noteTexts(t, te.env), "commands: ignore by default")
@@ -342,8 +352,7 @@ func TestTelegramCommandsOnlyTrigger(t *testing.T) {
 	te.chat(700)
 	te.create(p, te.human(), tgMessageGraph(`{"id": "m", "event": "telegram.message_received.v1", "params": {"commands": "only", "command_names": ["help"]}}`))
 	for _, text := range []string{"plain", "/other", "/help topic"} {
-		_, err := te.bot.SendText(700, tgAlice, text)
-		require.NoError(t, err)
+		te.ok(te.bot.SendText(700, tgAlice, text))
 	}
 	p.until(func() bool { return len(noteTexts(t, te.env)) >= 1 }, "the command runs")
 	p.pass()
@@ -362,8 +371,7 @@ func TestTelegramPhotoWithoutCaptionStartsTheTrigger(t *testing.T) {
 		`{"from": {"node": "m", "outcome": "fired"}, "to": "note"},
 		 {"from": {"node": "note", "outcome": "done"}, "to": "fin"}, {"from": {"node": "note", "outcome": "failed"}, "to": "fin"}`)
 	te.create(p, te.human(), g)
-	_, err := te.bot.SendPhoto(700, tgAlice, "", []byte("JPEGDATA"))
-	require.NoError(t, err)
+	te.ok(te.bot.SendPhoto(700, tgAlice, "", []byte("JPEGDATA")))
 	p.until(func() bool { return len(noteTexts(t, te.env)) == 1 }, "the photo starts the graph")
 	te.uploads.mu.Lock()
 	defer te.uploads.mu.Unlock()
@@ -501,23 +509,22 @@ func TestTelegramReadWaitsForTheAskedUsersMessage(t *testing.T) {
 		 {"from": {"node": "got", "outcome": "done"}, "to": "fin"}, {"from": {"node": "got", "outcome": "failed"}, "to": "fin"},
 		 {"from": {"node": "late", "outcome": "done"}, "to": "fin"}, {"from": {"node": "late", "outcome": "failed"}, "to": "fin"}`)
 	te.create(p, te.human(), g)
-	_, err := te.bot.SendText(700, tgAlice, "start")
-	require.NoError(t, err)
+	te.ok(te.bot.SendText(700, tgAlice, "start"))
 	p.until(func() bool { return len(te.bot.Sent()) == 1 }, "the question is sent")
 	q := te.bot.Sent()[0]
-	_, _, err = te.bot.PressData(700, q.ID, tgAlice, q.Markup[0][0].CallbackData, q)
+	_, _, err := te.bot.PressData(700, q.ID, tgAlice, q.Markup[0][0].CallbackData, q)
 	require.NoError(t, err)
 	p.until(func() bool {
 		return te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event' AND event_kind = 'telegram.message_received.v1'`) == 1
 	}, "the read waits for a message")
 	bob := telegramtest.User{ID: 502, Username: "bob", FirstName: "Bob"}
-	_, err = te.bot.SendText(700, bob, "from the wrong person")
-	require.NoError(t, err)
+	before := te.messages()
+	te.ok(te.bot.SendText(700, bob, "from the wrong person"))
+	assert.Equal(t, before+1, te.messages(), "the message reached the outbox")
 	p.pass()
 	p.pass()
 	assert.Empty(t, noteTexts(t, te.env), "another user's message does not wake the read")
-	_, err = te.bot.SendText(700, tgAlice, "my answer")
-	require.NoError(t, err)
+	te.ok(te.bot.SendText(700, tgAlice, "my answer"))
 	p.until(func() bool { return len(noteTexts(t, te.env)) == 1 }, "the asked user's message wakes the read")
 	assert.Equal(t, []string{"got my answer from alice"}, noteTexts(t, te.env))
 }
@@ -542,10 +549,8 @@ func TestTelegramPlatformStartGoesToItsHandler(t *testing.T) {
 	h := &tgStart{}
 	require.NoError(t, te.tg.RegisterStart(h))
 	te.create(p, te.human(), tgMessageGraph(`{"id": "m", "event": "telegram.message_received.v1", "params": {"commands": "include"}}`))
-	_, err := te.platform.SendText(800, tgAlice, "/start u_abc")
-	require.NoError(t, err)
-	_, err = te.platform.SendText(800, tgAlice, "/start zz_abc")
-	require.NoError(t, err)
+	te.ok(te.platform.SendText(800, tgAlice, "/start u_abc"))
+	te.ok(te.platform.SendText(800, tgAlice, "/start zz_abc"))
 	p.pass()
 	require.Len(t, h.got, 1)
 	assert.Equal(t, "platform:telegram_bot", h.got[0].ConnectionID)
@@ -610,23 +615,21 @@ func TestTelegramReadImplicitConnectionAndChat(t *testing.T) {
 		 {"from": {"node": "read", "outcome": "received"}, "to": "got"}, {"from": {"node": "read", "outcome": "timeout"}, "to": "ignore"},
 		 {"from": {"node": "got", "outcome": "done"}, "to": "fin"}, {"from": {"node": "got", "outcome": "failed"}, "to": "fin"}`)
 	te.create(p, te.human(), g)
-	_, err := te.bot.SendText(700, tgAlice, "start in 700")
-	require.NoError(t, err)
+	te.ok(te.bot.SendText(700, tgAlice, "start in 700"))
 	p.until(func() bool {
 		return te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event' AND event_kind = 'telegram.message_received.v1'`) == 1
 	}, "the read waits")
 	// The chat the run began in is not the chat it waits in; a message in 700 does not answer it (it
 	// starts another run, which waits in 701 as well).
-	_, err = te.bot.SendText(700, tgAlice, "wrong chat")
-	require.NoError(t, err)
+	before := te.messages()
+	te.ok(te.bot.SendText(700, tgAlice, "wrong chat"))
 	// A photo without a caption in the awaited chat is not a reply either.
-	_, err = te.bot.SendPhoto(701, tgAlice, "", []byte("JPEG"))
-	require.NoError(t, err)
+	te.ok(te.bot.SendPhoto(701, tgAlice, "", []byte("JPEG")))
+	assert.Equal(t, before+2, te.messages(), "both messages reached the outbox, and neither answered the read")
 	p.pass()
 	p.pass()
 	assert.Empty(t, noteTexts(t, te.env), "neither the other chat nor a message without text answers the read")
-	_, err = te.bot.SendText(701, tgAlice, "the reply")
-	require.NoError(t, err)
+	te.ok(te.bot.SendText(701, tgAlice, "the reply"))
 	p.until(func() bool { return len(noteTexts(t, te.env)) >= 1 }, "a text in the awaited chat wakes the read")
 	assert.Contains(t, noteTexts(t, te.env), "got the reply in 701")
 }
@@ -649,8 +652,7 @@ func TestTelegramReadOfARunWithoutAConversation(t *testing.T) {
 	p.until(func() bool {
 		return te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event' AND subject_key = $1`, te.conn.ID.String()+":701") == 1
 	}, "the wait is on the bot's conversation")
-	_, err := te.bot.SendText(701, tgAlice, "hello order")
-	require.NoError(t, err)
+	te.ok(te.bot.SendText(701, tgAlice, "hello order"))
 	p.until(func() bool { return len(noteTexts(t, te.env)) == 1 }, "the message wakes the run")
 	assert.Equal(t, []string{"got hello order"}, noteTexts(t, te.env))
 }
@@ -668,8 +670,7 @@ func TestTelegramReadThatCannotBeKeyedFailsInsteadOfFallingBack(t *testing.T) {
 		`{"from": {"node": "m", "outcome": "fired"}, "to": "read"},
 		 {"from": {"node": "read", "outcome": "received"}, "to": "fin"}, {"from": {"node": "read", "outcome": "timeout"}, "to": "fin"}`)
 	te.create(p, te.human(), g)
-	_, err := te.bot.SendText(700, tgAlice, "start")
-	require.NoError(t, err)
+	te.ok(te.bot.SendText(700, tgAlice, "start"))
 	p.until(func() bool {
 		runs := te.runs(p, te.human(), engine.RunFilter{})
 		return len(runs) == 1 && te.status(p, runs[0].RunID) == engine.RunFailed

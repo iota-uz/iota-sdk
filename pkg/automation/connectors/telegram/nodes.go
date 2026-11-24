@@ -43,11 +43,16 @@ const (
 const chatSchema = `{"oneOf":[{"type":"integer"},{"type":"string","minLength":1,"maxLength":1000}],"x-options-source":"telegram.chats",
  "description":"A chat id, or an expression that gives one ({{ }} is not needed: event.chatId). A channel or a group by @username: \"@name\" in quotes."}`
 
+// threadSchema is a forum topic: its number, or an expression that gives it. A topic is not a chat, so there is
+// no chat picker for it.
+const threadSchema = `{"oneOf":[{"type":"integer","minimum":1},{"type":"string","minLength":1,"maxLength":1000}],
+ "description":"The number of a topic of a forum supergroup, or an expression that gives it; left out: the general chat."}`
+
 const durationSchema = `{"type":"string","pattern":"^[1-9][0-9]{0,5}(s|m|h|d)$","x-max-ms":2592000000,"description":"30s, 20m, 2h or 7d; at most 30 days"}`
 
 const sendSchema = `{"type":"object","additionalProperties":false,"required":["chat_id","text"],"properties":{
  "chat_id":` + chatSchema + `,
- "thread_id":` + chatSchema + `,
+ "thread_id":` + threadSchema + `,
  "text":{"type":"string","maxLength":10000},
  "parse_mode":{"type":"string","enum":["","HTML"],"default":""},
  "silent":{"type":"boolean","default":false},
@@ -58,7 +63,7 @@ const sendSchema = `{"type":"object","additionalProperties":false,"required":["c
 
 const askSchema = `{"type":"object","additionalProperties":false,"required":["chat_id","text","options"],"properties":{
  "chat_id":` + chatSchema + `,
- "thread_id":` + chatSchema + `,
+ "thread_id":` + threadSchema + `,
  "text":{"type":"string","minLength":1,"maxLength":10000},
  "parse_mode":{"type":"string","enum":["","HTML"],"default":""},
  "options":{"type":"array","minItems":2,"maxItems":8,"x-unique":"outcome","items":{"type":"object","additionalProperties":false,"required":["outcome","label"],"properties":{
@@ -284,7 +289,7 @@ func (n *askNode) AnswerFor(params map[string]any, payload json.RawMessage) (str
 func CallbackData(token string, i int) string { return "a:" + token + ":" + strconv.Itoa(i) }
 
 // parseCallback reads "a:<token>:<i>".
-func parseCallback(data string) (token string, index int, ok bool) {
+func parseCallback(data string) (string, int, bool) {
 	parts := strings.Split(data, ":")
 	if len(parts) != 3 || parts[0] != "a" || len(parts[1]) != engine.CorrelationTokenLen {
 		return "", 0, false
@@ -407,11 +412,12 @@ func filterTerm(field string, v any, chat bool) (string, bool) {
 // helpers
 
 // target is the chat and the topic of a node's params.
-func target(params map[string]any) (chat string, thread int64, err error) {
-	chat, err = chatArg(params["chat_id"])
+func target(params map[string]any) (string, int64, error) {
+	chat, err := chatArg(params["chat_id"])
 	if err != nil {
 		return "", 0, &catalog.CallError{Code: catalog.CallInvalidRequest, Message: "chat_id: " + err.Error()}
 	}
+	var thread int64
 	if v, set := params["thread_id"]; set && v != nil {
 		id, ok := intOf(v)
 		if !ok || id <= 0 {
@@ -481,7 +487,7 @@ func deref(r *catalog.CallResult) catalog.CallResult {
 // unknown is returned as it is: the engine records outcome_unknown, never a second message.
 func (c *Connector) settle(ctx context.Context, in catalog.CallInput, err error) (*catalog.CallResult, error) {
 	if err == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil // nothing to settle: the send succeeded
 	}
 	err = callFailure(err)
 	var wait *RetryAfterError
@@ -495,7 +501,10 @@ func (c *Connector) settle(ctx context.Context, in catalog.CallInput, err error)
 	return nil, err
 }
 
-// needsReauth marks the connection whose token Telegram refused; the platform bot has no connection.
+// needsReauth marks the connection whose token Telegram refused; the platform bot has no connection. The mark
+// is made only while the connection still holds the token that was refused: a save that replaced the token
+// while the send was in flight must not have its working replacement marked by the old token's 401 (the
+// version the credentials were read at gates the write).
 func (c *Connector) needsReauth(ctx context.Context, in catalog.CallInput) {
 	if c.cfg.Connections == nil || in.Connection == nil || in.Connection.Platform {
 		return
@@ -504,8 +513,14 @@ func (c *Connector) needsReauth(ctx context.Context, in catalog.CallInput) {
 	if err != nil {
 		return
 	}
+	current, creds, err := c.cfg.Connections.Get(ctx, in.TenantID, id)
+	if err != nil || creds["token"] != in.Credentials["token"] {
+		return
+	}
 	// "reauth" is the reason the integrations page explains as «enter the token again».
-	if err := c.cfg.Connections.SetStatus(ctx, in.TenantID, id, connectors.StatusNeedsReauth, "reauth"); err != nil {
+	_, err = c.cfg.Connections.SetStatusIf(ctx, in.TenantID, id, connectors.StatusNeedsReauth, "reauth",
+		func(_ json.RawMessage, version int) bool { return version == current.Version })
+	if err != nil {
 		c.log().Warn("telegram: a refused token was not recorded", "error", err.Error())
 	}
 }

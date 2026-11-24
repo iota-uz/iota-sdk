@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -42,19 +43,24 @@ type chatMemory struct {
 	seen map[string]ChatInfo
 }
 
+// due reports whether a chat is to be written: it is new, renamed, or was last written long ago. It marks
+// nothing: a write that fails must not hold back the next message of the chat (mark follows a write that
+// succeeded).
 func (m *chatMemory) due(conn string, ci ChatInfo) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	key := conn + "/" + strconv.FormatInt(ci.ID, 10)
-	prev, ok := m.seen[key]
-	if ok && prev.Title == ci.Title && prev.Username == ci.Username && ci.LastSeen.Sub(prev.LastSeen) < chatRewriteGap {
-		return false
-	}
+	prev, ok := m.seen[conn+"/"+strconv.FormatInt(ci.ID, 10)]
+	return !ok || prev.Title != ci.Title || prev.Username != ci.Username || ci.LastSeen.Sub(prev.LastSeen) >= chatRewriteGap
+}
+
+// mark records that a chat was written.
+func (m *chatMemory) mark(conn string, ci ChatInfo) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.seen == nil || len(m.seen) >= chatCacheSize {
 		m.seen = map[string]ChatInfo{}
 	}
-	m.seen[key] = ci
-	return true
+	m.seen[conn+"/"+strconv.FormatInt(ci.ID, 10)] = ci
 }
 
 // rememberChat records a chat of an incoming message in the connection's inbound state, for the chat
@@ -99,7 +105,9 @@ func (c *Connector) rememberChat(ctx context.Context, tenantID, connectionID uui
 	})
 	if err != nil {
 		c.log().Warn("telegram: a known chat was not recorded", "error", err.Error())
+		return
 	}
+	c.chats.mark(connectionID.String(), ci)
 }
 
 // KnownChats lists the chats the connection received messages from, the most recent first, narrowed by
@@ -116,15 +124,15 @@ func (c *Connector) KnownChats(ctx context.Context, tenantID, connectionID uuid.
 		return nil, err
 	}
 	var doc map[string]json.RawMessage
-	if json.Unmarshal(state, &doc) != nil {
-		return nil, nil
+	if err := json.Unmarshal(state, &doc); err != nil {
+		return nil, fmt.Errorf("telegram: the connection's inbound state is not readable: %w", err)
 	}
 	var known knownState
 	if raw, ok := doc[inboundStateKey]; ok {
 		_ = json.Unmarshal(raw, &known)
 	}
 	q := strings.ToLower(strings.TrimPrefix(strings.TrimSpace(query), "@"))
-	var out []ChatInfo
+	out := make([]ChatInfo, 0, len(known.Chats))
 	for _, ci := range known.Chats {
 		if q != "" && !strings.Contains(strings.ToLower(ci.Title), q) &&
 			!strings.Contains(strings.ToLower(ci.Username), q) && !strings.Contains(strconv.FormatInt(ci.ID, 10), q) {

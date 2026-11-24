@@ -321,7 +321,7 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 				st := stepOfError(err)
 				return Effect{}, &st
 			}
-			rendered = setAt(rendered, path, out)
+			setAt(rendered, path, out)
 		}
 	}
 	for _, valuePath := range spec.Values {
@@ -340,7 +340,7 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 				s := failed(FailExpression, "%s: %v", path, err)
 				return Effect{}, &s
 			}
-			rendered = setAt(rendered, path, j)
+			setAt(rendered, path, j)
 		}
 	}
 	return Effect{Node: node.Type, Params: rendered}, nil

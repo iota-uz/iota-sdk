@@ -2,6 +2,8 @@ package telegram
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
@@ -50,6 +52,10 @@ func messagePayload() expr.Fields {
 		{Name: "command", Field: optString},
 		{Name: "args", Field: optString},
 		{Name: "isCommand", Field: expr.BoolField},
+		// route is "text" for a message that is not a command and "command:<name>" for one: what the
+		// command options of a trigger are matched by (the matches of a trigger are independent, and
+		// "plain messages, and these commands" is one of them).
+		{Name: "route", Field: expr.StringField},
 		{Name: "hasMedia", Field: expr.BoolField},
 		{Name: "files", Field: expr.OptionalOf(expr.ListOf(fileField))},
 		{Name: "date", Field: expr.TimestampField},
@@ -73,7 +79,7 @@ func callbackPayload() expr.Fields {
 func messageMatch() map[string]graph.MatchField {
 	return map[string]graph.MatchField{
 		"chat_ids":         {Payload: "chatId", Type: graph.MatchStrings},
-		"command_names":    {Payload: "command", Type: graph.MatchStrings, Fold: graph.FoldLower},
+		"route_filter":     {Payload: "route", Type: graph.MatchStrings, Fold: graph.FoldLower},
 		"command_mode":     {Payload: "isCommand", Type: graph.MatchStrings},
 		"chat_type_filter": {Payload: "chatType", Type: graph.MatchStrings},
 	}
@@ -83,7 +89,7 @@ const triggerSchema = `{"type":"object","additionalProperties":false,"properties
  "commands":{"type":"string","enum":["ignore","only","include"],"default":"ignore",
    "description":"ignore: plain messages only; only: commands only; include: both."},
  "command_names":{"type":"array","maxItems":50,"items":{"type":"string","pattern":"^[A-Za-z0-9_]{1,32}$"},
-   "description":"With only or include: start only on these commands (without the slash)."},
+   "description":"With only: start only on these commands; with include: on plain messages and these commands (without the slash)."},
  "chat_ids":{"type":"array","maxItems":100,"items":{"type":"string","pattern":"^-?[0-9]{1,18}$"},
    "description":"Start only on messages of these chats."},
  "private_only":{"type":"boolean","description":"Start only on messages in private chats."}}}`
@@ -103,11 +109,25 @@ func (p triggerParams) Parse(raw map[string]any) (map[string]any, []graph.Issue)
 	if len(issues) > 0 {
 		return nil, issues
 	}
+	var routes []any
+	if names, _ := out["command_names"].([]any); len(names) > 0 {
+		for _, n := range names {
+			routes = append(routes, "command:"+strings.ToLower(fmt.Sprint(n)))
+		}
+	}
 	switch out["commands"] {
 	case "ignore":
+		// Plain messages only: the names of commands have nothing to narrow.
 		out["command_mode"] = []any{"false"}
 	case "only":
 		out["command_mode"] = []any{"true"}
+		if len(routes) > 0 {
+			out["route_filter"] = routes // these commands
+		}
+	case "include":
+		if len(routes) > 0 {
+			out["route_filter"] = append([]any{"text"}, routes...) // plain messages, and these commands
+		}
 	}
 	if private, _ := out["private_only"].(bool); private {
 		out["chat_type_filter"] = []any{"private"}

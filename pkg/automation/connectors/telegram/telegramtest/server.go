@@ -10,6 +10,7 @@ package telegramtest
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -266,15 +267,15 @@ type apiResp struct {
 	Parameters  map[string]int  `json:"parameters,omitempty"`
 }
 
-type apiErr struct {
+type apiError struct {
 	code       int
 	desc       string
 	retryAfter int
 }
 
-func (e *apiErr) Error() string { return e.desc }
+func (e *apiError) Error() string { return e.desc }
 
-func fail(code int, desc string) *apiErr { return &apiErr{code: code, desc: desc} }
+func fail(code int, desc string) *apiError { return &apiError{code: code, desc: desc} }
 
 func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/")
@@ -317,7 +318,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 			}
 			if !ff.Lost {
 				b.mu.Unlock()
-				reply(w, nil, &apiErr{code: ff.Code, desc: ff.Description, retryAfter: ff.RetryAfter})
+				reply(w, nil, &apiError{code: ff.Code, desc: ff.Description, retryAfter: ff.RetryAfter})
 				return
 			}
 			break
@@ -332,7 +333,7 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	reply(w, res, aerr)
 }
 
-func reply(w http.ResponseWriter, result any, e *apiErr) {
+func reply(w http.ResponseWriter, result any, e *apiError) {
 	w.Header().Set("Content-Type", "application/json")
 	if e != nil {
 		out := apiResp{ErrorCode: e.code, Description: e.desc}
@@ -340,11 +341,22 @@ func reply(w http.ResponseWriter, result any, e *apiErr) {
 			out.Parameters = map[string]int{"retry_after": e.retryAfter}
 		}
 		w.WriteHeader(e.code)
-		_ = json.NewEncoder(w).Encode(out)
+		writeJSON(w, out)
 		return
 	}
-	raw, _ := json.Marshal(result)
-	_ = json.NewEncoder(w).Encode(apiResp{OK: true, Result: raw})
+	raw, err := json.Marshal(result)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, apiResp{OK: true, Result: raw})
+}
+
+// writeJSON writes a Bot API answer; a failure to write is the client's having gone.
+func writeJSON(w http.ResponseWriter, v apiResp) {
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		return
+	}
 }
 
 type upload struct {
@@ -353,7 +365,7 @@ type upload struct {
 }
 
 func fileNames(files map[string]upload) []string {
-	var out []string
+	out := make([]string, 0, len(files))
 	for _, f := range files {
 		out = append(out, f.name)
 	}
@@ -399,7 +411,10 @@ func readParams(r *http.Request) (map[string]string, map[string]upload, error) {
 					params[k] = s
 					continue
 				}
-				b, _ := json.Marshal(v)
+				b, err := json.Marshal(v)
+				if err != nil {
+					return nil, nil, err
+				}
 				params[k] = string(b)
 			}
 		}
@@ -438,7 +453,7 @@ func (b *Bot) user() userJSON {
 	return userJSON{ID: b.ID, IsBot: true, FirstName: b.Username, Username: b.Username}
 }
 
-func (b *Bot) handle(method string, p map[string]string, files map[string]upload) (any, *apiErr) {
+func (b *Bot) handle(method string, p map[string]string, files map[string]upload) (any, *apiError) {
 	switch method {
 	case "getMe":
 		return b.user(), nil
@@ -497,7 +512,7 @@ func (b *Bot) handle(method string, p map[string]string, files map[string]upload
 	return nil, fail(404, "Not Found")
 }
 
-func (b *Bot) target(p map[string]string) (*Chat, *apiErr) {
+func (b *Bot) target(p map[string]string) (*Chat, *apiError) {
 	b.s.mu.Lock()
 	c := b.s.chatByRef(p["chat_id"])
 	b.s.mu.Unlock()
@@ -519,7 +534,7 @@ func (b *Bot) target(p map[string]string) (*Chat, *apiErr) {
 	return c, nil
 }
 
-func parseMarkup(raw string) ([][]Button, *apiErr) {
+func parseMarkup(raw string) ([][]Button, *apiError) {
 	if raw == "" {
 		return nil, nil
 	}
@@ -533,7 +548,7 @@ func parseMarkup(raw string) ([][]Button, *apiErr) {
 	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
 		return nil, fail(400, "Bad Request: can't parse reply keyboard markup JSON object")
 	}
-	var out [][]Button
+	out := make([][]Button, 0, len(doc.Rows))
 	for _, row := range doc.Rows {
 		var r []Button
 		for _, b := range row {
@@ -570,7 +585,7 @@ func (b *Bot) messageJSON(m *Message, c *Chat) map[string]any {
 	return out
 }
 
-func (b *Bot) send(method string, p map[string]string, files map[string]upload) (any, *apiErr) {
+func (b *Bot) send(method string, p map[string]string, files map[string]upload) (any, *apiError) {
 	c, e := b.target(p)
 	if e != nil {
 		return nil, e
@@ -604,7 +619,7 @@ func (b *Bot) send(method string, p map[string]string, files map[string]upload) 
 	return b.messageJSON(m, c), nil
 }
 
-func (b *Bot) sendGroup(p map[string]string, files map[string]upload) (any, *apiErr) {
+func (b *Bot) sendGroup(p map[string]string, files map[string]upload) (any, *apiError) {
 	c, e := b.target(p)
 	if e != nil {
 		return nil, e
@@ -616,7 +631,7 @@ func (b *Bot) sendGroup(p map[string]string, files map[string]upload) (any, *api
 	if err := json.Unmarshal([]byte(p["media"]), &media); err != nil || len(media) < 2 || len(media) > 10 {
 		return nil, fail(400, "Bad Request: media group takes 2-10 items")
 	}
-	var out []any
+	out := make([]any, 0, len(media))
 	for i, it := range media {
 		key := strings.TrimPrefix(it.Media, "attach://")
 		f, ok := files[key]
@@ -630,7 +645,7 @@ func (b *Bot) sendGroup(p map[string]string, files map[string]upload) (any, *api
 	return out, nil
 }
 
-func (b *Bot) edit(p map[string]string, text bool) (any, *apiErr) {
+func (b *Bot) edit(p map[string]string, text bool) (any, *apiError) {
 	b.s.mu.Lock()
 	c := b.s.chatByRef(p["chat_id"])
 	b.s.mu.Unlock()
@@ -699,7 +714,7 @@ func (b *Bot) post(hook Webhook, update map[string]any, id int64) (Delivery, err
 	if err != nil {
 		return Delivery{}, err
 	}
-	req, err := http.NewRequest(http.MethodPost, hook.URL, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, hook.URL, bytes.NewReader(body))
 	if err != nil {
 		return Delivery{}, err
 	}
@@ -711,7 +726,7 @@ func (b *Bot) post(hook Webhook, update map[string]any, id int64) (Delivery, err
 	if err != nil {
 		return Delivery{UpdateID: id}, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, resp.Body)
 	return Delivery{UpdateID: id, Status: resp.StatusCode}, nil
 }
@@ -793,7 +808,7 @@ func (b *Bot) PhotoUpdate(chat int64, from User, caption string, data []byte) ma
 
 // DocumentUpdate builds the update of a document of a user, without posting it.
 func (b *Bot) DocumentUpdate(chat int64, from User, caption, name, mime string, data []byte) map[string]any {
-	return b.fileUpdate(chat, from, caption, "document", "documents/"+name, mime, data)
+	return b.fileUpdate(chat, from, caption, "document", "documents/%d/"+name, mime, data)
 }
 
 // SendPhoto posts a photo (with an optional caption) of a user.
@@ -860,7 +875,7 @@ func (b *Bot) PressUpdate(as Message, from User, data string) map[string]any {
 	if c == nil {
 		c = &Chat{ID: as.ChatID, Type: "private"}
 	}
-	var rows [][]map[string]string
+	rows := make([][]map[string]string, 0, len(as.Markup))
 	for _, row := range as.Markup {
 		var r []map[string]string
 		for _, bt := range row {

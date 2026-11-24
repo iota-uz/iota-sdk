@@ -1,4 +1,5 @@
-package services
+// Package uploads adapts the SDK upload service to what automation connectors need.
+package uploads
 
 import (
 	"bytes"

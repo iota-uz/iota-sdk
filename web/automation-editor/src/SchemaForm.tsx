@@ -587,6 +587,13 @@ export function sourceModeOf(value: unknown): SourceMode {
   return 'list'
 }
 
+/** The value a Combobox selection means: a chat id, undefined when the selection was removed, null when it is not a chat. */
+export function chatOfSelection(v: string | readonly string[] | undefined): number | undefined | null {
+  const raw = Array.isArray(v) ? v[0] : v
+  if (raw === undefined || raw === '') return undefined
+  return typeof raw === 'string' && CHAT_ID.test(raw) ? Number(raw) : null
+}
+
 /** What the "id or @username" input stores: a number for an id, a CEL string literal for a username. */
 export function manualValue(text: string): number | string | undefined {
   const t = text.trim()
@@ -610,6 +617,14 @@ function SourceField(props: {
 }) {
   const st = () => props.ctx.s()
   const [mode, setMode] = createSignal<SourceMode>(sourceModeOf(props.value))
+  // A value that arrives from outside (undo, redo, another edit) and no longer fits the mode on screen moves
+  // the mode to the one it reads as; a value the field itself wrote (typing an id by hand) keeps its mode.
+  createEffect(on(() => props.value, (value) => {
+    const fits = mode() === 'expr' ? (value === undefined || typeof value === 'string')
+      : mode() === 'manual' ? (value === undefined || typeof value === 'number' || sourceModeOf(value) === 'manual')
+        : (value === undefined || typeof value === 'number')
+    if (!fits) setMode(sourceModeOf(value))
+  }, { defer: true }))
   const modes = (): [SourceMode, string][] => [['list', st().sourceList], ['manual', st().sourceManual], ['expr', st().sourceExpression]]
   const search = props.ctx.props.searchOptions
   const groupLabel = (g: string | undefined) => (g === 'private' ? st().sourceGroups.private : g === 'group' ? st().sourceGroups.group : g ?? '')
@@ -629,9 +644,13 @@ function SourceField(props: {
   const seed = (): ComboboxOption[] => (current() ? [{ value: current(), label: current() }] : [])
   // The known chats are offered as the list opens; typing narrows them through the host.
   const [known, setKnown] = createSignal<ComboboxOption[] | undefined>()
-  createEffect(on(mode, (m) => {
-    if (m !== 'list' || !search || known()) return
-    void load('').then((o) => setKnown(o)).catch(() => setKnown([]))
+  // The chats are those of the step's connection: another connection reloads them.
+  const connection = () => { const c = (props.ctx.props.value as Record<string, unknown>)?.connection; return typeof c === 'string' ? c : '' }
+  createEffect(on([mode, connection], ([m]) => {
+    if (m !== 'list' || !search) return
+    setKnown(undefined)
+    const asked = connection()
+    void load('').then((o) => { if (asked === connection()) setKnown(o) }).catch(() => { if (asked === connection()) setKnown([]) })
   }))
   const offered = (): ComboboxOption[] => {
     const list = known() ?? []
@@ -650,10 +669,13 @@ function SourceField(props: {
         <Match when={mode() === 'list'}>
           <Show when={search} fallback={<p class="ae-form-note">{st().noList}</p>}>
             <Combobox
-              id={props.id} aria-label={props.title} searchable readOnly={props.readOnly} placeholder={st().choose}
+              id={props.id} label={<span class="ae-sr-only">{props.title}</span>} searchable readOnly={props.readOnly} placeholder={st().choose}
               labels={{ notFound: st().notFound }} options={offered()} value={current()}
               loadOptions={(query) => load(query)}
-              onValueChange={(v) => { const raw = Array.isArray(v) ? v[0] : v; if (typeof raw === 'string' && CHAT_ID.test(raw)) props.onChange(Number(raw)) }}
+              onValueChange={(v) => {
+                const chat = chatOfSelection(v)
+                if (chat !== null) props.onChange(chat)
+              }}
             />
           </Show>
         </Match>

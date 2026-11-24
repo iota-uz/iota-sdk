@@ -543,3 +543,24 @@ func sortedMatch(m map[string]graph.MatchField) []string {
 	sort.Strings(out)
 	return out
 }
+
+type tenantOnlyEvents struct{ key string }
+
+func (s tenantOnlyEvents) Requires() []catalog.ConnectorKind { return nil }
+func (s tenantOnlyEvents) Events() []graph.EventSpec {
+	return []graph.EventSpec{{Key: s.key, Title: "E", Subject: graph.SubjectNone, Payload: expr.Fields{}}}
+}
+func (s tenantOnlyEvents) TenantConnectionOnly(string) bool { return true }
+
+// A tenant-only event and an ordinary node type that share a key do not share the restriction.
+func TestTenantOnlyEventsAndNodesAreSeparate(t *testing.T) {
+	reg := catalog.NewRegistry(fakeAvailability{"conn": {{ID: "platform:conn", Name: "platform"}}})
+	node := node{spec: graph.NodeSpec{Type: "shared.key", Title: "N", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture, Outcomes: []string{"done"}, DoneOutcome: "done",
+		Params: graph.MustSchemaParams(`{"type":"object","additionalProperties":false,"properties":{}}`)}, requires: []catalog.ConnectorKind{"conn"}}
+	require.NoError(t, reg.RegisterNode(node))
+	require.NoError(t, reg.RegisterTriggers(tenantOnlyEvents{key: "shared.key"}))
+	v, err := reg.ForTenant(context.Background(), uuid.New())
+	require.NoError(t, err)
+	assert.NotContains(t, v.TenantOnlyNodes, "shared.key")
+	assert.Contains(t, v.Catalog.Nodes, "shared.key", "the node is available with the platform credential")
+}

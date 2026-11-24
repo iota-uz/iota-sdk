@@ -343,7 +343,7 @@ func (c *component) Build(b *composition.Builder) error {
 					warn("automations: the platform credential of %s was not set up: %v", err)
 				}
 			}
-			return nil, nil
+			return nil, nil //nolint:nilnil // a hook with nothing to stop
 		}}}, nil
 	})
 

@@ -56,13 +56,18 @@ func (c *Connector) Verify(r *http.Request, _ []byte, conn connectors.Connection
 	if token == "" || got == "" {
 		return errors.New("telegram: no webhook secret")
 	}
-	want := ""
+	var want string
 	if isPlatform(conn) {
 		want = WebhookSecret(token, connKey(conn))
 	} else {
-		stored, err := c.storedSecret(r.Context(), conn)
+		stored, account, err := c.storedSecret(r.Context(), conn)
 		if err != nil {
 			return err
+		}
+		// The secret belongs to the bot it was made for: credentials read for one bot and a secret read for
+		// another (a token replaced between the two reads) are never taken together.
+		if account != c.ExternalID(creds) {
+			return errors.New("telegram: the webhook secret is of another bot")
 		}
 		want = stored
 	}
@@ -72,27 +77,18 @@ func (c *Connector) Verify(r *http.Request, _ []byte, conn connectors.Connection
 	return nil
 }
 
-// storedSecret reads the connection's webhook secret from its inbound state.
-func (c *Connector) storedSecret(ctx context.Context, conn connectors.Connection) (string, error) {
+// storedSecret reads the connection's webhook secret, and the bot account it is bound to, from its inbound
+// state.
+func (c *Connector) storedSecret(ctx context.Context, conn connectors.Connection) (string, string, error) {
 	reader, ok := c.cfg.Connections.(connectors.InboundReader)
 	if !ok {
-		return "", errors.New("telegram: the connector cannot read the webhook secret")
+		return "", "", errors.New("telegram: the connector cannot read the webhook secret")
 	}
 	state, err := reader.InboundState(ctx, conn.TenantID, conn.ID)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	var doc map[string]json.RawMessage
-	if json.Unmarshal(state, &doc) != nil {
-		return "", errors.New("telegram: no webhook secret")
-	}
-	var held struct {
-		Secret string `json:"secret"`
-	}
-	if json.Unmarshal(doc[secretKey], &held) != nil {
-		return "", errors.New("telegram: no webhook secret")
-	}
-	return held.Secret, nil
+	return heldSecret(state)
 }
 
 // Handle turns one update into events. Only a message and a button press are read, others are answered
@@ -121,11 +117,11 @@ func updateID(u gotgbot.Update) string { return strconv.FormatInt(u.UpdateId, 10
 // ---------------------------------------------------------------------------------------------
 // messages
 
-// command reads "/name@bot args" at the start of a message: its name (lower case, without the slash and
-// the bot's mention) and the rest.
-func command(m *gotgbot.Message) (name, args string, ok bool) {
+// command reads "/name@bot args" at the start of a message: its name (lower case, without the slash and the
+// bot's mention), the bot it is addressed to ("" when it names none) and the rest.
+func command(m *gotgbot.Message) (string, string, string, bool) {
 	if m.Text == "" {
-		return "", "", false
+		return "", "", "", false
 	}
 	for _, e := range m.Entities {
 		if e.Type != "bot_command" || e.Offset != 0 {
@@ -134,15 +130,33 @@ func command(m *gotgbot.Message) (name, args string, ok bool) {
 		runes := []rune(m.Text) // entity offsets are UTF-16 units; a command is ASCII
 		n := int(e.Length)
 		if n < 2 || n > len(runes) {
-			return "", "", false
+			return "", "", "", false
 		}
-		cmd := string(runes[1:n])
+		cmd, to := string(runes[1:n]), ""
 		if i := strings.IndexByte(cmd, '@'); i >= 0 {
-			cmd = cmd[:i]
+			cmd, to = cmd[:i], cmd[i+1:]
 		}
-		return strings.ToLower(cmd), strings.TrimSpace(string(runes[n:])), cmd != ""
+		return strings.ToLower(cmd), strings.ToLower(to), strings.TrimSpace(string(runes[n:])), cmd != ""
 	}
-	return "", "", false
+	return "", "", "", false
+}
+
+// addressedToUs reports whether a command's addressee is this bot (or names none): a command for another bot
+// of a group is that bot's, never this connector's.
+func (c *Connector) addressedToUs(ctx context.Context, b *bot, to string) bool {
+	if to == "" {
+		return true
+	}
+	if name, ok := c.usernames.Load(b.api.Token); ok {
+		return name == to
+	}
+	me, err := b.getMe(ctx)
+	if err != nil {
+		return false // not known to be ours: not acted on
+	}
+	name := strings.ToLower(me.Username)
+	c.usernames.Store(b.api.Token, name)
+	return name == to
 }
 
 func hasMedia(m *gotgbot.Message) bool {
@@ -152,10 +166,13 @@ func hasMedia(m *gotgbot.Message) bool {
 
 func (c *Connector) message(ctx context.Context, b *bot, u gotgbot.Update, conn connectors.Connection, creds connectors.Credentials) ([]engine.InboundEvent, error) {
 	m := u.Message
-	cmd, args, isCmd := command(m)
+	cmd, to, args, isCmd := command(m)
+	if isCmd && !c.addressedToUs(ctx, b, to) {
+		return nil, nil // for another bot
+	}
 	if isCmd && cmd == "start" && args != "" {
 		if h, ok := c.startHandlerFor(args); ok {
-			return nil, c.start(ctx, b, h, m, args, conn)
+			return nil, c.start(ctx, b, h, m, args, conn, updateID(u))
 		}
 		if isPlatform(conn) {
 			return nil, nil // an unknown prefix on the platform bot: dropped, unanswered
@@ -183,6 +200,7 @@ func (c *Connector) message(ctx context.Context, b *bot, u gotgbot.Update, conn 
 		"messageId":    strconv.FormatInt(m.MessageId, 10),
 		"from":         fromOf(m.From),
 		"isCommand":    isCmd,
+		"route":        routeOf(isCmd, cmd),
 		"hasMedia":     media,
 		"date":         time.Unix(m.Date, 0).UTC().Format(time.RFC3339),
 	}
@@ -214,6 +232,14 @@ func (c *Connector) message(ctx context.Context, b *bot, u gotgbot.Update, conn 
 		// A message from the bot itself starts no graph that did not ask for it (loop protection).
 		BySelf: m.From != nil && m.From.Id == botID(creds["token"]),
 	}}, nil
+}
+
+// routeOf is the route of a message: "text", or "command:<name>".
+func routeOf(isCmd bool, cmd string) string {
+	if isCmd {
+		return "command:" + cmd
+	}
+	return "text"
 }
 
 func chatType(t string) string {
@@ -249,13 +275,31 @@ func fromOf(u *gotgbot.User) map[string]any {
 // start hands `/start <payload>` to its handler and sends its reply. An unknown or used payload (or one
 // of another tenant, on a tenant's bot) reaches the handler with the nil tenant, which only replies. A
 // failure of the lookup or of the handler is redelivered by Telegram.
-func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbot.Message, payload string, conn connectors.Connection) error {
+func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbot.Message, payload string, conn connectors.Connection, updateKey string) error {
 	tenant, ok, err := h.TenantOf(ctx, payload)
 	if err != nil {
 		return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
 	}
 	if !ok || (!isPlatform(conn) && tenant != conn.TenantID) {
 		tenant = uuid.Nil
+	}
+	// An update that was handled completely (the handler ran, its reply went out) is not handled again when
+	// Telegram redelivers it because the answer to it was lost. With no tenant (an unknown link) there is
+	// nowhere to record it; repeating the "unknown" reply is harmless.
+	account := conn.TenantID
+	if isPlatform(conn) {
+		account = tenant
+	}
+	once, hasOnce := c.cfg.Connections.(connectors.InboundOnce)
+	hasOnce = hasOnce && account != uuid.Nil
+	if hasOnce {
+		seen, err := once.InboundSeen(ctx, account, connKey(conn), startEvent, updateKey)
+		if err != nil {
+			return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
+		}
+		if seen {
+			return nil
+		}
 	}
 	up := StartUpdate{TenantID: tenant, ConnectionID: connKey(conn), ChatID: m.Chat.Id, ChatType: chatType(m.Chat.Type), Payload: payload}
 	if m.From != nil {
@@ -265,28 +309,31 @@ func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbo
 	if err != nil {
 		return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
 	}
-	if reply == "" {
-		return nil
-	}
-	_, sent, err := c.send(ctx, b.api.Token, strconv.FormatInt(m.Chat.Id, 10), outgoing{Text: reply})
-	if err != nil {
-		c.log().Warn("telegram: the reply to /start was not sent", "error", err.Error())
-		return nil
-	}
-	// The reply is a message of the tenant the link belongs to (the platform bot: the payload's), counted for
-	// the bot that sent it.
-	account := conn.TenantID
-	if isPlatform(conn) {
-		account = tenant
-	}
-	if c.cfg.Usage != nil && account != uuid.Nil {
-		err := c.cfg.Usage.Record(ctx, catalog.UsageEntry{TenantID: account, Kind: Kind, ConnectionID: connKey(conn), Unit: "message", Quantity: int64(sent), At: time.Now()})
+	if reply != "" {
+		_, sent, err := c.send(ctx, b.api.Token, strconv.FormatInt(m.Chat.Id, 10), outgoing{Text: reply})
 		if err != nil {
-			c.log().Warn("telegram: a message was not counted", "error", err.Error())
+			c.log().Warn("telegram: the reply to /start was not sent", "error", err.Error())
+		} else {
+			// The reply is a message of the tenant the link belongs to (the platform bot: the payload's),
+			// counted for the bot that sent it.
+			if c.cfg.Usage != nil && account != uuid.Nil {
+				err := c.cfg.Usage.Record(ctx, catalog.UsageEntry{TenantID: account, Kind: Kind, ConnectionID: connKey(conn), Unit: "message", Quantity: int64(sent), At: time.Now()})
+				if err != nil {
+					c.log().Warn("telegram: a message was not counted", "error", err.Error())
+				}
+			}
+		}
+	}
+	if hasOnce {
+		if err := once.InboundDone(ctx, account, connKey(conn), startEvent, updateKey); err != nil {
+			c.log().Warn("telegram: a handled /start was not recorded", "error", err.Error())
 		}
 	}
 	return nil
 }
+
+// startEvent names the /start updates a connector handled itself, in the engine's dedup record.
+const startEvent = "telegram.start"
 
 // ---------------------------------------------------------------------------------------------
 // presses of buttons
@@ -424,13 +471,52 @@ func (c *Connector) AnswerPublished(ctx context.Context, ev engine.InboundEvent,
 	c.ack(ctx, b, pr.queryID, "")
 	text := pr.text
 	if pr.label != "" && text != "" && len([]rune(text))+len([]rune(pr.label))+4 <= maxText {
-		if err := b.editText(ctx, pr.chatID, pr.message, text+"\n\n→ "+pr.label, pr.entities); err == nil {
+		err := retrying(ctx, func() error {
+			return b.editText(ctx, pr.chatID, pr.message, text+"\n\n→ "+pr.label, pr.entities)
+		})
+		if err == nil || notModified(err) {
 			return
 		}
 	}
-	if err := b.removeKeyboard(ctx, pr.chatID, pr.message); err != nil && !notModified(err) {
+	// The answer is committed and Telegram will not redeliver the press: the keyboard is taken off here, with
+	// a few tries for what is transient, since a press of a keyboard that stays cannot add the choice again.
+	err := retrying(ctx, func() error { return b.removeKeyboard(ctx, pr.chatID, pr.message) })
+	if err != nil && !notModified(err) {
 		c.log().Warn("telegram: the keyboard was not removed", "error", err.Error())
 	}
+}
+
+// retrying runs fn up to three times, pausing between tries, while its failure is transient (a 5xx, a 429, a
+// lost connection); a refusal of the request itself is returned at once.
+func retrying(ctx context.Context, fn func() error) error {
+	pause := 300 * time.Millisecond
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		if err = fn(); err == nil {
+			return nil
+		}
+		var api *apiError
+		wait := pause
+		switch {
+		case errors.As(err, &api) && api.Code == 429:
+			wait = max(api.RetryAfter, pause)
+			if wait > 3*time.Second {
+				return err
+			}
+		case errors.As(err, &api) && api.Code < 500:
+			return err
+		}
+		if ctx.Err() != nil || attempt == 2 {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(wait):
+		}
+		pause *= 3
+	}
+	return err
 }
 
 // closed answers a press of a closed question and takes its keyboard off. It does not change the text.

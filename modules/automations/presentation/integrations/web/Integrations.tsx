@@ -161,7 +161,7 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
         // take its messages away, so the person says so first.
         const codes = r.warnings ?? []
         toast.notify({
-          variant: 'error', title: t(`Form.Warnings.${codes[0] ?? 'foreign_webhook'}`),
+          variant: 'error', title: (codes.length ? codes : ['foreign_webhook']).map((c) => t(`Form.Warnings.${c}`)).join(' '),
           action: { label: t('Form.ConfirmWarning'), onAction: () => setDisabled(c, disabled, undo, codes) },
         })
         return

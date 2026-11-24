@@ -538,38 +538,43 @@ func expandPaths(params map[string]any, path string) []string {
 	return out
 }
 
-// setAt returns a copy of params with a dotted path set; a numeric segment sets that item of a list.
-func setAt(params map[string]any, path string, v any) map[string]any {
-	out, _ := setIn(params, path, v).(map[string]any)
-	return out
+// setAt sets a dotted path in params, in place: a numeric segment sets that item of a list. The caller owns
+// params (Effect renders into the private copy the view hands out), so a list of ten thousand items is
+// written once per field, not copied once per item.
+func setAt(params map[string]any, path string, v any) {
+	head, rest, nested := strings.Cut(path, ".")
+	if !nested {
+		params[head] = v
+		return
+	}
+	switch child := params[head].(type) {
+	case map[string]any:
+		setAt(child, rest, v)
+	case []any:
+		setInList(child, rest, v)
+	default:
+		fresh := map[string]any{}
+		params[head] = fresh
+		setAt(fresh, rest, v)
+	}
 }
 
-func setIn(cur any, path string, v any) any {
+func setInList(list []any, path string, v any) {
 	head, rest, nested := strings.Cut(path, ".")
-	if list, ok := cur.([]any); ok {
-		i, err := strconv.Atoi(head)
-		if err != nil || i < 0 || i >= len(list) {
-			return cur
-		}
-		out := append([]any(nil), list...)
-		if nested {
-			out[i] = setIn(list[i], rest, v)
-		} else {
-			out[i] = v
-		}
-		return out
-	}
-	params, _ := cur.(map[string]any)
-	out := make(map[string]any, len(params)+1)
-	for k, x := range params {
-		out[k] = x
+	i, err := strconv.Atoi(head)
+	if err != nil || i < 0 || i >= len(list) {
+		return
 	}
 	if !nested {
-		out[head] = v
-		return out
+		list[i] = v
+		return
 	}
-	out[head] = setIn(params[head], rest, v)
-	return out
+	switch child := list[i].(type) {
+	case map[string]any:
+		setAt(child, rest, v)
+	case []any:
+		setInList(child, rest, v)
+	}
 }
 
 // nodeExpression is a CEL source inside a node's params with the scope it reads.

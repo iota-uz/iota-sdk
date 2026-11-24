@@ -136,7 +136,7 @@
         },
         "ConfirmWarning": "Baribir ulash",
         "ConfirmRequired": "Ulashni tasdiqlang: boshqa xizmat bot xabarlarini olmay qoʻyadi.",
-        "BotInUse": "Bu bot bu yerda allaqachon boshqa ulanish sifatida ulangan. Avval uni uzing."
+        "BotInUse": "Bu bot bu yerda allaqachon boshqa ulanish sifatida ulangan. Avval o‘sha ulanishni o‘chiring (faqat o‘chirib qo‘yish botni band qoldiradi)."
       },
       "Test": {
         "Running": "Tekshiryapmiz…",
