@@ -47,6 +47,10 @@ func (s *service) ListRuns(ctx context.Context, a Actor, f RunFilter) (Page[RunS
 		args = append(args, sub.Entity, sub.Key)
 		where = append(where, fmt.Sprintf("r.subject_entity = $%d AND r.subject_key = $%d", len(args)-1, len(args)))
 	}
+	if f.SubjectKeyPrefix != "" {
+		args = append(args, likePrefix(f.SubjectKeyPrefix))
+		where = append(where, fmt.Sprintf(`r.subject_key ILIKE $%d ESCAPE '\'`, len(args)))
+	}
 	if f.Since != nil {
 		args = append(args, *f.Since)
 		where = append(where, fmt.Sprintf("r.created_at >= $%d", len(args)))
@@ -267,4 +271,10 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 		d.CurrentNodes = []string{}
 	}
 	return d, nil
+}
+
+// likePrefix is a LIKE pattern matching strings that start with s, its wildcards escaped.
+func likePrefix(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(s) + "%"
 }

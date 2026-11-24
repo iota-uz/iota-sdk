@@ -49,6 +49,8 @@ const (
 	RouteNew    = "automations.new"
 	RouteEditor = "automations.editor"
 	RouteRun    = "automations.run"
+	// RouteRunLink is a run named by its id alone (a notification, a task, the journal).
+	RouteRunLink = "automations.run_link"
 )
 
 // DefaultPath is where the section is mounted.
@@ -197,6 +199,7 @@ func NewController(cfg Config) (*Controller, error) {
 			{Spec: application.Get(cfg.Path+"/new", application.ClientRoute(RouteNew), application.RequireAll(permissions.AutomationsRead, permissions.AutomationsAuthor)), Feature: screen, Build: c.build(ViewNew)},
 			{Spec: application.Get(cfg.Path+"/"+id, application.ClientRoute(RouteEditor), read), Feature: screen, Build: c.build(ViewEditor)},
 			{Spec: application.Get(cfg.Path+"/"+id+"/runs/{run:[0-9a-fA-F-]{36}}", application.ClientRoute(RouteRun), read), Feature: screen, Build: c.build(ViewEditor)},
+			{Spec: application.Get(cfg.Path+"/runs/{run:[0-9a-fA-F-]{36}}", application.ClientRoute(RouteRunLink), read), Feature: screen, Build: c.build(ViewRun)},
 		}, clienthost.WithShell(shell), clienthost.WithSession(c.session), clienthost.WithServices(clienthost.ServiceEndpoints{RPC: c.rpcPath()}))
 		if err != nil {
 			return nil, serrors.Wrap(op, err)

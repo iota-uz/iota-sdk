@@ -13,6 +13,9 @@ const (
 	ViewList   View = "list"
 	ViewNew    View = "new"
 	ViewEditor View = "editor"
+	// ViewRun is a link that knows only a run's id (/automations/runs/{run}): the screen finds the run's
+	// graph and opens its Runs tab there, or says the run is not found.
+	ViewRun View = "run"
 )
 
 // Props are the initial props of the screen.
@@ -444,7 +447,19 @@ type DryRunRequest struct {
 	Subject Subject                    `json:"subject"`
 	Context map[string]json.RawMessage `json:"context,omitempty"`
 	Events  []json.RawMessage          `json:"events"`
+	// Decisions is how execute nodes answer: scripted (default, from the context), cached or live.
+	Decisions DecisionMode `json:"decisions,omitempty"`
 }
+
+// DecisionMode is how a dry run's execute nodes answer (#1336).
+type DecisionMode string
+
+// Decision modes of a dry run.
+const (
+	DecisionsScripted DecisionMode = "scripted"
+	DecisionsCached   DecisionMode = "cached"
+	DecisionsLive     DecisionMode = "live"
+)
 
 // TraceStep is a step of a dry run.
 type TraceStep struct {
@@ -506,8 +521,10 @@ type RunsRequest struct {
 	AutomationID string     `json:"automation_id"`
 	Version      int        `json:"version,omitempty"`
 	State        []RunState `json:"state,omitempty"`
-	Cursor       string     `json:"cursor,omitempty"`
-	Limit        int        `json:"limit,omitempty"`
+	// Subject narrows the runs to subjects whose key starts with it (case-insensitive).
+	Subject string `json:"subject,omitempty"`
+	Cursor  string `json:"cursor,omitempty"`
+	Limit   int    `json:"limit,omitempty"`
 }
 
 // StepError is why a step or a run failed.
@@ -574,7 +591,9 @@ type StepView struct {
 
 // WaitView is a wait of a run.
 type WaitView struct {
-	TokenID   string  `json:"token_id"`
+	TokenID string `json:"token_id"`
+	// NodeID is the node the waiting token stands on.
+	NodeID    string  `json:"node_id"`
 	WaitID    string  `json:"wait_id"`
 	Kind      string  `json:"kind"`
 	EventKind string  `json:"event_kind,omitempty"`

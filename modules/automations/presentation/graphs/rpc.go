@@ -374,7 +374,7 @@ func (c *Controller) get(ctx context.Context, req GetRequest) (GetResponse, erro
 		Graph: v.Graph, Version: v.Version,
 		SavedBy:     SavedBy{Name: nameOf(names, v.SavedBy), Origin: Origin(v.SavedOrigin)},
 		Versions:    make([]VersionEntry, 0, len(versions)),
-		Catalog:     editorCatalog(ctx, view, c.cfg.Behaviors),
+		Catalog:     editorCatalog(ctx, view, c.cfg.Behaviors, c.cfg.Catalog),
 		Connections: connectionOptions(view),
 		Can:         canOf(a.Subject, agent),
 	}
@@ -415,7 +415,7 @@ func (c *Controller) catalog(ctx context.Context, _ CatalogRequest) (CatalogResp
 	if err != nil {
 		return CatalogResponse{}, err
 	}
-	return CatalogResponse{Catalog: editorCatalog(ctx, view, c.cfg.Behaviors), Connections: connectionOptions(view), Can: canOf(a.Subject, a.Origin != engine.OriginHuman)}, nil
+	return CatalogResponse{Catalog: editorCatalog(ctx, view, c.cfg.Behaviors, c.cfg.Catalog), Connections: connectionOptions(view), Can: canOf(a.Subject, a.Origin != engine.OriginHuman)}, nil
 }
 
 // saveResult turns a refusal of create or save into the editor's SaveResult; other errors are RPC
@@ -721,7 +721,12 @@ func (c *Controller) dryRun(ctx context.Context, req DryRunRequest) (DryRunRespo
 	if s := subjectRef(&req.Subject); s != nil {
 		subject = *s
 	}
-	res, err := c.cfg.Engine.Authoring.DryRun(ctx, a, engine.DryRunInput{Graph: req.Graph, Subject: subject, Context: req.Context, Events: req.Events})
+	switch req.Decisions {
+	case "", DecisionsScripted, DecisionsCached, DecisionsLive:
+	default:
+		return DryRunResponse{}, rpcError(ErrInvalidInput, "decisions is scripted, cached or live", nil)
+	}
+	res, err := c.cfg.Engine.Authoring.DryRun(ctx, a, engine.DryRunInput{Graph: req.Graph, Subject: subject, Context: req.Context, Events: req.Events, Decisions: string(req.Decisions)})
 	if err != nil {
 		return DryRunResponse{}, mapErr(err)
 	}
@@ -857,7 +862,7 @@ func (c *Controller) runs(ctx context.Context, req RunsRequest) (RunsResponse, e
 	if _, err := c.cfg.Engine.Service.Get(ctx, a, id); err != nil {
 		return RunsResponse{}, mapErr(err)
 	}
-	page, err := c.cfg.Engine.Service.ListRuns(ctx, a, engine.RunFilter{AutomationID: &id, Version: req.Version, Status: statusesOf(req.State), Cursor: req.Cursor, Limit: limit})
+	page, err := c.cfg.Engine.Service.ListRuns(ctx, a, engine.RunFilter{AutomationID: &id, Version: req.Version, Status: statusesOf(req.State), SubjectKeyPrefix: strings.TrimSpace(req.Subject), Cursor: req.Cursor, Limit: limit})
 	if err != nil {
 		return RunsResponse{}, mapErr(err)
 	}
@@ -902,7 +907,9 @@ func (c *Controller) run(ctx context.Context, req RunRequest) (RunData, error) {
 		return RunData{}, mapErr(err)
 	}
 	out := RunData{Run: runSummary(d.RunSummary), Tokens: []TokenView{}, Steps: []StepView{}, Waits: []WaitView{}}
+	nodeOf := make(map[string]string, len(d.Tokens))
 	for _, t := range d.Tokens {
+		nodeOf[t.ID.String()] = t.NodeID
 		tv := TokenView{ID: t.ID.String(), NodeID: t.NodeID, Status: t.Status, Branch: t.Branch, ForeachIndex: t.ForeachIndex}
 		if t.Parent != nil {
 			p := t.Parent.String()
@@ -917,7 +924,7 @@ func (c *Controller) run(ctx context.Context, req RunRequest) (RunData, error) {
 		})
 	}
 	for _, w := range d.Waits {
-		out.Waits = append(out.Waits, WaitView{TokenID: w.TokenID.String(), WaitID: w.WaitID, Kind: w.Kind, EventKind: w.EventKind, TimeoutAt: optStamp(w.TimeoutAt), Status: w.Status})
+		out.Waits = append(out.Waits, WaitView{TokenID: w.TokenID.String(), NodeID: nodeOf[w.TokenID.String()], WaitID: w.WaitID, Kind: w.Kind, EventKind: w.EventKind, TimeoutAt: optStamp(w.TimeoutAt), Status: w.Status})
 	}
 	return out, nil
 }
