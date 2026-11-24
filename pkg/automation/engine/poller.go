@@ -310,47 +310,80 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 			"error", code.NewMasker(map[string]string(creds)).Mask(err.Error()))
 		return now.Add(interval), release()
 	}
-	if len(evs) > 0 {
-		in := p.r.Inbound()
-		err := publishInTx(ctx, p.r.cfg.DB, func(ctx context.Context, tx pgx.Tx) error {
-			// The batch is published only while this poll still owns the connection, under its row lock
-			// to the commit: a poll that lost its claim publishes nothing the new owner did not return.
-			var raw []byte
-			if err := tx.QueryRow(ctx, `SELECT inbound FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE`,
-				t.tenant, t.id).Scan(&raw); err != nil {
+	// The batch and the cursor commit together, under the connection's row lock: only while this poll
+	// still owns the claim and its credentials (the version it read, still connected) are the
+	// connection's. Events and a cursor of credentials a reauthorization replaced meanwhile are dropped.
+	err = p.commitPoll(ctx, t, owner, c.Version, evs, pollState{Cursor: next, NextAt: ptrTime(now.Add(interval))})
+	switch {
+	case errors.Is(err, errClaimLost):
+		return now.Add(interval), nil // the batch is discarded; the new owner's cursor stands
+	case errors.Is(err, errCredentialsChanged):
+		// The next poll asks again from the same cursor with the connection's credentials now. A token
+		// refresh during the poll changes the version too: its batch comes again then, nothing is lost.
+		return now.Add(interval), release()
+	case err != nil:
+		return now.Add(interval), errors.Join(serrors.Wrap(opPoll, err), release()) // the cursor stays: the events come again
+	}
+	return now.Add(interval), nil
+}
+
+// commitPoll publishes a poll's events and saves its state in one transaction under the connection's
+// row lock, fenced by the claim's owner and the credentials version the poll read.
+func (p *InboundPoller) commitPoll(ctx context.Context, t polled, owner string, version int, evs []InboundEvent, st pollState) error {
+	in := p.r.Inbound()
+	return publishInTx(ctx, p.r.cfg.DB, func(ctx context.Context, tx pgx.Tx) error {
+		var (
+			raw    []byte
+			ver    int
+			status string
+		)
+		if err := tx.QueryRow(ctx, `SELECT inbound, version, status FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE`,
+			t.tenant, t.id).Scan(&raw, &ver, &status); err != nil {
+			return err
+		}
+		if pollOwner(raw) != owner {
+			return errClaimLost
+		}
+		if ver != version || status != string(connectors.StatusConnected) {
+			return errCredentialsChanged
+		}
+		for _, ev := range evs {
+			ev.TenantID, ev.ConnectionID = t.tenant, t.id.String()
+			sp, err := tx.Begin(ctx)
+			if err != nil {
 				return err
 			}
-			if pollOwner(raw) != owner {
-				return errClaimLost
+			if _, err := in.Publish(ctx, sp, ev); err != nil {
+				_ = sp.Rollback(ctx)
+				if errors.Is(err, ErrInboundInvalid) || errors.Is(err, ErrCorrelationClosed) {
+					continue
+				}
+				return err
 			}
-			for _, ev := range evs {
-				ev.TenantID, ev.ConnectionID = t.tenant, t.id.String()
-				sp, err := tx.Begin(ctx)
-				if err != nil {
-					return err
-				}
-				if _, err := in.Publish(ctx, sp, ev); err != nil {
-					_ = sp.Rollback(ctx)
-					if errors.Is(err, ErrInboundInvalid) || errors.Is(err, ErrCorrelationClosed) {
-						continue
-					}
-					return err
-				}
-				if err := sp.Commit(ctx); err != nil {
-					return err
-				}
+			if err := sp.Commit(ctx); err != nil {
+				return err
 			}
-			return nil
-		})
-		if errors.Is(err, errClaimLost) {
-			return now.Add(interval), nil // the batch is discarded; the new owner's cursor stands
 		}
+		// The cursor moves with the events it read, and the claim ends.
+		all := inboundState{}
+		if len(raw) > 0 {
+			_ = json.Unmarshal(raw, &all)
+			if all == nil {
+				all = inboundState{}
+			}
+		}
+		b, err := json.Marshal(st)
 		if err != nil {
-			return now.Add(interval), errors.Join(serrors.Wrap(opPoll, err), release()) // the cursor stays: the events come again
+			return err
 		}
-	}
-	// The cursor moves after the events are committed.
-	return now.Add(interval), p.saveState(ctx, t, owner, pollState{Cursor: next, NextAt: ptrTime(now.Add(interval))})
+		all[pollKey] = b
+		next, err := json.Marshal(all)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `UPDATE automation.connections SET inbound = $3, updated_at = now() WHERE tenant_id = $1 AND id = $2`, t.tenant, t.id, next)
+		return err
+	})
 }
 
 func isUnauthorized(err error) bool {
@@ -362,6 +395,9 @@ func ptrTime(t time.Time) *time.Time { return &t }
 
 // errClaimLost: the poll's claim of the connection passed to another poller before its batch committed.
 var errClaimLost = errors.New("automation poller: the claim of the connection was lost")
+
+// errCredentialsChanged: the connection's credentials (or status) changed while the poll ran.
+var errCredentialsChanged = errors.New("automation poller: the connection's credentials changed during the poll")
 
 // pollOwner is the owner of the poll claim an inbound state holds.
 func pollOwner(raw json.RawMessage) string {

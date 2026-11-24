@@ -531,7 +531,8 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	if err != nil {
 		var ce *catalog.CallError
 		if errors.As(err, &ce) {
-			return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: ce.Code, Message: masker.Mask(ce.Message), Retryable: ce.Retryable}}
+			// As in a run's call: the code is kept only as an identifier with nothing a mask hides.
+			return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: callCode(ce.Code, masker), Message: masker.Mask(ce.Message), Retryable: ce.Retryable}}
 		}
 		if callCtx.Err() != nil {
 			return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: CodeTimeout, Message: c.node.ID + " got no answer by its deadline"}}

@@ -436,6 +436,44 @@ func TestPollAfterReauthorizationDoesNotSetNeedsReauth(t *testing.T) {
 	assert.Empty(t, owner, "the claim is released")
 }
 
+// A poll whose credentials a reauthorization replaced while it ran, and that then succeeded, publishes
+// nothing and keeps the cursor: the old account's events and position are not the reauthorized
+// connection's. No other poller took the connection over.
+func TestSuccessfulPollAfterReauthorizationPublishesNothing(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), messageGraph(`{"id": "m", "event": "acme.message.v1"}`))
+	ctx := context.Background()
+	conn := ae.conn.ID.String()
+	ae.acme.pollQ = [][]engine.InboundEvent{{acmeUpdate{ID: "old-1", Event: evMessage, Text: "old account", From: "ann"}.event(conn)}}
+	now := time.Now()
+	poller := p.rt.NewPoller(engine.PollerConfig{Connections: ae.store, Connectors: ae.dir, Clock: func() time.Time { return now }})
+	ae.acme.onPoll = func() {
+		c, _, err := ae.store.Get(ctx, ae.tenant, ae.conn.ID)
+		require.NoError(t, err)
+		_, err = ae.store.Save(ctx, c, connectors.Credentials{"token": acmeToken, "secret": acmeSig})
+		require.NoError(t, err)
+	}
+	_, err := poller.PollOnce(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), ae.acme.polls.Load())
+	assert.Zero(t, ae.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = $1`, evMessage), "the old account's batch is dropped")
+	var cursor, owner string
+	require.NoError(t, ae.db.QueryRow(ctx, `SELECT coalesce(inbound->'poll'->>'cursor', ''), coalesce(inbound->'poll'->>'owner', '') FROM automation.connections
+		WHERE tenant_id = $1 AND id = $2`, ae.tenant, ae.conn.ID).Scan(&cursor, &owner))
+	assert.Empty(t, cursor, "the cursor did not move")
+	assert.Empty(t, owner, "the claim is released")
+	c, _, err := ae.store.Get(ctx, ae.tenant, ae.conn.ID)
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusConnected, c.Status)
+
+	// The next poll, with the new credentials, publishes its batch and moves the cursor.
+	now = now.Add(engine.MinPollInterval)
+	_, err = poller.PollOnce(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, ae.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = $1`, evMessage))
+}
+
 // A poll whose claim waited for the connection's row lock past the interval is due an interval after
 // it got the lock, not after it began: the next poll does not follow it at once.
 func TestPollerIntervalCountsFromTheClaim(t *testing.T) {

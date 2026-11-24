@@ -145,6 +145,36 @@ func TestTestNodeTakesTheOutcomeFromTheAnswer(t *testing.T) {
 	assert.Equal(t, "sales", res.Outcome)
 }
 
+// A direct execution (TestNode, an executed node of a live dry run) records a connector's error code
+// only as an identifier: provider text in it (here the credentials) is effect_failed in both answers.
+func TestDirectCallErrorCodeIsAnIdentifier(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	g := graphJSON("HTTP", `{"id": "created", "event": "acme.order.created.v1"}`,
+		`{"id": "get", "type": "acme.http", "params": {"mode": "badcode"}}, {"id": "fin", "type": "end", "params": {}}`,
+		`{"from": {"node": "created", "outcome": "fired"}, "to": "get"}, {"from": {"node": "get", "outcome": "ok"}, "to": "fin"}, {"from": {"node": "get", "outcome": "failed"}, "to": "fin"}`)
+	ctx := context.Background()
+	res, err := p.rt.Authoring().TestNode(ctx, ae.human(), engine.TestNodeInput{Graph: json.RawMessage(g), NodeID: "get"})
+	require.NoError(t, err)
+	require.NotNil(t, res.Error)
+	assert.Equal(t, engine.CodeEffectFailed, res.Error.Code)
+	assert.NotContains(t, res.Error.Message+string(res.Output)+strings.Join(res.Logs, "\n"), acmeToken)
+
+	dr, err := p.rt.Authoring().DryRun(ctx, ae.human(), engine.DryRunInput{Graph: json.RawMessage(g), Decisions: engine.DecisionsLive,
+		Subject: engine.SubjectRef{Entity: "acme.order", Key: "o-1"}, Events: []json.RawMessage{json.RawMessage(`{"kind": "acme.order.created.v1"}`)}})
+	require.NoError(t, err)
+	var seen strings.Builder
+	for _, st := range dr.Trace {
+		seen.WriteString(st.Node + " " + st.Outcome + " " + st.Path + " " + st.Message + " " + string(st.Output) + "\n")
+		for _, e := range st.Effects {
+			seen.Write(e)
+		}
+	}
+	assert.Contains(t, seen.String(), engine.CodeEffectFailed, "the executed node failed with the fallback code")
+	assert.NotContains(t, seen.String(), acmeToken)
+	assert.Len(t, ae.acme.callsOf("acme.http"), 2, "both executed the node")
+}
+
 // A node type with an effect must declare what a dry run does with it.
 func TestCatalogRefusesAnUndeclaredDryRun(t *testing.T) {
 	spec := graph.NodeSpec{Type: "acme.mystery", Title: "Mystery", Behavior: graph.BehaviorCall, Outcomes: []string{"ok"},

@@ -318,6 +318,9 @@ func (n *acmeHTTP) Idempotent() bool                  { return true }
 func (n *acmeHTTP) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallResult, error) {
 	n.a.record(acmeCall{Node: "acme.http", Key: in.IdempotencyKey, Attempt: in.Attempt})
 	engine.Log(ctx, "GET /me with Bearer %s", in.Credentials["token"])
+	if mode, _ := in.Params["mode"].(string); mode == "badcode" {
+		return catalog.CallResult{}, &catalog.CallError{Code: "Refused: token " + in.Credentials["token"], Message: "refused"}
+	}
 	return catalog.CallResult{Outcome: "ok", Output: map[string]any{"headers": map[string]any{"Authorization": "Bearer " + in.Credentials["token"]}}}, nil
 }
 
