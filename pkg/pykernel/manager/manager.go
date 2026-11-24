@@ -3,7 +3,8 @@
 // lifecycle policy (warm pool or ephemeral), and routes capability calls
 // through the central plan/apply authorization.
 //
-// A Manager is confined by default (isolation.ModeRequired): New verifies with
+// A Manager is confined when its Sandbox sets isolation.ModeRequired (the
+// sandbox is opt-in; the zero value runs unconfined): New verifies with
 // isolation.Check that a real child gets every required boundary and fails
 // with the list of missing ones otherwise, and every spawned kernel must
 // report the same boundaries in its kernel.ready handshake before it is
@@ -56,8 +57,8 @@ type Config struct {
 	// Policy decides pooling/eviction (lifecycle.WarmPool or lifecycle.Ephemeral).
 	Policy lifecycle.LifecyclePolicy
 	// Sandbox is the OS confinement of every kernel. Its zero value is
-	// isolation.ModeRequired: New fails closed unless every required boundary
-	// is available.
+	// isolation.ModeInsecureDisabled (unconfined). With isolation.ModeRequired
+	// New fails closed unless every required boundary is available.
 	Sandbox isolation.Profile
 	// Limits are the OS resource caps applied to every kernel. For a confined
 	// Manager every zero field takes isolation.DefaultLimits.

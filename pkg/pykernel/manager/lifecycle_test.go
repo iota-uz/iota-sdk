@@ -68,12 +68,22 @@ func TestNew_FailsClosedWhenTheSandboxCannotBeVerified(t *testing.T) {
 	_, err := manager.New(manager.Config{
 		Policy:     lifecycle.Ephemeral(),
 		PythonPath: "/nonexistent/python3",
+		Sandbox:    isolation.Profile{Mode: isolation.ModeRequired},
 	})
 	require.Error(t, err)
 	require.ErrorIs(t, err, isolation.ErrIsolationUnavailable)
 	var inc *isolation.IncompleteError
 	require.ErrorAs(t, err, &inc)
 	assert.NotEmpty(t, inc.Missing)
+}
+
+// The sandbox is opt-in: a zero Sandbox starts an unconfined Manager instead
+// of failing on a host without Landlock.
+func TestNew_ZeroSandboxIsUnconfined(t *testing.T) {
+	requirePython(t)
+	m, err := manager.New(manager.Config{Policy: lifecycle.Ephemeral()})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = m.Shutdown(context.Background()) })
 }
 
 func TestExec_ReportsTerminationReasons(t *testing.T) {

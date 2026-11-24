@@ -19,8 +19,10 @@ verify it on its own hosts.
 
 ## Fail closed
 
-`manager.New` confines by default (`isolation.Profile{}` = `ModeRequired`). It
-starts a real child with the configured interpreter and limits, which applies
+The sandbox is opt-in: the zero `isolation.Profile{}` is
+`ModeInsecureDisabled`, so hosts without Landlock ABI 6 or `CAP_SYS_PTRACE`
+keep starting. With `isolation.Profile{Mode: isolation.ModeRequired}`,
+`manager.New` confines every kernel. It starts a real child with the configured interpreter and limits, which applies
 the sandbox and probes it (`isolation.Check`). If any boundary in
 `isolation.RequiredBoundaries` is missing, `New` returns an error wrapping
 `isolation.ErrIsolationUnavailable` with the list; an unknown `Mode` value is
@@ -45,8 +47,9 @@ if err != nil {
 report := m.Isolation() // report.Err() == nil, report.Verified == true
 ```
 
-`isolation.Profile{Mode: isolation.ModeInsecureDisabled}` turns the sandbox
-off for development on macOS or old kernels. Never use it for real input.
+`ModeInsecureDisabled` (the default) runs kernels without the sandbox, with
+only the environment scrub, rlimits and the process group. A host that runs
+code a model or a user wrote should set `ModeRequired`.
 `execute.NewRunner` refuses a Manager whose `Isolation()` report is not
 complete and verified unless `InsecureAllowUnconfinedRuntime` is set.
 
