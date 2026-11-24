@@ -74,24 +74,29 @@ export function rebaseErrors(errors: readonly GraphError[], from: AutomationGrap
   if (from === to) return [...errors]
   const out: GraphError[] = []
   for (const error of errors) {
-    const match = /^(nodes|triggers|edges)\[(\d+)\](.*)$/.exec(error.path)
-    if (!match) {
-      out.push(error)
-      continue
-    }
-    const [, collection, index, rest] = match as unknown as [string, 'nodes' | 'triggers' | 'edges', string, string]
-    const i = Number(index)
-    let next = -1
-    if (collection === 'edges') {
-      const edge = from.edges[i]
-      if (edge) next = to.edges.findIndex((e) => e.from.node === edge.from.node && e.from.outcome === edge.from.outcome && e.to === edge.to)
-    } else {
-      const id = from[collection][i]?.id
-      if (id !== undefined) next = to[collection].findIndex((item) => item.id === id)
-    }
-    if (next >= 0) out.push({ ...error, path: `${collection}[${next}]${rest}` })
+    const path = rebasePath(error.path, from, to)
+    // A fix names an item by its index too: it follows the same item, or it is dropped.
+    const remove = error.fix && rebasePath(error.fix.remove, from, to)
+    if (path !== null) out.push({ ...error, path, fix: remove ? { ...error.fix!, remove } : undefined } as GraphError)
   }
   return out
+}
+
+/** A path of `from` as a path of `to` (the same item, by id), or null when the item is gone. */
+function rebasePath(path: string, from: AutomationGraph, to: AutomationGraph): string | null {
+  const match = /^(nodes|triggers|edges)\[(\d+)\](.*)$/.exec(path)
+  if (!match) return path
+  const [, collection, index, rest] = match as unknown as [string, 'nodes' | 'triggers' | 'edges', string, string]
+  const i = Number(index)
+  let next = -1
+  if (collection === 'edges') {
+    const edge = from.edges[i]
+    if (edge) next = to.edges.findIndex((e) => e.from.node === edge.from.node && e.from.outcome === edge.from.outcome && e.to === edge.to)
+  } else {
+    const id = from[collection][i]?.id
+    if (id !== undefined) next = to[collection].findIndex((item) => item.id === id)
+  }
+  return next >= 0 ? `${collection}[${next}]${rest}` : null
 }
 
 /** Validation results are tied to the graph snapshot they were computed for. */

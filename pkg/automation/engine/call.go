@@ -392,6 +392,9 @@ func (c *CallRunner) Begin(ctx context.Context, tx pgx.Tx, run StepContext, node
 	if kinds := view.NodeRequires[node.Type]; len(kinds) > 0 {
 		ref, kind, err := catalog.ResolveConnection(view.Connections, kinds, params[catalog.ConnectionParam])
 		if err != nil {
+			if needsReauth(ctx, tx, run.TenantID, params[catalog.ConnectionParam], kinds) {
+				return WaitSpec{}, &StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth}
+			}
 			return WaitSpec{}, &StepError{Code: CodeConnectionUnavailable, Message: "the connection of " + node.ID + " is not available"}
 		}
 		req.Connection, req.ConnectorKind = ref.ID, string(kind)
@@ -611,6 +614,37 @@ func (x *callExec) connector(nt catalog.NodeType) string {
 		}
 	}
 	return "none"
+}
+
+// msgNeedsReauth is the failure of a call whose connection's authorization was refused (an OAuth refresh
+// the provider declined): unauthorized, as the connector reports the refusal itself.
+const msgNeedsReauth = "the connection needs a new sign-in"
+
+// needsReauth reports whether the connection of a node waits for a new sign-in: the one it names, or,
+// when it names none, the tenant's connections of its kinds (none connected, one needs a sign-in). The
+// catalog lists only working connections, so such a node is unauthorized, not without a connection.
+func needsReauth(ctx context.Context, q querier, tenant uuid.UUID, param any, kinds []catalog.ConnectorKind) bool {
+	if param != nil {
+		ref, _ := param.(string)
+		id, err := uuid.Parse(ref)
+		if err != nil {
+			return false
+		}
+		var status string
+		if err := q.QueryRow(ctx, `SELECT status FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenant, id).Scan(&status); err != nil {
+			return false
+		}
+		return status == string(connectors.StatusNeedsReauth)
+	}
+	names := make([]string, len(kinds))
+	for i, k := range kinds {
+		names[i] = string(k)
+	}
+	var reauth, connected int
+	err := q.QueryRow(ctx, `SELECT count(*) FILTER (WHERE status = $3), count(*) FILTER (WHERE status = $4)
+		FROM automation.connections WHERE tenant_id = $1 AND kind = ANY($2)`,
+		tenant, names, string(connectors.StatusNeedsReauth), string(connectors.StatusConnected)).Scan(&reauth, &connected)
+	return err == nil && reauth > 0 && connected == 0
 }
 
 // errSlotDeadline: the call's deadline passed while it waited for a slot.
@@ -872,7 +906,9 @@ func (x *callExec) open(ctx context.Context, cn catalog.CallNode) (*openConnecti
 	}
 	ci, cr, err := src.Open(ctx, req.TenantID, req.Connection)
 	switch {
-	case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrNeedsReauth), errors.Is(err, connectors.ErrUndecryptable):
+	case errors.Is(err, connectors.ErrNeedsReauth):
+		return nil, &callRecord{Kind: "failed", Code: catalog.CallUnauthorized, Message: msgNeedsReauth}, nil
+	case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrUndecryptable):
 		return nil, &callRecord{Kind: "failed", Code: CodeConnectionUnavailable, Message: "the connection is not connected"}, nil
 	case err != nil:
 		return nil, nil, &host.InfraError{Err: fmt.Errorf("open the connection of %s: %w", req.NodeID, err)}

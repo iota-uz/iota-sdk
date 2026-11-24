@@ -47,6 +47,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/notify"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/mcp"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/sms"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
@@ -87,6 +88,12 @@ func WithConnectors(list ...connectors.Connector) Option {
 	return func(c *component) { c.connectors = append(c.connectors, list...) }
 }
 
+// WithoutMCP leaves out the MCP connector (mcp.New) the component registers when the application
+// registers no connector of kind mcp itself.
+func WithoutMCP() Option {
+	return func(c *component) { c.noMCP = true }
+}
+
 // WithHostManifest is the application's client host bundle manifest the integrations screen is served
 // with (the application merged the screen's feature catalog into its bundle). Default: the module's own
 // embedded bundle, served at /assets/automations; without it, the manifest at
@@ -119,6 +126,7 @@ type component struct {
 	engineTune      []func(*engine.Config)
 	noEngine        bool
 	noBackground    bool
+	noMCP           bool
 }
 
 func (c *component) Descriptor() composition.Descriptor {
@@ -258,7 +266,11 @@ func (c *component) Build(b *composition.Builder) error {
 		}
 		// The SDK's own connectors, unless the application registered its own of the kind.
 		status := lazyStatus{container: container}
-		for _, conn := range []connectors.Connector{sms.NewEskiz(sms.WithConnectionStatus(status)), sms.NewTwilio(sms.WithConnectionStatus(status))} {
+		sdk := []connectors.Connector{sms.NewEskiz(sms.WithConnectionStatus(status)), sms.NewTwilio(sms.WithConnectionStatus(status))}
+		if !c.noMCP {
+			sdk = append(sdk, mcp.New())
+		}
+		for _, conn := range sdk {
 			if registered[conn.Kind()] {
 				continue
 			}
@@ -299,7 +311,14 @@ func (c *component) Build(b *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		return connectors.NewStore(db, keys, usage, platform, grants), nil
+		st := connectors.NewStore(db, keys, usage, platform, grants)
+		// A connector that refreshes its connections' tokens itself (MCP) gets the store.
+		dir, err := composition.Resolve[connectors.Directory](container)
+		if err != nil {
+			return nil, err
+		}
+		connectors.BindStore(dir, st)
+		return st, nil
 	})
 	composition.Provide[connectors.ConnectionStore](b, func(container *composition.Container) (connectors.ConnectionStore, error) {
 		return composition.Resolve[connectors.Store](container)
@@ -592,10 +611,14 @@ func (c *component) buildPages(b *composition.Builder) {
 		if path == "" {
 			path = graphs.DefaultPath
 		}
+		var tools mcp.ToolLister
+		if conn, ok := dir.Get(mcp.Kind); ok {
+			tools, _ = conn.(mcp.ToolLister)
+		}
 		ctrl, err := graphs.NewController(graphs.Config{
 			Engine:  graphs.Engine{Service: rt.Service(), Authoring: rt.Authoring(), Operations: rt.Operations()},
 			Catalog: reg, Users: persistence.NewUserNames(db), Host: host, Assets: assets, Path: path,
-			IntegrationsPath: integrations.DefaultPath, MessageKeys: keys, Logger: slog.Default(),
+			IntegrationsPath: integrations.DefaultPath, MessageKeys: keys, Logger: slog.Default(), MCPTools: tools,
 		})
 		if err != nil {
 			return nil, err

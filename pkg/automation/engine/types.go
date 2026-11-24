@@ -211,6 +211,9 @@ type Version struct {
 	SavedOrigin     Origin
 	Note            string
 	CreatedAt       time.Time
+	// Warnings are what the check of a save noted without refusing it (a pinned tool schema the server
+	// has changed since); only Create and SaveVersion fill them, nothing stores them.
+	Warnings []graph.GraphError
 }
 
 // VersionInfo is a version in the list of versions.
