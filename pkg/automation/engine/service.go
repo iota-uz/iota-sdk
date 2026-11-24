@@ -147,7 +147,8 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 		if err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `UPDATE automation.automations SET name = $3, latest_version = $4, layout = $5, updated_at = now() WHERE tenant_id = $1 AND id = $2`,
+		if _, err := tx.Exec(ctx, `UPDATE automation.automations SET name = $3, latest_version = $4, layout = $5,
+			layout_revision = layout_revision + 1, updated_at = now() WHERE tenant_id = $1 AND id = $2`,
 			a.TenantID, id, v.g.Name, next, layout); err != nil {
 			return serrors.FromDB(opService, err)
 		}
@@ -317,16 +318,33 @@ func (r *Runtime) enableTx(ctx context.Context, tx pgx.Tx, a Actor, id uuid.UUID
 }
 
 func (s *service) SaveLayout(ctx context.Context, a Actor, id uuid.UUID, l graph.Layout) error {
+	_, err := s.saveLayout(ctx, a, id, -1, l)
+	return err
+}
+
+func (s *service) SaveLayoutAt(ctx context.Context, a Actor, id uuid.UUID, baseRevision int, l graph.Layout) (int, error) {
+	if baseRevision < 0 {
+		return 0, fmt.Errorf("%w: a layout revision is never negative", ErrInvalidInput)
+	}
+	return s.saveLayout(ctx, a, id, baseRevision, l)
+}
+
+// saveLayout merges l into the layout; base < 0 saves over any revision. It returns the new revision.
+func (s *service) saveLayout(ctx context.Context, a Actor, id uuid.UUID, base int, l graph.Layout) (int, error) {
 	if err := s.authorize(a, PermAuthor); err != nil {
-		return err
+		return 0, err
 	}
 	if errs := graph.ValidateLayout(l); len(errs) > 0 {
-		return &ValidationError{Errors: errs}
+		return 0, &ValidationError{Errors: errs}
 	}
-	return s.inTx(ctx, func(tx pgx.Tx) error {
+	var revision int
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		am, err := loadAutomation(ctx, tx, a.TenantID, id, true)
 		if err != nil {
 			return err
+		}
+		if base >= 0 && base != am.LayoutRevision {
+			return &LayoutConflictError{Revision: am.LayoutRevision, Layout: am.Layout}
 		}
 		v, err := loadVersion(ctx, tx, a.TenantID, id, am.LatestVersion)
 		if err != nil {
@@ -347,9 +365,14 @@ func (s *service) SaveLayout(ctx context.Context, a Actor, id uuid.UUID, l graph
 		if err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, `UPDATE automation.automations SET layout = $3, updated_at = now() WHERE tenant_id = $1 AND id = $2`, a.TenantID, id, layout)
+		err = tx.QueryRow(ctx, `UPDATE automation.automations SET layout = $3, layout_revision = layout_revision + 1, updated_at = now()
+			WHERE tenant_id = $1 AND id = $2 RETURNING layout_revision`, a.TenantID, id, layout).Scan(&revision)
 		return serrors.FromDB(opService, err)
 	})
+	if err != nil {
+		return 0, err
+	}
+	return revision, nil
 }
 
 func (s *service) Get(ctx context.Context, a Actor, id uuid.UUID) (Automation, error) {
@@ -432,6 +455,9 @@ func (s *service) List(ctx context.Context, a Actor, f ListFilter) (Page[Automat
 		} else {
 			where = append(where, "enabled_version IS NULL")
 		}
+	}
+	if f.Attention {
+		where = append(where, `EXISTS (SELECT 1`+runFrom+` WHERE r.tenant_id = automations.tenant_id AND r.automation_id = automations.id AND `+attentionSQL+`)`)
 	}
 	if after {
 		args = append(args, c.At, c.ID)
