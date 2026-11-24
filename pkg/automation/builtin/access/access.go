@@ -52,12 +52,24 @@ type Secrets interface {
 	Secret(ctx context.Context, tenantID uuid.UUID, runAs spi.Subject, name string) (string, error)
 }
 
-// FromResolver reads secrets through the host's secret resolver (the tenant's store: the connections'
-// secret fields "<connection>.<field>" and what the application adds behind them). Any refusal of the
-// resolver is a missing secret.
+// FromResolver reads secrets through the host's secret resolver: the tenant's store. A name
+// CONNECTION__FIELD (API_TOKEN is not one) is the secret field FIELD of the tenant's connection named
+// connection (lower case: a node declares TELEGRAM__TOKEN for the field token of the connection
+// telegram), as connectors.SecretResolver serves it; any other name goes to the resolver as it is (the
+// application's secrets behind it). Any refusal of the resolver is a missing secret.
 func FromResolver(r host.SecretResolver) Secrets { return resolverSecrets{r: r} }
 
 type resolverSecrets struct{ r host.SecretResolver }
+
+// ConnectionSecret is the connection secret a declared name stands for ("<connection>.<field>"), if it
+// is one: CONNECTION__FIELD.
+func ConnectionSecret(name string) (string, bool) {
+	conn, field, ok := strings.Cut(name, "__")
+	if !ok || conn == "" || field == "" {
+		return "", false
+	}
+	return strings.ToLower(conn) + "." + strings.ToLower(field), true
+}
 
 func (s resolverSecrets) Secret(ctx context.Context, tenantID uuid.UUID, runAs spi.Subject, name string) (string, error) {
 	if s.r == nil {
@@ -65,17 +77,20 @@ func (s resolverSecrets) Secret(ctx context.Context, tenantID uuid.UUID, runAs s
 	}
 	sub := runAs
 	sub.TenantID = tenantID
-	v, err := s.r.Secret(ctx, spi.Scope{Subject: sub}, name)
-	if err != nil {
-		if host.IsInfrastructure(err) {
+	names := []string{name}
+	if ref, ok := ConnectionSecret(name); ok {
+		names = []string{ref, name}
+	}
+	for _, n := range names {
+		v, err := s.r.Secret(ctx, spi.Scope{Subject: sub}, n)
+		switch {
+		case err != nil && host.IsInfrastructure(err):
 			return "", err
+		case err == nil && v != "":
+			return v, nil
 		}
-		return "", fmt.Errorf("%w: %s", ErrSecretMissing, name)
 	}
-	if v == "" {
-		return "", fmt.Errorf("%w: %s", ErrSecretMissing, name)
-	}
-	return v, nil
+	return "", fmt.Errorf("%w: %s", ErrSecretMissing, name)
 }
 
 // ReadSecrets reads the declared secrets of a call; a missing one is a CallError secret_missing.

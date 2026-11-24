@@ -41,8 +41,10 @@ const (
 // MaxResponseBytes is the largest response body the node reads.
 const MaxResponseBytes = 10 << 20
 
-// MaxOutputBytes is the largest output the node returns (a node's output is at most 1 MiB): a larger
-// response takes failed with response_too_large and its status and headers, without the body.
+// MaxOutputBytes is the largest output the node returns by default: a node's output is at most the
+// engine's payload limit (1 MiB). A response is read and judged by the success expression whole (up to
+// MaxResponseBytes); one whose output would be larger keeps its outcome and returns its status, headers
+// and url with body null and body_omitted true (Deps.MaxOutputBytes follows a larger engine limit).
 const MaxOutputBytes = 1<<20 - 16<<10
 
 // staticOrigin is a URL whose scheme and host are written out before any template: a request with a
@@ -63,7 +65,8 @@ const paramsSchema = `{"type": "object", "properties": {
 		"additionalProperties": {"type": "string", "maxLength": 8000}, "description": "name → value; {{ }} templates"},
 	"body": {"type": "object", "properties": {
 		"kind": {"enum": ["none", "json", "form", "text"], "default": "none"},
-		"value": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "CEL: any JSON (json), a map of strings (form), a string (text)"}
+		"value": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "CEL: any JSON (json), a map of strings (form), a string (text)"},
+		"template": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "{{ }} template: the text (text) or the JSON text (json); instead of value"}
 	}, "required": ["kind"], "additionalProperties": false},
 	"auth": {"type": "object", "properties": {
 		"secret": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,63}$", "description": "a secret of the tenant: API_TOKEN"},
@@ -78,9 +81,11 @@ const paramsSchema = `{"type": "object", "properties": {
 
 // Deps are what the node sends requests with.
 type Deps struct {
-	Fetcher     sandbox.Fetcher // default sandbox.NewGuardedFetcher(sandbox.WithMaxBody(MaxResponseBytes))
-	Secrets     access.Secrets
-	Connections access.Connections
+	// MaxOutputBytes is the largest output the node returns (default MaxOutputBytes, the engine's limit).
+	MaxOutputBytes int
+	Fetcher        sandbox.Fetcher // default sandbox.NewGuardedFetcher(sandbox.WithMaxBody(MaxResponseBytes))
+	Secrets        access.Secrets
+	Connections    access.Connections
 }
 
 // Node is the http node type.
@@ -107,13 +112,15 @@ func (n *Node) Spec() graph.NodeSpec {
 		Description: "Sends an HTTPS request; success when the success expression over the response holds.",
 		Params:      graph.MustSchemaParams(paramsSchema),
 		Outcomes:    []string{OutcomeSuccess, OutcomeFailed}, FailedOutcome: OutcomeFailed,
-		Templates: []string{"url", "headers.*", "query.*"},
+		Templates: []string{"url", "headers.*", "query.*", "body.template"},
 		Values:    []string{"body.value"},
+		// body.template is listed with the templates above.
 		Output: expr.Fields{
 			{Name: "status", Field: expr.IntField},
 			{Name: "headers", Field: expr.MapOf(expr.StringField)},
 			{Name: "body", Field: expr.DynField},
 			{Name: "url", Field: expr.StringField},
+			{Name: "body_omitted", Field: expr.OptionalOf(expr.BoolField)},
 		},
 		DryRun: graph.DryRunCapture,
 	}
@@ -123,6 +130,13 @@ func (n *Node) Requires() []catalog.ConnectorKind { return nil }
 
 // Idempotent is the default for a request whose params are unknown: not repeated.
 func (n *Node) Idempotent() bool { return false }
+
+func (n *Node) maxOutput() int {
+	if n.d.MaxOutputBytes > 0 {
+		return n.d.MaxOutputBytes
+	}
+	return MaxOutputBytes
+}
 
 // IdempotentWith reports GET and HEAD, and a request that sends the call's idempotency key.
 func (n *Node) IdempotentWith(params map[string]any) bool {
@@ -222,6 +236,14 @@ func (n *Node) ValidateParams(_ context.Context, params map[string]any) []graph.
 	if b, ok := params["body"].(map[string]any); ok {
 		kind, _ := b["kind"].(string)
 		_, hasValue := b["value"]
+		_, hasTemplate := b["template"]
+		switch {
+		case hasValue && hasTemplate:
+			out = append(out, graph.GraphError{Path: "params.body.template", Code: graph.CodeParams, Message: "a body is a value (CEL) or a template, not both"})
+		case kind == "form" && hasTemplate:
+			out = append(out, graph.GraphError{Path: "params.body.template", Code: graph.CodeParams, Message: "a form body is a CEL map (value)"})
+		}
+		hasValue = hasValue || hasTemplate
 		switch {
 		case kind != "" && kind != "none" && !hasValue:
 			out = append(out, graph.GraphError{Path: "params.body.value", Code: graph.CodeParams, Message: "a body of kind " + kind + " has a value"})
@@ -348,12 +370,6 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 	if err := json.Unmarshal(masker.MaskJSON(raw), &out); err != nil {
 		return catalog.CallResult{}, fail(graph.FailInvalidAnswer, "the response is not JSON")
 	}
-	if masked := masker.MaskJSON(raw); len(masked) > MaxOutputBytes {
-		delete(out, "body")
-		out["body"] = nil
-		out["error"] = graph.FailedOutput(access.CodeResponseTooLarge, fmt.Sprintf("the response is larger than the %d KiB a node returns", MaxOutputBytes>>10), false)["error"]
-		return catalog.CallResult{Outcome: OutcomeFailed, Output: out}, nil
-	}
 	ok, err := succeeded(p, out)
 	if err != nil {
 		return catalog.CallResult{}, fail(graph.FailExpression, "%s", masker.Mask(err.Error()))
@@ -362,6 +378,10 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 	if !ok {
 		outcome = OutcomeFailed
 		out["error"] = graph.FailedOutput("http_status", "the response "+strconv.Itoa(resp.Status)+" did not pass the success expression", false)["error"]
+	}
+	if limit := n.maxOutput(); len(masker.MaskJSON(raw)) > limit {
+		// The request happened and its outcome stands; only the body does not fit a node's output.
+		out["body"], out["body_omitted"] = nil, true
 	}
 	return catalog.CallResult{Outcome: outcome, Output: out}, nil
 }
@@ -409,6 +429,20 @@ func encodeBody(p map[string]any, header nethttp.Header) ([]byte, error) {
 	}
 	kind, _ := b["kind"].(string)
 	value := b["value"]
+	if tpl, ok := b["template"].(string); ok {
+		switch kind {
+		case "text":
+			value = tpl
+		case "json":
+			var v any
+			if err := json.Unmarshal([]byte(tpl), &v); err != nil {
+				return nil, fail(access.CodeInvalidParams, "the rendered body template is not JSON")
+			}
+			value = v
+		case "form":
+			return nil, fail(access.CodeInvalidParams, "a form body is a CEL map (value), not a template")
+		}
+	}
 	setType := func(t string) {
 		if header.Get("Content-Type") == "" {
 			header.Set("Content-Type", t)

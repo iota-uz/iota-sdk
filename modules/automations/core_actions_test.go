@@ -10,13 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/modules"
-	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
+	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -62,12 +62,15 @@ func TestCoreAutomationActions(t *testing.T) {
 	subject := func(u user.User) spi.Subject {
 		return spi.Subject{TenantID: s.Tenant.ID, UserID: int64(u.ID()), Kind: spi.SubjectOwner, Permissions: host.PermissionNames(user.EffectivePermissions(u))}
 	}
+	idx, err := actions.NewIndex(list...)
+	require.NoError(t, err)
+	// The command body the host runs (actions.Commands) as the run-as.
 	in := func(as user.User, args map[string]any) catalog.CallInput {
 		return catalog.CallInput{TenantID: s.Tenant.ID, IdempotencyKey: "run:" + uuid.NewString(), Params: map[string]any{"args": args},
-			RunAs: subject(as), Deadline: time.Now().Add(time.Minute)}
+			RunAs: subject(as), Deadline: time.Now().Add(time.Minute), Commands: idx.Local(subject(as))}
 	}
 
-	block := byType[actions.TypeOf(core.ActionUserBlock)]
+	block := byType[actions.TypeOf(coreservices.ActionUserBlock)]
 	require.NotNil(t, block)
 	// Without the right nothing happens.
 	_, err = block.Execute(context.Background(), in(plain, map[string]any{"user_id": int(target.ID()), "reason": "left the company"}))
@@ -94,17 +97,17 @@ func TestCoreAutomationActions(t *testing.T) {
 	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, actions.CodeActionFailed, ce.Code)
 
-	res, err = byType[actions.TypeOf(core.ActionUserUnblock)].Execute(context.Background(), in(admin, map[string]any{"user_id": int(target.ID())}))
+	res, err = byType[actions.TypeOf(coreservices.ActionUserUnblock)].Execute(context.Background(), in(admin, map[string]any{"user_id": int(target.ID())}))
 	require.NoError(t, err)
 	assert.Equal(t, false, res.Output["blocked"])
 
 	groups := persistence.NewGroupRepository(users, persistence.NewRoleRepository())
 	g, err := groups.Save(composables.WithUser(ctx, admin), group.New("Robots "+uuid.NewString()[:8], group.WithTenantID(s.Tenant.ID)))
 	require.NoError(t, err)
-	res, err = byType[actions.TypeOf(core.ActionGroupAddUser)].Execute(context.Background(), in(admin, map[string]any{"group_id": g.ID().String(), "user_id": int(target.ID())}))
+	res, err = byType[actions.TypeOf(coreservices.ActionGroupAddUser)].Execute(context.Background(), in(admin, map[string]any{"group_id": g.ID().String(), "user_id": int(target.ID())}))
 	require.NoError(t, err)
 	assert.InDelta(t, 1, res.Output["members"], 0)
-	res, err = byType[actions.TypeOf(core.ActionGroupRemoveUser)].Execute(context.Background(), in(admin, map[string]any{"group_id": g.ID().String(), "user_id": int(target.ID())}))
+	res, err = byType[actions.TypeOf(coreservices.ActionGroupRemoveUser)].Execute(context.Background(), in(admin, map[string]any{"group_id": g.ID().String(), "user_id": int(target.ID())}))
 	require.NoError(t, err)
 	assert.InDelta(t, 0, res.Output["members"], 0)
 }

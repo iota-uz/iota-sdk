@@ -58,10 +58,10 @@ type CallRequest struct {
 	// Context is the step's context (graph.NodeSpec.StepContext). It is never part of the instance input,
 	// which the workflow API shows without the automation's field rules: Begin keeps it in
 	// automation.call_contexts and the child reads it from there.
-	Context json.RawMessage `json:"-"`
-	IdempotencyKey string          `json:"idempotency_key"`         // "run:node:token:seq"; stable across retries
-	Deadline       time.Time       `json:"deadline"`                // node timeout from params, ≤ CallLimits.MaxTimeout
-	TimeoutMS      int64           `json:"timeout_ms,omitempty"`    // the node's timeout: an operator's Retry gets a new deadline of it
+	Context        json.RawMessage `json:"-"`
+	IdempotencyKey string          `json:"idempotency_key"`      // "run:node:token:seq"; stable across retries
+	Deadline       time.Time       `json:"deadline"`             // node timeout from params, ≤ CallLimits.MaxTimeout
+	TimeoutMS      int64           `json:"timeout_ms,omitempty"` // the node's timeout: an operator's Retry gets a new deadline of it
 	Subject        SubjectRef      `json:"subject"`
 	// RunAs is who the call acts as; the child instance runs as this subject with the rights it holds now.
 	RunAs spi.Subject `json:"-"`

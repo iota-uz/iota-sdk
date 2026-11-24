@@ -265,15 +265,36 @@ func TestAuthNeedsAStaticHost(t *testing.T) {
 	}
 }
 
-func TestOutputOverTheNodeLimitIsResponseTooLarge(t *testing.T) {
-	big := `{"x": "` + strings.Repeat("a", httpnode.MaxOutputBytes) + `"}`
+func TestABodyOverTheOutputLimitKeepsTheOutcome(t *testing.T) {
+	big := `{"ok": true, "x": "` + strings.Repeat("a", httpnode.MaxOutputBytes) + `"}`
 	n := httpnode.New(httpnode.Deps{Fetcher: &fakeFetcher{resp: jsonResp(200, big)}})
-	res, err := n.Execute(context.Background(), call(map[string]any{"method": "POST", "url": "https://api.example.com/"}))
+	res, err := n.Execute(context.Background(), call(map[string]any{"method": "POST", "url": "https://api.example.com/", "success": "status == 200 && body.ok"}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	e, _ := res.Output["error"].(map[string]any)
-	if res.Outcome != httpnode.OutcomeFailed || e["code"] != access.CodeResponseTooLarge || res.Output["body"] != nil || res.Output["status"] != float64(200) {
-		t.Fatalf("%v %v %v", res.Outcome, e, res.Output["status"])
+	if res.Outcome != httpnode.OutcomeSuccess || res.Output["body"] != nil || res.Output["body_omitted"] != true || res.Output["status"] != float64(200) {
+		t.Fatalf("%v %v %v", res.Outcome, res.Output["body_omitted"], res.Output["status"])
+	}
+}
+
+func TestBodyTemplate(t *testing.T) {
+	ff := &fakeFetcher{resp: jsonResp(200, `{}`)}
+	n := httpnode.New(httpnode.Deps{Fetcher: ff})
+	if _, err := n.Execute(context.Background(), call(map[string]any{"method": "POST", "url": "https://api.example.com/",
+		"body": map[string]any{"kind": "text", "template": "Hello, Aziz"}})); err != nil {
+		t.Fatal(err)
+	}
+	if string(ff.got[0].Body) != "Hello, Aziz" || ff.got[0].Header.Get("Content-Type") != "text/plain; charset=utf-8" {
+		t.Fatalf("%+v", ff.got[0])
+	}
+	if _, err := n.Execute(context.Background(), call(map[string]any{"method": "POST", "url": "https://api.example.com/",
+		"body": map[string]any{"kind": "json", "template": `{"name": "Aziz"}`}})); err != nil {
+		t.Fatal(err)
+	}
+	if string(ff.got[1].Body) != `{"name":"Aziz"}` {
+		t.Fatalf("%s", ff.got[1].Body)
+	}
+	if errs := n.ValidateParams(context.Background(), map[string]any{"url": "https://x", "method": "POST", "body": map[string]any{"kind": "text", "template": "a", "value": "'a'"}}); len(errs) != 1 {
+		t.Fatalf("%+v", errs)
 	}
 }

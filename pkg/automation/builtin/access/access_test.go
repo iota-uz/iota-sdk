@@ -6,9 +6,12 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/access"
 	"github.com/iota-uz/iota-sdk/pkg/automation/code"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
 
 func TestTargetStaysOnTheConnectorsOrigin(t *testing.T) {
@@ -80,5 +83,27 @@ func TestCodeAccessValidate(t *testing.T) {
 		if bad.Validate() == nil {
 			t.Errorf("accepted %+v", bad)
 		}
+	}
+}
+
+type mapResolver map[string]string
+
+func (m mapResolver) Secret(_ context.Context, _ spi.Scope, name string) (string, error) {
+	if v, ok := m[name]; ok {
+		return v, nil
+	}
+	return "", errors.New("not found")
+}
+
+func TestFromResolverMapsConnectionSecrets(t *testing.T) {
+	s := access.FromResolver(mapResolver{"telegram.token": "t-1", "API_KEY": "k-1"})
+	for name, want := range map[string]string{"TELEGRAM__TOKEN": "t-1", "API_KEY": "k-1"} {
+		got, err := s.Secret(context.Background(), uuid.New(), spi.Subject{}, name)
+		if err != nil || got != want {
+			t.Errorf("%s: %q %v", name, got, err)
+		}
+	}
+	if _, err := s.Secret(context.Background(), uuid.New(), spi.Subject{}, "NOPE__X"); !errors.Is(err, access.ErrSecretMissing) {
+		t.Fatalf("missing: %v", err)
 	}
 }

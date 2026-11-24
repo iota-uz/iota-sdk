@@ -1,7 +1,7 @@
 // Package flow is the built-in node types that start another graph of the tenant: start_automation
 // starts its run and continues, run_automation starts it and waits for automation.run.finished.v1 of that
-// run (done, failed, or the node's timeout). Both start the graph's enabled version through its manual
-// trigger in the step's transaction (engine.RunStarter); the started run's depth counts toward the
+// run (done, failed, or the node's timeout). Both start the graph's enabled version through its entry
+// trigger («Called by an automation», else manual) in the step's transaction (engine.RunStarter); the started run's depth counts toward the
 // cascade limit. Cancelling a run cancels the run its run_automation started; a run started by
 // start_automation lives on its own.
 package flow
@@ -157,7 +157,7 @@ func New(s Starter) (*StartNode, *RunNode) {
 func (n *StartNode) Spec() graph.NodeSpec {
 	return graph.NodeSpec{
 		Type: TypeStart, Title: "Start automation", Group: "automation", Behavior: graph.BehaviorEffect,
-		Description: "Starts another automation of the tenant (its enabled version, through its manual trigger) and continues at once.",
+		Description: "Starts another automation of the tenant (its enabled version, through its «Called by an automation» or manual trigger) and continues at once.",
 		Params:      graph.MustSchemaParams(startSchema),
 		Outcomes:    []string{OutcomeStarted, OutcomeFailed}, DoneOutcome: OutcomeStarted, FailedOutcome: OutcomeFailed,
 		Values: []string{"input.*", "subject"},

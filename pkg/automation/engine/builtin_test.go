@@ -19,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions"
 	sandbox "github.com/iota-uz/iota-sdk/pkg/automation/code"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
@@ -92,6 +93,7 @@ func (a *blockAction) Run(ctx context.Context, actor spi.Subject, args json.RawM
 type builtinEnv struct {
 	*env
 	rt     atomic.Pointer[engine.Runtime]
+	host   *commandHost
 	action *blockAction
 }
 
@@ -113,9 +115,42 @@ func newBuiltinEnv(t *testing.T) *builtinEnv {
 }
 
 func (be *builtinEnv) proc(tune ...func(*engine.Config)) *proc {
-	p := be.env.proc(tune...)
+	idx, err := actions.NewIndex(be.action)
+	require.NoError(be.t, err)
+	be.host = &commandHost{idx: idx}
+	p := be.env.proc(append([]func(*engine.Config){func(c *engine.Config) { c.Commands = be.host }}, tune...)...)
 	be.rt.Store(p.rt)
 	return p
+}
+
+// commandHost is the command host double: it runs an action's command body as the request's subject
+// and keeps the outcome of each invocation ID, as the host's invocation record does.
+type commandHost struct {
+	idx  *actions.Index
+	mu   sync.Mutex
+	seen map[string]json.RawMessage
+	ids  []string
+}
+
+func (h *commandHost) Invoke(ctx context.Context, req host.Request) (host.Result, error) {
+	h.mu.Lock()
+	if h.seen == nil {
+		h.seen = map[string]json.RawMessage{}
+	}
+	h.ids = append(h.ids, req.InvocationID)
+	if out, ok := h.seen[req.InvocationID]; ok {
+		h.mu.Unlock()
+		return host.Result{InvocationID: req.InvocationID, Output: out}, nil
+	}
+	h.mu.Unlock()
+	out, err := h.idx.Run(actions.WithInvocation(ctx, req.InvocationID), req.Contract, req.Subject, req.Input)
+	if err != nil {
+		return host.Result{InvocationID: req.InvocationID}, err
+	}
+	h.mu.Lock()
+	h.seen[req.InvocationID] = out
+	h.mu.Unlock()
+	return host.Result{InvocationID: req.InvocationID, Output: out}, nil
 }
 
 // step is the step of a node of a run.
@@ -254,7 +289,7 @@ func TestSetNodeValuesReachTheNextNode(t *testing.T) {
 
 func actionGraph() string {
 	return graphJSON("Block", `{"id": "created", "event": "acme.order.created.v1"}`,
-		`{"id": "block", "type": "action.test.user.block", "params": {"args": {"user_id": "u-{{ event.amount }}", "days": "event.amount + 1"}}},
+		`{"id": "block", "type": "action", "params": {"action": "test.user.block", "args": {"user_id": "u-{{ event.amount }}", "days": "event.amount + 1"}}},
 		 {"id": "ok", "type": "acme.note", "params": {"text": "{{ nodes.block.output.blocked }}"}},
 		 {"id": "bad", "type": "acme.note", "params": {"text": "{{ nodes.block.output.error.code }}"}},
 		 {"id": "fin", "type": "end", "params": {}}`,
@@ -276,6 +311,12 @@ func TestActionRunsAsTheRunAs(t *testing.T) {
 	p.until(func() bool { return be.status(p, run.RunID) == engine.RunDone }, "the action runs")
 	assert.Equal(t, []string{"ok:u-9"}, be.effects(run.RunID))
 	assert.Equal(t, []string{"u-9"}, be.action.blocked)
+	// The action went through the command host with the call's invocation ID.
+	require.Len(t, be.host.ids, 1)
+	_, err := uuid.Parse(be.host.ids[0])
+	require.NoError(t, err)
+	s := be.step(p, run.RunID, "block")
+	assert.Equal(t, "done", s.Outcome)
 }
 
 func TestActionForbiddenForTheRunAsHasNoEffect(t *testing.T) {
@@ -304,7 +345,7 @@ func TestActionIsHiddenFromAnAuthorWithoutItsPermission(t *testing.T) {
 }
 
 // child is a graph started by another: a manual trigger, a note of its input, the end.
-const childGraph = `{"name": "Child", "triggers": [{"id": "m", "event": "automation.manual.v1"}],
+const childGraph = `{"name": "Child", "triggers": [{"id": "m", "event": "automation.called.v1"}],
  "nodes": [
   {"id": "note", "type": "acme.note", "params": {"text": "child {{ event.input.amount }}"}},
   {"id": "hold", "type": "wait", "params": {"event": "acme.order.paid.v1", "timeout": "1h"}},
@@ -488,4 +529,35 @@ func TestStartingAGraphNeedsOperate(t *testing.T) {
 	p.until(func() bool { pr = be.runsOf(p, parent.ID); return len(pr) == 1 && len(be.effects(pr[0].RunID)) == 1 }, "the parent takes failed")
 	assert.Equal(t, []string{"bad:forbidden"}, be.effects(pr[0].RunID))
 	assert.Empty(t, be.runsOf(p, child.ID))
+}
+
+func TestStartingAGraphWithoutAnEntryFailsNoEntry(t *testing.T) {
+	be := newBuiltinEnv(t)
+	p := be.proc()
+	a := be.human()
+	// An enabled graph with only an event trigger: nothing starts it from another automation.
+	target := be.create(p, a, strings.Replace(strings.Replace(childGraph, `"event": "automation.called.v1"`, `"event": "acme.order.created.v1"`, 1),
+		`child {{ event.input.amount }}`, `child {{ event.amount }}`, 1))
+	parent := be.create(p, a, parentGraph("start_automation", target.ID))
+	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 3}, 0)
+	var pr []engine.RunSummary
+	p.until(func() bool { pr = be.runsOf(p, parent.ID); return len(pr) == 1 && len(be.effects(pr[0].RunID)) == 1 }, "the parent takes failed")
+	assert.Equal(t, []string{"bad:no_entry"}, be.effects(pr[0].RunID))
+}
+
+// The step's context a Code node reads is not in the call's workflow instance input, which the workflow
+// API shows without the automation's field rules.
+func TestCodeContextIsNotInTheInstanceInput(t *testing.T) {
+	be := newBuiltinEnv(t)
+	p := be.proc()
+	a := be.human()
+	be.create(p, a, sandboxGraph(codeParams(`export default async function run(ctx) {
+		return { outcome: "done", output: { value: ctx.event.secret } };
+	}`, "")))
+	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 1, Secret: "classified-77"}, 0)
+	run := onlyRun(t, be.env, p, a)
+	p.until(func() bool { return be.status(p, run.RunID) == engine.RunDone }, "the code runs")
+	assert.Equal(t, []string{"ok:classified-77"}, be.effects(run.RunID), "the code read the context")
+	assert.Zero(t, be.count(`SELECT count(*) FROM extruntime.workflow_instances WHERE workflow = 'automation.call' AND input::text LIKE '%classified-77%'`))
+	assert.Zero(t, be.count(`SELECT count(*) FROM automation.call_contexts`), "the context goes with the call's result")
 }

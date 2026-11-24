@@ -18,8 +18,11 @@ import (
 
 // Codes of a run a step could not start (StartFromStep).
 const (
-	// CodeNotEnabled: the graph is not one of the tenant's, is not enabled or has no manual trigger.
+	// CodeNotEnabled: the graph is not one of the tenant's or is not enabled.
 	CodeNotEnabled = "not_enabled"
+	// CodeNoEntry: the enabled version has no trigger another automation starts it through: a
+	// «Called by an automation» trigger (EventCalled) or a manual one.
+	CodeNoEntry = "no_entry"
 	// CodeDepthExceeded: the run would pass the cascade limit (Limits.MaxDepth).
 	CodeDepthExceeded = "depth_exceeded"
 	// CodeNoOwner: the graph runs as its owner and has none.
@@ -30,7 +33,8 @@ const (
 )
 
 // StepStart is a run a node starts from its step: the enabled version of another graph of the tenant,
-// through its manual trigger (the first by id), with the input as event.input.
+// through its entry: the first «Called by an automation» trigger (EventCalled) by id, else the first manual
+// one, with the input as event.input.
 type StepStart struct {
 	AutomationID uuid.UUID
 	Input        map[string]any
@@ -96,17 +100,19 @@ func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 	if err != nil {
 		return RunRef{}, err
 	}
+	// The entry: the first «Called by an automation» trigger by id, else the first manual one.
 	var trig *graph.Trigger
 	triggers := append([]graph.Trigger(nil), ie.in.Graph().Triggers...)
 	sort.Slice(triggers, func(i, j int) bool { return triggers[i].ID < triggers[j].ID })
-	for i := range triggers {
-		if triggers[i].Event == EventManual {
-			trig = &triggers[i]
-			break
+	for _, want := range []string{EventCalled, EventManual} {
+		for i := range triggers {
+			if trig == nil && triggers[i].Event == want {
+				trig = &triggers[i]
+			}
 		}
 	}
 	if trig == nil {
-		return refuse(CodeNotEnabled, "graph %s has no manual trigger to start it with", in.AutomationID)
+		return refuse(CodeNoEntry, "graph %s has no «Called by an automation» or manual trigger to start it with", in.AutomationID)
 	}
 	input := in.Input
 	if input == nil {
@@ -128,8 +134,9 @@ func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 		input = parsed
 	}
 	subject := normSubject(run.Subject)
-	if subject.Entity == graph.SubjectConversation {
-		// The step's run holds its conversation: a run about it would only queue behind this one.
+	if subject.Entity == graph.SubjectConversation && in.Attached && in.Subject == nil {
+		// The step's run holds its conversation and waits for the run: one about the conversation would
+		// only start after it. A detached run keeps the conversation and queues behind this run.
 		subject = SubjectRef{Entity: graph.SubjectNone}
 	}
 	if in.Subject != nil {
@@ -137,8 +144,11 @@ func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 	}
 	user := run.RunAs.UserID
 	now := time.Now()
-	ev := events.Envelope{ID: uuid.NewString(), TenantID: run.TenantID, Event: EventManual, InitiatorUserID: &user, OccurredAt: now}
-	gev := graph.Event{"kind": EventManual, "input": input, "initiator_user_id": user}
+	ev := events.Envelope{ID: uuid.NewString(), TenantID: run.TenantID, Event: trig.Event, InitiatorUserID: &user, OccurredAt: now}
+	gev := graph.Event{"kind": trig.Event, "input": input, "initiator_user_id": user}
+	if trig.Event == EventCalled {
+		gev["caller_run_id"], gev["caller_automation_id"] = run.RunID.String(), run.AutomationID.String()
+	}
 	req := startRequest{
 		tenant: run.TenantID, automationID: in.AutomationID, version: v.Version.Version, in: ie.in, triggerID: trig.ID,
 		kind: KindManual, key: fmt.Sprintf("step:%s:%s:%d", run.RunID, run.TokenID, run.Seq), event: gev,
@@ -183,9 +193,9 @@ func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 	mismatch, st := ie.in.TriggerMismatch(trig.ID, gev, gctx)
 	switch {
 	case st != nil:
-		return refuse(CodeInvalidInput, "the manual trigger of %s: %s", in.AutomationID, stepErr(*st).Message)
+		return refuse(CodeInvalidInput, "the entry trigger of %s: %s", in.AutomationID, stepErr(*st).Message)
 	case mismatch != "":
-		return refuse(CodeInvalidInput, "the manual trigger's %s of %s rejects the input", mismatch, in.AutomationID)
+		return refuse(CodeInvalidInput, "the entry trigger's %s of %s rejects the input", mismatch, in.AutomationID)
 	}
 	ref, err := r.startRun(ctx, tx, req)
 	switch {

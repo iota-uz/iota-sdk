@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -38,10 +40,17 @@ func Context(ctx context.Context, pool *pgxpool.Pool, users user.Repository, act
 		return nil, actions.ErrForbidden
 	}
 	ctx = composables.WithUser(ctx, u)
+	if _, ok := history.UseExecution(ctx); ok {
+		return ctx, nil // the command host's: this invocation for the subject
+	}
+	op := actions.InvocationID(ctx)
+	if op == "" {
+		op = uuid.NewString()
+	}
 	service := businessevent.ServiceActor("automation", "Automation")
 	initiator := businessevent.UserActor(u)
 	return history.WithExecution(ctx, history.Execution{
-		Channel: businessevent.ChannelJob, OperationID: actions.InvocationID(ctx), Actor: &service, Initiator: &initiator,
+		Channel: businessevent.ChannelJob, OperationID: op, Actor: &service, Initiator: &initiator,
 	}), nil
 }
 
