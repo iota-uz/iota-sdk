@@ -523,12 +523,19 @@ func (s *service) ListVersions(ctx context.Context, a Actor, id uuid.UUID) ([]Ve
 	if err := s.authorize(a, PermRead); err != nil {
 		return nil, err
 	}
-	// One snapshot: the enabled flag and the versions describe the same committed configuration.
-	tx, err := s.r.cfg.DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
-	if err != nil {
-		return nil, serrors.FromDB(opService, err)
+	// One snapshot: the enabled flag and the versions describe the same configuration. A joined call reads
+	// the caller's transaction (WithTx), which it neither commits nor rolls back.
+	var tx querier
+	if outer, ok := ctx.Value(joinedTxKey{}).(pgx.Tx); ok && outer != nil {
+		tx = outer
+	} else {
+		own, err := s.r.cfg.DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+		if err != nil {
+			return nil, serrors.FromDB(opService, err)
+		}
+		defer func() { _ = own.Rollback(context.WithoutCancel(ctx)) }()
+		tx = own
 	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 	am, err := loadAutomation(ctx, tx, a.TenantID, id, false)
 	if err != nil {
 		return nil, err

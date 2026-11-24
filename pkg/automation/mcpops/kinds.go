@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -85,6 +86,9 @@ func decodeFields(raw json.RawMessage) (fields, []mcp.Issue) {
 	return f, nil
 }
 
+// maxRevision is the largest revision a JSON number carries exactly.
+const maxRevision = 1 << 53
+
 // revisionArg is a revision a change names: the JSON integer or the decimal string automation_get
 // returns ("3"), normalized to one number.
 type revisionArg struct {
@@ -97,14 +101,21 @@ func (r *revisionArg) UnmarshalJSON(b []byte) error {
 	if s == "null" {
 		return nil
 	}
+	bad := errors.New("a revision is a positive integer or its decimal string")
 	if unq, err := strconv.Unquote(s); err == nil {
-		s = unq
+		n, err := strconv.Atoi(unq)
+		if err != nil || n < 1 {
+			return bad
+		}
+		r.n, r.set = n, true
+		return nil
 	}
-	n, err := strconv.Atoi(s)
-	if err != nil || n < 1 {
-		return errors.New("a revision is a positive integer or its decimal string")
+	// A JSON number: any form of an integral value (1, 1.0, 1e0), as the schema's integer admits.
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil || f < 1 || f != math.Trunc(f) || f > maxRevision {
+		return bad
 	}
-	r.n, r.set = n, true
+	r.n, r.set = int(f), true
 	return nil
 }
 

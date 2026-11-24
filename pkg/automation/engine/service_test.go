@@ -514,3 +514,26 @@ func TestRestartRunsOnlyEnabledCode(t *testing.T) {
 	p.until(func() bool { return e.status(p, ref.RunID) == engine.RunDone }, "the restart on the enabled version runs")
 	assert.Equal(t, []string{"note:v1"}, e.effects(ref.RunID))
 }
+
+// A call joined to the caller's transaction (WithTx) reads what the transaction wrote, and leaves the
+// transaction to the caller.
+func TestJoinedCallsReadTheCallersTransaction(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	ctx := context.Background()
+	tx, err := e.db.Begin(ctx)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(ctx) }()
+	joined := engine.WithTx(ctx, tx)
+	am, _, err := p.rt.Service().Create(joined, e.human(), engine.CreateInput{Graph: json.RawMessage(noteGraph("v1"))})
+	require.NoError(t, err)
+	versions, err := p.rt.Service().ListVersions(joined, e.human(), am.ID)
+	require.NoError(t, err)
+	assert.Len(t, versions, 1)
+	page, err := p.rt.Service().List(joined, e.human(), engine.ListFilter{})
+	require.NoError(t, err)
+	assert.Len(t, page.Items, 1)
+	require.NoError(t, tx.Rollback(ctx))
+	_, err = p.rt.Service().Get(ctx, e.human(), am.ID)
+	require.ErrorIs(t, err, engine.ErrNotFound, "rolled back with the caller's transaction")
+}
