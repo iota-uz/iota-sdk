@@ -190,42 +190,77 @@ func (p providers) Provider(_ context.Context, _ uuid.UUID, id string) (string, 
 
 // A node saved without a model gets the default of the provider of its connection, so an OpenAI connection
 // is not saved with a TypeSafe Jev version, nor an OpenRouter one with a chat model; a model that does not
-// fit the connection is refused on save.
+// fit the connection is refused on save, and so is a connection whose provider cannot be read.
 func TestModelIsPinnedByTheProviderOfTheConnection(t *testing.T) {
-	src := providers{"or": "openrouter", "oa": "openai", "platform:jev": "openai"}
+	src := providers{"or": "openrouter", "oa": "openai", "platform:jev": "openai", "odd": "anthropic", "empty": ""}
 	n, _ := newNode(t, jev.WithProviders(src))
 	cn := n.(catalog.ConnectionNode)
 	ctx := context.Background()
 	tenant := uuid.New()
 	raw := map[string]any{"input": "{}"}
-	assert.Equal(t, "typesafe/jev-1.14", cn.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "or"}, raw)["model"])
-	assert.Equal(t, "gpt-4o-mini-2024-07-18", cn.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "oa"}, raw)["model"])
-	assert.Equal(t, "gpt-4o-mini-2024-07-18", cn.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "platform:jev"}, raw)["model"])
-	assert.NotContains(t, raw, "model", "the argument is not changed")
-	assert.Equal(t, "typesafe/jev-1.13", cn.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "or"}, map[string]any{"model": "typesafe/jev-1.13"})["model"])
-	assert.Equal(t, "typesafe/jev-1.14", cn.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "unknown"}, raw)["model"], "a connection of an unknown provider gets the OpenRouter default")
-
-	check := func(conn, model string) []graph.Issue {
-		return cn.CheckParamsFor(ctx, tenant, catalog.ConnectionRef{ID: conn}, map[string]any{"model": model})
+	prepare := func(conn string, p map[string]any) (map[string]any, []graph.Issue) {
+		return cn.PrepareParams(ctx, tenant, catalog.ConnectionRef{ID: conn}, p)
 	}
-	assert.Empty(t, check("or", "typesafe/jev-1.14"))
-	assert.Empty(t, check("oa", "gpt-4o-mini-2024-07-18"))
-	assert.Empty(t, check("unknown", "gpt-4o-mini-2024-07-18"), "nothing to check against")
+
+	got, issues := prepare("or", raw)
+	assert.Empty(t, issues)
+	assert.Equal(t, "typesafe/jev-1.14", got["model"])
+	got, issues = prepare("oa", raw)
+	assert.Empty(t, issues)
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", got["model"])
+	got, _ = prepare("platform:jev", raw)
+	assert.Equal(t, "gpt-4o-mini-2024-07-18", got["model"])
+	assert.NotContains(t, raw, "model", "the argument is not changed")
+	got, issues = prepare("or", map[string]any{"model": "typesafe/jev-1.13"})
+	assert.Empty(t, issues)
+	assert.Equal(t, "typesafe/jev-1.13", got["model"])
+
 	for _, bad := range [][2]string{{"oa", "typesafe/jev-1.14"}, {"or", "gpt-4o-mini-2024-07-18"}} {
-		issues := check(bad[0], bad[1])
+		_, issues := prepare(bad[0], map[string]any{"model": bad[1]})
 		require.Len(t, issues, 1, bad)
 		assert.Equal(t, jev.ErrorModelProvider, issues[0].Code)
 		assert.Equal(t, []any{"model"}, issues[0].Path)
 	}
 
+	// A provider that cannot be read is not guessed: nothing is pinned, and the save is refused.
+	for _, conn := range []string{"unknown", "odd", "empty"} {
+		got, issues := prepare(conn, raw)
+		require.Len(t, issues, 1, conn)
+		assert.Equal(t, jev.ErrorConnectionProvider, issues[0].Code, conn)
+		assert.NotContains(t, got, "model", conn)
+	}
+	failing := failingProviders{n: new(int)}
+	nf, _ := newNode(t, jev.WithProviders(failing))
+	got, issues = nf.(catalog.ConnectionNode).PrepareParams(ctx, tenant, catalog.ConnectionRef{ID: "or"}, raw)
+	require.Len(t, issues, 1, "a failed lookup")
+	assert.Equal(t, jev.ErrorConnectionProvider, issues[0].Code)
+	assert.NotContains(t, got, "model")
+	assert.Equal(t, 1, failing.calls(), "the provider is looked up once")
+
+	// Without a source of providers the node cannot tell: the OpenRouter default, nothing to check.
+	n0, _ := newNode(t)
+	got, issues = n0.(catalog.ConnectionNode).PrepareParams(ctx, tenant, catalog.ConnectionRef{ID: "x"}, raw)
+	assert.Empty(t, issues)
+	assert.Equal(t, "typesafe/jev-1.14", got["model"])
+
 	// The defaults follow the platform configuration, for its provider only.
 	n2, _ := newNode(t, jev.WithProviders(src), jev.WithPlatformConfig(&jevconfig.Config{Provider: "openai", APIKey: "k", DefaultModel: "gpt-4.1-2025-04-14"}))
 	cn2 := n2.(catalog.ConnectionNode)
-	assert.Equal(t, "gpt-4.1-2025-04-14", cn2.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "oa"}, raw)["model"])
-	assert.Equal(t, "typesafe/jev-1.14", cn2.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "or"}, raw)["model"])
+	got, _ = cn2.PrepareParams(ctx, tenant, catalog.ConnectionRef{ID: "oa"}, raw)
+	assert.Equal(t, "gpt-4.1-2025-04-14", got["model"])
+	got, _ = cn2.PrepareParams(ctx, tenant, catalog.ConnectionRef{ID: "or"}, raw)
+	assert.Equal(t, "typesafe/jev-1.14", got["model"])
 	n3, _ := newNode(t, jev.WithDefaultModel("typesafe/jev-1.13"), jev.WithDefaultModel("gpt-4o-2024-08-06"))
-	cn3 := n3.(catalog.ConnectionNode)
-	assert.Equal(t, "typesafe/jev-1.13", cn3.CompleteParamsFor(ctx, tenant, catalog.ConnectionRef{ID: "unknown"}, raw)["model"])
+	got, _ = n3.(catalog.ConnectionNode).PrepareParams(ctx, tenant, catalog.ConnectionRef{ID: "x"}, raw)
+	assert.Equal(t, "typesafe/jev-1.13", got["model"])
+}
+
+type failingProviders struct{ n *int }
+
+func (f failingProviders) calls() int { return *f.n }
+func (f failingProviders) Provider(context.Context, uuid.UUID, string) (string, error) {
+	*f.n++
+	return "", errors.New("the store is down")
 }
 
 func TestShippedDefaultsArePinned(t *testing.T) {
@@ -331,15 +366,25 @@ func TestOpenRouterNonNumericWireValuesAreInvalid(t *testing.T) {
 		"missing probability": `{"model":"m","answers":{"decision":{"type":"choice","choice":"refund","confidence":0.9}},` + usage + `}`,
 		"null confidence":     `{"model":"m","answers":{"decision":{"type":"choice","choice":"refund","probabilities":{"refund":1,"exchange":0,"other":0},"confidence":null}},` + usage + `}`,
 		"string confidence":   `{"model":"m","answers":{"decision":{"type":"choice","choice":"refund","probabilities":{"refund":1,"exchange":0,"other":0},"confidence":"high"}},` + usage + `}`,
+		"array probabilities": `{"model":"m","answers":{"decision":{"type":"choice","choice":"refund","probabilities":[1,0,0],"confidence":0.9}},` + usage + `}`,
+		"numeric choice":      `{"model":"m","answers":{"decision":{"type":"choice","choice":7,"probabilities":{"refund":1,"exchange":0,"other":0},"confidence":0.9}},` + usage + `}`,
+		"no type":             `{"model":"m","answers":{"decision":{"choice":"refund","probabilities":{"refund":1,"exchange":0,"other":0},"confidence":0.9}},` + usage + `}`,
+		"answers is a list":   `{"model":"m","answers":[],` + usage + `}`,
+		"decision is a list":  `{"model":"m","answers":{"decision":[]},` + usage + `}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			srv := aitest.New(t, aitest.Reply{Body: body})
 			n := openrouterNode(t, srv)
-			in := aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), nil)
+			rec := &aitest.Usage{}
+			in := aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), rec)
 			in.Params["model"] = "typesafe/jev-1.14"
 			_, err := n.Execute(context.Background(), in)
-			assert.Equal(t, catalog.CallInvalidRequest, callErr(t, err).Code)
+			ce := callErr(t, err)
+			assert.Equal(t, catalog.CallInvalidRequest, ce.Code)
+			assert.False(t, ce.Retryable, "not repeated")
 			assert.Len(t, srv.Requests(), 1)
+			assert.EqualValues(t, 9, rec.Total("token_in"), "the tokens were spent")
+			assert.EqualValues(t, 1, rec.Total("token_out"))
 		})
 	}
 }

@@ -179,18 +179,6 @@ func (n *jevNode) CompleteParams(p map[string]any) map[string]any {
 	return cp
 }
 
-// providerOf is the provider of the connection a node is saved with; "" when it is not known.
-func (n *jevNode) providerOf(ctx context.Context, tenant uuid.UUID, conn catalog.ConnectionRef) string {
-	if n.o.providers == nil {
-		return ""
-	}
-	p, err := n.o.providers.Provider(ctx, tenant, conn.ID)
-	if err != nil {
-		return ""
-	}
-	return p
-}
-
 // defaultFor is the default model of a provider; an unknown provider gets OpenRouter's.
 func (n *jevNode) defaultFor(provider string) string {
 	if m, ok := n.o.defaults[provider]; ok {
@@ -199,27 +187,37 @@ func (n *jevNode) defaultFor(provider string) string {
 	return n.o.defaults[ProviderOpenRouter]
 }
 
-// CompleteParamsFor writes the default model of the provider of the node's connection into a node saved
-// without a model: a node on an OpenAI connection does not get a TypeSafe Jev version, nor the other way
-// round. The saved version names its model, and a later change of the default does not change it.
-func (n *jevNode) CompleteParamsFor(ctx context.Context, tenant uuid.UUID, conn catalog.ConnectionRef, p map[string]any) map[string]any {
-	return aichat.CompleteModel(p, n.defaultFor(n.providerOf(ctx, tenant, conn)))
-}
+// ErrorModelProvider is the graph error code of a model that does not fit the provider of the connection;
+// ErrorConnectionProvider that of a connection whose provider cannot be read.
+const (
+	ErrorModelProvider      = "model_provider_mismatch"
+	ErrorConnectionProvider = "connection_provider_unknown"
+)
 
-// ErrorModelProvider is the graph error code of a model that does not fit the provider of the connection.
-const ErrorModelProvider = "model_provider_mismatch"
-
-// CheckParamsFor refuses a model that the provider of the node's connection does not take.
-func (n *jevNode) CheckParamsFor(ctx context.Context, tenant uuid.UUID, conn catalog.ConnectionRef, p map[string]any) []graph.Issue {
-	model, _ := p["model"].(string)
-	provider := n.providerOf(ctx, tenant, conn)
-	if model == "" || provider == "" {
-		return nil
+// PrepareParams looks up the provider of the node's connection once, writes its default model into a node
+// saved without a model (a node on an OpenAI connection does not get a TypeSafe Jev version, nor the other
+// way round) and refuses a model the provider does not take. A connection whose provider cannot be read is
+// refused: saving would pin a model it may not take. The saved version names its model, and a later change
+// of the default does not change it.
+func (n *jevNode) PrepareParams(ctx context.Context, tenant uuid.UUID, conn catalog.ConnectionRef, p map[string]any) (map[string]any, []graph.Issue) {
+	provider := ""
+	if n.o.providers != nil {
+		var err error
+		provider, err = n.o.providers.Provider(ctx, tenant, conn.ID)
+		if err != nil || (provider != ProviderOpenRouter && provider != ProviderOpenAI) {
+			return p, []graph.Issue{aichat.Issue(catalog.ConnectionParam, ErrorConnectionProvider,
+				"the provider of the connection could not be read (it is openrouter or openai); the model cannot be chosen")}
+		}
 	}
-	if err := checkProviderModel(provider, model); err != nil {
-		return []graph.Issue{aichat.Issue("model", ErrorModelProvider, "%v", err)}
+	out := aichat.CompleteModel(p, n.defaultFor(provider))
+	if provider == "" {
+		return out, nil // no source of providers: the default of OpenRouter, nothing to check against
 	}
-	return nil
+	model, _ := out["model"].(string)
+	if err := checkProviderModel(provider, model); model != "" && err != nil {
+		return out, []graph.Issue{aichat.Issue("model", ErrorModelProvider, "%v", err)}
+	}
+	return out, nil
 }
 
 // call is the params of a call, read.

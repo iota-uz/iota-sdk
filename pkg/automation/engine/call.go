@@ -37,6 +37,21 @@ const (
 	CodeInvalidInput   = "invalid_input"
 )
 
+// connectionLost is the failure of a call whose connection the tenant cannot use now: unavailable when the
+// node names the platform credential or works with a kind whose platform credential the tenant's
+// administrator withheld, else connection_unavailable.
+func connectionLost(view catalog.View, node graph.Node, kinds []catalog.ConnectorKind, params map[string]any) *StepError {
+	named, _ := params[catalog.ConnectionParam].(string)
+	off := strings.HasPrefix(named, catalog.PlatformPrefix)
+	for _, k := range kinds {
+		off = off || view.PlatformWithheld[k]
+	}
+	if off {
+		return &StepError{Code: catalog.CallUnavailable, Message: platformOffMessage}
+	}
+	return &StepError{Code: CodeConnectionUnavailable, Message: "the connection of " + node.ID + " is not available"}
+}
+
 // paramTimeout is the deadline a call's params ask for: `timeout` (a duration such as 30s, or
 // milliseconds) or, for a node that names it so, `timeout_ms` (milliseconds).
 func paramTimeout(params map[string]any) (time.Duration, bool) {
@@ -385,16 +400,19 @@ func (c *CallRunner) Begin(ctx context.Context, tx pgx.Tx, run StepContext, node
 	if err != nil {
 		return WaitSpec{}, &host.InfraError{Err: err}
 	}
-	// The node's own kinds and its connector's.
-	if kinds := view.NodeRequires[node.Type]; len(kinds) > 0 {
+	// The node's own kinds and its connector's. A node the catalog lost since the step was entered (its
+	// connection went away, or the platform key it ran on was switched off) still works with them: it
+	// is not a call without a connector.
+	kinds := view.NodeRequires[node.Type]
+	if len(kinds) == 0 {
+		if lost := view.UnavailableRequires[node.Type]; len(lost) > 0 {
+			return WaitSpec{}, connectionLost(view, node, lost, params)
+		}
+	}
+	if len(kinds) > 0 {
 		ref, kind, err := catalog.ResolveConnection(view.Connections, kinds, params[catalog.ConnectionParam])
 		if err != nil {
-			if named, _ := params[catalog.ConnectionParam].(string); strings.HasPrefix(named, catalog.PlatformPrefix) {
-				// The node names the platform credential and the tenant has no access to it now (a tenant
-				// connection of the kind keeps the node type in the catalog, so the step was entered).
-				return WaitSpec{}, &StepError{Code: catalog.CallUnavailable, Message: platformOffMessage}
-			}
-			return WaitSpec{}, &StepError{Code: CodeConnectionUnavailable, Message: "the connection of " + node.ID + " is not available"}
+			return WaitSpec{}, connectionLost(view, node, kinds, params)
 		}
 		req.Connection, req.ConnectorKind = ref.ID, string(kind)
 		if id, err := uuid.Parse(ref.ID); err == nil {

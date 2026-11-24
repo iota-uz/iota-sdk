@@ -44,12 +44,12 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 	if err != nil {
 		return validated{}, err
 	}
-	g = r.completeParams(ctx, a.TenantID, view, g)
+	g, prepared := r.completeParams(ctx, a.TenantID, view, g)
 	opts := r.graphOptions()
 	connections := catalog.ConnectionRule(view)
 	opts.Rules = func(g graph.Graph) []graph.GraphError {
 		out := append(connections(g), r.executorRule(view, g)...)
-		out = append(out, r.connectionNodeRule(ctx, a.TenantID, view, g)...)
+		out = append(out, prepared...)
 		out = append(out, scheduleRule(view, g)...)
 		out = append(out, collectRule(view, g)...)
 		return append(out, runAsRule(view, g)...)
@@ -67,11 +67,13 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 }
 
 // completeParams lets each node type that implements catalog.CompletedNode pin the values it fixes at
-// save time (an AI node's default instruction), and each that implements catalog.ConnectionNode pin what
-// depends on its connection (the default model of its provider); the graph it returns is a copy.
-func (r *Runtime) completeParams(ctx context.Context, tenant uuid.UUID, view catalog.View, g graph.Graph) graph.Graph {
+// save time (an AI node's default instruction), and each that implements catalog.ConnectionNode pin and
+// check what depends on its connection (the default model of its provider); the graph it returns is a copy,
+// and the errors are the issues the nodes found.
+func (r *Runtime) completeParams(ctx context.Context, tenant uuid.UUID, view catalog.View, g graph.Graph) (graph.Graph, []graph.GraphError) {
 	out := g
-	copied := false
+	out.Nodes = append([]graph.Node(nil), g.Nodes...)
+	var errs []graph.GraphError
 	for i, n := range g.Nodes {
 		nt, ok := r.cfg.Catalog.Node(n.Type)
 		if !ok {
@@ -83,16 +85,24 @@ func (r *Runtime) completeParams(ctx context.Context, tenant uuid.UUID, view cat
 		}
 		if cn, ok := nt.(catalog.ConnectionNode); ok {
 			if ref, _, ok := nodeConnection(view, nt, params); ok {
-				params = cn.CompleteParamsFor(ctx, tenant, ref, params)
+				var issues []graph.Issue
+				params, issues = cn.PrepareParams(ctx, tenant, ref, params)
+				for _, issue := range issues {
+					code := issue.Code
+					if code == "" {
+						code = graph.CodeParams
+					}
+					path := fmt.Sprintf("nodes[%d].params", i)
+					for _, p := range issue.Path {
+						path += fmt.Sprintf(".%v", p)
+					}
+					errs = append(errs, graph.GraphError{Path: path, Code: code, Message: issue.Message})
+				}
 			}
-		}
-		if !copied {
-			out.Nodes = append([]graph.Node(nil), g.Nodes...)
-			copied = true
 		}
 		out.Nodes[i].Params = params
 	}
-	return out
+	return out, errs
 }
 
 // nodeConnection is the connection a node of the graph resolves to for the tenant now, as it does at run
@@ -104,38 +114,6 @@ func nodeConnection(view catalog.View, nt catalog.NodeType, params map[string]an
 	}
 	ref, kind, err := catalog.ResolveConnection(view.Connections, kinds, params[catalog.ConnectionParam])
 	return ref, kind, err == nil
-}
-
-// connectionNodeRule asks each catalog.ConnectionNode whether its params fit the connection it will run
-// with.
-func (r *Runtime) connectionNodeRule(ctx context.Context, tenant uuid.UUID, view catalog.View, g graph.Graph) []graph.GraphError {
-	var out []graph.GraphError
-	for i, n := range g.Nodes {
-		nt, ok := r.cfg.Catalog.Node(n.Type)
-		if !ok {
-			continue
-		}
-		cn, ok := nt.(catalog.ConnectionNode)
-		if !ok {
-			continue
-		}
-		ref, _, ok := nodeConnection(view, nt, n.Params)
-		if !ok {
-			continue
-		}
-		for _, issue := range cn.CheckParamsFor(ctx, tenant, ref, n.Params) {
-			code := issue.Code
-			if code == "" {
-				code = graph.CodeParams
-			}
-			path := fmt.Sprintf("nodes[%d].params", i)
-			for _, p := range issue.Path {
-				path += fmt.Sprintf(".%v", p)
-			}
-			out = append(out, graph.GraphError{Path: path, Code: code, Message: issue.Message})
-		}
-	}
-	return out
 }
 
 // connectionErrors reports a node type or an event the tenant's catalog lacks for want of a connection

@@ -48,22 +48,20 @@ type decisionBody struct {
 	Questions map[string]map[string]any `json:"questions"`
 }
 
+// decisionReply is the answer read loosely: only its envelope is typed, so a malformed answer inside it
+// is told from a malformed body, and the usage it reports is kept either way.
 type decisionReply struct {
-	Model    string `json:"model"`
-	Provider string `json:"provider"`
-	Answers  map[string]struct {
-		Type   string `json:"type"`
-		Choice string `json:"choice"`
-		// Kept as raw values: a null or a string is not a probability, and decoding into numbers would
-		// read it as 0.
-		Probabilities map[string]json.RawMessage `json:"probabilities"`
-		Confidence    json.RawMessage            `json:"confidence"`
-	} `json:"answers"`
-	Usage *struct {
-		InputTokens  int      `json:"input_tokens"`
-		OutputTokens int      `json:"output_tokens"`
-		Cost         *float64 `json:"cost"`
-	} `json:"usage"`
+	Model    string          `json:"model"`
+	Provider string          `json:"provider"`
+	Answers  json.RawMessage `json:"answers"`
+	Usage    json.RawMessage `json:"usage"`
+}
+
+type decisionAnswer struct {
+	Type          *string         `json:"type"`
+	Choice        json.RawMessage `json:"choice"`
+	Probabilities json.RawMessage `json:"probabilities"`
+	Confidence    json.RawMessage `json:"confidence"`
 }
 
 // Decide asks the Decisions API one choice question. As in Complete, a refusal or an answer that cannot
@@ -102,38 +100,60 @@ func (c *Client) Decide(ctx context.Context, ep Endpoint, r DecisionRequest) (De
 	}
 	var dr decisionReply
 	if err := json.Unmarshal(raw, &dr); err != nil {
+		// Not a JSON object at all (a proxy's error page): the provider may answer properly next time.
 		return DecisionResponse{}, fail(catalog.CallUnavailable, "the provider's answer is not JSON", true)
 	}
 	out := DecisionResponse{Model: dr.Model, Provider: dr.Provider}
-	if dr.Usage != nil {
-		out.Usage = Usage{InputTokens: dr.Usage.InputTokens, OutputTokens: dr.Usage.OutputTokens, CostUSD: dr.Usage.Cost}
+	// The tokens were spent whatever the decision looks like: the usage is read first and on its own.
+	var u struct {
+		InputTokens  int      `json:"input_tokens"`
+		OutputTokens int      `json:"output_tokens"`
+		Cost         *float64 `json:"cost"`
 	}
-	a, ok := dr.Answers[decisionQuestion]
+	if len(dr.Usage) > 0 && json.Unmarshal(dr.Usage, &u) == nil {
+		out.Usage = Usage{InputTokens: u.InputTokens, OutputTokens: u.OutputTokens, CostUSD: u.Cost}
+	}
+	invalid := func(msg string) (DecisionResponse, *Failure) {
+		return out, fail(catalog.CallInvalidRequest, msg, false)
+	}
+	var answers map[string]json.RawMessage
+	if json.Unmarshal(dr.Answers, &answers) != nil {
+		return invalid("the provider's answers are malformed")
+	}
+	rawAnswer, ok := answers[decisionQuestion]
+	if !ok {
+		return invalid("the provider's answer has no decision")
+	}
+	var a decisionAnswer
+	if err := json.Unmarshal(rawAnswer, &a); err != nil {
+		return invalid("the provider's decision is malformed")
+	}
 	switch {
-	case !ok:
-		return out, fail(catalog.CallInvalidRequest, "the provider's answer has no decision", false)
-	case a.Type == "refusal":
+	case a.Type != nil && *a.Type == "refusal":
 		return out, fail(catalog.CallRejected, "the provider declined the decision", false)
-	case a.Type != "" && a.Type != "choice":
-		return out, fail(catalog.CallInvalidRequest, "the provider's answer is not a choice", false)
+	case a.Type == nil || *a.Type != "choice":
+		return invalid("the provider's answer is not a choice")
 	}
-	out.Choice = a.Choice
-	// A choice answer carries its distribution and the provider's confidence in it: both are required, and
-	// each value is a number.
-	if len(a.Probabilities) == 0 {
-		return out, fail(catalog.CallInvalidRequest, "the provider's answer has no probabilities", false)
+	// A choice answer carries its choice, its distribution and the provider's confidence in it: each is of
+	// its type, and a value that is not a number is not a probability (decoded into numbers a null would be 0).
+	if json.Unmarshal(a.Choice, &out.Choice) != nil || out.Choice == "" {
+		return invalid("the provider's choice is not a string")
 	}
-	out.Probabilities = make(map[string]float64, len(a.Probabilities))
-	for name, raw := range a.Probabilities {
-		v, ok := wireNumber(raw)
+	var probs map[string]json.RawMessage
+	if json.Unmarshal(a.Probabilities, &probs) != nil || len(probs) == 0 {
+		return invalid("the provider's answer has no probabilities")
+	}
+	out.Probabilities = make(map[string]float64, len(probs))
+	for name, rawProb := range probs {
+		v, ok := wireNumber(rawProb)
 		if !ok {
-			return out, fail(catalog.CallInvalidRequest, "the provider's probability of a choice is not a number", false)
+			return invalid("the provider's probability of a choice is not a number")
 		}
 		out.Probabilities[name] = v
 	}
 	conf, ok := wireNumber(a.Confidence)
 	if !ok {
-		return out, fail(catalog.CallInvalidRequest, "the provider's answer has no confidence", false)
+		return invalid("the provider's answer has no confidence")
 	}
 	out.Confidence = &conf
 	return out, nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -23,6 +24,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/jev"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/openai"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 )
 
 // provider is a fake chat completions API: reply gets the request body and answers (status, body).
@@ -135,6 +137,12 @@ const (
 // platform key of openai offered by opt-in.
 func newAIEnv(t *testing.T) *aiEnv {
 	t.Helper()
+	return newAIEnvWith(t, func(ae *aiEnv) jev.ProviderSource { return storeProviders{ae.store} })
+}
+
+// newAIEnvWith is newAIEnv whose jev connector reads the provider of a connection from providers.
+func newAIEnvWith(t *testing.T, providers func(*aiEnv) jev.ProviderSource) *aiEnv {
+	t.Helper()
 	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": []byte("0123456789abcdef0123456789abcdef")})
 	require.NoError(t, err)
 	ae := &aiEnv{provider: newProvider(t)}
@@ -146,7 +154,7 @@ func newAIEnv(t *testing.T) *aiEnv {
 	ae.dir = connectors.NewDirectory(ae.reg)
 	tr := ae.provider.transport()
 	require.NoError(t, ae.dir.Register(openai.New(openai.WithTransport(tr), openai.WithDefaultModel(defaultLLMModel))))
-	require.NoError(t, ae.dir.Register(jev.New(jev.WithTransport(tr), jev.WithProviders(storeProviders{ae.store}))))
+	require.NoError(t, ae.dir.Register(jev.New(jev.WithTransport(tr), jev.WithProviders(providers(ae)))))
 	return ae
 }
 
@@ -581,4 +589,45 @@ func TestJevModelFollowsTheConnectionsProvider(t *testing.T) {
 	require.ErrorAs(t, err, &verr)
 	assert.Equal(t, jev.ErrorModelProvider, verr.Errors[0].Code)
 	assert.Equal(t, "nodes[0].params.model", verr.Errors[0].Path)
+}
+
+// The grant is revoked between the step entering the node and the call's setup (the catalog is read again
+// there): the node is gone from the catalog then, but it still works with the platform key, so the call
+// ends with unavailable, not as a call without a connection that fails with unauthorized.
+func TestPlatformKeyRevokedWhileTheCallIsSetUp(t *testing.T) {
+	ae := newAIEnv(t)
+	ae.provider.reply = func(map[string]any) (int, string) { return completion(`{"label":"vip","score":4}`, 30, 5) }
+	p := ae.proc()
+	ctx := context.Background()
+	require.NoError(t, ae.grants.SetEnabled(ctx, ae.tenant, catalog.KindOpenAI, true, 1))
+	ae.create(p, ae.human(), llmGraph)
+
+	var once sync.Once
+	p.rt.SetContextHook(func(event string, _ graph.Context) {
+		once.Do(func() { require.NoError(t, ae.grants.SetEnabled(ctx, ae.tenant, catalog.KindOpenAI, false, 1)) })
+	})
+	run := ae.runUntilDone(p, "o-1", "x")
+	effects := ae.effects(run.RunID)
+	require.Len(t, effects, 1)
+	assert.True(t, strings.HasPrefix(effects[0], "bad:failed unavailable: "), effects[0])
+	assert.Contains(t, effects[0], "platform key is not enabled")
+	assert.Empty(t, ae.provider.requests(), "the provider was not called")
+}
+
+type downProviders struct{}
+
+func (downProviders) Provider(context.Context, uuid.UUID, string) (string, error) {
+	return "", errors.New("the store is down")
+}
+
+// A Jev connection whose provider cannot be read is refused on save, not saved with a model it may not take.
+func TestJevConnectionWhoseProviderCannotBeReadIsRefusedOnSave(t *testing.T) {
+	ae := newAIEnvWith(t, func(*aiEnv) jev.ProviderSource { return downProviders{} })
+	ae.connect(catalog.KindJEV, connectors.Credentials{"provider": "openai", "api_key": "sk-openai-key-1234"})
+	p := ae.proc()
+	_, _, err := p.rt.Service().Create(context.Background(), ae.human(), engine.CreateInput{Graph: json.RawMessage(jevGraph)})
+	var verr *engine.ValidationError
+	require.ErrorAs(t, err, &verr)
+	assert.Equal(t, jev.ErrorConnectionProvider, verr.Errors[0].Code)
+	assert.Equal(t, "nodes[0].params.connection", verr.Errors[0].Path)
 }
