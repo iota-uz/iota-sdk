@@ -14,5 +14,13 @@ CREATE TABLE automation.call_contexts (
 
 CREATE INDEX call_contexts_run_idx ON automation.call_contexts (tenant_id, run_id);
 
+-- The sensitive fields a run's input derives from besides its own event's: those of the run whose step
+-- started it (start_automation, run_automation). A restart carries them to the new run.
+ALTER TABLE automation.runs
+    ADD COLUMN inherited jsonb NOT NULL DEFAULT '[]'::jsonb;
+
 -- +migrate Down
+ALTER TABLE automation.runs
+    DROP COLUMN IF EXISTS inherited;
+
 DROP TABLE IF EXISTS automation.call_contexts;

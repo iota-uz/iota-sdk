@@ -92,7 +92,7 @@ func (e *Engine) List(ctx context.Context, f ListFilter) ([]Instance, error) {
 			return nil, serrors.FromDB(opManage, err)
 		}
 		if e.private(i.Workflow) {
-			i.Input, i.Result, i.Error = nil, nil, nil
+			i.Input, i.Result, i.Error, i.BlockedDetail = nil, nil, nil, ""
 		}
 		out = append(out, i)
 	}
@@ -820,7 +820,9 @@ func (e *Engine) private(workflow string) bool {
 // redactHistory leaves the data of a private instance out of its history: what remains is its shape
 // (statuses, names, times, attempts) for an operator.
 func redactHistory(h *History) {
-	h.Instance.Input, h.Instance.Result, h.Instance.Error = nil, nil, nil
+	// The blocked detail is free text of the instance's runner (a provider's message, a URL): the reason
+	// stays, the text does not.
+	h.Instance.Input, h.Instance.Result, h.Instance.Error, h.Instance.BlockedDetail = nil, nil, nil, ""
 	for i := range h.Occurrences {
 		h.Occurrences[i].Result, h.Occurrences[i].Error, h.Occurrences[i].Meta = nil, nil, nil
 	}

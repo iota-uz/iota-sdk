@@ -621,6 +621,16 @@ func TestStartedRunInheritsTheSensitiveFieldsOfItsCaller(t *testing.T) {
 	for _, s := range d.Steps {
 		assert.True(t, s.Hidden, "step %s of the child is hidden from a viewer without the field's right", s.NodeID)
 	}
+	// A restart of the child carries the inherited fields; a run-as who may no longer read them is refused.
+	be.publish(be.tenant, orderPaid, "child-5", order{}, 0)
+	p.until(func() bool { return be.status(p, kids[0].RunID) == engine.RunDone }, "the child ends")
+	again, err := p.rt.Service().Restart(context.Background(), a, kids[0].RunID, *child.EnabledVersion)
+	require.NoError(t, err)
+	assert.Positive(t, be.count(`SELECT jsonb_array_length(inherited) FROM automation.runs WHERE id = $1`, again.RunID), "the restart keeps the provenance")
+	be.subjects.Grant(1, withoutSecret...)
+	_, err = p.rt.Service().Restart(context.Background(), a, kids[0].RunID, *child.EnabledVersion)
+	require.ErrorIs(t, err, engine.ErrForbidden)
+	be.subjects.Grant(1, allPerms...)
 	// The other child's owner may not read the field: its start is refused, nothing runs.
 	p.until(func() bool {
 		for _, r := range be.runs(p, a, engine.RunFilter{}) {

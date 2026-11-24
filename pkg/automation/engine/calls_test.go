@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
 
@@ -101,6 +102,21 @@ func TestUnknownOutcomeBlocksAndResolveContinues(t *testing.T) {
 		}
 	}
 	require.NotEmpty(t, waitID)
+	// The blocked call's detail names the node and the provider's message: the workflow history API keeps
+	// the reason and leaves the text (and every payload) of an automation instance out.
+	calls, err := p2.wf.List(context.Background(), workflow.ListFilter{TenantID: ae.tenant, Workflow: engine.CallWorkflowID})
+	require.NoError(t, err)
+	require.NotEmpty(t, calls)
+	for _, c := range calls {
+		assert.Empty(t, c.BlockedDetail)
+		h, err := p2.wf.Get(context.Background(), ae.tenant, c.ID)
+		require.NoError(t, err)
+		assert.Equal(t, workflow.StatusBlocked, h.Instance.Status)
+		assert.NotEmpty(t, h.Instance.BlockedReason)
+		assert.Empty(t, h.Instance.BlockedDetail)
+		assert.Nil(t, h.Instance.Input)
+	}
+	assert.Positive(t, ae.count(`SELECT count(*) FROM extruntime.workflow_instances WHERE workflow = 'automation.call' AND blocked_detail <> ''`), "the engine keeps it")
 	ops := p2.rt.Operations()
 	ctx := context.Background()
 	require.ErrorIs(t, ops.Resolve(ctx, ae.human(), run.RunID, waitID, "nope", nil), engine.ErrInvalidInput, "an outcome the node does not have")

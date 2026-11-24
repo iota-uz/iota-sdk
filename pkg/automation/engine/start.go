@@ -173,6 +173,12 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 		all, _ = mergeRefs(all, refs)
 	}
 	all, _ = mergeRefs(all, req.inherited)
+	inherited := []byte(`[]`)
+	if len(req.inherited) > 0 {
+		if inherited, err = json.Marshal(req.inherited); err != nil {
+			return RunRef{}, err
+		}
+	}
 	if len(all) > 0 {
 		if sensitive, err = json.Marshal(all); err != nil {
 			return RunRef{}, err
@@ -205,12 +211,12 @@ func (r *Runtime) startRun(ctx context.Context, tx pgx.Tx, req startRequest) (Ru
 	err = tx.QueryRow(ctx, `
 		INSERT INTO automation.runs (tenant_id, id, automation_id, version, start_key, start_state, start_reason, trigger_id,
 			trigger_event_id, trigger_kind, input, subject_entity, subject_key, run_as_user_id, run_as_kind, initiator_user_id,
-			depth, cause_run_id, restarted_from, sensitive, events)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+			depth, cause_run_id, restarted_from, sensitive, events, inherited)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
 		ON CONFLICT (tenant_id, start_key) DO NOTHING
 		RETURNING id`,
 		req.tenant, id, req.automationID, req.version, key, state, reason, req.triggerID, eventID, req.kind, input,
-		subject.Entity, subject.Key, runAsUser, runAsKind, req.initiator, req.depth, req.cause, req.restarted, sensitive, evs).Scan(&got)
+		subject.Entity, subject.Key, runAsUser, runAsKind, req.initiator, req.depth, req.cause, req.restarted, sensitive, evs, inherited).Scan(&got)
 	if errors.Is(err, pgx.ErrNoRows) {
 		existing, err := r.runByKey(ctx, tx, req.tenant, req.key)
 		if err != nil {
