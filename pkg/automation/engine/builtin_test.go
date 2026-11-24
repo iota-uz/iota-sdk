@@ -22,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/manifest"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
 
@@ -542,6 +543,22 @@ func TestCodeContextIsNotInTheInstanceInput(t *testing.T) {
 	assert.Equal(t, []string{"ok:classified-77"}, be.effects(run.RunID), "the code read the context")
 	assert.Zero(t, be.count(`SELECT count(*) FROM extruntime.workflow_instances WHERE workflow = 'automation.call' AND input::text LIKE '%classified-77%'`))
 	assert.Zero(t, be.count(`SELECT count(*) FROM automation.call_contexts`), "the context goes with the call's result")
+	// The call's journal and the run's inbox hold the result, which carries the field: the workflow history
+	// API (Extensions.Read) leaves the data of automation instances out; GetRun projects it.
+	assert.Positive(t, be.count(`SELECT count(*) FROM extruntime.workflow_occurrences WHERE result::text LIKE '%classified-77%'`), "the journal keeps it for the engine")
+	for _, wf := range []string{engine.CallWorkflowID, engine.WorkflowID} {
+		list, err := p.wf.List(context.Background(), workflow.ListFilter{TenantID: be.tenant, Workflow: wf})
+		require.NoError(t, err)
+		require.NotEmpty(t, list)
+		for _, inst := range list {
+			h, err := p.wf.Get(context.Background(), be.tenant, inst.ID)
+			require.NoError(t, err)
+			raw, err := json.Marshal(h)
+			require.NoError(t, err)
+			assert.NotContains(t, string(raw), "classified-77", "the history of %s", wf)
+			assert.NotEmpty(t, h.Occurrences, "the history keeps its shape")
+		}
+	}
 }
 
 func (a *blockAction) invocation() string {

@@ -91,6 +91,9 @@ func (e *Engine) List(ctx context.Context, f ListFilter) ([]Instance, error) {
 		if err != nil {
 			return nil, serrors.FromDB(opManage, err)
 		}
+		if e.private(i.Workflow) {
+			i.Input, i.Result, i.Error = nil, nil, nil
+		}
 		out = append(out, i)
 	}
 	return out, serrors.FromDB(opManage, rows.Err())
@@ -107,6 +110,14 @@ func (e *Engine) instance(ctx context.Context, q queryer, tenant, id uuid.UUID) 
 // Get returns the full history of an instance: occurrences, tasks, signals
 // and the invocations it caused.
 func (e *Engine) Get(ctx context.Context, tenant, id uuid.UUID) (History, error) {
+	h, err := e.history(ctx, tenant, id)
+	if e.private(h.Instance.Workflow) {
+		redactHistory(&h)
+	}
+	return h, err
+}
+
+func (e *Engine) history(ctx context.Context, tenant, id uuid.UUID) (History, error) {
 	inst, err := e.instance(ctx, e.cfg.DB, tenant, id)
 	if err != nil {
 		return History{}, err
@@ -792,4 +803,34 @@ func (e *Engine) Resume(ctx context.Context, tenant, id uuid.UUID) error {
 		return err
 	}
 	return serrors.FromDB(opManage, tx.Commit(ctx))
+}
+
+// private reports a native contract whose instances' data the history API leaves out
+// (NativeContract.Private). When the registrations cannot be read, it is private: nothing is shown that
+// a rule might hide.
+func (e *Engine) private(workflow string) bool {
+	natives, err := e.allNatives()
+	if err != nil {
+		return true
+	}
+	nc, ok := natives[workflow]
+	return ok && nc.Private
+}
+
+// redactHistory leaves the data of a private instance out of its history: what remains is its shape
+// (statuses, names, times, attempts) for an operator.
+func redactHistory(h *History) {
+	h.Instance.Input, h.Instance.Result, h.Instance.Error = nil, nil, nil
+	for i := range h.Occurrences {
+		h.Occurrences[i].Result, h.Occurrences[i].Error, h.Occurrences[i].Meta = nil, nil, nil
+	}
+	for i := range h.Signals {
+		h.Signals[i].Payload = nil
+	}
+	for i := range h.Tasks {
+		h.Tasks[i].Decision = nil
+		for j := range h.Tasks[i].Decisions {
+			h.Tasks[i].Decisions[j].Decision = nil
+		}
+	}
 }

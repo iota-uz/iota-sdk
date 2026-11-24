@@ -164,6 +164,8 @@ func (c *CallRunner) contract() workflow.NativeContract {
 		RunTimeout:     c.r.cfg.CallLimits.MaxTimeout + time.Minute,
 		Completion:     workflow.CancelPending,
 		StatusObserver: callObserver{c: c},
+		// A call's request, journal and result are a run's data: GetRun shows them with its field rules.
+		Private: true,
 	}
 }
 
