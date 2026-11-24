@@ -626,65 +626,119 @@ const claimTimeout = 2 * time.Minute
 
 func (s *store) ClaimInbound(ctx context.Context, connection, event, key string) (InboundAction, bool, error) {
 	const op = serrors.Op("automation.connectors.Store.ClaimInbound")
-	tag, err := s.db.Exec(ctx, `INSERT INTO automation.inbound_actions (connection_id, event, dedup_key, state) VALUES ($1, $2, $3, 'claimed') ON CONFLICT DO NOTHING`,
-		connection, event, key)
-	if err != nil {
+	var owner uuid.UUID
+	err := s.db.QueryRow(ctx, `INSERT INTO automation.inbound_actions (connection_id, event, dedup_key, state) VALUES ($1, $2, $3, 'claimed')
+		ON CONFLICT DO NOTHING RETURNING owner`, connection, event, key).Scan(&owner)
+	if err == nil {
+		return InboundAction{State: InboundClaimed, Owner: owner}, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
 		return InboundAction{}, false, serrors.Wrap(op, err)
 	}
-	if tag.RowsAffected() == 1 {
-		return InboundAction{State: InboundClaimed}, true, nil
+	// A claim that was abandoned (its handler never finished) is taken over, atomically, with a new owner.
+	err = s.db.QueryRow(ctx, `UPDATE automation.inbound_actions SET owner = gen_random_uuid(), updated_at = now()
+		WHERE connection_id = $1 AND event = $2 AND dedup_key = $3 AND state = 'claimed' AND updated_at < now() - $4::interval RETURNING owner`,
+		connection, event, key, claimInterval()).Scan(&owner)
+	if err == nil {
+		return InboundAction{State: InboundClaimed, Owner: owner}, true, nil
 	}
-	// A claim that was abandoned (its handler never finished) is taken over, atomically.
-	tag, err = s.db.Exec(ctx, `UPDATE automation.inbound_actions SET updated_at = now()
-		WHERE connection_id = $1 AND event = $2 AND dedup_key = $3 AND state = 'claimed' AND updated_at < now() - $4::interval`,
-		connection, event, key, fmt.Sprintf("%d seconds", int(claimTimeout.Seconds())))
-	if err != nil {
+	if !errors.Is(err, pgx.ErrNoRows) {
 		return InboundAction{}, false, serrors.Wrap(op, err)
 	}
-	if tag.RowsAffected() == 1 {
-		return InboundAction{State: InboundClaimed}, true, nil
+	out, err := s.inboundAction(ctx, connection, event, key)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Released between the statements: claim it again.
+		return s.ClaimInbound(ctx, connection, event, key)
 	}
+	return out, false, serrors.Wrap(op, err)
+}
+
+func claimInterval() string { return fmt.Sprintf("%d seconds", int(claimTimeout.Seconds())) }
+
+// inboundAction reads the record of an update (the owner token stays with its claimant).
+func (s *store) inboundAction(ctx context.Context, connection, event, key string) (InboundAction, error) {
 	var (
 		state  string
 		tenant *uuid.UUID
 		reply  string
 	)
-	err = s.db.QueryRow(ctx, `SELECT state, tenant_id, reply FROM automation.inbound_actions WHERE connection_id = $1 AND event = $2 AND dedup_key = $3`,
+	err := s.db.QueryRow(ctx, `SELECT state, tenant_id, reply FROM automation.inbound_actions WHERE connection_id = $1 AND event = $2 AND dedup_key = $3`,
 		connection, event, key).Scan(&state, &tenant, &reply)
-	if errors.Is(err, pgx.ErrNoRows) {
-		// Released between the two statements: claim it again.
-		return s.ClaimInbound(ctx, connection, event, key)
-	}
 	if err != nil {
-		return InboundAction{}, false, serrors.Wrap(op, err)
+		return InboundAction{}, err
 	}
 	out := InboundAction{State: InboundState(state), Reply: reply}
 	if tenant != nil {
 		out.Tenant = *tenant
 	}
-	return out, false, nil
+	return out, nil
 }
 
-func (s *store) InboundHandled(ctx context.Context, connection, event, key string, tenantID uuid.UUID, reply string) error {
+func (s *store) InboundHandled(ctx context.Context, connection, event, key string, owner, tenantID uuid.UUID, reply string) error {
 	var tenant any
 	if tenantID != uuid.Nil {
 		tenant = tenantID
 	}
-	_, err := s.db.Exec(ctx, `UPDATE automation.inbound_actions SET state = 'handled', tenant_id = $4, reply = $5, updated_at = now()
-		WHERE connection_id = $1 AND event = $2 AND dedup_key = $3`, connection, event, key, tenant, reply)
-	return serrors.Wrap("automation.connectors.Store.InboundHandled", err)
+	tag, err := s.db.Exec(ctx, `UPDATE automation.inbound_actions SET state = 'handled', tenant_id = $5, reply = $6, updated_at = now()
+		WHERE connection_id = $1 AND event = $2 AND dedup_key = $3 AND owner = $4 AND state = 'claimed'`, connection, event, key, owner, tenant, reply)
+	return fenced("automation.connectors.Store.InboundHandled", tag.RowsAffected(), err)
 }
 
-func (s *store) InboundCompleted(ctx context.Context, connection, event, key string) error {
-	_, err := s.db.Exec(ctx, `UPDATE automation.inbound_actions SET state = 'done', updated_at = now() WHERE connection_id = $1 AND event = $2 AND dedup_key = $3`,
-		connection, event, key)
-	return serrors.Wrap("automation.connectors.Store.InboundCompleted", err)
+func (s *store) ClaimDelivery(ctx context.Context, connection, event, key string) (InboundAction, bool, error) {
+	const op = serrors.Op("automation.connectors.Store.ClaimDelivery")
+	var (
+		out    InboundAction
+		tenant *uuid.UUID
+	)
+	err := s.db.QueryRow(ctx, `UPDATE automation.inbound_actions SET state = 'delivering', owner = gen_random_uuid(), updated_at = now()
+		WHERE connection_id = $1 AND event = $2 AND dedup_key = $3
+		  AND (state = 'handled' OR (state = 'delivering' AND updated_at < now() - $4::interval))
+		RETURNING owner, tenant_id, reply`, connection, event, key, claimInterval()).Scan(&out.Owner, &tenant, &out.Reply)
+	if err == nil {
+		out.State = InboundDelivering
+		if tenant != nil {
+			out.Tenant = *tenant
+		}
+		return out, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return InboundAction{}, false, serrors.Wrap(op, err)
+	}
+	cur, err := s.inboundAction(ctx, connection, event, key)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return InboundAction{}, false, serrors.Wrap(op, ErrNotFound)
+	}
+	return cur, false, serrors.Wrap(op, err)
 }
 
-func (s *store) ReleaseInbound(ctx context.Context, connection, event, key string) error {
-	_, err := s.db.Exec(ctx, `DELETE FROM automation.inbound_actions WHERE connection_id = $1 AND event = $2 AND dedup_key = $3 AND state = 'claimed'`,
-		connection, event, key)
-	return serrors.Wrap("automation.connectors.Store.ReleaseInbound", err)
+func (s *store) InboundCompleted(ctx context.Context, connection, event, key string, owner uuid.UUID) error {
+	tag, err := s.db.Exec(ctx, `UPDATE automation.inbound_actions SET state = 'done', updated_at = now()
+		WHERE connection_id = $1 AND event = $2 AND dedup_key = $3 AND owner = $4 AND state = 'delivering'`, connection, event, key, owner)
+	return fenced("automation.connectors.Store.InboundCompleted", tag.RowsAffected(), err)
+}
+
+func (s *store) ReleaseInbound(ctx context.Context, connection, event, key string, owner uuid.UUID) error {
+	const op = "automation.connectors.Store.ReleaseInbound"
+	// The delivery's claim goes back to handled (a redelivery sends the reply); the handler's is dropped.
+	tag, err := s.db.Exec(ctx, `UPDATE automation.inbound_actions SET state = 'handled', owner = gen_random_uuid(), updated_at = now()
+		WHERE connection_id = $1 AND event = $2 AND dedup_key = $3 AND owner = $4 AND state = 'delivering'`, connection, event, key, owner)
+	if err != nil || tag.RowsAffected() == 1 {
+		return serrors.Wrap(op, err)
+	}
+	tag, err = s.db.Exec(ctx, `DELETE FROM automation.inbound_actions WHERE connection_id = $1 AND event = $2 AND dedup_key = $3 AND owner = $4 AND state = 'claimed'`,
+		connection, event, key, owner)
+	return fenced(op, tag.RowsAffected(), err)
+}
+
+// fenced turns a write that touched no row (the claim was taken over, or the record is gone) into ErrInboundLost.
+func fenced(op string, rows int64, err error) error {
+	if err != nil {
+		return serrors.Wrap(serrors.Op(op), err)
+	}
+	if rows == 0 {
+		return serrors.Wrap(serrors.Op(op), ErrInboundLost)
+	}
+	return nil
 }
 
 // ConnectionExists reports whether a connection of any tenant has the id.

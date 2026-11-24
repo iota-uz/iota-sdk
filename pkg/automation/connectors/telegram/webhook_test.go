@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/telegram"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/telegram/telegramtest"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
@@ -552,4 +553,90 @@ func TestAStartReplyToABlockedChatIsGivenUp(t *testing.T) {
 	r.platform.Fail(telegramtest.Failure{Method: "sendMessage", Code: 403, Description: "Forbidden: bot was blocked by the user"})
 	code, _ := r.platformUpdate(r.platform.Update(800, alice, "/start u_abc"))
 	assert.Equal(t, http.StatusOK, code)
+}
+
+// A redelivery that overlaps the first request while it sends the reply does not send it again: the reply's
+// delivery is claimed, and the redelivery is asked to come back.
+func TestAnOverlappingStartDeliveryDoesNotSendTheReplyTwice(t *testing.T) {
+	r := newRig(t)
+	h := &linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}
+	require.NoError(t, r.c.RegisterStart(h))
+	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
+	u := r.platform.Update(800, alice, "/start u_abc")
+	var overlapped int
+	var second int
+	r.platform.After(func(method string) {
+		if method != "sendMessage" || overlapped > 0 {
+			return
+		}
+		overlapped++ // Telegram has the message; the first request has not recorded it yet
+		second, _ = r.platformUpdate(u)
+	})
+	code, _ := r.platformUpdate(u)
+	assert.Equal(t, http.StatusOK, code)
+	assert.Equal(t, http.StatusServiceUnavailable, second, "the overlapping delivery is asked to come back")
+	assert.Len(t, r.platform.Sent(), 1, "the reply was sent once")
+	assert.Len(t, h.got, 1)
+	code, _ = r.platformUpdate(u)
+	assert.Equal(t, http.StatusOK, code, "and the finished update is recognised")
+	assert.Len(t, r.platform.Sent(), 1)
+}
+
+// Telegram's update ids are those of one bot: a bot that replaces the old one behind the same route starts its
+// numbers again, and its first /start is not taken for a completed update of the old bot.
+func TestAReplacementBotsStartIsNotSkippedForTheSameUpdateID(t *testing.T) {
+	r := newRig(t)
+	h := &linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true, "u_def": true}}
+	require.NoError(t, r.c.RegisterStart(h))
+	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
+	first := r.platform.Update(800, alice, "/start u_abc")
+	code, _ := r.platformUpdate(first)
+	assert.Equal(t, http.StatusOK, code)
+	require.Len(t, r.platform.Sent(), 1)
+
+	next := "333333:CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+	nb := r.api.Bot(next, "next_platform_bot")
+	u := nb.Update(800, alice, "/start u_def")
+	require.Equal(t, first["update_id"], u["update_id"], "the same numeric id on the other bot")
+	code, _ = r.post(r.platformConn(), connectors.Credentials{"token": next}, r.secret(r.platformConn(), next), u)
+	assert.Equal(t, http.StatusOK, code)
+	assert.Len(t, h.got, 2, "the replacement's link was handled")
+	require.Len(t, nb.Sent(), 1, "and answered")
+	assert.Equal(t, "Linked, Alice", nb.Sent()[0].Text)
+}
+
+// onHandle runs fn once while the handler is running.
+type onHandle struct {
+	*linkHandler
+	fn func()
+}
+
+func (h *onHandle) Handle(ctx context.Context, u telegram.StartUpdate) (string, error) {
+	if fn := h.fn; fn != nil {
+		h.fn = nil
+		fn()
+	}
+	return h.linkHandler.Handle(ctx, u)
+}
+
+// A handler that outlasts its claim is fenced: its result is not recorded over the successor's, and the update
+// is asked to come back, so the reply of the claimant that counts is the only one.
+func TestAStartHandlerThatLostItsClaimDoesNotOverwriteItsSuccessor(t *testing.T) {
+	r := newRig(t)
+	h := &onHandle{linkHandler: &linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}}
+	require.NoError(t, r.c.RegisterStart(h))
+	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
+	u := r.platform.Update(800, alice, "/start u_abc")
+	var second int
+	h.fn = func() {
+		r.st.abandon() // the claim of the running handler lapses
+		second, _ = r.platformUpdate(u)
+	}
+	code, _ := r.platformUpdate(u)
+	assert.Equal(t, http.StatusServiceUnavailable, code, "the stale claimant's write is refused")
+	assert.Equal(t, http.StatusOK, second, "the successor completed")
+	assert.Len(t, r.platform.Sent(), 1, "one reply")
+	code, _ = r.platformUpdate(u)
+	assert.Equal(t, http.StatusOK, code)
+	assert.Len(t, r.platform.Sent(), 1)
 }

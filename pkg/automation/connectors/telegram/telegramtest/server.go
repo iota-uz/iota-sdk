@@ -131,6 +131,7 @@ type Bot struct {
 	nextUpd  int64
 	calls    []Call
 	fails    []*Failure
+	after    func(method string)
 	blocked  map[int64]bool
 	answered map[string]string // callback query id → the text it was answered with
 	polling  bool
@@ -239,6 +240,14 @@ func (b *Bot) Block(chat int64) {
 	b.blocked[chat] = true
 }
 
+// After sets a function that runs once the bot has processed a request (a message is stored, say) and
+// before the answer is given: a test replays an update there to overlap two deliveries.
+func (b *Bot) After(fn func(method string)) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.after = fn
+}
+
 // Fail makes the next request of the failure's method fail.
 func (b *Bot) Fail(f Failure) {
 	b.mu.Lock()
@@ -327,6 +336,12 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	b.mu.Unlock()
 	res, aerr := b.handle(method, params, files)
+	b.mu.Lock()
+	after := b.after
+	b.mu.Unlock()
+	if after != nil {
+		after(method)
+	}
 	if lost {
 		http.Error(w, "lost", http.StatusInternalServerError)
 		return

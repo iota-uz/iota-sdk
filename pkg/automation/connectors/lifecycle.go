@@ -315,9 +315,10 @@ type InboundState string
 
 // States of an InboundAction.
 const (
-	InboundClaimed InboundState = "claimed" // the handler is running
-	InboundHandled InboundState = "handled" // the handler completed; its reply is kept, to be delivered
-	InboundDone    InboundState = "done"
+	InboundClaimed    InboundState = "claimed"    // the handler is running
+	InboundHandled    InboundState = "handled"    // the handler completed; its reply is kept, to be delivered
+	InboundDelivering InboundState = "delivering" // the reply is being delivered
+	InboundDone       InboundState = "done"
 )
 
 // InboundAction is the record of a provider update a connector handles itself.
@@ -325,21 +326,36 @@ type InboundAction struct {
 	State  InboundState
 	Tenant uuid.UUID // whose update it is, once the handler completed
 	Reply  string    // what is to be sent back, once the handler completed
+	// Owner is the token of the claim this call gave the caller (ClaimInbound or ClaimDelivery returning
+	// claimed true). Every later write of the claimant carries it.
+	Owner uuid.UUID
 }
 
+// ErrInboundLost is returned by a write of an InboundActions claimant whose claim was abandoned and taken over
+// (it ran longer than the claim lasts): its result is not recorded, the new claimant's is.
+var ErrInboundLost = errors.New("automation connections: the claim of the update was taken over")
+
 // InboundActions is an optional interface of a ConnectionStore for the updates a connector handles itself (no
-// event is published for them): the update is claimed durably before the handler runs, so two deliveries of
-// it (two workers, two replicas) never both run it, the handler's result is kept apart from its reply's
-// delivery, and a redelivery only finishes what is left. A claim whose handler never finished (a crash) is
-// abandoned after a few minutes and may be taken over. Records are pruned with the engine's dedup.
+// event is published for them). An update goes claimed (the handler runs) → handled (its result is kept) →
+// delivering (the reply is being sent) → done. Each step that does work is claimed atomically, so two
+// deliveries of an update (two workers, two replicas, a redelivery overlapping the first request) never both
+// run the handler or both send the reply, and a redelivery only finishes what is left. A claim that was not
+// finished (a crash, a stall) is abandoned after claimTimeout and may be taken over; every claim carries an
+// owner token that fences the writes of the claimant, so one that was taken over cannot change the work of its
+// successor (ErrInboundLost): a claimant keeps its work shorter than the timeout. Records are pruned with the
+// engine's dedup.
 type InboundActions interface {
-	// ClaimInbound claims the update: claimed true means the caller runs the handler; false returns what
-	// the earlier delivery left (done, handled with its reply, or a claim that is still fresh).
+	// ClaimInbound claims the handler's run: claimed true means the caller runs it (Owner is its token);
+	// false returns what the earlier delivery left.
 	ClaimInbound(ctx context.Context, connection, event, key string) (action InboundAction, claimed bool, err error)
-	// InboundHandled keeps the result of a handler that completed.
-	InboundHandled(ctx context.Context, connection, event, key string, tenantID uuid.UUID, reply string) error
-	// InboundCompleted marks the update finished.
-	InboundCompleted(ctx context.Context, connection, event, key string) error
-	// ReleaseInbound gives a claim up (the handler failed): a redelivery runs the handler again.
-	ReleaseInbound(ctx context.Context, connection, event, key string) error
+	// InboundHandled keeps the result of the handler that completed and makes the reply ready to deliver.
+	InboundHandled(ctx context.Context, connection, event, key string, owner uuid.UUID, tenantID uuid.UUID, reply string) error
+	// ClaimDelivery claims the delivery of a handled update's reply: claimed true carries the result and a new
+	// Owner; false returns the state (another delivery is sending it, or it is done).
+	ClaimDelivery(ctx context.Context, connection, event, key string) (action InboundAction, claimed bool, err error)
+	// InboundCompleted marks the update finished (the reply was sent, or can never be).
+	InboundCompleted(ctx context.Context, connection, event, key string, owner uuid.UUID) error
+	// ReleaseInbound gives a claim up: the handler's (it failed: a redelivery runs it again) or the delivery's
+	// (the reply was not sent: a redelivery sends it).
+	ReleaseInbound(ctx context.Context, connection, event, key string, owner uuid.UUID) error
 }

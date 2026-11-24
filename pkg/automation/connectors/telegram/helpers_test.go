@@ -120,23 +120,26 @@ func (s *state) SetStatusIf(_ context.Context, _, _ uuid.UUID, st connectors.Con
 	return true, nil
 }
 
-// ClaimInbound, InboundHandled, InboundCompleted and ReleaseInbound are connectors.InboundActions: the
-// updates the connector handles itself.
+// ClaimInbound, InboundHandled, ClaimDelivery, InboundCompleted and ReleaseInbound are
+// connectors.InboundActions: the updates the connector handles itself, with owner tokens like the store's.
 func (s *state) ClaimInbound(_ context.Context, connection, event, key string) (connectors.InboundAction, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	k := connection + "/" + event + "/" + key
 	if a, ok := s.actions[k]; ok {
-		return *a, false, nil
+		out := *a
+		out.Owner = uuid.Nil
+		return out, false, nil
 	}
 	if s.actions == nil {
 		s.actions = map[string]*connectors.InboundAction{}
 	}
-	s.actions[k] = &connectors.InboundAction{State: connectors.InboundClaimed}
-	return connectors.InboundAction{}, true, nil
+	a := &connectors.InboundAction{State: connectors.InboundClaimed, Owner: uuid.New()}
+	s.actions[k] = a
+	return *a, true, nil
 }
 
-func (s *state) InboundHandled(_ context.Context, connection, event, key string, tenant uuid.UUID, reply string) error {
+func (s *state) InboundHandled(_ context.Context, connection, event, key string, owner, tenant uuid.UUID, reply string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.failHandled > 0 {
@@ -144,36 +147,70 @@ func (s *state) InboundHandled(_ context.Context, connection, event, key string,
 		return errors.New("storage is down")
 	}
 	a := s.actions[connection+"/"+event+"/"+key]
-	if a == nil {
-		return errors.New("no claim")
+	if a == nil || a.Owner != owner || a.State != connectors.InboundClaimed {
+		return connectors.ErrInboundLost
 	}
 	*a = connectors.InboundAction{State: connectors.InboundHandled, Tenant: tenant, Reply: reply}
 	return nil
 }
 
-func (s *state) InboundCompleted(_ context.Context, connection, event, key string) error {
+func (s *state) ClaimDelivery(_ context.Context, connection, event, key string) (connectors.InboundAction, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if a := s.actions[connection+"/"+event+"/"+key]; a != nil {
-		a.State = connectors.InboundDone
+	a := s.actions[connection+"/"+event+"/"+key]
+	if a == nil {
+		return connectors.InboundAction{}, false, connectors.ErrNotFound
+	}
+	if a.State != connectors.InboundHandled {
+		out := *a
+		out.Owner = uuid.Nil
+		return out, false, nil
+	}
+	a.State, a.Owner = connectors.InboundDelivering, uuid.New()
+	return *a, true, nil
+}
+
+func (s *state) InboundCompleted(_ context.Context, connection, event, key string, owner uuid.UUID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a := s.actions[connection+"/"+event+"/"+key]
+	if a == nil || a.Owner != owner || a.State != connectors.InboundDelivering {
+		return connectors.ErrInboundLost
+	}
+	a.State = connectors.InboundDone
+	return nil
+}
+
+func (s *state) ReleaseInbound(_ context.Context, connection, event, key string, owner uuid.UUID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	k := connection + "/" + event + "/" + key
+	a := s.actions[k]
+	switch {
+	case a == nil || a.Owner != owner:
+		return connectors.ErrInboundLost
+	case a.State == connectors.InboundDelivering:
+		a.State, a.Owner = connectors.InboundHandled, uuid.New()
+	case a.State == connectors.InboundClaimed:
+		delete(s.actions, k)
+	default:
+		return connectors.ErrInboundLost
 	}
 	return nil
 }
 
-func (s *state) ReleaseInbound(_ context.Context, connection, event, key string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.actions, connection+"/"+event+"/"+key)
-	return nil
-}
-
-// abandon forgets a fresh claim, as the store does with one that is old: its handler never finished.
+// abandon takes the claims of the running steps away, as the store does with ones that are old: their
+// owners never finished. A claimed update is forgotten, a delivering one is handled again.
 func (s *state) abandon() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for k, a := range s.actions {
-		if a.State == connectors.InboundClaimed {
+		switch a.State {
+		case connectors.InboundClaimed:
 			delete(s.actions, k)
+		case connectors.InboundDelivering:
+			a.State, a.Owner = connectors.InboundHandled, uuid.New()
+		case connectors.InboundHandled, connectors.InboundDone:
 		}
 	}
 }

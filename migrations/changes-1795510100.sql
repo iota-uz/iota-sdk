@@ -6,9 +6,11 @@ CREATE TABLE automation.inbound_actions (
     connection_id text NOT NULL,
     event text NOT NULL,
     dedup_key text NOT NULL,
-    -- claimed: the handler is running (a claim older than a few minutes is abandoned and may be taken over);
-    -- handled: the handler completed and its reply is kept, still to be delivered; done: finished
-    state text NOT NULL CHECK (state IN ('claimed', 'handled', 'done')),
+    -- claimed: the handler is running; handled: it completed and its reply is kept, still to be delivered;
+    -- delivering: the reply is being sent; done: finished. A claimed or delivering row older than a few minutes
+    -- is abandoned and may be taken over; owner changes with every claim and fences the claimant's writes.
+    state text NOT NULL CHECK (state IN ('claimed', 'handled', 'delivering', 'done')),
+    owner uuid NOT NULL DEFAULT gen_random_uuid(),
     tenant_id uuid,
     reply text NOT NULL DEFAULT '',
     created_at timestamp with time zone NOT NULL DEFAULT now(),

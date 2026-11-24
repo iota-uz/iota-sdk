@@ -278,44 +278,48 @@ func fromOf(u *gotgbot.User) map[string]any {
 	return out
 }
 
+// startBudget bounds each of the two phases of a /start that is claimed durably (the handler's run; the reply's
+// delivery): shorter than the store's claim timeout, so a live worker does not outlast its claim.
+const startBudget = 60 * time.Second
+
 // start hands `/start <payload>` to its handler and sends its reply. An unknown or used payload (or one
 // of another tenant, on a tenant's bot) reaches the handler with the nil tenant, which only replies. A
 // failure of the lookup or of the handler is redelivered by Telegram.
 //
-// With a store that keeps the updates a connector handles itself (connectors.InboundActions) the update is
-// claimed durably before the handler runs, so two deliveries of it never both run the handler; the handler's
-// result (the reply) is kept apart from the delivery of the reply, so a reply that could not be sent (a 429)
-// is sent again by the redelivery without asking the handler, which has consumed its one-use link.
+// With a store that keeps the updates a connector handles itself (connectors.InboundActions) the update goes
+// through two atomic claims: one before the handler runs (two deliveries never both run it) and one before
+// the reply is sent (two deliveries never both send it, the first request included). The handler's result
+// (the reply) is kept between them, so a reply that could not be sent is sent again by the redelivery without
+// asking the handler, which has consumed its one-use link. The update is kept per bot, not per route: Telegram's
+// update ids are those of one bot, and the route stays when the bot behind it changes.
 func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbot.Message, payload string, conn connectors.Connection, updateKey string) error {
 	retry := func(err error) error { return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err) }
-	acts, durable := c.cfg.Connections.(connectors.InboundActions)
 	key := connKey(conn)
+	acts, durable := c.cfg.Connections.(connectors.InboundActions)
+	scope := actionScope{acts: acts, conn: key + "@" + c.ExternalID(connectors.Credentials{"token": b.api.Token}), event: startEvent, key: updateKey}
+	var claim connectors.InboundAction
 	if durable {
-		action, claimed, err := acts.ClaimInbound(ctx, key, startEvent, updateKey)
+		a, claimed, err := acts.ClaimInbound(ctx, scope.conn, scope.event, scope.key)
 		if err != nil {
 			return retry(err)
 		}
 		if !claimed {
-			switch action.State {
+			switch a.State {
 			case connectors.InboundDone:
 				return nil
 			case connectors.InboundHandled:
-				return c.deliverStartReply(ctx, b, m, conn, acts, updateKey, action.Tenant, action.Reply)
-			case connectors.InboundClaimed:
+				return c.deliverStartReply(ctx, b, m, conn, scope)
+			case connectors.InboundClaimed, connectors.InboundDelivering:
 			}
 			return retry(errors.New("the update is being handled by another delivery"))
 		}
+		claim = a
 	}
-	release := func() {
-		if durable {
-			if err := acts.ReleaseInbound(ctx, key, startEvent, updateKey); err != nil {
-				c.log().Warn("telegram: a claim of a /start was not released", "error", err.Error())
-			}
-		}
-	}
-	tenant, ok, err := h.TenantOf(ctx, payload)
+	hctx, cancel := context.WithTimeout(ctx, startBudget)
+	defer cancel()
+	tenant, ok, err := h.TenantOf(hctx, payload)
 	if err != nil {
-		release()
+		scope.release(c, claim.Owner)
 		return retry(err)
 	}
 	if !ok || (!isPlatform(conn) && tenant != conn.TenantID) {
@@ -330,49 +334,103 @@ func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbo
 	if m.From != nil {
 		up.UserID, up.Username, up.FirstName = m.From.Id, m.From.Username, m.From.FirstName
 	}
-	reply, err := h.Handle(ctx, up)
+	reply, err := h.Handle(hctx, up)
 	if err != nil {
-		release()
+		scope.release(c, claim.Owner)
 		return retry(err)
 	}
-	if durable {
-		// The handler completed (it may have consumed the link): its result is kept before anything else.
-		if err := acts.InboundHandled(ctx, key, startEvent, updateKey, account, reply); err != nil {
-			return retry(err) // the claim stays; a redelivery after it is abandoned asks the handler again
-		}
+	if !durable {
+		c.sendStartReply(ctx, b, m, conn, account, reply)
+		return nil
 	}
-	return c.deliverStartReply(ctx, b, m, conn, acts, updateKey, account, reply)
+	// The handler completed (it may have consumed the link): its result is kept before anything else. A claim
+	// that was taken over meanwhile (the handler outlasted it) leaves the update to the new claimant.
+	if err := acts.InboundHandled(ctx, scope.conn, scope.event, scope.key, claim.Owner, account, reply); err != nil {
+		return retry(err)
+	}
+	return c.deliverStartReply(ctx, b, m, conn, scope)
 }
 
-// deliverStartReply sends the reply of a handled /start and finishes the update. A send that failed in a way
-// that may pass (429, a 5xx, a lost connection) is answered 503, and the redelivery sends it again; one that
-// can never succeed (the chat is blocked) is given up.
-func (c *Connector) deliverStartReply(ctx context.Context, b *bot, m *gotgbot.Message, conn connectors.Connection, acts connectors.InboundActions, updateKey string, account uuid.UUID, reply string) error {
-	if reply != "" {
-		_, sent, err := c.send(ctx, b.api.Token, strconv.FormatInt(m.Chat.Id, 10), outgoing{Text: reply})
+// actionScope names the durable record of an update.
+type actionScope struct {
+	acts        connectors.InboundActions
+	conn, event string
+	key         string
+}
+
+func (a actionScope) release(c *Connector, owner uuid.UUID) {
+	if a.acts == nil {
+		return
+	}
+	if err := a.acts.ReleaseInbound(context.WithoutCancel(context.Background()), a.conn, a.event, a.key, owner); err != nil {
+		c.log().Warn("telegram: a claim of a /start was not released", "error", err.Error())
+	}
+}
+
+// deliverStartReply sends the kept reply of a handled /start once and finishes the update. The delivery is
+// claimed first, so an overlapping delivery (a redelivery while the first request is still sending) does not
+// send it again. A send that definitely did not happen (429, a message refused before it was sent) gives the
+// claim up for the redelivery. One whose result is unknown (a 5xx, a cut connection) does too: the reply may
+// then be sent twice, which is preferred to a reply that is lost. A refusal that can never pass (the chat
+// blocked the bot) finishes the update.
+func (c *Connector) deliverStartReply(ctx context.Context, b *bot, m *gotgbot.Message, conn connectors.Connection, scope actionScope) error {
+	retry := func(err error) error { return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err) }
+	d, claimed, err := scope.acts.ClaimDelivery(ctx, scope.conn, scope.event, scope.key)
+	if err != nil {
+		return retry(err)
+	}
+	if !claimed {
+		if d.State == connectors.InboundDone {
+			return nil
+		}
+		return retry(errors.New("the reply is being sent by another delivery"))
+	}
+	dctx, cancel := context.WithTimeout(ctx, startBudget)
+	defer cancel()
+	if d.Reply != "" {
+		_, sent, err := c.send(dctx, b.api.Token, strconv.FormatInt(m.Chat.Id, 10), outgoing{Text: d.Reply})
 		if err != nil {
 			var refused *catalog.CallError
-			if acts != nil && !errors.As(callFailure(err), &refused) {
+			if !errors.As(callFailure(err), &refused) {
 				c.log().Warn("telegram: the reply to /start was not sent; it is retried", "error", err.Error())
-				return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
+				scope.release(c, d.Owner)
+				return retry(err)
 			}
 			c.log().Warn("telegram: the reply to /start was not sent", "error", err.Error())
-		} else if c.cfg.Usage != nil && account != uuid.Nil {
-			// The reply is a message of the tenant the link belongs to, counted for the bot that sent it.
-			err := c.cfg.Usage.Record(ctx, catalog.UsageEntry{TenantID: account, Kind: Kind, ConnectionID: connKey(conn), Unit: "message", Quantity: int64(sent), At: time.Now()})
-			if err != nil {
-				c.log().Warn("telegram: a message was not counted", "error", err.Error())
-			}
+		} else {
+			c.countStartReply(dctx, conn, d.Tenant, sent)
 		}
 	}
-	if acts != nil {
-		if err := acts.InboundCompleted(ctx, connKey(conn), startEvent, updateKey); err != nil {
-			// The reply went out; a redelivery would send it again, which is worse than an unfinished record
-			// (the record is abandoned with the claim's age).
-			c.log().Warn("telegram: a handled /start was not finished in the record", "error", err.Error())
-		}
+	if err := scope.acts.InboundCompleted(ctx, scope.conn, scope.event, scope.key, d.Owner); err != nil {
+		// The reply went out; the record stays delivering and is abandoned with its claim's age.
+		c.log().Warn("telegram: a handled /start was not finished in the record", "error", err.Error())
 	}
 	return nil
+}
+
+// sendStartReply sends the reply of a /start with a store that keeps no record of it: once, whatever the result.
+func (c *Connector) sendStartReply(ctx context.Context, b *bot, m *gotgbot.Message, conn connectors.Connection, account uuid.UUID, reply string) {
+	if reply == "" {
+		return
+	}
+	_, sent, err := c.send(ctx, b.api.Token, strconv.FormatInt(m.Chat.Id, 10), outgoing{Text: reply})
+	if err != nil {
+		c.log().Warn("telegram: the reply to /start was not sent", "error", err.Error())
+		return
+	}
+	c.countStartReply(ctx, conn, account, sent)
+}
+
+// countStartReply records the reply as a message of the tenant the link belongs to, counted for the bot that
+// sent it.
+func (c *Connector) countStartReply(ctx context.Context, conn connectors.Connection, account uuid.UUID, sent int) {
+	if c.cfg.Usage == nil || account == uuid.Nil {
+		return
+	}
+	err := c.cfg.Usage.Record(ctx, catalog.UsageEntry{TenantID: account, Kind: Kind, ConnectionID: connKey(conn), Unit: "message", Quantity: int64(sent), At: time.Now()})
+	if err != nil {
+		c.log().Warn("telegram: a message was not counted", "error", err.Error())
+	}
 }
 
 // startEvent names the /start updates a connector handled itself, in the engine's dedup record.

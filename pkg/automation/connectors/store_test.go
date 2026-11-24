@@ -909,28 +909,32 @@ func TestCheckTokenRefreshesADisabledConnection(t *testing.T) {
 	assert.Equal(t, connectors.StatusDisabled, after.Status)
 }
 
-// An update a connector handles itself is claimed before its handler runs: two deliveries never both run it,
-// the result is kept apart from its delivery, and a claim whose handler never finished is taken over.
+// An update a connector handles itself is claimed before its handler runs and again before its reply is sent:
+// two deliveries never both do either, and a claimant that was taken over cannot touch its successor's work.
 func TestInboundActionsClaimOnce(t *testing.T) {
 	e := newEnv(t)
 	store := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, nil, nil)
 	acts, ok := store.(connectors.InboundActions)
 	require.True(t, ok)
-	const conn, event, key = "platform:telegram_bot", "start", "u1"
+	const conn, event, key = "platform:telegram_bot@222222", "start", "u1"
 
 	var claims atomic.Int32
+	owners := make(chan uuid.UUID, 8)
 	var wg sync.WaitGroup
 	for range 8 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, claimed, err := acts.ClaimInbound(e.ctx, conn, event, key); err == nil && claimed {
+			if a, claimed, err := acts.ClaimInbound(e.ctx, conn, event, key); err == nil && claimed {
 				claims.Add(1)
+				owners <- a.Owner
 			}
 		}()
 	}
 	wg.Wait()
 	assert.Equal(t, int32(1), claims.Load(), "one delivery runs the handler")
+	owner := <-owners
+	require.NotEqual(t, uuid.Nil, owner)
 
 	a, claimed, err := acts.ClaimInbound(e.ctx, conn, event, key)
 	require.NoError(t, err)
@@ -938,38 +942,87 @@ func TestInboundActionsClaimOnce(t *testing.T) {
 	assert.Equal(t, connectors.InboundClaimed, a.State)
 
 	tenant := uuid.New()
-	require.NoError(t, acts.InboundHandled(e.ctx, conn, event, key, tenant, "Linked"))
+	require.ErrorIs(t, acts.InboundHandled(e.ctx, conn, event, key, uuid.New(), tenant, "x"), connectors.ErrInboundLost, "not the claimant")
+	require.NoError(t, acts.InboundHandled(e.ctx, conn, event, key, owner, tenant, "Linked"))
 	a, claimed, err = acts.ClaimInbound(e.ctx, conn, event, key)
 	require.NoError(t, err)
 	assert.False(t, claimed)
 	assert.Equal(t, connectors.InboundAction{State: connectors.InboundHandled, Tenant: tenant, Reply: "Linked"}, a)
-	require.NoError(t, acts.ReleaseInbound(e.ctx, conn, event, key))
-	_, claimed, err = acts.ClaimInbound(e.ctx, conn, event, key)
-	require.NoError(t, err)
-	assert.False(t, claimed, "a handled update is not released")
+	require.ErrorIs(t, acts.ReleaseInbound(e.ctx, conn, event, key, owner), connectors.ErrInboundLost, "a handled update is not released by the handler's claim")
 
-	require.NoError(t, acts.InboundCompleted(e.ctx, conn, event, key))
+	// The delivery is claimed once, with the kept result.
+	claims.Store(0)
+	deliveries := make(chan connectors.InboundAction, 8)
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if d, claimed, err := acts.ClaimDelivery(e.ctx, conn, event, key); err == nil && claimed {
+				claims.Add(1)
+				deliveries <- d
+			}
+		}()
+	}
+	wg.Wait()
+	assert.Equal(t, int32(1), claims.Load(), "one delivery sends the reply")
+	d := <-deliveries
+	assert.Equal(t, "Linked", d.Reply)
+	assert.Equal(t, tenant, d.Tenant)
+	a, claimed, err = acts.ClaimDelivery(e.ctx, conn, event, key)
+	require.NoError(t, err)
+	assert.False(t, claimed)
+	assert.Equal(t, connectors.InboundDelivering, a.State)
+
+	// A delivery that could not send gives its claim up: the reply is sent by the next one.
+	require.NoError(t, acts.ReleaseInbound(e.ctx, conn, event, key, d.Owner))
+	d2, claimed, err := acts.ClaimDelivery(e.ctx, conn, event, key)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	require.ErrorIs(t, acts.InboundCompleted(e.ctx, conn, event, key, d.Owner), connectors.ErrInboundLost, "the released claim is not the owner any more")
+	require.NoError(t, acts.InboundCompleted(e.ctx, conn, event, key, d2.Owner))
 	a, claimed, err = acts.ClaimInbound(e.ctx, conn, event, key)
 	require.NoError(t, err)
 	assert.False(t, claimed)
 	assert.Equal(t, connectors.InboundDone, a.State)
+	_, claimed, err = acts.ClaimDelivery(e.ctx, conn, event, key)
+	require.NoError(t, err)
+	assert.False(t, claimed, "a finished update is not delivered again")
 
-	// A failed handler gives its claim up, and a claim that was abandoned is taken over.
-	_, claimed, err = acts.ClaimInbound(e.ctx, conn, event, "u2")
+	// A failed handler gives its claim up; one that was abandoned is taken over, and the old claimant is fenced.
+	first, claimed, err := acts.ClaimInbound(e.ctx, conn, event, "u2")
 	require.NoError(t, err)
 	require.True(t, claimed)
-	require.NoError(t, acts.ReleaseInbound(e.ctx, conn, event, "u2"))
-	_, claimed, err = acts.ClaimInbound(e.ctx, conn, event, "u2")
+	require.NoError(t, acts.ReleaseInbound(e.ctx, conn, event, "u2", first.Owner))
+	second, claimed, err := acts.ClaimInbound(e.ctx, conn, event, "u2")
 	require.NoError(t, err)
 	assert.True(t, claimed, "released: the redelivery runs the handler")
 	_, err = e.db.Exec(e.ctx, `UPDATE automation.inbound_actions SET updated_at = now() - interval '1 hour' WHERE dedup_key = 'u2'`)
 	require.NoError(t, err)
-	_, claimed, err = acts.ClaimInbound(e.ctx, conn, event, "u2")
+	third, claimed, err := acts.ClaimInbound(e.ctx, conn, event, "u2")
 	require.NoError(t, err)
 	assert.True(t, claimed, "abandoned: taken over")
+	require.NotEqual(t, second.Owner, third.Owner)
 	_, claimed, err = acts.ClaimInbound(e.ctx, conn, event, "u2")
 	require.NoError(t, err)
 	assert.False(t, claimed, "and fresh again")
+	require.ErrorIs(t, acts.InboundHandled(e.ctx, conn, event, "u2", second.Owner, tenant, "late"), connectors.ErrInboundLost, "the old handler's result is not recorded")
+	require.ErrorIs(t, acts.ReleaseInbound(e.ctx, conn, event, "u2", second.Owner), connectors.ErrInboundLost, "nor does its failure drop the successor's claim")
+	require.NoError(t, acts.InboundHandled(e.ctx, conn, event, "u2", third.Owner, tenant, "ok"))
+
+	// The same for the delivery.
+	_, err = e.db.Exec(e.ctx, `UPDATE automation.inbound_actions SET updated_at = now() - interval '1 hour' WHERE dedup_key = 'u2'`)
+	require.NoError(t, err)
+	old, claimed, err := acts.ClaimDelivery(e.ctx, conn, event, "u2")
+	require.NoError(t, err)
+	require.True(t, claimed)
+	_, err = e.db.Exec(e.ctx, `UPDATE automation.inbound_actions SET updated_at = now() - interval '1 hour' WHERE dedup_key = 'u2'`)
+	require.NoError(t, err)
+	next, claimed, err := acts.ClaimDelivery(e.ctx, conn, event, "u2")
+	require.NoError(t, err)
+	require.True(t, claimed, "an abandoned delivery is taken over")
+	require.ErrorIs(t, acts.InboundCompleted(e.ctx, conn, event, "u2", old.Owner), connectors.ErrInboundLost)
+	require.ErrorIs(t, acts.ReleaseInbound(e.ctx, conn, event, "u2", old.Owner), connectors.ErrInboundLost)
+	require.NoError(t, acts.InboundCompleted(e.ctx, conn, event, "u2", next.Owner))
 }
 
 // DeleteReturning gives what the row held when it was deleted (under its lock), not what an earlier read saw.
