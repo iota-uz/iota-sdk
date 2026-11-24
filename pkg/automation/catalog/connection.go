@@ -183,7 +183,7 @@ func ConnectionRule(v View) func(graph.Graph) []graph.GraphError {
 			}
 		}
 		for i, t := range g.Triggers {
-			if v.Unavailable[t.Event] == ReasonConnectionUnavailable {
+			if v.UnavailableEvents[t.Event] == ReasonConnectionUnavailable {
 				out = append(out, graph.GraphError{Path: fmt.Sprintf("triggers[%d].event", i), Code: CodeConnectionUnavailable,
 					Message: fmt.Sprintf("%s needs a connection the tenant does not have", t.Event)})
 				continue
@@ -195,7 +195,7 @@ func ConnectionRule(v View) func(graph.Graph) []graph.GraphError {
 			checkIn(fmt.Sprintf("triggers[%d]", i), connections, v.EventRequires[t.Event], t.Params)
 		}
 		for i, n := range g.Nodes {
-			if v.Unavailable[n.Type] == ReasonConnectionUnavailable {
+			if v.UnavailableNodes[n.Type] == ReasonConnectionUnavailable {
 				out = append(out, graph.GraphError{Path: fmt.Sprintf("nodes[%d].type", i), Code: CodeConnectionUnavailable,
 					Message: fmt.Sprintf("%s needs a connection the tenant does not have", n.Type)})
 				continue

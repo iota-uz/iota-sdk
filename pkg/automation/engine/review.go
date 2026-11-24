@@ -71,14 +71,14 @@ func connectionErrors(view catalog.View, g graph.Graph, errs []graph.GraphError)
 		if m := nodePathRe.FindStringSubmatch(e.Path); m != nil && e.Code == graph.CodeUnknownNodeType {
 			var i int
 			_, _ = fmt.Sscan(m[1], &i)
-			if i < len(g.Nodes) && view.Unavailable[g.Nodes[i].Type] == catalog.ReasonConnectionUnavailable {
+			if i < len(g.Nodes) && view.UnavailableNodes[g.Nodes[i].Type] == catalog.ReasonConnectionUnavailable {
 				e.Code, e.Message = CodeConnectionUnavailable, fmt.Sprintf("%s needs a connection the tenant does not have", g.Nodes[i].Type)
 			}
 		}
 		if m := triggerPathRe.FindStringSubmatch(e.Path); m != nil && e.Code == graph.CodeUnknownEvent {
 			var i int
 			_, _ = fmt.Sscan(m[1], &i)
-			if i < len(g.Triggers) && view.Unavailable[g.Triggers[i].Event] == catalog.ReasonConnectionUnavailable {
+			if i < len(g.Triggers) && view.UnavailableEvents[g.Triggers[i].Event] == catalog.ReasonConnectionUnavailable {
 				e.Code, e.Message = CodeConnectionUnavailable, fmt.Sprintf("%s needs a connection the tenant does not have", g.Triggers[i].Event)
 			}
 		}

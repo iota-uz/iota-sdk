@@ -483,3 +483,20 @@ func TestAFileNameWithAPercentIsKeptWhole(t *testing.T) {
 	assert.Equal(t, "report%s%d.pdf", f["name"])
 	assert.Equal(t, []byte("x"), r.up.files[f["upload_id"].(string)].Data)
 }
+
+// When the bot's own name cannot be had, a command that names a bot is not dropped: the update is redelivered.
+func TestAnAddressedCommandIsRedeliveredWhenTheBotCannotBeNamed(t *testing.T) {
+	r := newRig(t)
+	h := &linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}
+	require.NoError(t, r.c.RegisterStart(h))
+	r.api.Chat(telegramtest.Chat{ID: 700, Type: "private"})
+	r.bot.Fail(telegramtest.Failure{Method: "getMe", Code: 502, Description: "Bad Gateway", Times: 1})
+	u := r.bot.Update(700, alice, "/start@tenant_bot u_abc")
+	code, evs := r.tenantUpdate(u)
+	assert.Equal(t, http.StatusServiceUnavailable, code)
+	assert.Empty(t, evs)
+	assert.Empty(t, h.got, "nothing was decided")
+	code, _ = r.tenantUpdate(u)
+	assert.Equal(t, http.StatusOK, code)
+	assert.Len(t, h.got, 1, "the redelivery was handled")
+}

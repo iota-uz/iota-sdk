@@ -73,6 +73,11 @@ type View struct {
 	// Unavailable lists node types and event keys left out, with the reason
 	// ("connection_unavailable", "permission").
 	Unavailable map[string]string
+	// UnavailableEvents and UnavailableNodes are the same by namespace: an event and a node type may share a
+	// key, and the reason of one is not the other's. Unavailable holds both (a node type's reason wins a
+	// shared key); a rule that is about one of them reads its own map.
+	UnavailableEvents map[string]string
+	UnavailableNodes  map[string]string
 	// NodeRequires and EventRequires are the connector kinds each node type and event of the catalog
 	// works with (any one of them).
 	NodeRequires  map[string][]ConnectorKind
@@ -367,12 +372,14 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 			Events: map[string]graph.EventSpec{}, Nodes: map[string]graph.NodeSpec{},
 			Subjects: map[string]graph.SubjectSpec{}, MixedSubject: r.mixed,
 		},
-		Unavailable:      map[string]string{},
-		NodeRequires:     map[string][]ConnectorKind{},
-		EventRequires:    map[string][]ConnectorKind{},
-		Connections:      connected,
-		TenantOnlyEvents: map[string]bool{},
-		TenantOnlyNodes:  map[string]bool{},
+		Unavailable:       map[string]string{},
+		UnavailableEvents: map[string]string{},
+		UnavailableNodes:  map[string]string{},
+		NodeRequires:      map[string][]ConnectorKind{},
+		EventRequires:     map[string][]ConnectorKind{},
+		Connections:       connected,
+		TenantOnlyEvents:  map[string]bool{},
+		TenantOnlyNodes:   map[string]bool{},
 	}
 	own := ownRefs(connected)
 	reason := func(requires []ConnectorKind, permission string, from map[ConnectorKind][]ConnectionRef) string {
@@ -402,6 +409,7 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 		}
 		if why := reason(e.requires, access.ReadPermission, from); why != "" {
 			v.Unavailable[key] = why
+			v.UnavailableEvents[key] = why
 			delete(v.TenantOnlyEvents, key)
 			continue
 		}
@@ -448,6 +456,7 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 		}
 		if why := reason(e.requires, perm, from); why != "" {
 			v.Unavailable[typ] = why
+			v.UnavailableNodes[typ] = why
 			delete(v.TenantOnlyNodes, typ)
 			continue
 		}
@@ -472,11 +481,12 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 		if _, ok := v.Catalog.Events[n.Wait.Event.Value]; ok {
 			continue
 		}
-		why := v.Unavailable[n.Wait.Event.Value]
+		why := v.UnavailableEvents[n.Wait.Event.Value]
 		if why == "" {
 			why = ReasonConnectionUnavailable
 		}
 		v.Unavailable[typ] = why
+		v.UnavailableNodes[typ] = why
 		delete(v.Catalog.Nodes, typ)
 		delete(v.NodeRequires, typ)
 	}

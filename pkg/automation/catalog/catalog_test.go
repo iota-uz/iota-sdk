@@ -546,7 +546,7 @@ func sortedMatch(m map[string]graph.MatchField) []string {
 
 type tenantOnlyEvents struct{ key string }
 
-func (s tenantOnlyEvents) Requires() []catalog.ConnectorKind { return nil }
+func (s tenantOnlyEvents) Requires() []catalog.ConnectorKind { return []catalog.ConnectorKind{"conn"} }
 func (s tenantOnlyEvents) Events() []graph.EventSpec {
 	return []graph.EventSpec{{Key: s.key, Title: "E", Subject: graph.SubjectNone, Payload: expr.Fields{}}}
 }
@@ -563,4 +563,14 @@ func TestTenantOnlyEventsAndNodesAreSeparate(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, v.TenantOnlyNodes, "shared.key")
 	assert.Contains(t, v.Catalog.Nodes, "shared.key", "the node is available with the platform credential")
+	assert.Equal(t, catalog.ReasonConnectionUnavailable, v.UnavailableEvents["shared.key"], "the event needs a tenant's own connection")
+	assert.NotContains(t, v.UnavailableNodes, "shared.key")
+
+	// The rule reads each by its own namespace: the node is not refused for the event's reason.
+	g := `{"name":"g","triggers":[{"id":"t","event":"some.other"}],"nodes":[{"id":"n","type":"shared.key","params":{"connection":"platform:conn"}}],"edges":[{"from":{"node":"t","outcome":"fired"},"to":"n"},{"from":{"node":"n","outcome":"done"},"to":"ignore"}]}`
+	parsed, derrs := graph.Decode([]byte(g))
+	require.Empty(t, derrs)
+	for _, e := range catalog.ConnectionRule(v)(parsed) {
+		assert.NotEqual(t, "nodes[0].type", e.Path, "the node's availability is its own")
+	}
 }

@@ -143,20 +143,20 @@ func command(m *gotgbot.Message) (string, string, string, bool) {
 
 // addressedToUs reports whether a command's addressee is this bot (or names none): a command for another bot
 // of a group is that bot's, never this connector's.
-func (c *Connector) addressedToUs(ctx context.Context, b *bot, to string) bool {
+func (c *Connector) addressedToUs(ctx context.Context, b *bot, to string) (bool, error) {
 	if to == "" {
-		return true
+		return true, nil
 	}
 	if name, ok := c.usernames.Load(b.api.Token); ok {
-		return name == to
+		return name == to, nil
 	}
 	me, err := b.getMe(ctx)
 	if err != nil {
-		return false // not known to be ours: not acted on
+		return false, err // who the bot is cannot be told now: the update is redelivered, not dropped
 	}
 	name := strings.ToLower(me.Username)
 	c.usernames.Store(b.api.Token, name)
-	return name == to
+	return name == to, nil
 }
 
 func hasMedia(m *gotgbot.Message) bool {
@@ -167,8 +167,14 @@ func hasMedia(m *gotgbot.Message) bool {
 func (c *Connector) message(ctx context.Context, b *bot, u gotgbot.Update, conn connectors.Connection, creds connectors.Credentials) ([]engine.InboundEvent, error) {
 	m := u.Message
 	cmd, to, args, isCmd := command(m)
-	if isCmd && !c.addressedToUs(ctx, b, to) {
-		return nil, nil // for another bot
+	if isCmd {
+		ours, err := c.addressedToUs(ctx, b, to)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
+		}
+		if !ours {
+			return nil, nil // for another bot
+		}
 	}
 	if isCmd && cmd == "start" && args != "" {
 		if h, ok := c.startHandlerFor(args); ok {
