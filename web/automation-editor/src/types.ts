@@ -169,8 +169,12 @@ export interface EditorApi {
   searchSubjects?(entity: string, query: string): Promise<{ subject: Subject; label: string; note?: string }[]>
   /** The runs of a graph, newest first (limit ≤ 50). Both runs and run → the Runs tab. */
   runs?(input: RunsQuery): Promise<{ items: RunSummary[]; next_cursor: string | null }>
-  /** A run; a run that is deleted or another tenant's rejects with an error whose code is "not_found". */
-  run?(run_id: string): Promise<RunData>
+  /**
+   * A run; a run that is deleted or another tenant's rejects with an error whose code is "not_found". Its
+   * steps are the latest ones (the server bounds them); nodes adds the latest step of each named node
+   * wherever it is in the run (a Test node's example).
+   */
+  run?(run_id: string, opts?: { nodes?: string[] }): Promise<RunData>
   /** The graph of a version, which a run of another version is drawn with. */
   version?(version: number): Promise<{ graph: AutomationGraph; layout: AutomationLayout }>
   // Operate (Automations.Operate): without a method its button is not rendered.

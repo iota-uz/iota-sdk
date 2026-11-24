@@ -567,9 +567,11 @@ type RunsResponse struct {
 	NextCursor *string      `json:"next_cursor"`
 }
 
-// RunRequest names a run.
+// RunRequest names a run. Nodes adds the latest step of each named node (≤ 50) to the run's latest
+// steps, wherever it is in the run (a node test's example).
 type RunRequest struct {
-	RunID string `json:"run_id"`
+	RunID string   `json:"run_id"`
+	Nodes []string `json:"nodes,omitempty"`
 }
 
 // TokenView is a token of a run.

@@ -902,7 +902,11 @@ func (c *Controller) run(ctx context.Context, req RunRequest) (RunData, error) {
 	if err != nil {
 		return RunData{}, err
 	}
-	d, err := c.cfg.Engine.Service.GetRun(ctx, a, id)
+	var opts []engine.RunDetailOption
+	if len(req.Nodes) > 0 {
+		opts = append(opts, engine.StepsOf(req.Nodes...))
+	}
+	d, err := c.cfg.Engine.Service.GetRun(ctx, a, id, opts...)
 	if err != nil {
 		return RunData{}, mapErr(err)
 	}

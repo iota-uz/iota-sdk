@@ -49,6 +49,11 @@ const shots: Shot[] = [
     await page.locator('.ae-panel [data-param="expression"] textarea').first().fill('true')
     await page.locator('.ae-save').click()
     await expect(page.locator('.ae-banner').filter({ hasText: 'Saved by another user' })).toBeVisible()
+    // Save keeps its pressed and busy styles a moment after the answer: the shot waits until they settle.
+    await page.mouse.move(0, 0)
+    await page.locator('.ae-save').blur()
+    await expect(page.locator('.ae-save')).not.toHaveAttribute('aria-busy', 'true')
+    await page.waitForTimeout(400)
   } },
   { name: 'phone', query: 'overlay=1', width: 390, height: 844 },
   // Tidy v2 (#1391): a column per trigger, a failure lane, orthogonal links; a parallel with its join and a for each.

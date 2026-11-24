@@ -319,9 +319,9 @@ export default function EditorPage(): JSX.Element {
       })
       return { items: page.items.map(runSummaryOf), next_cursor: page.next_cursor }
     },
-    run: async (runId) => {
+    run: async (runId, opts) => {
       try {
-        const data = await app.call('automations.run', { run_id: runId })
+        const data = await app.call('automations.run', { run_id: runId, ...(opts?.nodes && opts.nodes.length > 0 ? { nodes: opts.nodes } : {}) })
         // A run of another graph is not this page's (RV6: one id opens its own graph's tab).
         if (info() && data.run.automation_id !== info()!.id) {
           window.location.replace(graphPath(app.props.basePath, data.run.automation_id, { run: runId, ...(runsView().node ? { node: runsView().node! } : {}) }))

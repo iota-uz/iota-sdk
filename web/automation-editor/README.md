@@ -103,7 +103,9 @@ chunk); a host that passes `runsBody` keeps its own.
 - **Test node** (RV8, `can.author`): the input is the subject, the event of the trigger that leads to the
   step (chosen when several do; the event carries that trigger's `kind`) by its payload schema, and the
   outputs of the steps before it (`nodes.<id>.output`). «From the last run» asks the server for the newest run that
-  reached the step itself (`runs({ node })`, following the cursor past runs whose step the author may not read) and fills its subject, its event (`RunData.event`, projected by the server for
+  reached the step itself (`runs({ node })`, following the cursor past runs whose step the author may not read; each run is read
+  with `run(id, { nodes })`, so the step of the node and of the nodes before it come even past the
+  detail's bound of latest steps) and fills its subject, its event (`RunData.event`, projected by the server for
   the author, failing closed: an event or a field no current rule can check is left out) and those outputs. Every confirmed test carries an `idempotency_key` that a retry repeats:
   the server claims the key in `automation.node_tests`, so a repeat on any process gets the stored answer,
   and one without an answer (still running, its process died, or its answer expired after a day — the

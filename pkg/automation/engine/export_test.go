@@ -71,3 +71,10 @@ func SetTestWait(d time.Duration) func() {
 	testWait = d
 	return func() { testWait = was }
 }
+
+// SetMaxDetailSteps bounds the latest steps GetRun returns (default 1000).
+func SetMaxDetailSteps(n int) func() {
+	was := maxDetailSteps
+	maxDetailSteps = n
+	return func() { maxDetailSteps = was }
+}

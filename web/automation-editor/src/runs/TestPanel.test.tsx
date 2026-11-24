@@ -39,4 +39,25 @@ describe('TestPanel «From the last run»', () => {
     expect(runs.mock.calls[0]![0]).toMatchObject({ automation_id: 'a-1', node: 'send_email' })
     expect(runs.mock.calls[1]![0]).toMatchObject({ node: 'send_email', cursor: 'page-two' })
   })
+
+  it('reads the newest matching run with the step of its node, even when more steps came after it than a detail holds', async () => {
+    // The newest run reached the step, then took over a thousand more steps: its plain detail (the latest
+    // steps) does not hold the step; the read that names the node does. The older run must not win.
+    const newer = runOf('r9', true)
+    const older = runOf('r3', true)
+    const runs = vi.fn(async () => ({ items: [newer, older].map(({ tokens: _t, steps: _s, waits: _w, event: _e, ...rest }) => rest as RunSummary), next_cursor: null }))
+    const run = vi.fn(async (id: string, opts?: { nodes?: string[] }) => {
+      const r = id === 'r9' ? newer : older
+      if (id === 'r9' && !opts?.nodes?.includes('send_email')) return { ...r, steps: [] } // capped
+      return r
+    })
+    const api: EditorApi = { validate: vi.fn(), dryRun: vi.fn(), testNode: vi.fn(async () => ({ outcome: 'sent' })), runs, run }
+    const { getByTestId, container } = render(() => (
+      <TestPanel graph={sample} catalog={catalog} api={api} locale="en" node="send_email" automationId="a-1" cache={new Map()} onOverlay={() => undefined} onClose={() => undefined} />
+    ))
+    fireEvent.click(getByTestId('test-example'))
+    await waitFor(() => expect(container.querySelector<HTMLInputElement>('input[type="number"]')?.value).toBe('9'))
+    expect(run).toHaveBeenCalledTimes(1)
+    expect(run.mock.calls[0]![1]?.nodes).toEqual(expect.arrayContaining(['send_email', 'has_email']))
+  })
 })

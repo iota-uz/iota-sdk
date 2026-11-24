@@ -13,7 +13,7 @@ import { SchemaForm } from '../SchemaForm'
 import { strings } from '../strings'
 import type { AutomationGraph, EditorApi, EditorCatalog, EditorLocale, JsonSchema, Overlay, RunData, Subject, TestNodeResult } from '../types'
 import { Value } from './Data'
-import { isFinal, missingSecret, testOverlay } from './model'
+import { missingSecret, testOverlay } from './model'
 import { Logs } from './NodeDrawer'
 import { runStrings } from './strings'
 import { SubjectPicker, subjectEntity } from './SubjectPicker'
@@ -57,6 +57,8 @@ const newKey = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math
 
 const EXAMPLE_RUNS = 5
 const EXAMPLE_PAGES = 20
+/** The nodes a run read names at most (the server's bound). */
+const MAX_NODES = 50
 
 export function TestPanel(props: TestPanelProps): JSX.Element {
   const t = () => runStrings(props.locale).test
@@ -175,10 +177,11 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
       let cursor: string | undefined
       for (let page = 0; page < EXAMPLE_PAGES; page++) {
         const list = await props.api.runs({ automation_id: props.automationId, node: props.node, limit: EXAMPLE_RUNS, ...(cursor ? { cursor } : {}) })
+        // The run's latest steps may not reach back to this step (a long for each after it): the run is read
+        // with the steps of this node and of the nodes before it named, wherever they are.
+        const nodes = [props.node, ...ancestors(props.graph, props.node)].slice(0, MAX_NODES)
         for (const row of list.items) {
-          const known = props.cache.get(row.run_id)
-          const run = known && isFinal(known.state) ? known : await props.api.run(row.run_id)
-          props.cache.set(run.run_id, run)
+          const run = await props.api.run(row.run_id, { nodes })
           if (reached(run)) return run
         }
         if (!list.next_cursor) return null

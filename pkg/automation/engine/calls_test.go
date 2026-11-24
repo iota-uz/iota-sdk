@@ -234,6 +234,21 @@ func TestCallLogsAreKeptMaskedWithTheStep(t *testing.T) {
 	d, err = p.rt.Service().GetRun(ctx, ae.human(), run.RunID)
 	require.NoError(t, err)
 	assert.Nil(t, d.Event, "an event no rule can check is not shown")
+	// Past the detail's bound of steps, StepsOf still brings the step of the named node (a node test's
+	// example reads it).
+	restore := engine.SetMaxDetailSteps(1)
+	capped, err := p.rt.Service().GetRun(context.Background(), ae.human(), run.RunID)
+	require.NoError(t, err)
+	require.Len(t, capped.Steps, 1)
+	assert.Equal(t, "fin", capped.Steps[0].NodeID)
+	named, err := p.rt.Service().GetRun(context.Background(), ae.human(), run.RunID, engine.StepsOf("get"))
+	require.NoError(t, err)
+	nodes := []string{}
+	for _, s := range named.Steps {
+		nodes = append(nodes, s.NodeID)
+	}
+	assert.Equal(t, []string{"get", "fin"}, nodes)
+	restore()
 	var logs []string
 	for _, s := range d.Steps {
 		if s.NodeID == "get" {

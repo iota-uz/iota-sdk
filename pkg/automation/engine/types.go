@@ -151,7 +151,22 @@ type Service interface {
 	Cancel(ctx context.Context, a Actor, runID uuid.UUID) error
 	Restart(ctx context.Context, a Actor, runID uuid.UUID, version int) (RunRef, error) // StartV2
 	ListRuns(ctx context.Context, a Actor, f RunFilter) (Page[RunSummary], error)
-	GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDetail, error)
+	GetRun(ctx context.Context, a Actor, runID uuid.UUID, opts ...RunDetailOption) (RunDetail, error)
+}
+
+// RunDetailOption adjusts what GetRun returns.
+type RunDetailOption func(*runDetailOptions)
+
+type runDetailOptions struct{ nodes []string }
+
+// MaxStepsOfNodes bounds the nodes StepsOf names.
+const MaxStepsOfNodes = 50
+
+// StepsOf adds the latest step of each node to the run's latest steps, wherever it is in the run: a
+// node test's example reads the step of its node and of the nodes before it even when more than the
+// detail's bound of steps came after them. The steps are projected for the viewer as the others.
+func StepsOf(nodes ...string) RunDetailOption {
+	return func(o *runDetailOptions) { o.nodes = append(o.nodes, nodes...) }
 }
 
 // CreateInput is a new graph and its first version.

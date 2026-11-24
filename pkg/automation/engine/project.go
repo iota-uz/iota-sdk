@@ -396,30 +396,43 @@ func keepDeclared(v map[string]any, fs expr.Fields) map[string]any {
 	return out
 }
 
+// keepField is a value as its field declares it. A value stored under another type (the field's type
+// changed since) is dropped when it would carry data the declaration does not check: an object or a
+// list where the field is a scalar, a scalar where it is a container. Only dyn keeps any value.
 func keepField(x any, f expr.Field) any {
 	f = f.Unwrap()
 	switch f.Kind {
+	case expr.Dyn:
+		return x
 	case expr.Object:
 		if m, ok := x.(map[string]any); ok {
 			return keepDeclared(m, f.Props)
 		}
 		return nil
 	case expr.List:
-		if l, ok := x.([]any); ok && f.Elem != nil {
-			out := make([]any, len(l))
-			for i, e := range l {
-				out[i] = keepField(e, *f.Elem)
-			}
-			return out
+		l, ok := x.([]any)
+		if !ok || f.Elem == nil {
+			return nil
 		}
+		out := make([]any, len(l))
+		for i, e := range l {
+			out[i] = keepField(e, *f.Elem)
+		}
+		return out
 	case expr.Map:
-		if m, ok := x.(map[string]any); ok && f.Elem != nil {
-			out := make(map[string]any, len(m))
-			for k, e := range m {
-				out[k] = keepField(e, *f.Elem)
-			}
-			return out
+		m, ok := x.(map[string]any)
+		if !ok || f.Elem == nil {
+			return nil
 		}
+		out := make(map[string]any, len(m))
+		for k, e := range m {
+			out[k] = keepField(e, *f.Elem)
+		}
+		return out
+	}
+	switch x.(type) {
+	case map[string]any, []any:
+		return nil
 	}
 	return x
 }

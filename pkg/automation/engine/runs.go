@@ -161,11 +161,21 @@ func redactReason(reason string) string {
 }
 
 // maxDetailSteps bounds the steps GetRun returns (the latest ones).
-const maxDetailSteps = 1000
+var maxDetailSteps = 1000
 
-func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDetail, error) {
+func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID, opts ...RunDetailOption) (RunDetail, error) {
 	if err := s.authorize(a, PermRead); err != nil {
 		return RunDetail{}, err
+	}
+	var o runDetailOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	if len(o.nodes) > MaxStepsOfNodes {
+		return RunDetail{}, fmt.Errorf("%w: at most %d nodes", ErrInvalidInput, MaxStepsOfNodes)
+	}
+	if o.nodes == nil {
+		o.nodes = []string{}
 	}
 	// One snapshot: the status, the tokens, the waits and the steps describe the same moment.
 	tx, err := s.r.cfg.DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
@@ -206,10 +216,14 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 		}
 		d.Waits = append(d.Waits, wv)
 	}
+	// The latest steps, and the latest step of each node StepsOf names wherever it is in the run.
 	rows, err := tx.Query(ctx, `
 		SELECT token_id, seq, node_id, attempt, input, output, coalesce(outcome, ''), error, sensitive, started_at, ended_at, warnings, logs FROM (
-			SELECT * FROM automation.steps WHERE tenant_id = $1 AND run_id = $2 ORDER BY started_at DESC, seq DESC LIMIT $3) x
-		ORDER BY started_at, seq`, a.TenantID, run.ID, maxDetailSteps)
+			(SELECT * FROM automation.steps WHERE tenant_id = $1 AND run_id = $2 ORDER BY started_at DESC, seq DESC LIMIT $3)
+			UNION
+			(SELECT DISTINCT ON (node_id) * FROM automation.steps WHERE tenant_id = $1 AND run_id = $2 AND node_id = ANY($4)
+			 ORDER BY node_id, started_at DESC, seq DESC)) x
+		ORDER BY started_at, seq`, a.TenantID, run.ID, maxDetailSteps, o.nodes)
 	if err != nil {
 		return RunDetail{}, serrors.FromDB(opService, err)
 	}
