@@ -599,7 +599,7 @@ type SourceMode = 'list' | 'manual' | 'expr'
 const QUOTED_USERNAME = /^"(@[A-Za-z][A-Za-z0-9_]{4,31})"$/
 const CHAT_ID = /^-?[0-9]{1,18}$/
 /** A plain string literal, the form in which the option of a source that is not a chat is stored. */
-const OPTION_LITERAL = /^"([^"\\]*)"$/
+const OPTION_LITERAL = /^"(?:[^"\\]|\\.)*"$/
 
 /** How a stored value reads: a number is an id (picked or typed), `"@name"` a typed username, any other text an expression. */
 export function sourceModeOf(value: unknown): SourceMode {
@@ -613,8 +613,13 @@ export function sourceModeOf(value: unknown): SourceMode {
 /** The option a stored value stands for in the picker: a chat id, or the declared value of another source's option. */
 export function optionOf(value: unknown): string {
   if (typeof value === 'number') return String(value)
-  const m = typeof value === 'string' && !QUOTED_USERNAME.test(value) ? OPTION_LITERAL.exec(value) : null
-  return m ? m[1]! : ''
+  if (typeof value !== 'string' || QUOTED_USERNAME.test(value) || !OPTION_LITERAL.test(value)) return ''
+  try {
+    const decoded: unknown = JSON.parse(value) // the literal is a JSON string: escapes are decoded
+    return typeof decoded === 'string' ? decoded : ''
+  } catch {
+    return ''
+  }
 }
 
 /** The value a Combobox selection means: a chat id, undefined when the selection was removed, null when it is not a chat. */

@@ -290,6 +290,8 @@ describe('a field with an options source (a chat)', () => {
     expect(optionOf('"sales"')).toBe('sales')
     expect(sourceModeOf('"sales"')).toBe('list')
     expect(optionOf(700)).toBe('700')
+    expect(optionOf(literalOfSelection('sales "west"'))).toBe('sales "west"')
+    expect(sourceModeOf(literalOfSelection('sales "west"'))).toBe('list')
     expect(optionOf('"@salesteam"')).toBe('')
     expect(optionOf('event.chatId')).toBe('')
     expect(literalOfSelection('group:private')).toBeUndefined()

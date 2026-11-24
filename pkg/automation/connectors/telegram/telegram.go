@@ -340,8 +340,10 @@ func heldSecret(held json.RawMessage) (string, string, error) {
 	return h.Secret, h.Account, nil
 }
 
-// Deprovision removes the webhook of the bot only when it is exactly this connection's: one another
-// connection or service has set since is left as it is.
+// Deprovision removes the webhook of the bot when it is exactly this connection's when it is read: one another
+// connection or service had set by then is left as it is. It is best effort against a writer that sets another
+// webhook between the read and the delete (Telegram's deleteWebhook has no expected URL), so it assumes the
+// bot's webhook is written by the SDK alone (docs/automation-telegram.md).
 func (c *Connector) Deprovision(ctx context.Context, conn connectors.Connection, creds connectors.Credentials) error {
 	b := c.bot(creds["token"])
 	info, err := b.webhookInfo(ctx)

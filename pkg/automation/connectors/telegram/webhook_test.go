@@ -834,3 +834,78 @@ func TestStartPlatformLeavesAForeignWebhook(t *testing.T) {
 	// The own webhook is set again at each start.
 	require.NoError(t, r.c.StartPlatform(context.Background(), r.platformCreds()))
 }
+
+// keyedLink is a one-use link whose handler keeps its result under the update's key when it spends the link, as
+// the documentation asks of a handler, and returns that result when it is asked again.
+type keyedLink struct {
+	linkHandler
+	used       bool
+	saved      map[string]string
+	failBefore error // returned before the link is spent
+	asked      int
+}
+
+func (h *keyedLink) TenantOf(ctx context.Context, payload string) (uuid.UUID, bool, error) {
+	if h.used {
+		return uuid.Nil, false, nil // the link is spent
+	}
+	return h.linkHandler.TenantOf(ctx, payload)
+}
+
+func (h *keyedLink) Handle(ctx context.Context, u telegram.StartUpdate) (string, error) {
+	h.asked++
+	if reply, ok := h.saved[u.UpdateKey]; ok {
+		return reply, nil // a rerun of an update that spent the link: the first result
+	}
+	if h.failBefore != nil {
+		err := h.failBefore
+		h.failBefore = nil
+		return "", err
+	}
+	reply, err := h.linkHandler.Handle(ctx, u)
+	h.used = true
+	if h.saved == nil {
+		h.saved = map[string]string{}
+	}
+	h.saved[u.UpdateKey] = reply
+	return reply, err
+}
+
+// A handler that keeps its result under the update's key gets the first reply to the user even when the
+// connector could not keep the result at all: the redelivery (after the abandoned claim) asks the handler again, with
+// no tenant for the spent link, and the handler answers with what it kept.
+func TestAHandlerThatKeepsItsResultByKeyRecoversAfterTheResultWasLost(t *testing.T) {
+	r := newRig(t)
+	h := &keyedLink{linkHandler: linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}}
+	require.NoError(t, r.c.RegisterStart(h))
+	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
+	r.st.failHandled = 3 // all three writes of the result fail
+	u := r.platform.Update(800, alice, "/start u_abc")
+	code, _ := r.platformUpdate(u)
+	assert.Equal(t, http.StatusServiceUnavailable, code)
+	assert.Empty(t, r.platform.Sent())
+	r.st.abandon()
+	code, _ = r.platformUpdate(u)
+	assert.Equal(t, http.StatusOK, code)
+	require.Len(t, r.platform.Sent(), 1)
+	assert.Equal(t, "Linked, Alice", r.platform.Sent()[0].Text, "the reply of the run that spent the link")
+	assert.Equal(t, 2, h.asked, "asked again, and answered from what it kept")
+	assert.Len(t, h.got, 1, "the link was spent once")
+}
+
+// A handler that fails before it spends the link is simply run again by the redelivery.
+func TestAHandlerThatFailsBeforeSpendingTheLinkIsRunAgain(t *testing.T) {
+	r := newRig(t)
+	h := &keyedLink{linkHandler: linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}, failBefore: assert.AnError}
+	require.NoError(t, r.c.RegisterStart(h))
+	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
+	u := r.platform.Update(800, alice, "/start u_abc")
+	code, _ := r.platformUpdate(u)
+	assert.Equal(t, http.StatusServiceUnavailable, code)
+	assert.Empty(t, r.platform.Sent())
+	code, _ = r.platformUpdate(u)
+	assert.Equal(t, http.StatusOK, code, "released at once: the redelivery runs the handler")
+	require.Len(t, r.platform.Sent(), 1)
+	assert.Equal(t, "Linked, Alice", r.platform.Sent()[0].Text)
+	assert.Len(t, h.got, 1, "the link was spent once, by the run that got to it")
+}

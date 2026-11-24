@@ -44,6 +44,11 @@ const (
 const chatSchema = `{"oneOf":[{"type":"integer"},{"type":"string","minLength":1,"maxLength":1000}],"x-options-source":"telegram.chats",
  "description":"A chat id, or an expression that gives one ({{ }} is not needed: event.chatId). A channel or a group by @username: \"@name\" in quotes."}`
 
+// readChatSchema is the chat of telegram.read: as chatSchema, but the wait is keyed by the numeric id of the
+// chat, so a chat by @username is not offered.
+const readChatSchema = `{"oneOf":[{"type":"integer"},{"type":"string","minLength":1,"maxLength":1000}],"x-options-source":"telegram.chats",
+ "description":"A chat id, or an expression that gives one ({{ }} is not needed: event.chatId). The wait is in the chat by its numeric id: a chat by @username is not accepted."}`
+
 // threadSchema is a forum topic: its number, or an expression that gives it. A topic is not a chat, so there is
 // no chat picker for it.
 const threadSchema = `{"oneOf":[{"type":"integer","minimum":1},{"type":"string","minLength":1,"maxLength":1000}],
@@ -307,7 +312,7 @@ func parseCallback(data string) (string, int, bool) {
 
 // readSchema is the params the author writes; the filter is derived from them.
 const readSchema = `{"type":"object","additionalProperties":false,"required":["chat_id"],"properties":{
- "chat_id":` + chatSchema + `,
+ "chat_id":` + readChatSchema + `,
  "from_user_id":{"oneOf":[{"type":"integer"},{"type":"string","minLength":1,"maxLength":1000}],
    "description":"Wait for this user only: an id, or an expression read when the message arrives (nodes.<id>.output...), where event is the incoming message."},
  "timeout":{"type":"string","pattern":"^[1-9][0-9]{0,5}(s|m|h|d)$","x-max-ms":2592000000,"default":"24h","description":"30s, 20m, 2h or 7d; at most 30 days"}}}`
@@ -394,7 +399,7 @@ func (p readParams) Parse(raw map[string]any) (map[string]any, []graph.Issue) {
 		return nil, issues
 	}
 	// The wait is keyed by the numeric chat: a chat given by @username cannot name the conversation it waits in.
-	if lit, ok := out["chat_id"].(string); ok && usernameRe.MatchString(strings.Trim(strings.TrimSpace(lit), `"`)) {
+	if lit, ok := out["chat_id"].(string); ok && usernameRe.MatchString(strings.Trim(strings.TrimSpace(lit), "\"'")) {
 		return nil, []graph.Issue{{Path: []any{"chat_id"}, Message: "telegram.read waits in a chat given by its numeric id: a chat by @username has none until it is resolved, so give the id"}}
 	}
 	// A message without text (a photo without a caption) is an event for triggers, not an answer to a read.

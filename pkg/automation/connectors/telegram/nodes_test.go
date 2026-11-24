@@ -555,6 +555,8 @@ func TestReadChatAndSenderChecks(t *testing.T) {
 	r := newRig(t)
 	_, issues := r.read().Spec().Params.Parse(map[string]any{"chat_id": `"@salesteam"`})
 	require.NotEmpty(t, issues, "a chat by @username cannot be waited in")
+	_, issues = r.read().Spec().Params.Parse(map[string]any{"chat_id": `'@salesteam'`})
+	require.NotEmpty(t, issues, "nor one in single quotes")
 	_, issues = r.read().Spec().Params.Parse(map[string]any{"chat_id": num(700), "from_user_id": `"501" + ("event" == "event" ? "" : "0")`})
 	assert.Empty(t, issues, "the word inside a literal is not a reference to event")
 	_, issues = r.read().Spec().Params.Parse(map[string]any{"chat_id": num(700), "from_user_id": `event.from.userId`})
