@@ -616,7 +616,10 @@ of `pkg/mcp` (#1084) and are reached through `lookup` / `execute` (#1314). Every
   batch counted one by one) and answers calls from context: `decisions` is `scripted` (default),
   `cached` (decision nodes from the decision cache, else context) or `live`. Real calls happen
   only with `allow_live: true`, only for decision nodes, at most 20; beyond either limit the
-  answer is `limit_exceeded`. Test node is not offered: it makes a real external effect.
+  answer is `limit_exceeded`. Effect previews are offline (`StepContext.Offline`): only an
+  `engine.OfflinePreviewer` previews, without package code (`send_to_contact` does not check the
+  record's contact, `contact_checked: false`); any other effect is captured from context. Test node
+  is not offered: it makes a real external effect.
 - Writes are `changes.Kind`s of entity `automation` behind `prepare_changes` / `apply_changes`:
   `automation.create` (`{graph, layout?}`), `automation.update` (`{graph, layout?, layout_revision?,
   note?}`, `expected_revision` is the latest version; a stale one is the shared `revision_mismatch`;

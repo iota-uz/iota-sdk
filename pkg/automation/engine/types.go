@@ -532,6 +532,15 @@ type EffectPreviewer interface {
 	PreviewEffect(ctx context.Context, run StepContext, node graph.Node, effect graph.Effect) (EffectResult, error)
 }
 
+// OfflinePreviewer is an optional interface of an EffectPreviewer that honors StepContext.Offline: offline it
+// reads only through the engine's own data in the caller's rights and runs no package code (a contact
+// resolver of a package, say). An offline dry run previews only such nodes; any other is captured and
+// answered from the context, as without a preview.
+type OfflinePreviewer interface {
+	EffectPreviewer
+	PreviewsOffline()
+}
+
 // EffectPreparer is an optional interface of an EffectNode that has to read the database or call another
 // service before it can decide, and so must not do it while the step's transaction holds a connection (a pool
 // that cannot spare a second one would wait for ever). PrepareEffect runs outside any transaction, with the
@@ -639,6 +648,9 @@ type StepContext struct {
 	// Context is the step's expression context for a node type that declares graph.NodeSpec.StepContext
 	// (graph.Effect.Context); a call carries it to its child instance.
 	Context map[string]any
+	// Offline is set for a preview of an agent's dry run (DryRunInput.RealCalls other than RealCallsAll): the
+	// previewer runs no package code and makes no call outside the engine (OfflinePreviewer).
+	Offline bool
 }
 
 // StepKey is the idempotency key of the step: run, node, token and the step's sequence number. It is the

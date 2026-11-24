@@ -232,3 +232,20 @@ func TestSendToContactPreparesTheContactCheckBeforeTheTransaction(t *testing.T) 
 	assert.Equal(t, "invalid", se.Code)
 	assert.Len(t, s.sends, 1)
 }
+
+// An agent's dry run previews offline: the record's contact is not checked, since a package's resolver would
+// run its code, and the preview says so.
+func TestSendToContactPreviewOfflineChecksNoContact(t *testing.T) {
+	s := &sender{resolved: clientAudience()}
+	nt := notify.NewSendToContact(notify.Config{Sender: s})
+	_, local := nt.(engine.OfflinePreviewer)
+	require.True(t, local, "send_to_contact previews offline")
+	run := step()
+	run.Offline = true
+	res, err := nt.(engine.EffectPreviewer).PreviewEffect(context.Background(), run, graph.Node{ID: "ping"}, graph.Effect{Params: contactParams("sms")})
+	require.NoError(t, err)
+	require.Len(t, s.resolves, 1)
+	assert.False(t, s.resolves[0].CheckContacts, "no contact resolver runs offline")
+	assert.Equal(t, false, res.Output["contact_checked"])
+	assert.Empty(t, s.sends)
+}

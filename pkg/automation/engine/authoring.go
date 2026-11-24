@@ -268,7 +268,7 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 		if trigger != nil {
 			trigger.ActorUserID = a.UserID
 		}
-		return au.r.previewEffects(ctx, a.TenantID, sub, normSubject(in.Subject), trigger, node, effects)
+		return au.r.previewEffects(ctx, a.TenantID, sub, normSubject(in.Subject), trigger, node, effects, in.RealCalls != RealCallsAll)
 	}
 	steps := interp.DryRun(normSubject(in.Subject), gctx, inputs, opts)
 	if budget.wasExceeded() {
@@ -508,15 +508,20 @@ func triggerOfEvent(ev map[string]any, id string) *TriggerEvent {
 	return &TriggerEvent{Key: kind, ID: id, Payload: raw}
 }
 
-// previewEffects is the answer of a node that previews its effect (EffectPreviewer) in a dry run; ok is false
+// previewEffects is the answer of a node that previews its effect (EffectPreviewer) in a dry run; offline
+// (an agent's dry run) only an OfflinePreviewer is asked. ok is false
 // for a node that does not.
-func (r *Runtime) previewEffects(ctx context.Context, tenant uuid.UUID, as spi.Subject, subject SubjectRef, trigger *TriggerEvent, node graph.Node, effects []graph.Effect) (graph.ExecAnswer, bool) {
+func (r *Runtime) previewEffects(ctx context.Context, tenant uuid.UUID, as spi.Subject, subject SubjectRef, trigger *TriggerEvent, node graph.Node, effects []graph.Effect, offline bool) (graph.ExecAnswer, bool) {
 	nt, _ := r.cfg.Catalog.Node(node.Type)
 	pv, ok := nt.(EffectPreviewer)
 	if !ok || len(effects) == 0 {
 		return graph.ExecAnswer{}, false
 	}
-	sc := StepContext{TenantID: tenant, RunAs: as, Subject: subject, NodeID: node.ID, Trigger: trigger}
+	if _, local := pv.(OfflinePreviewer); offline && !local {
+		// An offline dry run (an agent's) runs no previewer that may call out or run package code.
+		return graph.ExecAnswer{}, false
+	}
+	sc := StepContext{TenantID: tenant, RunAs: as, Subject: subject, NodeID: node.ID, Trigger: trigger, Offline: offline}
 	res, err := pv.PreviewEffect(ctx, sc, node, effects[0])
 	if err != nil {
 		var se *StepError
