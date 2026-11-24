@@ -322,10 +322,15 @@ func connection(rereadOnline bool) templ.Attributes {
 	return templ.Attributes{
 		"x-data": `{ offline: !navigator.onLine, lastSubmit: null, rereadOnline: ` + reread + `,
 			retry() { this.offline = false; const b = this.lastSubmit; this.lastSubmit = null;
-				if (b && document.body.contains(b)) { b.click() } else { location.reload() } } }`,
-		"@htmx:before-request": `const e = $event.detail.requestConfig && $event.detail.requestConfig.triggeringEvent; lastSubmit = (e && e.submitter) || null`,
-		"@htmx:after-request":  `if ($event.detail.successful) { offline = false; lastSubmit = null }`,
-		"@htmx:send-error":     "offline = true",
+				if (!b || !document.body.contains(b)) { location.reload() } else if (b.tagName === 'FORM') { b.requestSubmit() } else { b.click() } } }`,
+		// The action to repeat: the button that submitted, the form submitted from the keyboard (no
+		// button), or the element that asked (Show more).
+		"@htmx:before-request": `const d = $event.detail, e = d.requestConfig && d.requestConfig.triggeringEvent;
+			lastSubmit = (e && e.submitter) || d.elt || null`,
+		"@htmx:after-request": `if ($event.detail.successful) { offline = false; lastSubmit = null }`,
+		"@htmx:send-error":    "offline = true",
+		// The server unavailable (502, 503, 504, any 5xx) is the same banner: what was typed stays.
+		"@htmx:response-error": "if ($event.detail.xhr && $event.detail.xhr.status >= 500) offline = true",
 		"@offline.window":      "offline = true",
 		// Back online: a failed action keeps the banner until Retry sends it again; otherwise the banner
 		// goes and a list reads itself again.

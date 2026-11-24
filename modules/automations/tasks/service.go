@@ -142,8 +142,10 @@ func matches(v TaskView, search string) bool {
 func (s *Service) listOpen(ctx context.Context, a actor, f TaskFilter, search string) (TaskPage, error) {
 	wf := workflow.TaskFilter{Workflow: engine.WorkflowID, Limit: workflow.MaxTaskInbox}
 	if f.Scope == ScopeOverdue {
+		// Overdue: open past the due time, also past the final deadline while the run has not closed
+		// the task yet (shown, not decidable).
 		overdue := true
-		wf.Overdue = &overdue
+		wf.Overdue, wf.PastDeadline = &overdue, true
 	}
 	if f.Cursor != "" {
 		c, err := workflow.ParseTaskCursor(f.Cursor)
@@ -393,13 +395,18 @@ func (s *Service) Decide(ctx context.Context, id uuid.UUID, in DecideInput) erro
 		return err
 	}
 	if v.MyDecision != nil {
-		// A repeated submit of the same decision (a double click) is the decision already recorded.
-		if in.Outcome == "" || in.Outcome == *v.MyDecision {
+		// A repeated submit of the same decision (a double click, a lost answer) is the decision already
+		// recorded; any other intent, or one that cannot be told, is not.
+		intent, err := s.intentOf(ctx, v, in)
+		if err != nil {
+			return err
+		}
+		if intent != "" && intent == *v.MyDecision {
 			return nil
 		}
 		return serrors.Wrap(op, ErrAlreadyDecided)
 	}
-	if v.State != StateOpen {
+	if v.State != StateOpen || v.PastDeadline {
 		// Decided, expired, cancelled, or past its final deadline: the form's effect never runs then.
 		return serrors.Wrap(op, ErrTaskClosed)
 	}
@@ -507,7 +514,7 @@ func (s *Service) Delegate(ctx context.Context, id uuid.UUID, to uint, comment s
 	if err != nil {
 		return err
 	}
-	if v.State != StateOpen {
+	if v.State != StateOpen || v.PastDeadline {
 		return serrors.Wrap(op, ErrTaskClosed)
 	}
 	if v.MyDecision != nil {
@@ -801,16 +808,12 @@ func (s *Service) view(ctx context.Context, a actor, t workflow.Task, m taskMeta
 	if v.AssignedVia == "" || delegatedAway {
 		return TaskView{}, false, nil
 	}
-	// An open task past its final deadline takes no decision any more (the substrate's predicate): it
-	// is shown as expired until the run closes it.
-	status := t.Status
-	if t.PastFinalDeadline(now) {
-		status = StateExpired
-		v.State = StateExpired
-	}
-	v.CanDecide = status == "open" && v.MyDecision == nil
-	v.Overdue = status == "open" && t.DueAt != nil && t.DueAt.Before(now)
-	switch status {
+	// An open task past its final deadline stays open (the run closes it) and overdue, but takes no
+	// decision any more: the substrate's predicate, judged apart from the state shown.
+	v.PastDeadline = t.PastFinalDeadline(now)
+	v.CanDecide = t.Status == "open" && v.MyDecision == nil && !v.PastDeadline
+	v.Overdue = t.Status == "open" && t.DueAt != nil && t.DueAt.Before(now)
+	switch t.Status {
 	case "decided":
 		v.Outcome = t.Choice
 		if t.DecidedBy != nil {
@@ -896,4 +899,25 @@ func (s *Service) DisplayName(ctx context.Context, id uint) string {
 		return ""
 	}
 	return names[int64(id)]
+}
+
+// intentOf is the outcome a submit asks for without performing anything: the button of the default
+// form, or what a task form's data asks for (FormIntent). "" when it cannot be told.
+func (s *Service) intentOf(ctx context.Context, v TaskView, in DecideInput) (string, error) {
+	if in.Outcome != "" || v.FormKind == "" {
+		return in.Outcome, nil
+	}
+	form, ok, err := s.form(v.FormKind)
+	if err != nil || !ok {
+		return "", nil //nolint:nilerr // an unknown form tells nothing: not a repeat
+	}
+	fi, ok := form.(FormIntent)
+	if !ok {
+		return "", nil
+	}
+	outcome, err := fi.Intent(ctx, v, in.Form)
+	if err != nil {
+		return "", serrors.Wrap(op, errors.Join(ErrInvalidDecision, err))
+	}
+	return outcome, nil
 }

@@ -123,11 +123,28 @@ func (c *Controller) NavNode() application.NavNode {
 		Icon:     icons.CheckSquareOffset(icons.Props{Size: "24"}),
 		Keywords: []string{"tasks", "inbox", "approval", "задачи", "vazifalar"},
 		Badge:    templ.ComponentFunc(c.renderBadge),
+		// An assignee needs no permission to see their tasks.
+		ForEveryone: true,
 	}
 }
 
 // Register implements application.Controller.
 func (c *Controller) Register(r *mux.Router) {
+	// Decisions and delegations: an agent or an API token (an MCP credential with no browser session)
+	// is refused with HUMAN_REQUIRED before the redirect to the login page a page request gets.
+	actions := r.PathPrefix(c.cfg.Path).Methods(http.MethodPost).Subrouter()
+	actions.Use(
+		middleware.Authorize(),
+		c.requireHuman,
+		middleware.RedirectNotAuthenticated(),
+		middleware.ProvideUser(),
+		middleware.ProvideDynamicLogo(),
+		middleware.WithPageContext(),
+		middleware.NavItems(),
+	)
+	actions.HandleFunc("/"+idPattern+"/decide", c.decide)
+	actions.HandleFunc("/"+idPattern+"/delegate", c.delegate)
+
 	sub := r.PathPrefix(c.cfg.Path).Subrouter()
 	sub.Use(
 		middleware.Authorize(),
@@ -141,8 +158,20 @@ func (c *Controller) Register(r *mux.Router) {
 	sub.HandleFunc("/badge", c.badge).Methods(http.MethodGet)
 	sub.HandleFunc("/"+idPattern, c.task).Methods(http.MethodGet)
 	sub.HandleFunc("/"+idPattern+"/delegates", c.delegates).Methods(http.MethodGet)
-	sub.HandleFunc("/"+idPattern+"/decide", c.decide).Methods(http.MethodPost)
-	sub.HandleFunc("/"+idPattern+"/delegate", c.delegate).Methods(http.MethodPost)
+}
+
+// requireHuman refuses an action that carries an API credential (Authorization) or an agent's session.
+// A request without any credential goes on to the login redirect.
+func (c *Controller) requireHuman(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, sessErr := composables.UseSession(r.Context())
+		hasCredential := strings.TrimSpace(r.Header.Get("Authorization")) != "" || sessErr == nil
+		if hasCredential && c.cfg.Origin(r) != engine.OriginHuman {
+			c.humanRequired(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // ---- list ----
@@ -217,8 +246,13 @@ func (c *Controller) list(w http.ResponseWriter, r *http.Request) {
 	if counts, err := c.cfg.Inbox.Counts(ctx); err == nil {
 		props.Counts = counts
 	}
-	// "Show more" appends the next page to the list.
+	// "Show more" appends the next page to the list; a page that cannot be read says so in its place,
+	// with Retry.
 	if htmx.IsHxRequest(r) && cursor != "" {
+		if props.Failed {
+			c.render(w, r, ListMoreFailed(c.listURL(tab, q, cursor)))
+			return
+		}
 		c.render(w, r, ListMore(props))
 		return
 	}

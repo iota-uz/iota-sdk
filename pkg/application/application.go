@@ -56,9 +56,10 @@ func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.
 			// zero value (PermissionLogicAll), which turns a RequireAny nav gate
 			// into AND and hides the item from users holding only one of its
 			// permissions.
-			Logic:  item.Logic,
-			IsBeta: item.IsBeta,
-			Badge:  item.Badge,
+			Logic:       item.Logic,
+			IsBeta:      item.IsBeta,
+			Badge:       item.Badge,
+			ForEveryone: item.ForEveryone,
 		})
 	}
 	return translated

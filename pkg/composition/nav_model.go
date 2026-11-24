@@ -288,6 +288,7 @@ func navNodeToItem(node navBuildNode) types.NavigationItem {
 		Logic:       navItemPermissionLogic(node.auth),
 		IsBeta:      nav.IsBeta,
 		Badge:       nav.Badge,
+		ForEveryone: nav.ForEveryone,
 	}
 }
 

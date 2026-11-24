@@ -133,8 +133,11 @@ type TaskView struct {
 	Quorum    Quorum
 	DueAt     *time.Time
 	Overdue   bool
-	Escalated bool
-	State     string // StateOpen | StateDecided | StateExpired | StateCancelled
+	// PastDeadline: the task is still open but past its final deadline; it takes no decision and the
+	// run closes it as expired.
+	PastDeadline bool
+	Escalated    bool
+	State        string // StateOpen | StateDecided | StateExpired | StateCancelled
 	// Outcome is the outcome a decided task closed with.
 	Outcome string
 	// ClosedBy and ClosedAt are who closed a decided task and when (the due time of an expired one).
@@ -195,6 +198,14 @@ type TaskForm interface {
 	// transaction; an error records no decision and the task stays open. An external effect inside it
 	// must be safe to repeat: the form deduplicates it.
 	Decide(ctx context.Context, t TaskView, actor user.User, form json.RawMessage) (FormDecision, error)
+}
+
+// FormIntent is an optional interface of a TaskForm: the outcome its data asks for, read without the
+// form's action. A user who already decided submits the form again (a double click, a lost answer):
+// the same outcome is that decision, another is ErrAlreadyDecided. A form without it cannot tell, so
+// a second submit of it is ErrAlreadyDecided.
+type FormIntent interface {
+	Intent(ctx context.Context, t TaskView, form json.RawMessage) (outcome string, err error)
 }
 
 // FormDecision is what a TaskForm decided.

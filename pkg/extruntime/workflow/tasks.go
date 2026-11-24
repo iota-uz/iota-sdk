@@ -264,6 +264,10 @@ type TaskFilter struct {
 	// Cursor, when set, is CursorAfter of the last task of the previous page:
 	// its sort key as that page returned it. It takes precedence over After.
 	Cursor *TaskCursor
+	// PastDeadline also lists the open tasks past their final deadline that the
+	// run has not closed yet (they take no decision: PastFinalDeadline); by
+	// default they are left out.
+	PastDeadline bool
 }
 
 // ---- validation ----
@@ -1442,7 +1446,7 @@ func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, stat
 			  AND ($5 = '' OR i.workflow = $5)
 			  AND ($6::boolean IS NULL OR (t.due_at IS NOT NULL AND t.due_at < now()) = $6)
 			  AND (NOT $7 OR (COALESCE(t.due_at, 'infinity'::timestamptz), t.id) > (COALESCE($8::timestamptz, 'infinity'::timestamptz), $9::uuid))
-			  AND (t.status <> 'open' OR NOT `+pastFinalDeadline+`)
+			  AND (t.status <> 'open' OR $12 OR NOT `+pastFinalDeadline+`)
 			  AND NOT EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id AND a.delegated_from = $2)
 			  AND (t.status <> 'open' OR NOT EXISTS (SELECT 1 FROM extruntime.human_task_decisions d WHERE d.task_id = t.id AND d.user_id = $2))
 			  AND EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id
@@ -1450,7 +1454,7 @@ func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, stat
 					     OR (a.kind IN ('role', 'group') AND a.delegated_from IS NULL AND $10)))
 			ORDER BY COALESCE(t.due_at, 'infinity'::timestamptz), t.id
 			LIMIT $11`,
-			current.TenantID, current.UserID, perms, statuses, f.Workflow, f.Overdue, hasCursor, afterDue, afterID, audience, batch)
+			current.TenantID, current.UserID, perms, statuses, f.Workflow, f.Overdue, hasCursor, afterDue, afterID, audience, batch, f.PastDeadline)
 		if err != nil {
 			return nil, serrors.FromDB(opManage, err)
 		}

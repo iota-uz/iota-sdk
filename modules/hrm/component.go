@@ -33,6 +33,7 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
+	contributeSubjectNames(builder)
 	composition.AddNavNodes(builder, HRMNavNode)
 	composition.ProvideFunc(builder, persistence.NewPositionRepository)
 	composition.ProvideFunc(builder, persistence.NewEmployeeRepository)

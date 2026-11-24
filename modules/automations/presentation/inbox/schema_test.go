@@ -54,3 +54,19 @@ func TestEnumChoicesRoundTrip(t *testing.T) {
 	assert.JSONEq(t, `{"level":2,"mode":"a"}`, string(raw))
 	require.NoError(t, graph.ValidateJSON(schema, raw))
 }
+
+// A declared null is a choice: sent as null, apart from leaving the field out.
+func TestNullEnumChoice(t *testing.T) {
+	t.Parallel()
+	schema := json.RawMessage(`{"type":"object","required":["level"],"properties":{"level":{"enum":[null,1]},"only":{"enum":[null]}}}`)
+	fields := fieldsOf(schema)
+	require.Len(t, fields, 2)
+	assert.Equal(t, []EnumOption{{Value: "null", Label: ""}, {Value: "1", Label: "1"}}, fields[0].Enum)
+	assert.Equal(t, []EnumOption{{Value: "null", Label: ""}}, fields[1].Enum)
+	raw, _ := fieldsFromForm(fields, url.Values{"field.level": {"null"}, "field.only": {"null"}})
+	assert.JSONEq(t, `{"level":null,"only":null}`, string(raw))
+	require.NoError(t, graph.ValidateJSON(schema, raw))
+	raw, _ = fieldsFromForm(fields, url.Values{"field.level": {"1"}, "field.only": {""}})
+	assert.JSONEq(t, `{"level":1}`, string(raw), "an empty choice leaves the field out")
+	require.NoError(t, graph.ValidateJSON(schema, raw))
+}

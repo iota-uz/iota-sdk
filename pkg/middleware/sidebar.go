@@ -4,6 +4,7 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"slices"
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
@@ -84,9 +85,10 @@ func filterItems(items []types.NavigationItem, user user.User) []types.Navigatio
 				Permissions: item.Permissions,
 				// Preserve Logic so a re-filter of the returned items keeps the
 				// RequireAny (OR) semantics instead of reverting to AND.
-				Logic:  item.Logic,
-				IsBeta: item.IsBeta,
-				Badge:  item.Badge,
+				Logic:       item.Logic,
+				IsBeta:      item.IsBeta,
+				Badge:       item.Badge,
+				ForEveryone: item.ForEveryone,
 			})
 		}
 	}
@@ -190,7 +192,8 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 				}
 				filtered := filterItems(items, u)
 				if len(user.EffectivePermissions(u)) == 0 {
-					filtered = []types.NavigationItem{}
+					// Without any permission only the pages about the user's own work stay.
+					filtered = slices.DeleteFunc(filtered, func(item types.NavigationItem) bool { return !item.ForEveryone })
 				}
 				pinnedItems, unpinnedItems := splitPinnedItems(filtered)
 				enabledPinnedItems := getEnabledNavItems(pinnedItems)

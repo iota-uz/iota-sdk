@@ -37,6 +37,7 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
+	contributeSubjectNames(builder)
 	composition.AddNavNodes(builder, FinanceLink, FinanceEnumsLink, FinanceReportsLink)
 	notifications.ContributeDefinitions(builder, eventNotifications()...)
 

@@ -304,10 +304,11 @@ func (e entitySubjects) Subject(ctx context.Context, viewer spi.Subject, entity,
 		if err != nil {
 			return "", "", err
 		}
-		if name != "" {
-			return name, link, nil
+		if name == "" {
+			// A record without a name of its own (a payment) is named by its entity, still linked.
+			name = label
 		}
-		return label, "", nil
+		return name, link, nil
 	}
 	if e.links == nil || key == "" || readPerm == "" || !viewer.Has(readPerm) {
 		return label, "", nil

@@ -500,7 +500,8 @@
         "Decided": "Decided: {{.Outcome}}",
         "Expired": "The due time passed: the task closed without a decision",
         "Cancelled": "The automation was stopped: the task is cancelled",
-        "Changed": "The task changed while you were deciding. Here is how it stands now."
+        "Changed": "The task changed while you were deciding. Here is how it stands now.",
+        "PastDeadline": "The due time passed: decisions are no longer taken."
       },
       "Decision": {
         "Heading": "Decision"
@@ -551,7 +552,8 @@
         "DecideFailed": "Could not record the decision. Try again in a minute.",
         "DelegationDenied": "This task cannot be passed to that person. Pick another colleague.",
         "DelegateFailed": "Could not pass the task on. Try again in a minute.",
-        "HumanRequired": "Only a person decides a task, in their own session."
+        "HumanRequired": "Only a person decides a task, in their own session.",
+        "MoreFailed": "Could not load more tasks."
       },
       "Toast": {
         "Decided": "Decision recorded",
@@ -580,6 +582,9 @@
       },
       "Offline": {
         "Text": "No connection to the server. What you typed stays here."
+      },
+      "Field": {
+        "Null": "Empty (null)"
       }
     }
   }

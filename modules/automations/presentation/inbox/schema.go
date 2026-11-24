@@ -41,12 +41,12 @@ func fieldsOf(schema json.RawMessage) []Field {
 	out := make([]Field, 0, len(names))
 	for _, name := range names {
 		var p struct {
-			Type        any    `json:"type"`
-			Title       string `json:"title"`
-			Description string `json:"description"`
-			Enum        []any  `json:"enum"`
-			Format      string `json:"format"`
-			MaxLength   int    `json:"maxLength"`
+			Type        any               `json:"type"`
+			Title       string            `json:"title"`
+			Description string            `json:"description"`
+			Enum        []json.RawMessage `json:"enum"`
+			Format      string            `json:"format"`
+			MaxLength   int               `json:"maxLength"`
 		}
 		if err := json.Unmarshal(props[name], &p); err != nil {
 			continue
@@ -59,16 +59,23 @@ func fieldsOf(schema json.RawMessage) []Field {
 		switch {
 		case len(p.Enum) > 0:
 			f.Kind = "enum"
-			for _, v := range p.Enum {
-				raw, err := json.Marshal(v)
-				if err != nil || v == nil {
+			// The values as the schema wrote them: a declared null is a choice of its own, apart from
+			// leaving the field out.
+			for _, raw := range p.Enum {
+				var compact bytes.Buffer
+				if err := json.Compact(&compact, raw); err != nil {
 					continue
 				}
-				label := string(raw)
-				if s, ok := v.(string); ok {
+				value := compact.String()
+				label := value
+				var s string
+				if err := json.Unmarshal(raw, &s); err == nil {
 					label = s
 				}
-				f.Enum = append(f.Enum, EnumOption{Value: string(raw), Label: label})
+				if value == "null" {
+					label = ""
+				}
+				f.Enum = append(f.Enum, EnumOption{Value: value, Label: label})
 			}
 		case typ == "string" && (p.Format == "textarea" || p.MaxLength == 0 || p.MaxLength > 200):
 			f.Kind = "textarea"

@@ -61,6 +61,18 @@ func (f *flakyForm) Decide(_ context.Context, _ tasks.TaskView, _ user.User, for
 	return tasks.FormDecision{Outcome: "approve", Fields: json.RawMessage(`{"signed":true}`)}, nil
 }
 
+// Intent implements tasks.FormIntent: {"reject":true} asks to reject, anything else to approve.
+func (*flakyForm) Intent(_ context.Context, _ tasks.TaskView, form json.RawMessage) (string, error) {
+	var f struct {
+		Reject bool `json:"reject"`
+	}
+	_ = json.Unmarshal(form, &f)
+	if f.Reject {
+		return "reject", nil
+	}
+	return "approve", nil
+}
+
 // formComponent contributes a task form.
 type formComponent struct{ form tasks.TaskForm }
 
@@ -338,6 +350,7 @@ func TestInboxQuorumOfARole(t *testing.T) {
 		require.NoError(t, err)
 	}
 	require.ErrorIs(t, svc.Decide(bctx, task, tasks.DecideInput{Outcome: "reject", Comment: "x"}), tasks.ErrAlreadyDecided)
+	require.ErrorIs(t, svc.Decide(bctx, task, tasks.DecideInput{}), tasks.ErrAlreadyDecided, "no button is not a confirmed repeat")
 	assert.Equal(t, 2, decisions(t, container, task))
 	waitFor(t, container, func(*pgxpool.Pool) bool { return runStatus(t, container, run) == "completed" }, "the quorum wakes the run")
 
@@ -433,6 +446,18 @@ func TestInboxTaskForm(t *testing.T) {
 	var stored string
 	require.NoError(t, db.QueryRow(context.Background(), `SELECT decision::text FROM extruntime.human_task_decisions WHERE task_id = $1`, task).Scan(&stored))
 	assert.JSONEq(t, `{"outcome":"approve","fields":{"signed":true}}`, stored)
+
+	// The form sent again asking the same is that decision, without its action; asking another is
+	// refused; a default-form submit with no button is not a repeat either.
+	calls := form.calls.Load()
+	svc, ok, err := automations.TaskInboxOf(container)
+	require.NoError(t, err)
+	require.True(t, ok)
+	sctx := tasks.WithOrigin(composables.WithTenantID(composables.WithUser(context.Background(), signer), env.Tenant.ID), engine.OriginHuman)
+	require.NoError(t, svc.Decide(sctx, task, tasks.DecideInput{Form: json.RawMessage(`{"signature":"s"}`)}))
+	require.ErrorIs(t, svc.Decide(sctx, task, tasks.DecideInput{Form: json.RawMessage(`{"reject":true}`)}), tasks.ErrAlreadyDecided)
+	assert.Equal(t, calls, form.calls.Load(), "the signature is not sent again")
+	assert.Equal(t, 1, decisions(t, container, task))
 }
 
 // A human node on a role without a notify node: automation.task.assigned.v1 names every member, and
@@ -557,7 +582,7 @@ func TestInboxNotification(t *testing.T) {
 }
 
 // A task past its final deadline, still open until the run closes it, takes no decision: the form's
-// effect never runs and the page shows it expired. A task whose escalation is still pending past its
+// effect never runs and the page says decisions are no longer taken; it is still open and overdue. A task whose escalation is still pending past its
 // due time is overdue: it stays in «Mine» and is listed under «Overdue».
 func TestInboxDeadlines(t *testing.T) {
 	form := &flakyForm{}
@@ -583,7 +608,9 @@ func TestInboxDeadlines(t *testing.T) {
 	assert.Equal(t, 0, decisions(t, container, final))
 	s.GET("/automations/tasks/" + final.String()).Expect(t).Status(http.StatusOK).Contains("The due time passed")
 
-	s.GET("/automations/tasks?tab=overdue").Expect(t).Contains("Approve the late invoice").NotContains("Sign before noon")
+	// Both are open past their due time, so both are overdue; only the one with a pending escalation
+	// takes a decision.
+	s.GET("/automations/tasks?tab=overdue").Expect(t).Contains("Approve the late invoice").Contains("Sign before noon")
 	s.GET("/automations/tasks").Expect(t).Contains("Approve the late invoice").Contains(`data-testid="automations-task-due"`)
 	decide(s, late, url.Values{"outcome": {"approve"}}).Expect(t).Status(http.StatusOK)
 	assert.Equal(t, 1, decisions(t, container, late), "an overdue task with a pending escalation still takes the decision")
@@ -594,6 +621,7 @@ func TestInboxDeadlines(t *testing.T) {
 func TestInboxSubjectNames(t *testing.T) {
 	s, container := tasksApp(t)
 	env := s.Env()
+	admin := env.User
 	pp := people{t: t, db: env.Pool, tenant: env.Tenant.ID}
 	olga, rita, client := pp.user("Olga"), pp.user("Rita"), pp.user("Zarina")
 	reviewers := pp.role("Reviewers", olga, rita)
@@ -613,4 +641,23 @@ func TestInboxSubjectNames(t *testing.T) {
 	assert.NotContains(t, body, fmt.Sprintf(`href="/users/%d"`, client.ID()), "no link without User.Read")
 	s.AsUser(rita)
 	s.GET("/automations/tasks").Expect(t).Contains(fmt.Sprintf(`href="/users/%d"`, client.ID()))
+
+	// An employee, named by the HRM module: by name, linked for a reader with Employee.Read.
+	var employee int64
+	require.NoError(t, env.Pool.QueryRow(context.Background(), `
+		INSERT INTO employees (first_name, last_name, email, salary, hourly_rate, coefficient, tenant_id)
+		VALUES ('Timur', 'Karimov', $1, 0, 0, 1, $2) RETURNING id`, "timur-"+uuid.NewString()[:8]+"@example.test", env.Tenant.ID).Scan(&employee))
+	require.NoError(t, env.Pool.QueryRow(context.Background(), `
+		INSERT INTO permissions (id, name, resource, action, modifier) VALUES ($1, 'Employee.Read', 'employee', 'read', 'all')
+		ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name RETURNING id`, uuid.New()).Scan(&perm))
+	pp.exec(`INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)`, readers, perm)
+	s.AsUser(admin)
+	_, _ = openTaskAbout(t, s, container, humanTaskGraph("Check the employee", map[string]any{
+		"assignees": []any{map[string]any{"kind": "role", "ref": strconv.FormatInt(reviewers, 10)}},
+	}), map[string]any{"entity": "hrm.employee", "key": strconv.FormatInt(employee, 10)})
+	s.AsUser(olga)
+	body = s.GET("/automations/tasks?q=karimov").Expect(t).Status(http.StatusOK).Contains("Check the employee").Contains("Timur Karimov").Body()
+	assert.NotContains(t, body, fmt.Sprintf(`href="/hrm/employees/%d"`, employee))
+	s.AsUser(rita)
+	s.GET("/automations/tasks?q=karimov").Expect(t).Contains(fmt.Sprintf(`href="/hrm/employees/%d"`, employee))
 }

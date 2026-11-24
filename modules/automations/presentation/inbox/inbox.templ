@@ -204,7 +204,7 @@ templ meta(v tasks.TaskView, compact bool) {
 	<div class={ "flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-200", templ.KV("mt-1", compact), templ.KV("mt-2", !compact) }>
 		if v.Subject != nil {
 			if v.Subject.URL != "" {
-				<a class="relative z-10 inline-flex min-h-6 items-center gap-1 text-primary hover:underline" href={ templ.SafeURL(v.Subject.URL) } data-testid="automations-task-subject">
+				<a class="relative z-10 inline-flex min-h-6 items-center [@media(pointer:coarse)]:min-h-11 gap-1 text-primary hover:underline" href={ templ.SafeURL(v.Subject.URL) } data-testid="automations-task-subject">
 					@icons.Link(icons.Props{Size: "14"})
 					{ v.Subject.Label }
 				</a>
@@ -298,7 +298,7 @@ templ TaskScreen(p *TaskProps) {
 		}
 		<section class="mt-6 border-t border-subtle pt-4" aria-labelledby="automations-task-decision" data-testid="automations-task-decision">
 			<h2 id="automations-task-decision" class="sr-only">{ tr(ctx, "Decision.Heading") }</h2>
-			if p.Task.State != tasks.StateOpen || p.Notice == "closed" {
+			if p.Task.State != tasks.StateOpen || p.Notice == "closed" || p.Task.PastDeadline {
 				@closedPanel(p)
 			} else if p.Task.MyDecision != nil {
 				<p role="status" class="flex items-center gap-2 text-sm text-100" data-testid="automations-task-my-decision">
@@ -329,13 +329,13 @@ templ TaskScreen(p *TaskProps) {
 			} else if p.Task.CanDecide {
 				@decisionForm(p)
 			}
-			if p.Task.CanDecide && p.Task.AllowDelegation && p.Notice != "closed" {
+			if p.Task.CanDecide && p.Task.AllowDelegation && p.Notice != "closed" && !p.Task.PastDeadline {
 				@delegatePanel(p)
 			}
 		</section>
 		<p class="mt-10 flex flex-wrap items-center gap-2 text-xs text-200">
 			if p.CanReadRun {
-				<a class="inline-flex min-h-6 items-center gap-1 hover:underline" href={ templ.SafeURL(p.RunURL) } data-testid="automations-task-run-link">
+				<a class="inline-flex min-h-6 items-center [@media(pointer:coarse)]:min-h-11 gap-1 hover:underline" href={ templ.SafeURL(p.RunURL) } data-testid="automations-task-run-link">
 					@icons.FlowArrow(icons.Props{Size: "14"})
 					{ tr(ctx, "OpenRun") }
 				</a>
@@ -344,7 +344,7 @@ templ TaskScreen(p *TaskProps) {
 			<span>ID</span>
 			<button
 				type="button"
-				class="inline-flex min-h-6 items-center gap-1 hover:underline"
+				class="inline-flex min-h-6 items-center [@media(pointer:coarse)]:min-h-11 gap-1 hover:underline"
 				x-data="{ copied: false }"
 				@click={ fmt.Sprintf("navigator.clipboard && navigator.clipboard.writeText('%s'); copied = true; setTimeout(() => copied = false, 2000)", p.Task.ID.String()) }
 			>
@@ -363,7 +363,9 @@ templ closedPanel(p *TaskProps) {
 			@icons.LockSimple(icons.Props{Size: "18"})
 		</span>
 		<div>
-			if p.Notice == "closed" && p.Task.State == tasks.StateOpen {
+			if p.Task.PastDeadline && p.Task.State == tasks.StateOpen {
+				<p class="font-medium">{ tr(ctx, "Closed.PastDeadline") }</p>
+			} else if p.Notice == "closed" && p.Task.State == tasks.StateOpen {
 				<p class="font-medium">{ tr(ctx, "Closed.Changed") }</p>
 			} else {
 				<p class="font-medium">{ closedLine(ctx, p.Task) }</p>
@@ -550,7 +552,13 @@ templ field(f Field) {
 							<option value=""></option>
 						}
 						for _, v := range f.Enum {
-							<option value={ v.Value } selected?={ f.Value == v.Value }>{ v.Label }</option>
+							<option value={ v.Value } selected?={ f.Value == v.Value }>
+								if v.Value == "null" {
+									{ tr(ctx, "Field.Null") }
+								} else {
+									{ v.Label }
+								}
+							</option>
 						}
 					</select>
 				case "textarea", "json":
@@ -588,12 +596,13 @@ templ delegatePanel(p *TaskProps) {
 		</summary>
 		<div
 			class="flex flex-col gap-3 border-t border-subtle px-4 py-4"
-			x-data="{ q: '', open: false, active: -1, chosen: '', label: '',
+			x-data="{ q: '', open: false, active: -1, chosen: '', label: '', closed: false,
 			items() { return Array.from(this.$refs.list.querySelectorAll('[role=option]')) },
 			mark() { this.items().forEach((el, i) => el.setAttribute('aria-selected', i === this.active ? 'true' : 'false')) },
 			move(d) { const it = this.items(); if (!it.length) return; this.open = true; this.active = (this.active + d + it.length) % it.length; this.mark(); it[this.active].scrollIntoView({ block: 'nearest' }) },
-			pick(el) { this.chosen = el.dataset.value; this.label = el.dataset.label; this.q = el.dataset.label; this.open = false; this.active = -1 },
-			enter() { const it = this.items(); if (this.open && it[this.active]) this.pick(it[this.active]) } }"
+			pick(el) { this.chosen = el.dataset.value; this.label = el.dataset.label; this.q = el.dataset.label; this.open = false; this.closed = true; this.active = -1 },
+			fresh() { const m = this.$refs.list.querySelector('[data-query]'); return !!m && m.dataset.query === this.q.trim() },
+			enter() { const it = this.items(); if (this.open && this.fresh() && it[this.active]) this.pick(it[this.active]) } }"
 		>
 			@delegatePicker(p)
 			<form
@@ -639,7 +648,7 @@ templ delegatePanel(p *TaskProps) {
 templ delegatePicker(p *TaskProps) {
 	<div
 		class="flex flex-col"
-		@htmx:after-settle="if ($event.target === $refs.list) { open = true; active = -1; mark() }"
+		@htmx:after-settle="if ($event.target === $refs.list) { if (!fresh()) { $refs.list.innerHTML = ''; return } active = -1; mark(); if (!closed && document.activeElement === $refs.search) open = true }"
 		@click.outside="open = false"
 		data-testid="automations-task-delegate-to"
 	>
@@ -657,12 +666,13 @@ templ delegatePicker(p *TaskProps) {
 			placeholder={ tr(ctx, "Delegate.Search") }
 			class="form-control form-control-input min-h-11 w-full"
 			x-model="q"
-			@input="chosen = ''"
-			@focus="if (items().length) open = true"
+			x-ref="search"
+			@input="chosen = ''; active = -1; closed = false; open = false; $refs.list.innerHTML = ''"
+			@focus="if (items().length && fresh() && !closed) open = true"
 			@keydown.down.prevent="move(1)"
 			@keydown.up.prevent="move(-1)"
 			@keydown.enter.prevent="enter()"
-			@keydown.escape.prevent="open = false"
+			@keydown.escape.prevent="open = false; closed = true"
 			hx-get={ p.delegatesURL() }
 			hx-trigger="input changed delay:250ms, focus once"
 			hx-sync="this:replace"
@@ -683,6 +693,8 @@ templ delegatePicker(p *TaskProps) {
 
 // DelegateOptions are the colleagues matching the search, as options of the picker.
 templ DelegateOptions(query string, list []tasks.UserOption) {
+	// The query this answer is for: a late answer to an older query is dropped by the picker.
+	<li role="presentation" hidden data-query={ query }></li>
 	for i, u := range list {
 		<li
 			id={ fmt.Sprintf("automations-task-delegate-%d", i) }
@@ -735,6 +747,22 @@ templ connectionBanner() {
 	<div x-show="offline" x-cloak role="alert" class="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-warning px-4 py-3 text-sm text-100" data-testid="automations-tasks-offline">
 		@icons.WifiSlash(icons.Props{Size: "18"})
 		<span>{ tr(ctx, "Offline.Text") }</span>
-		<button type="button" class="ml-auto inline-flex min-h-11 items-center font-medium text-primary hover:underline" @click="retry()">{ tr(ctx, "Retry") }</button>
+		<button type="button" class="btn btn-secondary btn-normal ml-auto min-h-11" @click="retry()">{ tr(ctx, "Retry") }</button>
 	</div>
+}
+
+// ListMoreFailed takes the place of «Show more» when the next page could not be read (S4).
+templ ListMoreFailed(retryURL string) {
+	<li class="list-none" id="automations-tasks-more" role="alert" data-testid="automations-tasks-more-failed">
+		<div class="flex flex-wrap items-center gap-2 rounded-lg border border-danger px-4 py-3 text-sm text-100">
+			<span>{ tr(ctx, "Errors.MoreFailed") }</span>
+			<button
+				type="button"
+				class="btn btn-secondary btn-normal ml-auto min-h-11"
+				hx-get={ retryURL }
+				hx-target="#automations-tasks-more"
+				hx-swap="outerHTML"
+			>{ tr(ctx, "Retry") }</button>
+		</div>
+	</li>
 }

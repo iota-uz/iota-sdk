@@ -31,6 +31,8 @@ type NavigationItem struct {
 	IsBeta      bool
 	// Badge is rendered after the item's name in the sidebar (application.NavNode.Badge).
 	Badge templ.Component
+	// ForEveryone keeps the item for a user without any permission (application.NavNode.ForEveryone).
+	ForEveryone bool
 }
 
 func (n NavigationItem) HasPermission(user user.User) bool {
