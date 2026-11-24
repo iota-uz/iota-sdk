@@ -119,6 +119,8 @@ jobs:
             # and the lockfile), runs the editor's checks and its performance benchmark.
             automation_editor:
               - 'web/automation-editor/**'
+              - 'modules/automations/presentation/graphs/**'
+              - 'web/client-host/src/**'
               - 'web/solid-ui/src/**'
               - 'web/testing/**'
               - 'styles/tailwind/iota.css'
@@ -423,6 +425,12 @@ jobs:
         working-directory: web/automation-editor
         run: pnpm build:package
 
+      # The automations screens embed the editor in a bundle the Go module serves (go:embed): the
+      # committed bundle must be the one the sources build.
+      - name: Automations screens (typecheck, unit tests, embedded bundle is current)
+        working-directory: modules/automations/presentation/graphs/web
+        run: pnpm typecheck && pnpm test && pnpm check:bundle
+
       - name: Install Playwright browsers
         working-directory: web/automation-editor
         run: pnpm exec playwright install --with-deps chromium webkit
@@ -430,6 +438,10 @@ jobs:
       - name: Editor scenarios
         working-directory: web/automation-editor
         run: pnpm e2e
+
+      - name: Automations screens scenarios (AL1–AL10 of #1339)
+        working-directory: modules/automations/presentation/graphs/web
+        run: node fixtures/automations/build-css.mjs && pnpm exec playwright test --grep "AL|layout"
 
       - name: Touch (Chromium CDP and WebKit iPad)
         working-directory: web/automation-editor

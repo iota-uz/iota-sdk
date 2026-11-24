@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/eskizconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/extruntimeconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
@@ -34,6 +35,7 @@ type Bundle struct {
 	App         *appconfig.Config
 	Bichat      *bichatconfig.Config
 	DB          *dbconfig.Config
+	Eskiz       *eskizconfig.Config
 	ExtRuntime  *extruntimeconfig.Config
 	GoogleOAuth *googleoauthconfig.Config
 	HTTP        *httpconfig.Config
@@ -76,6 +78,9 @@ func RegisterAll(r *config.Registry) (*Bundle, error) {
 		return nil, err
 	}
 	if b.DB, err = config.Register[dbconfig.Config](r); err != nil {
+		return nil, err
+	}
+	if b.Eskiz, err = config.Register[eskizconfig.Config](r); err != nil {
 		return nil, err
 	}
 	if b.ExtRuntime, err = config.Register[extruntimeconfig.Config](r); err != nil {

@@ -70,12 +70,18 @@ func (r *tokenRefresher) refreshTokenLocked(ctx context.Context) (string, error)
 			Password(r.cfg.Password()).
 			Execute()
 
+		status := 0
 		if httpResp != nil {
+			status = httpResp.StatusCode
 			_ = httpResp.Body.Close()
 		}
 
 		if err != nil {
 			lastErr = err
+			if refusedLogin(status) {
+				// The credentials were refused: repeating the login gives the same answer.
+				return "", lastErr
+			}
 			continue
 		}
 
@@ -97,4 +103,10 @@ func (r *tokenRefresher) refreshTokenLocked(ctx context.Context) (string, error)
 	}
 
 	return "", lastErr
+}
+
+// refusedLogin reports whether a login status is an answer to the request itself (a 4xx other than
+// 408 and 429), not a transient failure.
+func refusedLogin(status int) bool {
+	return status >= 400 && status < 500 && status != 408 && status != 429
 }

@@ -33,6 +33,9 @@ type Authoring interface {
 	TestNode(ctx context.Context, a Actor, in TestNodeInput) (TestNodeResult, error)
 	// SearchSubjects: subjects for dry run and test, visible to the actor.
 	SearchSubjects(ctx context.Context, a Actor, entity, query string, limit int) ([]SubjectOption, error)
+	// Validate checks a graph against the author's catalog as a save does (*ValidationError); nothing is
+	// written.
+	Validate(ctx context.Context, a Actor, raw json.RawMessage) error
 }
 
 // Decision modes of a dry run: how its execute nodes answer.
@@ -139,6 +142,14 @@ func (au *authoring) authorGraph(ctx context.Context, a Actor, raw json.RawMessa
 		return validated{}, nil, err
 	}
 	return v, in, nil
+}
+
+func (au *authoring) Validate(ctx context.Context, a Actor, raw json.RawMessage) error {
+	if err := au.r.service.authorize(a, PermAuthor); err != nil {
+		return err
+	}
+	_, err := au.r.validate(ctx, a, raw)
+	return err
 }
 
 // decodeContext reads the overrides of a dry run or a test.

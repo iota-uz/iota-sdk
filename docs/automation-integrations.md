@@ -49,7 +49,12 @@ components = append(components, automations.NewComponent(
 | `AUTOMATION_JEV_APIKEY` | Платформенный ключ классификатора `ai.jev`. |
 | `AUTOMATION_JEV_PROVIDER` | Чей это ключ: `openrouter` (по умолчанию) или `openai`. |
 | `AUTOMATION_JEV_DEFAULTMODEL` | Точный id модели по умолчанию для `ai.jev`; по умолчанию `typesafe/jev-1.14` для `openrouter` и `gpt-4o-mini-2024-07-18` для `openai`. |
+| `ESKIZ_EMAIL`, `ESKIZ_PASSWORD`, `ESKIZ_URL`, `ESKIZ_FROM` | Платформенный аккаунт Eskiz (`url` по умолчанию `https://notify.eskiz.uz`, `from` — sender id). Включается наличием `ESKIZ_EMAIL` и `ESKIZ_PASSWORD`. |
+| `TWILIO_ACCOUNTSID`, `TWILIO_AUTHTOKEN`, `TWILIO_PHONENUMBER` | Платформенный аккаунт Twilio для автоматизаций; включается наличием всех трёх. Запись `eskiz`/`twilio` в `AUTOMATION_PLATFORM_CREDENTIALS` приоритетнее. |
 | `AUTOMATIONS_ASSETS_DIR` | Разработка: каталог свежесобранного бандла экрана вместо встроенного. |
+
+Платформенные аккаунты SMS платные, поэтому у коннекторов `eskiz` и `twilio` политика `opt_in`:
+тенант получает их только после включения администратором (`PlatformGrants`).
 
 Адрес возврата OAuth2 — `<origin приложения>/settings/integrations/oauth/callback`;
 его нужно зарегистрировать у провайдера.
@@ -217,3 +222,17 @@ Identity показывается только с явным происхожд�
 
 Ключ решения включает отрендеренный prompt, input, модель, параметры модели, эндпоинт и подключение. Dry run в режиме `cached` берёт решение
 из `automation.decision_cache` и не вызывает провайдера; смена prompt, input, модели или параметров — промах кеша.
+
+## SMS: Eskiz и Twilio
+
+Модуль регистрирует коннекторы `eskiz` и `twilio` (`pkg/automation/connectors/sms`) с нодами
+`eskiz.send_sms` и `twilio.send_sms`; приложение может зарегистрировать свой коннектор того же вида через
+`WithConnectors`. Нода видна тенанту с подключением нужного вида: своим или платформенным.
+
+Нода не идемпотентна, потому что ни Eskiz, ни Twilio не принимают ключ идемпотентности. Запрос, который мог
+дойти до провайдера (ответа нет, ответ не читается), заканчивается `failed` с кодом `outcome_unknown` и не
+повторяется. Повтор — только после ответа 429 или 408, по `Retry-After`. Принятое сообщение записывается в
+учёт (`unit = sms`, по числу сегментов). Входящие SMS и статусы доставки не поддерживаются.
+
+Проверка с реальными аккаунтами — вручную: `CONTRACT_TARGET=live` и ключи в окружении
+(см. `pkg/automation/connectors/sms/contract_test.go`); без него тесты идут на фейках `sms/smstest`.
