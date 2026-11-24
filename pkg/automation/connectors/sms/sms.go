@@ -83,6 +83,7 @@ type options struct {
 	countryCode string
 	maxSize     int
 	transport   http.RoundTripper
+	trusted     []string
 	statuses    StatusSetter
 	now         func() time.Time
 }
@@ -116,6 +117,13 @@ func WithTransport(rt http.RoundTripper) Option {
 	return func(o *options) { o.transport = rt }
 }
 
+// WithTrustedEskizURLs allows these API origins (scheme://host[:port]) of a tenant's Eskiz connection
+// besides https://notify.eskiz.uz. A tenant's URL is otherwise refused: the connector would call any
+// address it names. The platform credential's URL (from the environment) is not checked. Tests use it.
+func WithTrustedEskizURLs(origins ...string) Option {
+	return func(o *options) { o.trusted = append(o.trusted, origins...) }
+}
+
 // WithConnectionStatus lets the node mark a connection needs_reauth when the provider refuses its
 // credentials. Without it the call only fails with unauthorized.
 func WithConnectionStatus(s StatusSetter) Option {
@@ -141,7 +149,7 @@ type backend interface {
 	nodeTitle() string
 	test(ctx context.Context, c connectors.Credentials) (connectors.Identity, error)
 	// check refuses a message the provider would not take, before any request.
-	check(c connectors.Credentials, m message) *catalog.CallError
+	check(c connectors.Credentials, m message, platform bool) *catalog.CallError
 	send(ctx context.Context, in catalog.CallInput, m message) (accepted, *failure)
 }
 
@@ -210,6 +218,10 @@ func (n *sendNode) Requires() []catalog.ConnectorKind { return []catalog.Connect
 // Idempotent is false: neither provider takes an idempotency key, so a repeat may send a second SMS.
 func (n *sendNode) Idempotent() bool { return false }
 
+// UnknownIsTerminal: a send whose outcome is unknown ends as failed with outcome_unknown, whatever the
+// graph connects, and no operator can retry it into a second SMS.
+func (n *sendNode) UnknownIsTerminal() bool { return true }
+
 func invalid(msg string) error {
 	return &catalog.CallError{Code: catalog.CallInvalidRequest, Message: msg}
 }
@@ -231,7 +243,7 @@ func (n *sendNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 		return catalog.CallResult{}, &catalog.CallError{Code: catalog.CallUnauthorized, Message: "the connection has no credentials"}
 	}
 	m := message{to: e164, text: text, from: strings.TrimSpace(in.Credentials["from"])}
-	if ce := n.be.check(in.Credentials, m); ce != nil {
+	if ce := n.be.check(in.Credentials, m, in.Connection != nil && in.Connection.Platform); ce != nil {
 		if ce.Code == catalog.CallUnauthorized {
 			n.markNeedsReauth(ctx, in)
 		}

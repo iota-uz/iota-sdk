@@ -46,7 +46,7 @@ func contractTargets(t *testing.T) []target {
 		twi := smstest.NewTwilio(twilioSID, twilioToken)
 		t.Cleanup(twi.Close)
 		return []target{
-			{sms.KindEskiz, sms.NewEskiz(),
+			{sms.KindEskiz, sms.NewEskiz(sms.WithTrustedEskizURLs(esk.URL())),
 				catalog.Credentials{"url": esk.URL(), "email": eskizEmail, "password": eskizPassword},
 				catalog.Credentials{"url": esk.URL(), "email": eskizEmail, "password": "badpassword"},
 				"+998901234567", "Hello"},

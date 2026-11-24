@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -100,10 +101,36 @@ func (b *eskizBackend) build(url string, c connectors.Credentials) eskiz.Service
 	logger := logrus.New()
 	logger.SetOutput(io.Discard) // the login request carries the password
 	rt := &tracker{base: b.o.transport, isSend: func(r *http.Request) bool { return strings.HasSuffix(r.URL.Path, eskizSendPath) }}
-	return eskiz.NewService(cfg, logger, nil, eskiz.WithRoundTripper(rt))
+	return eskiz.NewService(cfg, logger, nil, eskiz.WithRoundTripper(rt), eskiz.WithoutRedirects())
 }
 
-func (b *eskizBackend) check(c connectors.Credentials, m message) *catalog.CallError {
+// urlAllowed reports whether a tenant's Eskiz URL is the default API or a trusted origin. Anything else
+// would make the server call an address the tenant names.
+func (b *eskizBackend) urlAllowed(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return true
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+		return false
+	}
+	origin := strings.ToLower(u.Scheme + "://" + u.Host)
+	if origin == strings.ToLower(eskizconfig.DefaultURL) {
+		return true
+	}
+	for _, t := range b.o.trusted {
+		if origin == strings.ToLower(strings.TrimRight(t, "/")) {
+			return true
+		}
+	}
+	return false
+}
+
+func (b *eskizBackend) check(c connectors.Credentials, m message, platform bool) *catalog.CallError {
+	if !platform && !b.urlAllowed(c["url"]) {
+		return &catalog.CallError{Code: catalog.CallInvalidRequest, Message: "the connection's Eskiz URL is not an allowed address"}
+	}
 	if c["email"] == "" || c["password"] == "" {
 		return &catalog.CallError{Code: catalog.CallUnauthorized, Message: "the connection has no email or password"}
 	}
@@ -125,12 +152,20 @@ func (b *eskizBackend) send(ctx context.Context, in catalog.CallInput, m message
 		f := classify(trace.snapshot(), scrub(eskizDetail(err), in.Credentials["password"], in.Credentials["email"]))
 		return accepted{}, &f
 	}
+	if res.ID() == "" {
+		// A success without an acknowledgement is not proof that the message was accepted.
+		f := classify(hop{send: true, written: true, status: http.StatusOK}, "")
+		return accepted{}, &f
+	}
 	return accepted{id: res.ID()}, nil
 }
 
 func (b *eskizBackend) test(ctx context.Context, c connectors.Credentials) (connectors.Identity, error) {
 	if c["email"] == "" || c["password"] == "" {
 		return connectors.Identity{}, errors.New("eskiz: email and password are required")
+	}
+	if !b.urlAllowed(c["url"]) {
+		return connectors.Identity{}, errors.New("eskiz: the URL is not an allowed address")
 	}
 	trace := &callTrace{}
 	if _, err := b.service("", c).GetBalance(withTrace(ctx, trace)); err != nil {

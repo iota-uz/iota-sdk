@@ -59,7 +59,7 @@ func (b *twilioBackend) descriptor() connectors.Descriptor {
 	}
 }
 
-func (b *twilioBackend) check(c connectors.Credentials, m message) *catalog.CallError {
+func (b *twilioBackend) check(c connectors.Credentials, m message, _ bool) *catalog.CallError {
 	if !twilioKey.MatchString(c["account_sid"]) || !twilioKey.MatchString(c["auth_token"]) {
 		return &catalog.CallError{Code: catalog.CallUnauthorized, Message: "the connection has no valid account SID or auth token"}
 	}
@@ -108,7 +108,7 @@ func (b *twilioBackend) send(ctx context.Context, in catalog.CallInput, m messag
 		f := classify(trace.snapshot(), scrub(twilioDetail(err), c["auth_token"]))
 		return accepted{}, &f
 	}
-	if res == nil || res.Sid == nil {
+	if res == nil || res.Sid == nil || *res.Sid == "" {
 		f := classify(hop{send: true, written: true, status: http.StatusOK}, "")
 		return accepted{}, &f
 	}
@@ -133,7 +133,9 @@ func (b *twilioBackend) test(ctx context.Context, c connectors.Credentials) (con
 		}
 		return connectors.Identity{}, errors.New("twilio: " + f.err.Message)
 	}
-	id := connectors.Identity{External: c["account_sid"], Display: c["from"]}
+	// External is the account and the sender, so a Messaging Service SID (not a public identity to show)
+	// is kept too.
+	id := connectors.Identity{External: c["account_sid"] + "/" + c["from"], Display: c["from"]}
 	if strings.HasPrefix(c["from"], "+") {
 		id.Kind = connectors.IdentityPhone
 	} else {

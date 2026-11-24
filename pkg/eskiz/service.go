@@ -37,7 +37,14 @@ type Service interface {
 type ServiceOption func(*serviceOptions)
 
 type serviceOptions struct {
-	base http.RoundTripper
+	base        http.RoundTripper
+	noRedirects bool
+}
+
+// WithoutRedirects makes the service treat a redirect as the answer (an error) instead of following it:
+// a followed 307/308 would send the same request, an SMS, a second time to another address.
+func WithoutRedirects() ServiceOption {
+	return func(o *serviceOptions) { o.noRedirects = true }
 }
 
 // WithRoundTripper makes the service send every request, login included, through base instead of
@@ -58,6 +65,9 @@ func NewService(
 		opt(&o)
 	}
 	httpClient := &http.Client{Timeout: apiTimeout, Transport: o.base}
+	if o.noRedirects {
+		httpClient.CheckRedirect = noRedirect
+	}
 
 	// Unauthenticated client used by the token refresher to obtain a token
 	// without recursing back through itself.
@@ -83,6 +93,9 @@ func NewService(
 		Timeout:   apiTimeout,
 		Transport: &authRoundTripper{Base: logTransport, Refresher: refresher},
 	}
+	if o.noRedirects {
+		authClient.CheckRedirect = noRedirect
+	}
 
 	config := eskizapi.NewConfiguration()
 	config.Servers = eskizapi.ServerConfigurations{{URL: cfg.URL()}}
@@ -95,6 +108,8 @@ func NewService(
 		client: client,
 	}
 }
+
+func noRedirect(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
 type service struct {
 	cfg    Config

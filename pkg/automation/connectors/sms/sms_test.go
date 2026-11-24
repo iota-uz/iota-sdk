@@ -79,7 +79,7 @@ func newFixture(t *testing.T, kind catalog.ConnectorKind, opts ...sms.Option) (*
 		t.Cleanup(esk.Close)
 		f.creds = catalog.Credentials{"url": esk.URL(), "email": eskizEmail, "password": eskizPassword}
 		f.secs = []string{eskizPassword}
-		f.conn = sms.NewEskiz(opts...)
+		f.conn = sms.NewEskiz(append([]sms.Option{sms.WithTrustedEskizURLs(esk.URL())}, opts...)...)
 	case sms.KindTwilio:
 		twi = smstest.NewTwilio(twilioSID, twilioToken)
 		t.Cleanup(twi.Close)
@@ -562,13 +562,14 @@ func TestTwilioTest(t *testing.T) {
 	f, _, fake := newFixture(t, sms.KindTwilio)
 	id, err := f.conn.Test(context.Background(), connectors.Credentials(f.creds))
 	require.NoError(t, err)
-	assert.Equal(t, connectors.Identity{Display: twilioFrom, External: twilioSID, Kind: connectors.IdentityPhone}, id)
+	assert.Equal(t, connectors.Identity{Display: twilioFrom, External: twilioSID + "/" + twilioFrom, Kind: connectors.IdentityPhone}, id)
 	assert.Empty(t, fake.Sends())
 	assert.NotContains(t, id.Display+id.External, twilioToken)
 
 	id, err = f.conn.Test(context.Background(), connectors.Credentials{"account_sid": twilioSID, "auth_token": twilioToken, "from": "MG" + strings.Repeat("1", 32)})
 	require.NoError(t, err)
 	assert.Empty(t, id.Display, "a Messaging Service SID is not a public identity")
+	assert.Equal(t, twilioSID+"/MG"+strings.Repeat("1", 32), id.External, "the sender is kept")
 
 	_, err = f.conn.Test(context.Background(), connectors.Credentials{"account_sid": twilioSID, "auth_token": "bad-token-1", "from": twilioFrom})
 	require.Error(t, err)
@@ -581,5 +582,66 @@ func TestNoCredentials(t *testing.T) {
 		f.in.Credentials = nil
 		_, err := f.exec()
 		assert.Equal(t, catalog.CallUnauthorized, callErr(t, err).Code)
+	}
+}
+
+func TestEskizURLPolicy(t *testing.T) {
+	f, fake, _ := newFixture(t, sms.KindEskiz)
+	for _, u := range []string{"http://127.0.0.1:9", "https://169.254.169.254", "https://notify.eskiz.uz.evil.example", "https://user@notify.eskiz.uz", "https://notify.eskiz.uz/x"} {
+		f.in.Credentials = catalog.Credentials{"url": u, "email": eskizEmail, "password": eskizPassword}
+		_, err := f.exec()
+		require.Error(t, err, u)
+		assert.Equal(t, catalog.CallInvalidRequest, callErr(t, err).Code, u)
+		_, err = f.conn.Test(context.Background(), connectors.Credentials(f.in.Credentials))
+		require.Error(t, err, u)
+	}
+	// The platform credential's URL comes from the environment and is trusted.
+	f.in.Credentials = f.creds
+	f.in.Connection = &catalog.ConnectionInfo{ID: "platform:eskiz", Kind: sms.KindEskiz, Platform: true}
+	other := sms.NewEskiz().Nodes()[0].(catalog.CallNode)
+	res, err := other.Execute(context.Background(), f.in)
+	require.NoError(t, err)
+	assert.Equal(t, "sent", res.Outcome)
+	assert.Len(t, fake.Sends(), 1)
+}
+
+func TestRedirectIsNotFollowed(t *testing.T) {
+	f, fake, _ := newFixture(t, sms.KindEskiz)
+	target := smstest.NewEskiz(eskizEmail, eskizPassword)
+	t.Cleanup(target.Close)
+	fake.Script(func(int) smstest.Reply {
+		return smstest.Reply{Status: 307, Header: map[string]string{"Location": target.URL() + "/api/message/sms/send"}}
+	})
+	_, err := f.exec()
+	require.Error(t, err)
+	assert.Equal(t, catalog.CallOutcomeUnknown, callErr(t, err).Code)
+	assert.Len(t, fake.Sends(), 1)
+	assert.Empty(t, target.Sends(), "the SMS is not replayed at the redirect target")
+}
+
+func TestAnswerWithoutAnIDIsNotSent(t *testing.T) {
+	for _, kind := range []catalog.ConnectorKind{sms.KindEskiz, sms.KindTwilio} {
+		f, esk, twi := newFixture(t, kind)
+		body := `{}`
+		status := 200
+		script := func(int) smstest.Reply { return smstest.Reply{Status: status, Body: body} }
+		if esk != nil {
+			esk.Script(script)
+		} else {
+			status = 201
+			twi.Script(script)
+		}
+		_, err := f.exec()
+		require.Error(t, err, kind)
+		assert.Equal(t, catalog.CallOutcomeUnknown, callErr(t, err).Code, kind)
+		assert.Empty(t, f.usage.entries, kind)
+	}
+}
+
+func TestUnknownOutcomeIsTerminal(t *testing.T) {
+	for _, c := range []connectors.Connector{sms.NewEskiz(), sms.NewTwilio()} {
+		tu, ok := c.Nodes()[0].(catalog.TerminalUnknown)
+		require.True(t, ok)
+		assert.True(t, tu.UnknownIsTerminal())
 	}
 }
