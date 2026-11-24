@@ -255,7 +255,7 @@ func TestAttachmentsAreStoredAndHTMLIsNotPassedOn(t *testing.T) {
 
 	png := []byte("\x89PNG\r\n\x1a\nfake-image-bytes")
 	f.srv.Deliver(mailbox, "INBOX", multipart("<pic@x>", "Photo", "See the picture.", "<p>See the <b>picture</b>.</p>",
-		att{"image/png", "cat.png", png}, att{"application/octet-stream", "huge.bin", bytes.Repeat([]byte("a"), MaxAttachment+10)}))
+		att{typ: "image/png", name: "cat.png", data: png}, att{typ: "application/octet-stream", name: "huge.bin", data: bytes.Repeat([]byte("a"), MaxAttachment+10)}))
 	evs, _ := f.pollOnce(t, conn, creds, cur)
 	require.Len(t, evs, 1)
 	p := payloadOf(t, evs[0])
@@ -285,7 +285,7 @@ func TestAttachmentLimitPerMessageAndStorageFailures(t *testing.T) {
 	_, cur := f.pollOnce(t, conn, creds, nil)
 	chunk := bytes.Repeat([]byte("b"), 20<<20)
 	f.srv.Deliver(mailbox, "INBOX", multipart("<three@x>", "Big", "x", "",
-		att{"application/pdf", "a.pdf", chunk}, att{"application/pdf", "b.pdf", chunk}, att{"application/pdf", "c.pdf", chunk}))
+		att{typ: "application/pdf", name: "a.pdf", data: chunk}, att{typ: "application/pdf", name: "b.pdf", data: chunk}, att{typ: "application/pdf", name: "c.pdf", data: chunk}))
 	evs, cur := f.pollOnce(t, conn, creds, cur)
 	require.Len(t, evs, 1)
 	atts := payloadOf(t, evs[0])["attachments"].([]any)
@@ -295,13 +295,13 @@ func TestAttachmentLimitPerMessageAndStorageFailures(t *testing.T) {
 	assert.Equal(t, AttachmentMessageTooBig, atts[2].(map[string]any)["error"], "50 MB per message")
 
 	f.uploads.fail = true
-	f.srv.Deliver(mailbox, "INBOX", multipart("<fail@x>", "Fail", "x", "", att{"text/csv", "t.csv", []byte("a,b")}))
+	f.srv.Deliver(mailbox, "INBOX", multipart("<fail@x>", "Fail", "x", "", att{typ: "text/csv", name: "t.csv", data: []byte("a,b")}))
 	evs, cur = f.pollOnce(t, conn, creds, cur)
 	require.Len(t, evs, 1, "the event is never lost for an attachment")
 	assert.Equal(t, AttachmentStorage, payloadOf(t, evs[0])["attachments"].([]any)[0].(map[string]any)["error"])
 
 	f.imap.cfg.Uploads = nil
-	f.srv.Deliver(mailbox, "INBOX", multipart("<nostore@x>", "No", "x", "", att{"text/csv", "t.csv", []byte("a,b")}))
+	f.srv.Deliver(mailbox, "INBOX", multipart("<nostore@x>", "No", "x", "", att{typ: "text/csv", name: "t.csv", data: []byte("a,b")}))
 	evs, _ = f.pollOnce(t, conn, creds, cur)
 	require.Len(t, evs, 1)
 	assert.Equal(t, AttachmentNoStorage, payloadOf(t, evs[0])["attachments"].([]any)[0].(map[string]any)["error"])
@@ -366,6 +366,7 @@ func TestIntervalIsAMinute(t *testing.T) {
 type att struct {
 	typ, name string
 	data      []byte
+	width     int // the characters of a base64 line (76 when 0)
 }
 
 // multipart is a message with a text, an optional HTML alternative and attachments.
@@ -383,9 +384,13 @@ func multipart(id, subject, text, html string, atts ...att) []byte {
 	for _, a := range atts {
 		enc := base64.StdEncoding.EncodeToString(a.data)
 		b.WriteString("--MIX\r\nContent-Type: " + a.typ + "; name=\"" + a.name + "\"\r\nContent-Disposition: attachment; filename=\"" + a.name + "\"\r\nContent-Transfer-Encoding: base64\r\n\r\n")
-		for len(enc) > 76 {
-			b.WriteString(enc[:76] + "\r\n")
-			enc = enc[76:]
+		width := a.width
+		if width == 0 {
+			width = 76
+		}
+		for len(enc) > width {
+			b.WriteString(enc[:width] + "\r\n")
+			enc = enc[width:]
 		}
 		b.WriteString(enc + "\r\n")
 	}

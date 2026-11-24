@@ -136,6 +136,8 @@ type fakeConns struct {
 	creds   map[uuid.UUID]connectors.Credentials
 	status  map[uuid.UUID]connectors.ConnectionStatus
 	inbound map[uuid.UUID]json.RawMessage
+	// afterList runs after List has read the connections: what happens between the list and a Get.
+	afterList func()
 }
 
 func (s *fakeConns) add(c connectors.Connection, creds connectors.Credentials) {
@@ -158,13 +160,21 @@ func (s *fakeConns) List(_ context.Context, _ uuid.UUID, kind catalog.ConnectorK
 			out = append(out, c)
 		}
 	}
+	if s.afterList != nil {
+		hook := s.afterList
+		s.mu.Unlock()
+		hook()
+		s.mu.Lock()
+	}
 	return out, nil
 }
 
 func (s *fakeConns) Get(_ context.Context, _, id uuid.UUID) (connectors.Connection, connectors.Credentials, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.conns[id], s.creds[id], nil
+	c := s.conns[id]
+	c.Status = s.status[id]
+	return c, s.creds[id], nil
 }
 
 func (s *fakeConns) SetStatus(_ context.Context, _, id uuid.UUID, st connectors.ConnectionStatus, _ string) error {
@@ -196,6 +206,12 @@ func (s *fakeConns) SetStatusIf(_ context.Context, _, id uuid.UUID, st connector
 	}
 	s.status[id] = st
 	return true, nil
+}
+
+func (s *fakeConns) setStatus(id uuid.UUID, st connectors.ConnectionStatus) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.status[id] = st
 }
 
 func (s *fakeConns) statusOf(id uuid.UUID) connectors.ConnectionStatus {

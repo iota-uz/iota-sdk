@@ -602,12 +602,10 @@ func (s *store) deleteOnce(ctx context.Context, tenantID, id uuid.UUID) error {
 		check = c
 	}
 	return pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
-		var locked uuid.UUID
-		err := tx.QueryRow(ctx, `SELECT id FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, tenantID, id).Scan(&locked)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		if err != nil {
+		// The connection and the connections that take their tokens from it are locked together, in id
+		// order: the order Rewrap (and every other walk over the rows) locks in, so a deletion and a rewrap
+		// of a group never wait for each other's rows in opposite orders.
+		if err := lockGroup(ctx, tx, tenantID, id); err != nil {
 			return err
 		}
 		if s.usage != nil {
@@ -628,9 +626,35 @@ func (s *store) deleteOnce(ctx context.Context, tenantID, id uuid.UUID) error {
 		if err := s.promoteCompanions(ctx, tx, tenantID, id); err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, `DELETE FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, id)
+		_, err := tx.Exec(ctx, `DELETE FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, id)
 		return err
 	})
+}
+
+// lockGroup locks a connection and its dependents (token_owner) in id order, and reports ErrNotFound when
+// the connection is not there.
+func lockGroup(ctx context.Context, tx pgx.Tx, tenantID, id uuid.UUID) error {
+	rows, err := tx.Query(ctx, `SELECT id FROM automation.connections
+		WHERE tenant_id = $1 AND (id = $2 OR token_owner = $2) ORDER BY id FOR UPDATE`, tenantID, id)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	found := false
+	for rows.Next() {
+		var got uuid.UUID
+		if err := rows.Scan(&got); err != nil {
+			return err
+		}
+		found = found || got == id
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if !found {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // promoteCompanions hands the token set of a deleted connection to the connections that take their tokens

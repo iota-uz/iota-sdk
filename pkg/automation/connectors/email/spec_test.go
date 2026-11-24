@@ -299,6 +299,29 @@ func TestLabelMarksAndMoves(t *testing.T) {
 	assert.True(t, ce.Retryable, "the node is idempotent: the engine repeats it")
 }
 
+// Only the identifier event is the incoming message of a wait's filter: a word in a quoted text, and a member
+// of that name of an earlier node's output, are not references to it.
+func TestMentionsEventIsAboutTheIdentifier(t *testing.T) {
+	for src, want := range map[string]bool{
+		"event.messageId":                              true,
+		"size(event.references) > 0":                   true,
+		"x == event":                                   true,
+		"(event.from.address)":                         true,
+		`("event@example.org")`:                        false,
+		`string(nodes.wait.output.event.from.address)`: false,
+		"nodes.wait.output.event.messageId":            false,
+		`nodes.a.output["event"]`:                      false,
+		"prevent.x":                                    false,
+		"events":                                       false,
+		"":                                             false,
+	} {
+		assert.Equal(t, want, mentionsEvent(src), src)
+	}
+	n := newWaitReplyNode(&hub{})
+	_, issues := n.params.Parse(map[string]any{"message_id": "nodes.send.output.message_id", "from": "{{ nodes.wait.output.event.from.address }}"})
+	assert.Empty(t, issues, "the address an earlier wait's reply came from")
+}
+
 func TestTemplateToCEL(t *testing.T) {
 	for in, want := range map[string]string{
 		"a@x.com":                   `("a@x.com")`,

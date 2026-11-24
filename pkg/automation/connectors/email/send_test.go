@@ -251,6 +251,20 @@ func TestXOAUTH2SendAndRevocation(t *testing.T) {
 	})
 }
 
+// A connection an administrator switches off after the sign-in's connections were listed, and before it is
+// read, stays off: the status that is written is decided by the read, not by the list.
+func TestMarkLoginLeavesAConnectionSwitchedOffMeanwhile(t *testing.T) {
+	f := newFx(t, emailtest.ModeTLS)
+	smtpConn, imapConn := f.connection(KindSMTP), f.connection(KindIMAP)
+	creds := f.oauthCreds("", "stale")
+	f.conns.add(smtpConn, creds)
+	f.conns.add(imapConn, f.oauthCreds("", "stale"))
+	f.conns.afterList = func() { f.conns.setStatus(imapConn.ID, connectors.StatusDisabled) }
+	f.smtp.markLogin(context.Background(), tenant, smtpConn.ID, creds)
+	assert.Equal(t, connectors.StatusDisabled, f.conns.statusOf(imapConn.ID), "switched off meanwhile: not marked")
+	assert.Equal(t, connectors.StatusNeedsReauth, f.conns.statusOf(smtpConn.ID))
+}
+
 func TestSMTPTestWithToken(t *testing.T) {
 	f := newFx(t, emailtest.ModeTLS)
 	f.srv.AcceptToken(mailbox, "tok-1")

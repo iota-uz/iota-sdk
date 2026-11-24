@@ -56,6 +56,9 @@ func (h *hub) markLogin(ctx context.Context, tenant, self uuid.UUID, creds conne
 			if err != nil || cc["login_id"] != login {
 				continue
 			}
+			if got.Status != connectors.StatusConnected {
+				continue // switched off (or already marked) since the list was read: the read just now is the truth
+			}
 			if c.ID == self && cc[connectors.OAuth2AccessToken] != creds[connectors.OAuth2AccessToken] {
 				continue // the refused credentials are not the ones it has now
 			}

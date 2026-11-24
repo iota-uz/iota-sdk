@@ -338,6 +338,19 @@ func TestDisabledOwnerStillServesTheOtherConnection(t *testing.T) {
 	require.ErrorIs(t, err, connectors.ErrNotConnected, "a disabled connection itself gives no token")
 }
 
+// An owner that needs a new sign-in has no token to hand on: the connection that takes its tokens from it
+// does not copy or return what the owner still holds, and is marked, as the sign-in is.
+func TestOwnerThatNeedsReauthGivesNoTokenToItsDependent(t *testing.T) {
+	e := signInEnv(t)
+	require.NoError(t, e.store.SetStatus(e.ctx, e.tenant, e.smtp.ID, connectors.StatusNeedsReauth, "the provider refused the refresh token"))
+	e.age(e.imap.ID)
+	_, err := e.o.Token(e.ctx, e.tenant, e.imap.ID)
+	require.ErrorIs(t, err, connectors.ErrNeedsReauth)
+	got, _, err := e.store.Get(e.ctx, e.tenant, e.imap.ID)
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusNeedsReauth, got.Status)
+}
+
 // Deleting the owner hands the token set to the connection that took it from it: it goes on working.
 func TestDeletingTheOwnerKeepsTheOtherConnectionWorking(t *testing.T) {
 	e := signInEnv(t)

@@ -727,7 +727,7 @@ func (o *oauth) tokenOfOwner(ctx context.Context, tenantID, id, owner uuid.UUID,
 		return "", false, err
 	}
 	var stored string
-	retry := false
+	retry, reauth := false, false
 	err = pgx.BeginFunc(ctx, o.s.db, func(tx pgx.Tx) error {
 		c, creds, err := o.s.load(ctx, tx, tenantID, id, true)
 		if err != nil {
@@ -741,9 +741,18 @@ func (o *oauth) tokenOfOwner(ctx context.Context, tenantID, id, owner uuid.UUID,
 		if !serves(c.Status, check) {
 			return ErrNotConnected
 		}
-		_, theirs, err := o.s.load(ctx, tx, tenantID, owner, false)
+		oc, theirs, err := o.s.load(ctx, tx, tenantID, owner, false)
 		if err != nil {
 			return err
+		}
+		// The owner was marked as needing a new sign-in after the refresh above gave its token: what it
+		// holds is not a token to hand on. (A switched-off owner still serves; see markReauth.)
+		if oc.Status == StatusNeedsReauth {
+			if check {
+				reauth = true
+				return nil
+			}
+			return o.markReauth(ctx, tx, c, "the provider refused the refresh token", &reauth)
 		}
 		stored = theirs[OAuth2AccessToken]
 		same := true
@@ -770,6 +779,9 @@ func (o *oauth) tokenOfOwner(ctx context.Context, tenantID, id, owner uuid.UUID,
 	}
 	if retry {
 		return "", true, nil
+	}
+	if reauth {
+		return "", false, serrors.Wrap(op, ErrNeedsReauth)
 	}
 	return stored, false, nil
 }

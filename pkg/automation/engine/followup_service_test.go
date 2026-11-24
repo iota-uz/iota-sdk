@@ -586,7 +586,7 @@ func TestConnectionDeleteAndEnableShareASmallPool(t *testing.T) {
 	locked, enableWaits := make(chan struct{}), make(chan struct{})
 	var release sync.Once
 	letGo := func() { release.Do(func() { close(enableWaits) }) }
-	tr := &lockTracer{match: "FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE", after: func() {
+	tr := &lockTracer{match: "(id = $2 OR token_owner = $2) ORDER BY id FOR UPDATE", after: func() {
 		close(locked)
 		<-enableWaits
 	}}

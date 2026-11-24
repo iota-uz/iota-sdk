@@ -67,7 +67,7 @@ func TestOversizedMessageStoresWhatFitsAndReportsWhatDoesNot(t *testing.T) {
 	small := bytes.Repeat([]byte("s"), 2<<20)
 	big := bytes.Repeat([]byte("b"), MaxAttachment+(1<<20))
 	f.srv.Deliver(mailbox, "INBOX", multipart("<huge@x>", "Huge", "The covering text.", "<p>html</p>",
-		att{"application/pdf", "small.pdf", small}, att{"application/zip", "big.zip", big}))
+		att{typ: "application/pdf", name: "small.pdf", data: small}, att{typ: "application/zip", name: "big.zip", data: big}))
 	evs, next := f.pollOnce(t, conn, creds, cur)
 	require.Len(t, evs, 1)
 	p := payloadOf(t, evs[0])
@@ -90,7 +90,7 @@ func TestOversizedMessageStoresWhatFitsAndReportsWhatDoesNot(t *testing.T) {
 	// The parts together past 50 MB: the ones that fit are stored in order, the rest are message_too_big.
 	chunk := bytes.Repeat([]byte("c"), 20<<20)
 	f.srv.Deliver(mailbox, "INBOX", multipart("<huge2@x>", "Huge 2", "x", "",
-		att{"application/pdf", "a.pdf", chunk}, att{"application/pdf", "b.pdf", chunk}, att{"application/pdf", "c.pdf", chunk}))
+		att{typ: "application/pdf", name: "a.pdf", data: chunk}, att{typ: "application/pdf", name: "b.pdf", data: chunk}, att{typ: "application/pdf", name: "c.pdf", data: chunk}))
 	evs, _ = f.pollOnce(t, conn, creds, next)
 	require.Len(t, evs, 1)
 	atts = payloadOf(t, evs[0])["attachments"].([]any)
@@ -152,29 +152,64 @@ func TestMoveWithoutMoveNeverLosesMail(t *testing.T) {
 	})
 }
 
-// The fallback is repeatable: a copy made by an earlier attempt that ended before the original was dealt
-// with is found by its Message-ID, and the message is not copied a second time.
-func TestMoveFallbackReplayDoesNotDuplicate(t *testing.T) {
-	f := newFx(t, emailtest.ModeTLS)
-	f.srv.DisableMove()
-	f.srv.DisableUIDPlus()
-	f.srv.Mailbox(mailbox, "Archive")
-	raw := mailText("<m1@x>", "a@example.org", "one", "x")
-	f.srv.Deliver(mailbox, "INBOX", raw)
-	f.srv.Deliver(mailbox, "Archive", raw) // the first attempt copied, then the connection ended
-	res, err := f.labelOnce(t, map[string]any{"message_id": "<m1@x>", "move_to": "Archive"})
-	require.NoError(t, err)
-	assert.Equal(t, "done", res.Outcome)
-	assert.Len(t, f.srv.Fetch(mailbox, "Archive"), 1, "not copied again")
-	inbox := f.srv.Fetch(mailbox, "INBOX")
-	require.Len(t, inbox, 1)
-	assert.Contains(t, lower(inbox[0].Flags), `\deleted`)
-
-	// And once more: the original is flagged, so the message is no longer the mailbox's.
-	res, err = f.labelOnce(t, map[string]any{"message_id": "<m1@x>", "move_to": "Archive"})
-	require.NoError(t, err)
-	assert.Equal(t, "not_found", res.Outcome)
-	assert.Len(t, f.srv.Fetch(mailbox, "Archive"), 1)
+// A message of the destination that has the same Message-ID is not proof of a copy (it may be another
+// message): the fallback copies, and only then is the original dealt with. A repeat after an interrupted
+// move may leave a second copy, never none. Several messages of the source with one id are not moved.
+func TestMoveFallbackNeverTakesADestinationMessageForItsCopy(t *testing.T) {
+	t.Run("a message with the same id in the destination is not the copy", func(t *testing.T) {
+		f := newFx(t, emailtest.ModeTLS)
+		f.srv.DisableMove()
+		f.srv.Mailbox(mailbox, "Archive")
+		f.srv.Deliver(mailbox, "INBOX", mailText("<m1@x>", "a@example.org", "one", "x"))
+		f.srv.Deliver(mailbox, "Archive", mailText("<m1@x>", "a@example.org", "another message with the same id", "x"))
+		res, err := f.labelOnce(t, map[string]any{"message_id": "<m1@x>", "move_to": "Archive"})
+		require.NoError(t, err)
+		assert.Equal(t, "done", res.Outcome)
+		subjects := ""
+		for _, m := range f.srv.Fetch(mailbox, "Archive") {
+			subjects += string(m.Raw)
+		}
+		assert.Contains(t, subjects, "Subject: one", "the message itself was copied")
+		assert.Contains(t, subjects, "another message with the same id", "and the other is still there")
+		assert.Empty(t, f.srv.Fetch(mailbox, "INBOX"))
+	})
+	t.Run("a repeat copies again: a second copy, never none", func(t *testing.T) {
+		f := newFx(t, emailtest.ModeTLS)
+		f.srv.DisableMove()
+		f.srv.DisableUIDPlus()
+		f.srv.Mailbox(mailbox, "Archive")
+		raw := mailText("<m1@x>", "a@example.org", "one", "x")
+		f.srv.Deliver(mailbox, "INBOX", raw)
+		f.srv.Deliver(mailbox, "Archive", raw) // the first attempt copied, then the connection ended
+		res, err := f.labelOnce(t, map[string]any{"message_id": "<m1@x>", "move_to": "Archive"})
+		require.NoError(t, err)
+		assert.Equal(t, "done", res.Outcome)
+		assert.Len(t, f.srv.Fetch(mailbox, "Archive"), 2)
+		inbox := f.srv.Fetch(mailbox, "INBOX")
+		require.Len(t, inbox, 1)
+		assert.Contains(t, lower(inbox[0].Flags), `\deleted`)
+		// The original is flagged now: the message is no longer the mailbox's.
+		res, err = f.labelOnce(t, map[string]any{"message_id": "<m1@x>", "move_to": "Archive"})
+		require.NoError(t, err)
+		assert.Equal(t, "not_found", res.Outcome)
+		assert.Len(t, f.srv.Fetch(mailbox, "Archive"), 2)
+	})
+	t.Run("several messages with one id are not moved", func(t *testing.T) {
+		f := newFx(t, emailtest.ModeTLS)
+		f.srv.DisableMove()
+		f.srv.Mailbox(mailbox, "Archive")
+		f.srv.Deliver(mailbox, "INBOX", mailText("<m1@x>", "a@example.org", "one", "x"))
+		f.srv.Deliver(mailbox, "INBOX", mailText("<m1@x>", "a@example.org", "one again", "x"))
+		_, err := f.labelOnce(t, map[string]any{"message_id": "<m1@x>", "move_to": "Archive"})
+		require.Error(t, err)
+		assert.Equal(t, catalog.CallInvalidRequest, callError(t, err).Code)
+		assert.Empty(t, f.srv.Fetch(mailbox, "Archive"), "nothing was copied")
+		inbox := f.srv.Fetch(mailbox, "INBOX")
+		require.Len(t, inbox, 2, "and nothing was deleted")
+		for _, m := range inbox {
+			assert.NotContains(t, lower(m.Flags), `\deleted`)
+		}
+	})
 }
 
 // An entry in the destination that only looks like the message — a header that contains its Message-ID
@@ -201,6 +236,32 @@ func TestMoveFallbackDoesNotTrustASubstringOrADeletedCopy(t *testing.T) {
 	}
 	assert.Equal(t, 1, live, "a live copy of the message was made in the destination before the original went")
 	assert.Empty(t, f.srv.Fetch(mailbox, "INBOX"))
+}
+
+// RFC 2045 sets the longest line of a base64 body, not the shortest: an attachment of exactly the limit
+// whose lines are two characters long is as large on the wire as it is, and is stored — in a message that is
+// read in parts (oversized) and in one that is read whole.
+func TestBase64WithShortLinesWithinTheLimitIsStored(t *testing.T) {
+	for name, raw := range map[string]int64{"oversized message": 1 << 20, "whole message": defaultMaxRaw} {
+		t.Run(name, func(t *testing.T) {
+			old := maxRaw
+			maxRaw = raw
+			t.Cleanup(func() { maxRaw = old })
+			f := newFx(t, emailtest.ModeTLS)
+			conn, creds := f.connection(KindIMAP), f.imapCreds()
+			_, cur := f.pollOnce(t, conn, creds, nil)
+			data := bytes.Repeat([]byte("x"), MaxAttachment)
+			f.srv.Deliver(mailbox, "INBOX", multipart("<short@x>", "Short lines", "Covering text.", "", att{typ: "application/pdf", name: "exact.pdf", data: data, width: 2}))
+			evs, _ := f.pollOnce(t, conn, creds, cur)
+			require.Len(t, evs, 1)
+			atts := payloadOf(t, evs[0])["attachments"].([]any)
+			require.Len(t, atts, 1)
+			a := atts[0].(map[string]any)
+			assert.Nil(t, a["error"], "stored, not too_large")
+			assert.EqualValues(t, MaxAttachment, a["size"])
+			require.Len(t, f.uploads.files, 1)
+		})
+	}
 }
 
 func contains(l []string, s string) bool {
@@ -253,7 +314,7 @@ func TestWrappedBase64IsMeasuredByItsDecodedBytes(t *testing.T) {
 	conn, creds := f.connection(KindIMAP), f.imapCreds()
 	_, cur := f.pollOnce(t, conn, creds, nil)
 	data := bytes.Repeat([]byte("w"), MaxAttachment-(512<<10))
-	f.srv.Deliver(mailbox, "INBOX", multipart("<wrapped@x>", "Wrapped", "x", "", att{"application/pdf", "big.pdf", data}))
+	f.srv.Deliver(mailbox, "INBOX", multipart("<wrapped@x>", "Wrapped", "x", "", att{typ: "application/pdf", name: "big.pdf", data: data}))
 	evs, _ := f.pollOnce(t, conn, creds, cur)
 	require.Len(t, evs, 1)
 	a := payloadOf(t, evs[0])["attachments"].([]any)[0].(map[string]any)

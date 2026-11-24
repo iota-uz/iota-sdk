@@ -293,11 +293,12 @@ type waitParams struct{ inner graph.ParamsSpec }
 
 func (p waitParams) JSONSchema() json.RawMessage { return p.inner.JSONSchema() }
 
-var eventWord = regexp.MustCompile(`\bevent\b`)
+var eventIdent = regexp.MustCompile(`(^|[^.\w])event\b`)
 
-// mentionsEvent reports whether a CEL source refers to event: a quoted text that has the word in it
-// (an address like event@example.org) does not.
-func mentionsEvent(src string) bool { return eventWord.MatchString(stripStrings(src)) }
+// mentionsEvent reports whether a CEL source refers to the identifier event. Neither a quoted text that has
+// the word in it (an address like event@example.org) nor a member of that name (nodes.wait.output.event, the
+// event an earlier wait took) is a reference to it.
+func mentionsEvent(src string) bool { return eventIdent.MatchString(stripStrings(src)) }
 
 // stripStrings is a CEL source with the contents of its string literals taken out.
 func stripStrings(src string) string {
@@ -475,7 +476,7 @@ func (n *labelNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.
 		}
 	}
 	if dest != "" && !sameMailboxName(dest, a.mailbox) {
-		if err := s.moveTo(set, a.mailbox, dest, id); err != nil {
+		if err := s.moveTo(set, dest); err != nil {
 			return catalog.CallResult{}, n.callError(ctx, in, a, err)
 		}
 	}

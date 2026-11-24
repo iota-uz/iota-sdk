@@ -79,8 +79,10 @@ Scopes: Gmail — `https://mail.google.com/`; Microsoft 365 — `https://outlook
 | `email.wait_reply` | wait, требует `imap` | `message_id` (CEL, обычно `nodes.<send>.output.message_id`), `thread_id` (CEL, см. ниже), `from` (шаблон), `timeout` (по умолчанию 3d, ≤ 30d) | `replied`, `timeout` |
 | `email.label` | call, идемпотентна, требует `imap` | `message_id` (CEL), `mark_seen`, `keywords`, `move_to` | `done`, `not_found`, `failed` |
 
-`email.send` делает Message-ID до отправки: `<{хэш ключа идемпотентности}@{домен отправителя}>`; он же в
-`output.message_id`, его же получит повтор того же вызова. Выход: `message_id`, `accepted`, `rejected`.
+`email.send` делает Message-ID до отправки: `<{хэш ключа идемпотентности}@{домен отправителя}>`; его же получит
+повтор того же вызова. Выход исхода `sent`: `message_id`, `accepted`, `rejected`. **`output.message_id` есть только у
+`sent`**: у `failed` (в том числе с неизвестным исходом, `outcome_unknown` — соединение оборвалось после `DATA`) его
+нет, поэтому ожидание ответа (`email.wait_reply`) подключают к ветке `sent`, а не к `failed`.
 
 Ошибки отправки:
 
@@ -145,9 +147,12 @@ Payload: `connectionId`, `mailbox`, `messageId`, `inReplyTo?`, `threadId`, `refe
   из обычного письма, а часть сверх лимита описывается с `error` (`too_large` или `message_too_big`), её тело
   не скачивается; часть, которую нельзя декодировать, получает `error: unreadable`, и письмо всё равно публикуется.
 
-`email.label` с `move_to` использует нативный `MOVE`; без него — `COPY` с проверкой, затем `\Deleted` и
-`UID EXPUNGE` (при `UIDPLUS`), без `UIDPLUS` оригинал остаётся помеченным `\Deleted`: письмо не теряется.
-Повтор вызова находит живую копию в целевой папке по точному `Message-ID` (подстрока заголовка и письмо с флагом `\\Deleted` копией не считаются) и не копирует письмо второй раз.
+`email.label` с `move_to` использует нативный `MOVE`; без него — `COPY`, и только после ответа сервера на него
+`\Deleted` и `UID EXPUNGE` (при `UIDPLUS`), без `UIDPLUS` оригинал остаётся помеченным `\Deleted`: письмо не теряется.
+Письмо того же `Message-ID` в целевой папке копией не считается (это может быть другое письмо), а несколько писем
+исходной папки с одним `Message-ID` не переносятся вовсе (ошибка `invalid_request`). Повтор вызова после обрыва
+между `COPY` и последним шагом копирует заново: в целевой папке может оказаться вторая копия, но не ноль; если
+оригинал уже помечен `\Deleted`, повтор лишь завершает `UID EXPUNGE`.
 
 ## Безопасность
 

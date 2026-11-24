@@ -466,13 +466,13 @@ func (c *imapConnector) oversized(_ context.Context, s *imapSession, uid imap.UI
 		a := &m.attachment[i]
 		enc := a.size
 		switch {
-		case enc > maxEncoded(where[i].sp.Encoding, MaxAttachment):
-			// Even the most compact decoding of this many octets is past the limit: not downloaded.
+		case tooLargeUndecoded(where[i].sp.Encoding, enc, MaxAttachment):
+			// A part with no transfer encoding of its own is as large as it is: past the limit, not downloaded.
 			a.reason = AttachmentTooLarge
 		case total+minDecoded(where[i].sp.Encoding, enc) > MaxAttachmentsPerMsg:
 			a.reason = AttachmentMessageTooBig
 		default:
-			got, err := s.fetchDecoded(uid, where[i].path, where[i].sp, 0, maxEncoded(where[i].sp.Encoding, MaxAttachment))
+			got, err := s.fetchDecoded(uid, where[i].path, where[i].sp, 0, enc+wireSlack)
 			if err != nil {
 				return received{}, false, err // the server failed: the poll is repeated
 			}
@@ -512,19 +512,21 @@ func (c *imapConnector) oversized(_ context.Context, s *imapSession, uid imap.UI
 	return m, false, nil
 }
 
-// maxEncoded is how many transfer-encoded octets of a part are worth reading for a part of at most limit
-// decoded bytes: a part with more cannot decode to a size within the limit under any line width mail allows
-// (base64 is 4 octets for 3 and its lines are broken after at most 76 characters: with the shortest lines
-// an encoder can make, 4 characters and a break, it is at most twice that; quoted-printable is at worst 3
-// for 1). The read is bounded by it, and the limit on the decoded bytes decides after the decoding.
-func maxEncoded(encoding string, limit int64) int64 {
+// wireSlack is how many octets beyond what BODYSTRUCTURE says a part may be on the wire (headers of the
+// section are not in the count): a server that sends more than that for a part sent a part larger than it
+// said, which is read off the wire and dropped.
+const wireSlack = 1 << 10
+
+// tooLargeUndecoded reports whether a part is known to be past the limit before it is read: only a part
+// without a transfer encoding of its own (7bit, 8bit, binary) is, its octets are its bytes. Base64 and
+// quoted-printable have no size that decides without decoding (RFC 2045 sets a longest line, not a
+// shortest), so those are read as a stream and the limit on the decoded bytes decides.
+func tooLargeUndecoded(encoding string, enc, limit int64) bool {
 	switch strings.ToLower(encoding) {
-	case "base64":
-		return (limit+2)/3*4*3/2 + 16
-	case "quoted-printable":
-		return limit * 3
+	case "base64", "quoted-printable":
+		return false
 	}
-	return limit
+	return enc > limit
 }
 
 // minDecoded is the fewest bytes a part of that many transfer-encoded octets decodes to that is known
@@ -558,8 +560,7 @@ func (s *imapSession) fetchDecoded(uid imap.UID, path []int, sp *imap.BodyStruct
 	}
 	cmd := s.c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{section}})
 	defer func() { _ = cmd.Close() }()
-	var raw []byte
-	oversize := false
+	var out decodedPart
 	for msg := cmd.Next(); msg != nil; msg = cmd.Next() {
 		for {
 			item := msg.Next()
@@ -570,38 +571,64 @@ func (s *imapSession) fetchDecoded(uid imap.UID, path []int, sp *imap.BodyStruct
 			if !ok || body.Literal == nil {
 				continue
 			}
-			held, err := io.ReadAll(io.LimitReader(body.Literal, wire+1))
-			if err != nil {
-				return decodedPart{}, err
-			}
-			if int64(len(held)) > wire {
-				oversize = true
-				_, _ = io.Copy(io.Discard, body.Literal) // read off the wire, never held
-				continue
-			}
-			raw = held
+			out = decodeLiteral(body.Literal, sp, wire)
+			_, _ = io.Copy(io.Discard, body.Literal) // what is left is read off the wire, never held
 		}
 	}
 	if err := cmd.Close(); err != nil {
 		return decodedPart{}, err
 	}
-	if oversize {
-		return decodedPart{err: errPartTooLarge}, nil
-	}
+	return out, nil
+}
+
+// decodeLiteral decodes a part as it is read: at most wire octets are taken from the literal, and at most
+// MaxAttachment+1 decoded bytes are held, so neither a part larger than it said nor one whose lines are
+// short enough to make it long on the wire is buffered whole.
+func decodeLiteral(lit io.Reader, sp *imap.BodyStructureSinglePart, wire int64) decodedPart {
 	var h message.Header
 	h.Set("Content-Type", mime.FormatMediaType(sp.MediaType(), sp.Params))
 	if sp.Encoding != "" {
 		h.Set("Content-Transfer-Encoding", sp.Encoding)
 	}
-	e, derr := message.New(h, bytes.NewReader(raw))
+	capped := &cappedReader{r: lit, left: wire}
+	e, derr := message.New(h, capped)
 	if e == nil {
-		return decodedPart{err: derr}, nil
+		return decodedPart{err: derr}
 	}
 	data, rerr := io.ReadAll(io.LimitReader(e.Body, MaxAttachment+1))
+	if capped.over {
+		return decodedPart{err: errPartTooLarge}
+	}
 	if rerr == nil {
 		rerr = derr // an encoding the library does not know: the bytes are not decoded
 	}
-	return decodedPart{data: data, err: rerr}, nil
+	return decodedPart{data: data, err: rerr}
+}
+
+// cappedReader reads at most left octets and notes that the source had more.
+type cappedReader struct {
+	r    io.Reader
+	left int64
+	over bool
+}
+
+func (c *cappedReader) Read(p []byte) (int, error) {
+	if c.left <= 0 {
+		// Is there more? One octet tells.
+		var one [1]byte
+		n, err := c.r.Read(one[:])
+		if n > 0 {
+			c.over = true
+			return 0, errPartTooLarge
+		}
+		return 0, err
+	}
+	if int64(len(p)) > c.left {
+		p = p[:c.left]
+	}
+	n, err := c.r.Read(p)
+	c.left -= int64(n)
+	return n, err
 }
 
 // errPartTooLarge: a part came larger than its structure said.
