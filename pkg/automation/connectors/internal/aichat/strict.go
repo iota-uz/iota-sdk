@@ -224,24 +224,23 @@ func DecodeJSON(text string) (any, error) {
 // MaxEnumValues is the enum values in all the providers' strict mode takes in one schema.
 const MaxEnumValues = 1000
 
-// countEnumValues counts the values of every enum of a schema document.
-func countEnumValues(v any) int {
+// countEnumValues counts the values of every enum of a schema: the `enum` keyword of the schema, of each
+// property's schema and of the items'. The keys of `properties` are names the author chose, not keywords: a
+// property called enum is a property.
+func countEnumValues(schema map[string]any) int {
 	n := 0
-	switch x := v.(type) {
-	case map[string]any:
-		for k, e := range x {
-			if k == "enum" {
-				if list, ok := e.([]any); ok {
-					n += len(list)
-				}
-				continue
+	if list, ok := schema["enum"].([]any); ok {
+		n += len(list)
+	}
+	if props, ok := schema["properties"].(map[string]any); ok {
+		for _, p := range props {
+			if child, ok := p.(map[string]any); ok {
+				n += countEnumValues(child)
 			}
-			n += countEnumValues(e)
 		}
-	case []any:
-		for _, e := range x {
-			n += countEnumValues(e)
-		}
+	}
+	if items, ok := schema["items"].(map[string]any); ok {
+		n += countEnumValues(items)
 	}
 	return n
 }

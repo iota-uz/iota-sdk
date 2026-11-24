@@ -994,3 +994,27 @@ func TestEnumValuesAreCountedWithTheirNulls(t *testing.T) {
 	require.Len(t, issues, 1, "ten optional ones gain ten nulls: 1010")
 	assert.Contains(t, issues[0].Message, "1010")
 }
+
+// A property called enum is a property, not the enum keyword: its values count like any other's.
+func TestAPropertyCalledEnumDoesNotHideEnumValues(t *testing.T) {
+	values := make([]any, 100)
+	for i := range values {
+		values[i] = fmt.Sprintf("v%d", i)
+	}
+	props := map[string]any{"enum": map[string]any{"type": "string", "enum": values}}
+	for i := 0; i < 9; i++ {
+		props[fmt.Sprintf("p%d", i)] = map[string]any{"type": "string", "enum": values}
+	}
+	n, _ := newNode(t)
+	// Ten optional enums, one of them named enum: 1000 values and ten nulls.
+	_, issues := n.Spec().Params.Parse(map[string]any{"prompt": "x", "format": "json", "schema": map[string]any{"type": "object", "properties": props}})
+	require.Len(t, issues, 1)
+	assert.Contains(t, issues[0].Message, "1010")
+	// The same schema with the property required is exactly 1000.
+	required := make([]any, 0, len(props))
+	for name := range props {
+		required = append(required, name)
+	}
+	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "x", "format": "json", "schema": map[string]any{"type": "object", "properties": props, "required": required}})
+	require.Empty(t, issues)
+}
