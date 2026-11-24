@@ -6,7 +6,8 @@ ALTER TABLE automation.steps
 
 -- A node test an author confirmed, by its key (#1347): the first request claims the key and runs the
 -- test; a repeat on any process gets the stored answer, and while there is none (the test runs, or its
--- process died mid-call) it is refused rather than run again. result NULL: no answer recorded. Kept a day.
+-- process died mid-call) it is refused rather than run again. result NULL: no answer recorded (or it
+-- expired: answers are kept a day). A claim is never deleted, so a key once used never runs a test again.
 CREATE TABLE automation.node_tests (
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
     user_id bigint NOT NULL,

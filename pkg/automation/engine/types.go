@@ -279,9 +279,11 @@ type RunFilter struct {
 	Subject      *SubjectRef
 	// SubjectKeyPrefix keeps the runs whose subject key starts with it, case-insensitively ("": any).
 	SubjectKeyPrefix string
-	Since, Until     *time.Time
-	Cursor           string
-	Limit            int // ≤ 100, default 50
+	// Node keeps the runs that took a step on the node ("": any).
+	Node         string
+	Since, Until *time.Time
+	Cursor       string
+	Limit        int // ≤ 100, default 50
 }
 
 // Page is one page of a list; Next is the cursor of the next page, "" at the end.

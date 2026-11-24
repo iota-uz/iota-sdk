@@ -315,7 +315,7 @@ export default function EditorPage(): JSX.Element {
     runs: async (input) => {
       const page = await app.call('automations.runs', {
         automation_id: input.automation_id, ...(input.version ? { version: input.version } : {}), ...(input.state && input.state.length > 0 ? { state: input.state } : {}),
-        ...(input.subject ? { subject: input.subject } : {}), ...(input.cursor ? { cursor: input.cursor } : {}), ...(input.limit ? { limit: input.limit } : {}),
+        ...(input.subject ? { subject: input.subject } : {}), ...(input.node ? { node: input.node } : {}), ...(input.cursor ? { cursor: input.cursor } : {}), ...(input.limit ? { limit: input.limit } : {}),
       })
       return { items: page.items.map(runSummaryOf), next_cursor: page.next_cursor }
     },

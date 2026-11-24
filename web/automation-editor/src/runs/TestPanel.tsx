@@ -56,6 +56,7 @@ export function ancestors(graph: AutomationGraph, node: string, triggers = false
 const newKey = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`)
 
 const EXAMPLE_RUNS = 5
+const EXAMPLE_PAGES = 20
 
 export function TestPanel(props: TestPanelProps): JSX.Element {
   const t = () => runStrings(props.locale).test
@@ -169,12 +170,19 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
       if (!props.api.runs || !props.api.run || !props.automationId) {
         return [...props.cache.values()].sort((a, b) => b.created_at.localeCompare(a.created_at)).find(reached) ?? null
       }
-      const page = await props.api.runs({ automation_id: props.automationId, limit: EXAMPLE_RUNS })
-      for (const row of page.items) {
-        const known = props.cache.get(row.run_id)
-        const run = known && isFinal(known.state) ? known : await props.api.run(row.run_id)
-        props.cache.set(run.run_id, run)
-        if (reached(run)) return run
+      // The server finds the runs that took a step on this node, newest first; a run whose step the author
+      // may not read is passed over, page after page.
+      let cursor: string | undefined
+      for (let page = 0; page < EXAMPLE_PAGES; page++) {
+        const list = await props.api.runs({ automation_id: props.automationId, node: props.node, limit: EXAMPLE_RUNS, ...(cursor ? { cursor } : {}) })
+        for (const row of list.items) {
+          const known = props.cache.get(row.run_id)
+          const run = known && isFinal(known.state) ? known : await props.api.run(row.run_id)
+          props.cache.set(run.run_id, run)
+          if (reached(run)) return run
+        }
+        if (!list.next_cursor) return null
+        cursor = list.next_cursor
       }
       return null
     }).then((run) => {

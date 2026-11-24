@@ -13,7 +13,7 @@ declare global {
       changes: AutomationGraph[]
       reloads: number
       runCalls: number
-      runsCalls: { state?: string[]; subject?: string }[]
+      runsCalls: { state?: string[]; subject?: string; node?: string; cursor?: string }[]
       ops: string[]
       dryRuns: unknown[]
       tests: unknown[]

@@ -204,6 +204,9 @@ func TestCallLogsAreKeptMaskedWithTheStep(t *testing.T) {
 		return len(runs) == 1 && runs[0].Status == engine.RunDone
 	}, "the run ends")
 	run := runOf(t, ae.env, p)
+	// The runs that took a step on a node (a node test's example) are found by the server.
+	assert.Len(t, ae.runs(p, ae.human(), engine.RunFilter{Node: "get"}), 1)
+	assert.Empty(t, ae.runs(p, ae.human(), engine.RunFilter{Node: "nope"}))
 	d, err := p.rt.Service().GetRun(context.Background(), ae.human(), run.RunID)
 	require.NoError(t, err)
 	// The run's event comes with the run, projected for the viewer: a sensitive field only for a viewer
@@ -213,6 +216,24 @@ func TestCallLogsAreKeptMaskedWithTheStep(t *testing.T) {
 	dr, err := p.rt.Service().GetRun(context.Background(), reader, run.RunID)
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"kind": "acme.order.created.v1", "amount": 1, "note": ""}`, string(dr.Event))
+	// It fails closed. A key the schema does not declare is dropped, recorded as sensitive or not; a field
+	// of the schema guarded by a rule the viewer passes (the event's read permission) stays; an event the
+	// catalog no longer has gives nothing.
+	ctx := context.Background()
+	_, err = ae.db.Exec(ctx, `UPDATE automation.runs SET input = input || '{"legacy": "x"}'::jsonb,
+		sensitive = sensitive || '[{"event": "acme.order.created.v1", "path": "legacy"}]'::jsonb WHERE id = $1`, run.RunID)
+	require.NoError(t, err)
+	d, err = p.rt.Service().GetRun(ctx, ae.human(), run.RunID)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"kind": "acme.order.created.v1", "amount": 1, "note": "", "secret": "s3cret"}`, string(d.Event))
+	dr, err = p.rt.Service().GetRun(ctx, reader, run.RunID)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"kind": "acme.order.created.v1", "amount": 1, "note": ""}`, string(dr.Event))
+	_, err = ae.db.Exec(ctx, `UPDATE automation.runs SET input = jsonb_set(input, '{kind}', '"acme.gone.v1"') WHERE id = $1`, run.RunID)
+	require.NoError(t, err)
+	d, err = p.rt.Service().GetRun(ctx, ae.human(), run.RunID)
+	require.NoError(t, err)
+	assert.Nil(t, d.Event, "an event no rule can check is not shown")
 	var logs []string
 	for _, s := range d.Steps {
 		if s.NodeID == "get" {

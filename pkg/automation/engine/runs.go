@@ -47,6 +47,10 @@ func (s *service) ListRuns(ctx context.Context, a Actor, f RunFilter) (Page[RunS
 		args = append(args, sub.Entity, sub.Key)
 		where = append(where, fmt.Sprintf("r.subject_entity = $%d AND r.subject_key = $%d", len(args)-1, len(args)))
 	}
+	if f.Node != "" {
+		args = append(args, f.Node)
+		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM automation.steps s WHERE s.tenant_id = r.tenant_id AND s.run_id = r.id AND s.node_id = $%d)", len(args)))
+	}
 	if f.SubjectKeyPrefix != "" {
 		args = append(args, likePrefix(f.SubjectKeyPrefix))
 		where = append(where, fmt.Sprintf(`r.subject_key ILIKE $%d ESCAPE '\'`, len(args)))
@@ -251,22 +255,8 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 	proj := s.r.projector(a.TenantID)
 	viewer := a.Subject
 	viewer.TenantID = a.TenantID
-	if ev, err := decodeMap(run.Input); err == nil && ev != nil {
-		if kind, _ := ev["kind"].(string); kind != "" {
-			payload := make(map[string]any, len(ev))
-			for k, v := range ev {
-				if k != "kind" {
-					payload[k] = v
-				}
-			}
-			if payload, err = proj.project(ctx, kind, payload, &viewer); err != nil {
-				return RunDetail{}, err
-			}
-			payload["kind"] = kind
-			if d.Event, err = json.Marshal(payload); err != nil {
-				return RunDetail{}, err
-			}
-		}
+	if d.Event, err = proj.historicEvent(ctx, run.Input, run.Sensitive, &viewer); err != nil {
+		return RunDetail{}, err
 	}
 	for _, st := range steps {
 		sv := st.sv

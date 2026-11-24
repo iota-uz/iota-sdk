@@ -146,7 +146,8 @@ export type RunWait = {
 }
 /** event: the event that started the run ({kind, ...payload}), projected by the server for the viewer. */
 export type RunData = RunSummary & { tokens: RunToken[]; steps: RunStep[]; waits: RunWait[]; event?: Record<string, unknown> | null }
-export type RunsQuery = { automation_id: string; version?: number; state?: RunState[]; subject?: string; cursor?: string; limit?: number }
+/** node: only the runs that took a step on the node (a Test node's example). */
+export type RunsQuery = { automation_id: string; version?: number; state?: RunState[]; subject?: string; node?: string; cursor?: string; limit?: number }
 
 /** The Runs tab's view state; a host that keeps it in the URL controls it (D1). */
 export type RunsView = { run?: string | null; node?: string | null; state?: RunState[]; subject?: string }

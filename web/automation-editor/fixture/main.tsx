@@ -143,14 +143,18 @@ const progress = (run: RunData): RunData => {
 }
 const noOps = runsMode === 'noop' || params.get('can') === 'read'
 Object.assign(api, {
-  async runs(input: { state?: RunState[]; subject?: string; version?: number }) {
-    log.runsCalls.push({ ...(input.state ? { state: input.state } : {}), ...(input.subject ? { subject: input.subject } : {}) })
+  async runs(input: { state?: RunState[]; subject?: string; version?: number; node?: string; cursor?: string; limit?: number }) {
+    log.runsCalls.push({ ...(input.state ? { state: input.state } : {}), ...(input.subject ? { subject: input.subject } : {}), ...(input.node ? { node: input.node } : {}), ...(input.cursor ? { cursor: input.cursor } : {}) })
     await wait(latency)
     if (runsMode === 'error') throw new Error('network')
     const q = (input.subject ?? '').toLowerCase()
     const items = runs.filter((r) => (!input.version || r.version === input.version) && (!input.state || input.state.length === 0 || input.state.includes(r.state)) &&
-      (!q || (r.subject?.key ?? '').toLowerCase().startsWith(q))).map(toSummary)
-    return { items, next_cursor: null }
+      (!q || (r.subject?.key ?? '').toLowerCase().startsWith(q)) && (!input.node || r.steps.some((s) => s.node === input.node))).map(toSummary)
+    // Pages by the cursor, as the server does.
+    const from = Number(input.cursor ?? '0')
+    const size = input.limit ?? 50
+    const page = items.slice(from, from + size)
+    return { items: page, next_cursor: from + size < items.length ? String(from + size) : null }
   },
   async run(id: string) {
     log.runCalls += 1

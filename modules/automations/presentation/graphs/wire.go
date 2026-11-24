@@ -528,8 +528,10 @@ type RunsRequest struct {
 	State        []RunState `json:"state,omitempty"`
 	// Subject narrows the runs to subjects whose key starts with it (case-insensitive).
 	Subject string `json:"subject,omitempty"`
-	Cursor  string `json:"cursor,omitempty"`
-	Limit   int    `json:"limit,omitempty"`
+	// Node narrows the runs to those that took a step on the node (a Test node's example).
+	Node   string `json:"node,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+	Limit  int    `json:"limit,omitempty"`
 }
 
 // StepError is why a step or a run failed.

@@ -862,7 +862,7 @@ func (c *Controller) runs(ctx context.Context, req RunsRequest) (RunsResponse, e
 	if _, err := c.cfg.Engine.Service.Get(ctx, a, id); err != nil {
 		return RunsResponse{}, mapErr(err)
 	}
-	page, err := c.cfg.Engine.Service.ListRuns(ctx, a, engine.RunFilter{AutomationID: &id, Version: req.Version, Status: statusesOf(req.State), SubjectKeyPrefix: strings.TrimSpace(req.Subject), Cursor: req.Cursor, Limit: limit})
+	page, err := c.cfg.Engine.Service.ListRuns(ctx, a, engine.RunFilter{AutomationID: &id, Version: req.Version, Status: statusesOf(req.State), SubjectKeyPrefix: strings.TrimSpace(req.Subject), Node: req.Node, Cursor: req.Cursor, Limit: limit})
 	if err != nil {
 		return RunsResponse{}, mapErr(err)
 	}

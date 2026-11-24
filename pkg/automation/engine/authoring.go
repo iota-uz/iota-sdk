@@ -380,13 +380,15 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 // testWait is how long a repeat of a node test waits for the first one to record its answer.
 var testWait = 30 * time.Second
 
-// testRetention is how long the answers of keyed node tests are kept for their repeats.
+// testRetention is how long the answer of a keyed node test is kept for its repeats. The claim itself is
+// kept: a key once used never runs a test again (a repeat past the retention is refused as unknown).
 const testRetention = 24 * time.Hour
 
 // keyedTest runs a node test once per (tenant, author, key), whatever process a request reaches.
 func (au *authoring) keyedTest(ctx context.Context, a Actor, in TestNodeInput) (TestNodeResult, error) {
 	db := au.r.cfg.DB
-	if _, err := db.Exec(ctx, `DELETE FROM automation.node_tests WHERE tenant_id = $1 AND created_at < $2`, a.TenantID, time.Now().Add(-testRetention)); err != nil {
+	if _, err := db.Exec(ctx, `UPDATE automation.node_tests SET result = NULL WHERE tenant_id = $1 AND created_at < $2 AND result IS NOT NULL`,
+		a.TenantID, time.Now().Add(-testRetention)); err != nil {
 		return TestNodeResult{}, serrors.FromDB(opAuthoring, err)
 	}
 	tag, err := db.Exec(ctx, `INSERT INTO automation.node_tests (tenant_id, user_id, key, node_id) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
@@ -426,8 +428,9 @@ func (au *authoring) repeatedTest(ctx context.Context, a Actor, in TestNodeInput
 	for {
 		var raw []byte
 		var node string
-		err := au.r.cfg.DB.QueryRow(ctx, `SELECT node_id, result FROM automation.node_tests WHERE tenant_id = $1 AND user_id = $2 AND key = $3`,
-			a.TenantID, a.UserID, in.Key).Scan(&node, &raw)
+		var claimed time.Time
+		err := au.r.cfg.DB.QueryRow(ctx, `SELECT node_id, result, created_at FROM automation.node_tests WHERE tenant_id = $1 AND user_id = $2 AND key = $3`,
+			a.TenantID, a.UserID, in.Key).Scan(&node, &raw, &claimed)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 			// The first request released its claim (it ran nothing): this one may run the test.
@@ -443,7 +446,8 @@ func (au *authoring) repeatedTest(ctx context.Context, a Actor, in TestNodeInput
 			}
 			return res, nil
 		}
-		if !time.Now().Before(deadline) {
+		// A claim older than the wait has no answer coming (its process died, or its answer expired).
+		if !time.Now().Before(deadline) || time.Since(claimed) > testWait {
 			return TestNodeResult{Error: &StepError{Code: CodeOutcomeUnknown,
 				Message: "the test with this key has no recorded answer: it is still running or its outcome is unknown, so it is not run again"}}, nil
 		}

@@ -144,6 +144,18 @@ func TestTestNodeRepeatWithTheSameKeyCallsOnce(t *testing.T) {
 	assert.Equal(t, engine.CodeOutcomeUnknown, res3.Error.Code)
 	assert.Len(t, ae.acme.callsOf("acme.send"), 1)
 
+	// Past the retention the answer is gone but the claim stays: the key is refused, the send not repeated.
+	_, err = ae.db.Exec(context.Background(), `UPDATE automation.node_tests SET created_at = now() - interval '25 hours' WHERE key IN ('confirm-1', 'lost')`)
+	require.NoError(t, err)
+	for _, key := range []string{"confirm-1", "lost"} {
+		in.Key = key
+		old, err := first.rt.Authoring().TestNode(context.Background(), ae.human(), in)
+		require.NoError(t, err)
+		require.NotNil(t, old.Error, key)
+		assert.Equal(t, engine.CodeOutcomeUnknown, old.Error.Code, key)
+	}
+	assert.Len(t, ae.acme.callsOf("acme.send"), 1)
+
 	in.Key = "confirm-2"
 	_, err = first.rt.Authoring().TestNode(context.Background(), ae.human(), in)
 	require.NoError(t, err)
