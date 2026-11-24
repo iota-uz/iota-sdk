@@ -105,3 +105,17 @@ describe('Tidy button (ED2)', () => {
     expect(container.querySelector('.ae-tidy')).toBeNull()
   })
 })
+
+describe('Editor dirty state', () => {
+  it('tells the host when the draft starts and stops differing from the saved graph', async () => {
+    const changes: boolean[] = []
+    const { container } = setup({ onDirtyChange: (d) => changes.push(d) })
+    await waitFor(() => expect(changes).toEqual([false]))
+    const card = container.querySelector<HTMLElement>('.iota-flow__node[data-id="yes"]')!
+    fireEvent.click(card)
+    fireEvent.keyDown(card, { key: 'Delete' })
+    await waitFor(() => expect(changes.at(-1)).toBe(true))
+    fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })
+    await waitFor(() => expect(changes.at(-1)).toBe(false))
+  })
+})

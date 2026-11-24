@@ -6,6 +6,8 @@ export default defineConfig({
   workers: 1,
   use: {
     baseURL: 'http://127.0.0.1:4184', locale: 'en-US', timezoneId: 'UTC', deviceScaleFactor: 1,
+    // PW_VIDEO=1 records every scenario (materials for a review).
+    video: process.env.PW_VIDEO ? 'on' : 'off',
     launchOptions: { args: ['--disable-gpu', '--force-color-profile=srgb', '--disable-lcd-text'] },
   },
   // Q1: screenshots of every state against the Linux baseline.

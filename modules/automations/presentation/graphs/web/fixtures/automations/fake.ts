@@ -20,6 +20,8 @@ export interface FakeOptions {
   liveFailsOnce: boolean
   /** The review after a digest refusal fails once (a network error). */
   reviewFailsAfterChange: boolean
+  /** Delay of automations.get for an old version (ms): a request still on the way when Back is pressed. */
+  oldVersionDelay: number
   can: { author: boolean; enable: boolean; operate: boolean }
   calls: { method: string; params: unknown }[]
 }
@@ -289,6 +291,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     opts.calls.push({ method: body.method, params: body.params })
     const isList = body.method === 'automations.list' || body.method === 'automations.get' || body.method === 'automations.catalog'
     if (opts.scenario === 'loading' && isList) await new Promise(() => {})
+    if (opts.oldVersionDelay > 0 && body.method === 'automations.get' && (body.params as { version?: number }).version) await new Promise((r) => setTimeout(r, opts.oldVersionDelay))
     if (opts.delay > 0 && !isList) await new Promise((r) => setTimeout(r, opts.delay))
     let payload: unknown
     try {

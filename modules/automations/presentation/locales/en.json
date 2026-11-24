@@ -310,7 +310,11 @@
         "PickConnection": "Choose a connection",
         "ReviewAndEnable": "Review and enable v{version}",
         "Run": "Run",
-        "SavedByAgent": "Version v{version} was saved by an agent and is not enabled"
+        "SavedByAgent": "Version v{version} was saved by an agent and is not enabled",
+        "DiscardTitle": "Discard unsaved changes?",
+        "DiscardText": "Another version opens in the editor; the changes you have not saved are lost.",
+        "DiscardKeep": "Keep editing",
+        "DiscardConfirm": "Discard and open"
       },
       "Errors": {
         "Conflict": "The state changed meanwhile. Look at it again.",

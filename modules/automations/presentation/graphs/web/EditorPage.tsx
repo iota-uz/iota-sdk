@@ -3,7 +3,7 @@ import {
   Editor, EditorSkeleton,
   type AutomationGraph, type AutomationLayout, type EditorApi, type EditorCatalog, type FieldSlot, type SaveResult, type VersionEntry,
 } from '@iota-uz/sdk/automation-editor'
-import { Button, CopyButton, Select } from '@iota-uz/sdk/solid-ui'
+import { Button, CopyButton, Dialog, Select } from '@iota-uz/sdk/solid-ui'
 import type { RPC } from './Automations.solid.generated'
 import { useApp } from './context'
 import { DeleteDialog, DisableDialog, ReviewDialog } from './Dialogs'
@@ -73,7 +73,10 @@ export default function EditorPage(): JSX.Element {
     if (url.href === window.location.href) return
     if (push) window.history.pushState({}, '', url)
     else window.history.replaceState({}, '', url)
+    shownHref = window.location.href
   }
+  // The URL the page shows; a Back that is cancelled returns to it.
+  let shownHref = window.location.href
 
   const applyGet = (g: GetResult, key: number) => {
     layoutRevision = g.automation.layout_revision
@@ -92,7 +95,11 @@ export default function EditorPage(): JSX.Element {
     })
   }
 
+  // The version the last request asked for (0: the latest): Back compares with it, not with what is
+  // rendered, so an answer to a superseded request never wins (loadSeq drops it).
+  let requested = requestedVersion
   const load = async (version = requestedVersion) => {
+    requested = version
     const mine = ++loadSeq
     setLoadError(undefined)
     try {
@@ -118,9 +125,9 @@ export default function EditorPage(): JSX.Element {
       setTab(q.get('tab') === 'runs' ? 'runs' : 'edit')
       setSelected(q.get('node'))
       const wanted = Number(q.get('version') ?? '0') || 0
-      const i = info()
-      const open = i && i.version !== i.latestVersion ? i.version : 0
-      if (i && wanted !== open) void load(wanted)
+      const back = shownHref
+      shownHref = window.location.href
+      if (info() && wanted !== requested) switchVersion(wanted, back)
     }
     window.addEventListener('popstate', onPop)
     onCleanup(() => window.removeEventListener('popstate', onPop))
@@ -139,9 +146,42 @@ export default function EditorPage(): JSX.Element {
     }
   }
 
+  const [dirty, setDirty] = createSignal(false)
+  const [discard, setDiscard] = createSignal<{ version: number; revert?: string } | null>(null)
+  /** Opens a version (0: the latest); unsaved edits are not dropped without the person's consent. */
+  const switchVersion = (version: number, revert?: string) => {
+    if (dirty()) {
+      setDiscard({ version, ...(revert ? { revert } : {}) })
+      return
+    }
+    void load(version)
+  }
   const openVersion = (version: number) => {
-    setURL((url) => { if (version === info()?.latestVersion) url.searchParams.delete('version'); else url.searchParams.set('version', String(version)) }, true)
-    void load(version === info()?.latestVersion ? 0 : version)
+    const v = version === info()?.latestVersion ? 0 : version
+    const push = () => setURL((url) => { if (v === 0) url.searchParams.delete('version'); else url.searchParams.set('version', String(v)) }, true)
+    if (dirty()) {
+      setDiscard({ version: v })
+      return
+    }
+    push()
+    void load(v)
+  }
+  const confirmDiscard = () => {
+    const d = discard()
+    if (!d) return
+    setDiscard(null)
+    setDirty(false)
+    if (!d.revert) setURL((url) => { if (d.version === 0) url.searchParams.delete('version'); else url.searchParams.set('version', String(d.version)) }, true)
+    void load(d.version)
+  }
+  const cancelDiscard = () => {
+    const d = discard()
+    setDiscard(null)
+    // Back was pressed: the URL returns to the version still open.
+    if (d?.revert) {
+      window.history.pushState({}, '', d.revert)
+      shownHref = window.location.href
+    }
   }
 
   // ——— the editor's backend ———
@@ -371,6 +411,7 @@ export default function EditorPage(): JSX.Element {
                   reload={reload}
                   versions={versions()}
                   onOpenVersion={openVersion}
+                  onDirtyChange={setDirty}
                   enabled={info()?.enabled ?? false}
                   {...(info() && can().enable ? { toggleEnabled: () => setDialog(info()!.enabled ? 'disable' : 'review') } : {})}
                   {...(data().readOnly ? { readOnly: data().readOnly! } : {})}
@@ -400,6 +441,18 @@ export default function EditorPage(): JSX.Element {
       </Show>
       <Show when={dialog() === 'delete' && info()}>
         <DeleteDialog id={info()!.id} name={info()!.name} onDeleted={() => app.navigate(app.props.basePath)} onClose={() => setDialog(null)} />
+      </Show>
+      <Show when={discard()}>
+        <Dialog open onOpenChange={(open) => { if (!open) cancelDiscard() }} class="md:w-full md:max-w-md" aria-labelledby="discard-title" data-testid="discard-dialog">
+          <header class="border-b border-subtle py-3 pl-4 pr-2"><h3 id="discard-title" class="font-medium" data-dialog-title tabindex="-1">{t('Editor.DiscardTitle')}</h3></header>
+          <p class="px-4 py-3">{t('Editor.DiscardText')}</p>
+          <footer class="border-t border-subtle px-4 py-3">
+            <menu class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <Button variant="secondary" class="min-h-11 justify-center" data-dialog-close onClick={cancelDiscard} data-testid="discard-cancel">{t('Editor.DiscardKeep')}</Button>
+              <Button variant="danger" class="min-h-11 justify-center" onClick={confirmDiscard} data-testid="discard-confirm">{t('Editor.DiscardConfirm')}</Button>
+            </menu>
+          </footer>
+        </Dialog>
       </Show>
       <Show when={dialog() === 'run' && info()}>
         <RunDialog id={info()!.id} triggers={manual()} subjects={(loaded()?.catalog as { subjects?: string[] } | undefined)?.subjects ?? []} onClose={() => setDialog(null)} />

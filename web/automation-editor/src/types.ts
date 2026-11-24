@@ -131,6 +131,8 @@ export interface EditorProps {
    * positions on screen and becomes the saved layout, without a history step or a layout save.
    */
   remoteLayout?: { positions: AutomationLayout } | null
+  /** Called when the draft starts or stops differing from the saved graph (the host guards navigation). */
+  onDirtyChange?(dirty: boolean): void
   reload(): Promise<{ graph: AutomationGraph; version: number; layout: AutomationLayout }>
   versions?: VersionEntry[]; onOpenVersion?(version: number): void
   enabled: boolean

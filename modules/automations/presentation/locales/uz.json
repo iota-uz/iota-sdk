@@ -310,7 +310,11 @@
         "PickConnection": "Ulanishni tanlang",
         "ReviewAndEnable": "Tekshirish va v{version} ni yoqish",
         "Run": "Ishga tushirish",
-        "SavedByAgent": "v{version} versiya agent tomonidan saqlangan va yoqilmagan"
+        "SavedByAgent": "v{version} versiya agent tomonidan saqlangan va yoqilmagan",
+        "DiscardTitle": "Saqlanmagan oʻzgarishlar bekor qilinsinmi?",
+        "DiscardText": "Muharrirda boshqa versiya ochiladi; saqlanmagan oʻzgarishlar yoʻqoladi.",
+        "DiscardKeep": "Tahrirlashni davom ettirish",
+        "DiscardConfirm": "Bekor qilish va ochish"
       },
       "Errors": {
         "Conflict": "Holat oʻzgardi. Qayta koʻrib chiqing.",

@@ -85,6 +85,7 @@ function EditorBody(props: EditorProps): JSX.Element {
   const [base, setBase] = createSignal(props.version)
   const [persistedLayout, setPersistedLayout] = createSignal<AutomationLayout>(initial.layout)
   const dirty = createMemo(() => !graphsEqual(draft(), saved()))
+  createEffect(on(dirty, (d) => props.onDirtyChange?.(d)))
 
   let lastKey: string | null = null
   let lastAt = 0

@@ -310,7 +310,11 @@
         "PickConnection": "选择连接",
         "ReviewAndEnable": "审核并启用 v{version}",
         "Run": "运行",
-        "SavedByAgent": "版本 v{version} 由代理保存，尚未启用"
+        "SavedByAgent": "版本 v{version} 由代理保存，尚未启用",
+        "DiscardTitle": "放弃未保存的更改？",
+        "DiscardText": "编辑器将打开另一个版本；未保存的更改将丢失。",
+        "DiscardKeep": "继续编辑",
+        "DiscardConfirm": "放弃并打开"
       },
       "Errors": {
         "Conflict": "状态已变化，请重新查看。",

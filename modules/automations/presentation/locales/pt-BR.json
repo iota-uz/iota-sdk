@@ -310,7 +310,11 @@
         "PickConnection": "Escolha uma conexão",
         "ReviewAndEnable": "Revisar e ativar v{version}",
         "Run": "Executar",
-        "SavedByAgent": "A versão v{version} foi salva por um agente e não está ativa"
+        "SavedByAgent": "A versão v{version} foi salva por um agente e não está ativa",
+        "DiscardTitle": "Descartar alterações não salvas?",
+        "DiscardText": "Outra versão será aberta no editor; as alterações não salvas serão perdidas.",
+        "DiscardKeep": "Continuar editando",
+        "DiscardConfirm": "Descartar e abrir"
       },
       "Errors": {
         "Conflict": "O estado mudou. Verifique novamente.",

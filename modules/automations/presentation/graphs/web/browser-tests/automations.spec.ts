@@ -298,3 +298,45 @@ test('layout: a fresher snapshot withdraws the notice of an older conflict', asy
   await expect(page.getByTestId('open-latest')).toBeVisible()
   await expect(page.getByText('The layout was changed in another tab')).toHaveCount(0)
 })
+
+const openVersion = async (page: Page, v: number) => {
+  await page.getByRole('button', { name: 'Versions' }).click()
+  await page.getByRole('menuitemcheckbox', { name: new RegExp(`^Version ${v}`) }).click()
+}
+
+test('D1: Back while an old version loads keeps the version the URL names', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&oldVersionDelay=1500`)
+  await expect(page.getByTestId('crumb')).toBeVisible()
+  await openVersion(page, 2)
+  await expect(page).toHaveURL(/version=2/)
+  await page.goBack()
+  await expect(page).not.toHaveURL(/version=/)
+  await page.waitForTimeout(2500)
+  await expect(page.getByTestId('open-latest')).toHaveCount(0)
+  await expect(page.locator('.ae-save')).toBeVisible()
+})
+
+test('D1: unsaved edits are not dropped by opening a version or by Back', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}`)
+  await expect(page.getByTestId('crumb')).toBeVisible()
+  await openVersion(page, 2)
+  await expect(page.getByTestId('open-latest')).toBeVisible()
+  await page.goBack()
+  await expect(page.locator('.ae-save')).toBeVisible()
+  await page.locator('.ae-toolbar__name').click()
+  await page.getByLabel('Name').fill('Edited digest')
+  await page.keyboard.press('Escape')
+
+  await page.goForward()
+  const dialog = page.getByTestId('discard-dialog')
+  await expect(dialog).toBeVisible()
+  await dialog.getByTestId('discard-cancel').click()
+  await expect(page).not.toHaveURL(/version=/)
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Edited digest')
+
+  await openVersion(page, 1)
+  await expect(dialog).toBeVisible()
+  await dialog.getByTestId('discard-confirm').click()
+  await expect(page).toHaveURL(/version=1/)
+  await expect(page.getByTestId('open-latest')).toBeVisible()
+})
