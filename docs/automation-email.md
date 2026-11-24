@@ -75,7 +75,7 @@ Scopes: Gmail — `https://mail.google.com/`; Microsoft 365 — `https://outlook
 
 | Нода | Поведение | Параметры | Исходы |
 | --- | --- | --- | --- |
-| `email.send` | call, не идемпотентна, требует `smtp` | `to` (1–50), `cc`, `bcc`, `subject`, `text`, `html`, `reply_to` — шаблоны; `in_reply_to` — CEL с Message-ID, `references` — CEL со списком Message-ID цепочки (`event.references` письма, на которое отвечают) | `sent`, `failed` |
+| `email.send` | call, не идемпотентна, требует `smtp` | `to` (1–50), `cc`, `bcc`, `subject`, `text`, `html`, `reply_to` — шаблоны; `in_reply_to` — CEL с Message-ID, `references` — CEL со списком Message-ID цепочки (`event.references` письма, на которое отвечают, если это письмо триггера; после `email.wait_reply` — `nodes.<id>.output.event.references`: `event` в параметрах ноды всегда относится к триггеру графа) | `sent`, `failed` |
 | `email.wait_reply` | wait, требует `imap` | `message_id` (CEL, обычно `nodes.<send>.output.message_id`), `thread_id` (CEL, см. ниже), `from` (шаблон), `timeout` (по умолчанию 3d, ≤ 30d) | `replied`, `timeout` |
 | `email.label` | call, идемпотентна, требует `imap` | `message_id` (CEL), `mark_seen`, `keywords`, `move_to` | `done`, `not_found`, `failed` |
 
@@ -108,9 +108,11 @@ Scopes: Gmail — `https://mail.google.com/`; Microsoft 365 — `https://outlook
 Ответ ссылается на **первое** письмо цепочки. Если письмо было отправлено как ответ (`in_reply_to`), его
 ответ принадлежит цепочке исходного: передайте в `thread_id` `Message-ID` первого письма цепочки
 (`event.threadId` входящего, взятый нодой раньше). Чтобы ответ на ваше письмо сохранил корень цепочки, передайте в
-`references` `event.references` письма, на которое вы отвечаете: они попадают в `References` нового письма перед
-`in_reply_to` (корень и последние 19 писем), а `In-Reply-To` остаётся прямым родителем. Без `connection` нода выбирает единственное подключение
-`imap`; ожидание всё равно сужает фильтр `event.threadId == …`.
+параметр `references` список `references` письма, на которое вы отвечаете (`event.references` письма триггера или
+`nodes.<id>.output.event.references` письма, найденного `email.wait_reply`; у письма с `In-Reply-To`, но без
+`References`, список состоит из письма, на которое оно отвечает, — это корень цепочки): они попадают в `References` нового письма перед
+`in_reply_to` (корень и последние 19 писем), а `In-Reply-To` остаётся прямым родителем. Без `connection` нода выбирает единственное подключение `imap`; ожидание
+всё равно сужает фильтр `event.threadId == …`.
 
 В `event` вывода — payload найденного письма.
 
@@ -118,7 +120,7 @@ Scopes: Gmail — `https://mail.google.com/`; Microsoft 365 — `https://outlook
 
 Payload: `connectionId`, `mailbox`, `messageId`, `inReplyTo?`, `threadId`, `references`, `from`, `to`, `cc`,
 `subject`, `text` (текстовая часть или html→text, ≤ 100 000 символов), `hasHtml`, `isReply`, `isAuto`,
-`attachments`, `receivedAt`. **HTML письма в payload не передаётся**, ссылки не открываются.
+`attachments`, `receivedAt`. `references` — заголовок `References`; у письма с `In-Reply-To` и без `References` — одно письмо, на которое оно отвечает. **HTML письма в payload не передаётся**, ссылки не открываются.
 
 Вложение: `filename`, `contentType`, `size`, и после сохранения в хранилище загрузок SDK — `upload_id` и
 `url` (маршрут `/automations/attachments/{id}`: отдаёт файл как скачивание, с `nosniff` и `sandbox`). До 25 MB каждое и до 50 MB на письмо; сверх лимита, при сбое хранилища или без него —

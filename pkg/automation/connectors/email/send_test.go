@@ -268,7 +268,8 @@ func TestXOAUTH2SendAndRevocation(t *testing.T) {
 	smtpConn, imapConn := f.connection(KindSMTP), f.connection(KindIMAP)
 	creds := f.oauthCreds("", "stale")
 	f.conns.add(smtpConn, creds)
-	imapCreds := f.oauthCreds("", "stale")
+	// The receiving connection already holds the set the sending one is about to refresh to (it has synced).
+	imapCreds := f.oauthCreds("", "ya29.token")
 	f.conns.add(imapConn, imapCreds)
 	f.oauth.tokens[smtpConn.ID] = "ya29.token"
 

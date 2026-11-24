@@ -102,6 +102,10 @@ type Provider struct {
 	// AuthURL, TokenURL and Scopes are the OAuth2 provider's.
 	AuthURL, TokenURL string
 	Scopes            []string
+	// IDTokenIssuers are the issuers ("iss") the provider's identity tokens may carry, when they are not the
+	// public cloud's (a sovereign cloud of Microsoft has authorities of its own; "*" stands for one path
+	// segment). Left empty it keeps the default allowlist: issuer validation is never switched off.
+	IDTokenIssuers []string
 	// SMTPHost, SMTPPort, IMAPHost and IMAPPort are the servers; Security is tls, starttls or auto (by port).
 	SMTPHost string
 	SMTPPort int
@@ -264,6 +268,9 @@ func (h *hub) oauthPresets() map[string]connectors.OAuth2Config {
 		}
 		if len(p.Scopes) > 0 {
 			d.Scopes = p.Scopes
+		}
+		if len(p.IDTokenIssuers) > 0 {
+			d.IDTokenIssuers = append([]string(nil), p.IDTokenIssuers...)
 		}
 		out[name] = d
 	}

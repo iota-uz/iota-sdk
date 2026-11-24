@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"net/mail"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -463,4 +465,34 @@ func TestSubjectContainsFoldsUnicodeCase(t *testing.T) {
 		got := hook(map[string]any{"subject_contains": c.want}, graph.Event{"kind": EventReceived, "subject": c.subject})
 		assert.Equal(t, c.match, got, "%q in %q", c.want, c.subject)
 	}
+}
+
+// A sovereign cloud overrides the endpoints and the issuers together; with no issuers given the public cloud's
+// allowlist stays (issuer validation is not switched off by an endpoint override).
+func TestProviderOverrideKeepsOrReplacesTheIDTokenIssuers(t *testing.T) {
+	endpointsOnly := (&hub{cfg: Config{Providers: map[string]Provider{PresetM365: {AuthURL: "https://login.microsoftonline.us/x/authorize", TokenURL: "https://login.microsoftonline.us/x/token"}}}}).oauthPresets()
+	assert.Equal(t, []string{"https://login.microsoftonline.com/*/v2.0"}, endpointsOnly[PresetM365].IDTokenIssuers)
+	assert.Equal(t, "https://login.microsoftonline.us/x/token", endpointsOnly[PresetM365].TokenURL)
+
+	sovereign := (&hub{cfg: Config{Providers: map[string]Provider{PresetM365: {
+		AuthURL: "https://login.microsoftonline.us/x/authorize", TokenURL: "https://login.microsoftonline.us/x/token",
+		IDTokenIssuers: []string{"https://login.microsoftonline.us/*/v2.0"},
+	}}}}).oauthPresets()
+	assert.Equal(t, []string{"https://login.microsoftonline.us/*/v2.0"}, sovereign[PresetM365].IDTokenIssuers)
+	assert.Equal(t, []string{"https://accounts.google.com", "accounts.google.com"}, sovereign[PresetGmail].IDTokenIssuers, "the other preset is untouched")
+}
+
+// A message with In-Reply-To and no References is in the conversation of the message it answers: that message
+// is its references, so an answer to it keeps the root that a wait's thread_id names.
+func TestInReplyToWithoutReferencesIsTheHistory(t *testing.T) {
+	raw := []byte("From: a@example.org\r\nTo: b@example.org\r\nSubject: Re: x\r\nMessage-ID: <b@x>\r\nIn-Reply-To: <a@x>\r\n\r\nbody\r\n")
+	m, err := parseMessage(raw)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"<a@x>"}, m.references)
+	assert.Equal(t, "<a@x>", threadRoot(m))
+	// An answer to it that carries its references, as the documented graph does, names the root.
+	out, err := buildMessage(outgoing{From: mail.Address{Address: "c@example.org"}, To: []string{"a@example.org"}, Subject: "Re: x", Text: "t",
+		MessageID: "<c@x>", InReplyTo: "<b@x>", References: m.references, Date: time.Now()})
+	require.NoError(t, err)
+	assert.Contains(t, string(out), "References: <a@x> <b@x>")
 }

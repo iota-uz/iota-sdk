@@ -107,7 +107,7 @@ func (f *fx) connection(kind catalog.ConnectorKind) connectors.Connection {
 
 // fakeOAuth is an OAuth2 that serves a fixed token per connection and fails when asked to.
 type fakeOAuth struct {
-	conns  *fakeConns // a refresh is stored on the connections of the sign-in, as the real OAuth2 does
+	conns  *fakeConns // a refresh is stored on the connection that asked, as the real OAuth2 does (a companion syncs when it asks)
 	mu     sync.Mutex
 	tokens map[uuid.UUID]string
 	revoke bool
@@ -130,7 +130,7 @@ func (o *fakeOAuth) Token(_ context.Context, _ uuid.UUID, id uuid.UUID) (string,
 	}
 	tok := o.tokens[id]
 	if o.conns != nil && tok != "" {
-		o.conns.setAccessOfLogin(id, tok)
+		o.conns.setAccess(id, tok)
 	}
 	return tok, nil
 }
@@ -214,15 +214,13 @@ func (s *fakeConns) SetStatusIf(_ context.Context, _, id uuid.UUID, st connector
 	return true, nil
 }
 
-// setAccessOfLogin gives the access token to the connection and to those that share its login.
-func (s *fakeConns) setAccessOfLogin(id uuid.UUID, tok string) {
+// setAccess gives the access token to one connection: a refresh updates the owner, and a dependent takes the
+// set when it asks for its own token; a sibling that has not asked keeps the older one.
+func (s *fakeConns) setAccess(id uuid.UUID, tok string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	login := s.creds[id]["login_id"]
-	for other, c := range s.creds {
-		if other == id || (login != "" && c["login_id"] == login) {
-			c["access_token"] = tok
-		}
+	if c := s.creds[id]; c != nil {
+		c["access_token"] = tok
 	}
 }
 

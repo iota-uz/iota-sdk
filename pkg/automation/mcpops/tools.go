@@ -533,10 +533,11 @@ func (t *tools) validate(ctx context.Context, a engine.Actor, in validateIn) (va
 		return validateOut{}, tooLarge("/graph")
 	}
 	out := validateOut{OK: true, Errors: []graph.GraphError{}, Warnings: []graph.GraphError{}}
-	err := t.auth.Validate(ctx, a, in.Graph)
+	warnings, err := t.auth.Validate(ctx, a, in.Graph)
 	var ve *engine.ValidationError
 	switch {
 	case err == nil:
+		out.Warnings = append(out.Warnings, warnings...)
 	case errors.As(err, &ve):
 		out.OK = false
 		out.Errors = append(out.Errors, ve.Errors...)

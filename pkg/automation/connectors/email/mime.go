@@ -310,6 +310,12 @@ func headersOf(h gomail.Header) received {
 		m.date = d
 	}
 	m.auto = isAuto(h)
+	if len(m.references) == 0 && m.inReplyTo != "" {
+		// A message with In-Reply-To and no References is, as RFC 5322 §3.6.4 reads it, in the conversation of
+		// the message it answers: that message is its history. Then the references of an answer to it (see
+		// email.send's references) keep the conversation's root, which is the thread_id a wait names.
+		m.references = []string{m.inReplyTo}
+	}
 	if m.references == nil {
 		m.references = []string{}
 	}

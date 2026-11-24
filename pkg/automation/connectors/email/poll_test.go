@@ -219,7 +219,7 @@ func TestXOAUTH2Poll(t *testing.T) {
 
 	t.Run("a token the server refuses stops polling and marks the smtp connection of the sign-in", func(t *testing.T) {
 		smtpConn := f.connection(KindSMTP)
-		f.conns.add(smtpConn, f.oauthCreds("", "stale"))
+		f.conns.add(smtpConn, f.oauthCreds("", "ya29.imap")) // the companion holds the token that is refused
 		f.srv.RevokeTokens(mailbox)
 		_, _, err := f.imap.Poll(context.Background(), conn, creds, cur)
 		assert.Equal(t, catalog.CallUnauthorized, callError(t, err).Code)

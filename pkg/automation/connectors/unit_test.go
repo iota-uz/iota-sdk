@@ -260,7 +260,7 @@ func (presetAuthorizer) Descriptor() connectors.Descriptor {
 	return connectors.Descriptor{
 		Kind: "both", Title: map[string]string{"en": "Both"}, Category: connectors.CategoryOther, Auth: connectors.AuthCustom,
 		Credentials:   []byte(`{"type":"object","properties":{}}`),
-		OAuth2Presets: map[string]connectors.OAuth2Config{"p": {AuthURL: "https://a.example/auth", TokenURL: "https://a.example/token"}},
+		OAuth2Presets: map[string]connectors.OAuth2Config{"p": {AuthURL: "https://a.example/auth", TokenURL: "https://a.example/token", ClientCredential: "p_client"}},
 	}
 }
 func (presetAuthorizer) Nodes() []catalog.NodeType         { return nil }
@@ -272,4 +272,5 @@ func (presetAuthorizer) Test(context.Context, connectors.Credentials) (connector
 func TestDirectoryRefusesPresetsOnAConnectionAuthorizer(t *testing.T) {
 	err := connectors.NewDirectory(nil).Register(presetAuthorizer{})
 	require.ErrorIs(t, err, connectors.ErrInvalid)
+	require.ErrorContains(t, err, "ConnectionAuthorizer", "refused for this reason, not for an invalid descriptor")
 }
