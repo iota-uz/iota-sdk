@@ -124,10 +124,17 @@ func localizeSchema(raw json.RawMessage, lang string) any {
 	}
 	localizeNode(doc, lang)
 	if props, ok := doc["properties"].(map[string]any); ok {
-		for _, p := range props {
-			if pm, ok := p.(map[string]any); ok {
-				localizeNode(pm, lang)
+		for name, p := range props {
+			pm, ok := p.(map[string]any)
+			if !ok {
+				continue
 			}
+			if internal, _ := pm["x-internal"].(bool); internal {
+				// The connector writes it itself (the tokens of a sign-in): not a field of the form.
+				delete(props, name)
+				continue
+			}
+			localizeNode(pm, lang)
 		}
 	}
 	return doc
@@ -158,7 +165,7 @@ func connectionView(e services.ConnectionEntry) ConnectionView {
 		ID: c.ID.String(), Kind: string(c.Kind), Name: c.Name, DisplayName: c.DisplayName, Version: c.Version,
 		Status: Status(c.Status), UsedBy: e.UsedBy,
 		CreatedAt: c.CreatedAt.UTC().Format(time.RFC3339), UpdatedAt: c.UpdatedAt.UTC().Format(time.RFC3339),
-		Fields: e.Fields,
+		Fields: e.Fields, SignIn: e.SignIn,
 	}
 	if c.Identity.Display != "" {
 		s := c.Identity.Display

@@ -34,8 +34,8 @@ type Authoring interface {
 	// SearchSubjects: subjects for dry run and test, visible to the actor.
 	SearchSubjects(ctx context.Context, a Actor, entity, query string, limit int) ([]SubjectOption, error)
 	// Validate checks a graph against the author's catalog as a save does (*ValidationError); nothing is
-	// written.
-	Validate(ctx context.Context, a Actor, raw json.RawMessage) error
+	// written. A graph that validates may still have warnings.
+	Validate(ctx context.Context, a Actor, raw json.RawMessage) ([]graph.GraphError, error)
 }
 
 // Decision modes of a dry run: how its execute nodes answer.
@@ -140,12 +140,15 @@ func (au *authoring) authorGraph(ctx context.Context, a Actor, raw json.RawMessa
 	return v, in, nil
 }
 
-func (au *authoring) Validate(ctx context.Context, a Actor, raw json.RawMessage) error {
+func (au *authoring) Validate(ctx context.Context, a Actor, raw json.RawMessage) ([]graph.GraphError, error) {
 	if err := au.r.service.authorize(a, PermAuthor); err != nil {
-		return err
+		return nil, err
 	}
-	_, err := au.r.validate(ctx, a, raw)
-	return err
+	v, err := au.r.validate(ctx, a, raw)
+	if err != nil {
+		return nil, err
+	}
+	return v.warnings, nil
 }
 
 // decodeContext reads the overrides of a dry run or a test.
@@ -306,12 +309,34 @@ func traceOf(in *graph.Interpreter, steps []graph.TraceStep) []TraceStep {
 	return out
 }
 
+// testedNodeNeedsReauth reports whether the node a test names needs a connection that waits for a new
+// sign-in (needsReauth).
+func (au *authoring) testedNodeNeedsReauth(ctx context.Context, a Actor, in TestNodeInput) bool {
+	g, errs := graph.Decode(in.Graph)
+	if len(errs) > 0 {
+		return false
+	}
+	for _, n := range g.Nodes {
+		if n.ID != in.NodeID {
+			continue
+		}
+		nt, ok := au.r.cfg.Catalog.Node(n.Type)
+		return ok && len(nt.Requires()) > 0 && needsReauth(ctx, au.r.cfg.DB, a.TenantID, n.Params[catalog.ConnectionParam], nt.Requires())
+	}
+	return false
+}
+
 func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (TestNodeResult, error) {
 	if err := au.r.service.authorize(a, PermAuthor); err != nil {
 		return TestNodeResult{}, err
 	}
 	v, interp, err := au.authorGraph(ctx, a, in.Graph)
 	if err != nil {
+		// A node whose connection waits for a new sign-in left the catalog, so the graph does not
+		// validate: the test answers as the call would, unauthorized.
+		if errors.Is(err, ErrConnectionUnavailable) && au.testedNodeNeedsReauth(ctx, a, in) {
+			return TestNodeResult{Error: &StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth}}, nil
+		}
 		return TestNodeResult{}, err
 	}
 	node, ok := interp.View().Node(in.NodeID)
@@ -550,12 +575,17 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	var creds catalog.Credentials
 	if kinds := c.view.NodeRequires[c.node.Type]; len(kinds) > 0 {
 		ref, _, err := catalog.ResolveConnection(c.view.Connections, kinds, c.params[catalog.ConnectionParam])
+		if err != nil && needsReauth(ctx, r.cfg.DB, c.tenant, c.params[catalog.ConnectionParam], kinds) {
+			return directResult{err: &StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth}}
+		}
 		if err != nil || r.cfg.Credentials == nil {
 			return directResult{err: &StepError{Code: CodeConnectionUnavailable, Message: "the connection of " + c.node.ID + " is not available"}}
 		}
 		ci, cr, err := r.cfg.Credentials.Open(ctx, c.tenant, ref.ID)
 		switch {
-		case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrNeedsReauth), errors.Is(err, connectors.ErrUndecryptable):
+		case errors.Is(err, connectors.ErrNeedsReauth):
+			return directResult{err: &StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth}}
+		case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrUndecryptable):
 			return directResult{err: &StepError{Code: CodeConnectionUnavailable, Message: "the connection is not connected"}}
 		case err != nil:
 			return directResult{err: &StepError{Code: CodeConnectionUnavailable, Message: "the connection could not be opened"}}

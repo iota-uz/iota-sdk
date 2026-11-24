@@ -2,6 +2,7 @@ package graph
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -270,10 +271,14 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 				errs.add(at+".type", CodeInvalid, "%s is not available in a graph about a %s", n.Type, subject)
 			}
 		}
-		if spec.OutputFrom != nil {
+		if spec.OutputFrom != nil || len(spec.OutputSchemas) > 0 {
 			params, _ := v.Params(n.ID)
 			if _, _, err := nodeOutput(c, spec, params); err != nil {
-				errs.add(at+".params."+spec.OutputFrom.Param, CodeParams, "%v", err)
+				path := at + ".params"
+				if spec.OutputFrom != nil {
+					path += "." + spec.OutputFrom.Param
+				}
+				errs.add(path, CodeParams, "%v", err)
 			}
 		}
 		node := n
@@ -657,4 +662,27 @@ func exprError(path string, i expr.Issue) GraphError {
 		code = CodeLimit
 	}
 	return GraphError{Path: path, Code: code, Message: i.Message, Line: i.Line, Column: i.Column}
+}
+
+// ExprTypes gives the CEL type of an expression of a node in the scope Validate checks it in: a node
+// type's own check of its params against a schema it learns elsewhere (an MCP tool's input schema).
+type ExprTypes struct {
+	x    *exprs
+	each map[string]string
+}
+
+// NewExprTypes is the type check of a graph's node expressions; the graph is expected to validate.
+func NewExprTypes(c Catalog, g Graph, o Options) *ExprTypes {
+	v := buildView(c, g, o)
+	return &ExprTypes{x: newExprs(v, o.Limits.Expr), each: foreachScopes(v)}
+}
+
+// TypeOf is the CEL type of src in node's scope ("string", "int", "list(dyn)", "map(string, dyn)", ...),
+// or the first issue of its check.
+func (t *ExprTypes) TypeOf(node, src string) (string, error) {
+	p, issues := t.x.programIn(node, "*", true, t.each[node], src, expr.TypeAny)
+	if len(issues) > 0 {
+		return "", errors.New(issues[0].Message)
+	}
+	return p.OutputType(), nil
 }

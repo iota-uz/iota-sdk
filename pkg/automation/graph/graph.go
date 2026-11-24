@@ -138,6 +138,15 @@ type GraphError struct {
 	Message string `json:"message"`
 	Line    int    `json:"line,omitempty"` // for CEL: the position inside the expression
 	Column  int    `json:"column,omitempty"`
+	// Fix is an action that resolves the issue, which an editor may offer (nil: none).
+	Fix *Fix `json:"fix,omitempty"`
+}
+
+// Fix resolves an issue by removing a value of the graph: Remove is its path ("nodes[2].params.tool_schema"),
+// Label what the action is called. A save after it fills the value again (a schema pinned anew).
+type Fix struct {
+	Remove string `json:"remove"`
+	Label  string `json:"label"`
 }
 
 func (e GraphError) Error() string { return e.Path + ": " + e.Message }

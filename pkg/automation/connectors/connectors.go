@@ -105,6 +105,8 @@ const (
 	IdentityHandle IdentityKind = "handle" // @name: a bot or account handle
 	IdentityEmail  IdentityKind = "email"
 	IdentityPhone  IdentityKind = "phone" // digits, optionally with + and separators
+	// IdentityServer is a server's software name and version with the number of tools it offers.
+	IdentityServer IdentityKind = "server"
 )
 
 // ConnectionStatus is the state of a connection.

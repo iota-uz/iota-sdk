@@ -7,7 +7,7 @@ import type { ConnectionView, ConnectorView, UsageView } from '../../model'
  * contract; this fixture drives screenshots and browser scenarios.
  */
 export interface FakeOptions {
-  scenario: 'default' | 'empty' | 'loading' | 'error' | 'fresh' | 'email'
+  scenario: 'default' | 'empty' | 'loading' | 'error' | 'fresh' | 'email' | 'mcp'
   delay: number
   platformFails: boolean
   /** false: the caller lacks Connections.Manage (an author). */
@@ -69,8 +69,30 @@ function conn(kind: string, name: string, display: string, extra: Partial<Connec
   }
 }
 
+const mcpSchema = {
+  type: 'object', required: ['server_url', 'auth'],
+  properties: {
+    server_url: { type: 'string', title: 'Server URL', examples: ['https://mcp.example.com/mcp'] },
+    auth: { type: 'string', title: 'Authentication', enum: ['none', 'bearer', 'oauth2'] },
+    token: { type: 'string', title: 'Bearer token', 'x-secret': true },
+    oauth_client_id: { type: 'string', title: 'OAuth client ID' },
+    oauth_client_secret: { type: 'string', title: 'OAuth client secret', 'x-secret': true },
+    oauth_scopes: { type: 'string', title: 'OAuth scopes' },
+  },
+}
+
 function seed(scenario: FakeOptions['scenario']): ConnectorView[] {
   if (scenario === 'empty') return []
+  if (scenario === 'mcp') {
+    return [{
+      kind: 'mcp', title: 'MCP server', icon: '', description: 'Tools of a remote MCP server (Streamable HTTP)', category: 'ai', auth: 'custom',
+      credential_schema: mcpSchema, nodes: ['MCP tool'], platform: null,
+      connections: [
+        conn('mcp', 'crm_tools', 'CRM tools', { status: 'needs_reauth', status_reason: 'reauth', sign_in: true, fields: { server_url: 'https://mcp.crm.example.com/mcp', auth: 'oauth2' } }),
+        conn('mcp', 'docs_search', 'Docs search', { fields: { server_url: 'https://mcp.docs.example.com/mcp', auth: 'bearer' } }),
+      ],
+    }]
+  }
   const fresh = scenario === 'fresh'
   return [
     {
@@ -183,7 +205,11 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       if (secret === 'bad') return { ok: false, error: 'test_failed', reason: 'auth' }
       const key = p.idempotency_key
       if (key && keys.has(key)) return { ok: true, connection: keys.get(key) }
-      const created = conn(c.kind, p.name, p.display_name || p.name, { id: `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`, identity: c.kind === 'telegram_bot' ? '@new_bot' : 'account@acme.uz' })
+      const signIn = c.kind === 'mcp' && p.credentials.auth === 'oauth2'
+      const created = conn(c.kind, p.name, p.display_name || p.name, {
+        id: `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`, identity: c.kind === 'telegram_bot' ? '@new_bot' : 'account@acme.uz',
+        ...(signIn ? { status: 'needs_reauth' as const, status_reason: 'reauth' as const, sign_in: true, identity: null } : {}),
+      })
       c.connections.push(created)
       if (key) keys.set(key, created)
       record(key, p)

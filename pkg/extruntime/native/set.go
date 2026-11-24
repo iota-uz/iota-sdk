@@ -217,10 +217,34 @@ func (it declItem) addTo(s *Set) error {
 	r.ContractHash = manifest.ContractHashOf(r)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, err := s.claim(r.ID, "declaration", nil); err != nil {
+	// A domain error is shared by the contracts that raise it: declaring an identical one again is a
+	// no-op. Any other declaration, or a different error of the same ID, is a duplicate.
+	dup, err := s.claim(r.ID, "declaration", func() bool {
+		prev, ok := s.declared[r.ID]
+		return ok && r.Kind == manifest.ResDomainError && prev.Kind == r.Kind && prev.ContractHash == r.ContractHash
+	})
+	if err != nil || dup {
 		return err
 	}
 	s.declared[r.ID] = r
+	return nil
+}
+
+type itemList []Item
+
+// Items groups items that belong together (a contract and the domain errors it declares) into one
+// Item, added in order.
+func Items(items ...Item) Item { return itemList(items) }
+
+func (l itemList) addTo(s *Set) error {
+	for _, it := range l {
+		if it == nil {
+			continue
+		}
+		if err := it.addTo(s); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

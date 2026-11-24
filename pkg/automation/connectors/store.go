@@ -61,6 +61,8 @@ type Store interface {
 	// MatchesFingerprint reports whether fp (from Fingerprint) is data's fingerprint under the key that
 	// made it, so a record stays verifiable after the active key rotates while that key is readable.
 	MatchesFingerprint(fp string, data []byte) bool
+	CredentialLocker
+	Sealer
 }
 
 // NewStore is the connection store. keys nil: tenant connections are unavailable (ErrNotConfigured)

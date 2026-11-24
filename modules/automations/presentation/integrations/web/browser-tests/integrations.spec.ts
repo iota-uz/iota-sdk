@@ -440,3 +440,23 @@ test('a sign-in connection of a form-and-sign-in connector is signed in again wi
   await expect(page).toHaveURL(/connected=/)
   await expect(row(page, 'robot_inbox').locator('[data-status="connected"]')).toBeVisible()
 })
+
+test('MCP: a connection with OAuth is saved, then signed in; one that needs it offers «Sign in again»', async ({ page }) => {
+  await open(page, 'scenario=mcp')
+  await expect(row(page, 'crm_tools').getByTestId('reauth')).toHaveText('Sign in again')
+  await expect(row(page, 'docs_search').getByTestId('reauth')).toHaveCount(0)
+  await row(page, 'crm_tools').getByTestId('reauth').click()
+  // The sign-in names the saved connection (the fake's return then opens its edit form).
+  await expect(page).toHaveURL(/connected=.*edit=/)
+
+  await open(page, 'scenario=mcp')
+  await page.getByTestId('connect-mcp').click()
+  const form = page.getByTestId('connection-form')
+  await form.getByLabel('Name', { exact: true }).fill('Billing tools')
+  await form.locator('[data-field="server_url"]').fill('https://mcp.billing.example.com/mcp')
+  await form.locator('[data-field="auth"]').selectOption('oauth2')
+  await form.getByTestId('form-save').click()
+  // Saved first, then signed in as that connection: the return names it.
+  await expect(page).toHaveURL(/connected=.*kind=mcp&edit=/)
+  await expect(page.getByTestId('connection-form')).toContainText('Billing tools')
+})
