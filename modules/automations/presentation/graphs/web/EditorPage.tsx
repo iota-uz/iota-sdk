@@ -206,7 +206,7 @@ export default function EditorPage(): JSX.Element {
 
   // ——— the editor's backend ———
   const toSave = (res: RPC['automations.save']['result']): SaveResult => {
-    if (res.ok) return { ok: true, graph: res.graph as AutomationGraph, version: res.version ?? 0, ...(res.pending_review ? { pending_review: true } : {}) }
+    if (res.ok) return { ok: true, graph: res.graph as AutomationGraph, version: res.version ?? 0, ...(res.pending_review ? { pending_review: true } : {}), ...(res.warnings?.length ? { warnings: res.warnings } : {}) }
     if (res.conflict) return { conflict: res.conflict }
     return { errors: res.errors ?? [], ...(res.warnings ? { warnings: res.warnings } : {}) }
   }

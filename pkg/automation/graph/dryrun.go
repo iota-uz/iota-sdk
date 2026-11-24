@@ -904,7 +904,16 @@ func (d *dryRun) mode(node Node) DryRunMode {
 	if !d.o.Modes {
 		return DryRunExecute
 	}
-	return d.i.view.catalog.Nodes[node.Type].DryRunOf()
+	spec := d.i.view.catalog.Nodes[node.Type]
+	mode := spec.DryRunOf()
+	if mode == DryRunCapture && spec.ReadOnlyParam != "" {
+		if params, ok := d.i.view.Params(node.ID); ok {
+			if ro, _ := paramAt(params, spec.ReadOnlyParam); ro == true {
+				return DryRunExecute
+			}
+		}
+	}
+	return mode
 }
 
 // answered checks an executed call's answer as a given one is checked.

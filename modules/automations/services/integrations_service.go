@@ -144,6 +144,9 @@ type ConnectionEntry struct {
 	LastChecked *time.Time
 	// Fields are the non-secret credential fields (only with WithFields).
 	Fields map[string]string
+	// SignIn: the connection signs in through the browser with its own authorization server
+	// (connectors.ConnectionAuthorizer); one that needs re-authorization is offered a sign-in.
+	SignIn bool
 }
 
 // ConnectorEntry is a registered connector with the tenant's connections.
@@ -377,6 +380,10 @@ func (s *IntegrationsService) Create(ctx context.Context, a Actor, in CreateInpu
 		return ConnectionEntry{}, &InvalidInputError{Fields: map[string]string{"credentials": "oauth2"}}
 	}
 	creds, credFields := toCredentials(in.Credentials)
+	for k := range connectors.InternalFields(d) {
+		delete(creds, k) // the connector writes these itself
+		delete(credFields, k)
+	}
 	for k, v := range credFields {
 		fields[k] = v
 	}
@@ -398,6 +405,14 @@ func (s *IntegrationsService) Create(ctx context.Context, a Actor, in CreateInpu
 	}
 	var run provisionRun
 	saved, err := func() (connectors.Connection, error) {
+		if az, ok := conn.(connectors.ConnectionAuthorizer); ok && az.NeedsAuthorization(creds) {
+			// Saved before its sign-in: the page sends the browser to the connection's own authorization
+			// server next (OAuthStart with the connection), and the callback checks it.
+			return s.store.SaveWith(ctx, connectors.Connection{
+				TenantID: a.TenantID, Kind: in.Kind, Name: name, DisplayName: display,
+				Status: connectors.StatusNeedsReauth, StatusReason: string(ReasonReauth), CreatedBy: a.UserID,
+			}, creds, req.complete)
+		}
 		identity, err := s.test(ctx, conn, creds)
 		if err != nil {
 			return connectors.Connection{}, err
@@ -709,16 +724,23 @@ func (s *IntegrationsService) update(ctx context.Context, a Actor, in UpdateInpu
 		if fields := checkCredentials(d, creds); len(fields) > 0 {
 			return ConnectionEntry{}, &InvalidInputError{Fields: fields}
 		}
-		identity, err := s.test(ctx, conn, creds, stored)
-		if err != nil {
-			return ConnectionEntry{}, err
-		}
-		if err := s.advise(ctx, conn, &cur, creds, in.Confirmed); err != nil {
-			return ConnectionEntry{}, err
-		}
-		next.Identity = identity
-		if next.Status != connectors.StatusDisabled {
-			next.Status, next.StatusReason = connectors.StatusConnected, ""
+		if az, ok := conn.(connectors.ConnectionAuthorizer); ok && az.NeedsAuthorization(creds) {
+			// New settings need a sign-in before they are checked.
+			if next.Status != connectors.StatusDisabled {
+				next.Status, next.StatusReason = connectors.StatusNeedsReauth, string(ReasonReauth)
+			}
+		} else {
+			identity, err := s.test(ctx, conn, creds, stored)
+			if err != nil {
+				return ConnectionEntry{}, err
+			}
+			if err := s.advise(ctx, conn, &cur, creds, in.Confirmed); err != nil {
+				return ConnectionEntry{}, err
+			}
+			next.Identity = identity
+			if next.Status != connectors.StatusDisabled {
+				next.Status, next.StatusReason = connectors.StatusConnected, ""
+			}
 		}
 	}
 	if creds != nil {
@@ -780,7 +802,7 @@ func (s *IntegrationsService) Test(ctx context.Context, a Actor, id uuid.UUID) (
 		}
 	case errors.As(testErr, &failed):
 		if next.Status != connectors.StatusDisabled {
-			next.Status, next.StatusReason = failedStatus(conn, failed.Reason)
+			next.Status, next.StatusReason = failedStatus(conn, creds, failed.Reason)
 		}
 	default:
 		return TestResult{}, serrors.Wrap(op, testErr)
@@ -805,6 +827,9 @@ func (s *IntegrationsService) load(ctx context.Context, tenantID, id uuid.UUID) 
 	conn, ok := s.dir.Get(cur.Kind)
 	if !ok {
 		return connectors.Connection{}, nil, nil, false, connectors.ErrNotFound
+	}
+	if az, ok := conn.(connectors.ConnectionAuthorizer); ok && az.SignsIn(creds) {
+		return s.loadAuthorized(ctx, az, cur, conn, creds)
 	}
 	if conn.Descriptor().Auth != connectors.AuthOAuth2 || s.oauth == nil {
 		return cur, conn, creds, false, nil
@@ -835,6 +860,31 @@ func (s *IntegrationsService) load(ctx context.Context, tenantID, id uuid.UUID) 
 		}
 	}
 	return cur, conn, creds, false, nil
+}
+
+// loadAuthorized is load of a connection that signs in with its own authorization server: a token that
+// expires soon is refreshed by the connector (a disabled connection's check records nothing), and one
+// that never signed in, or whose refresh was refused, needs a sign-in.
+func (s *IntegrationsService) loadAuthorized(ctx context.Context, az connectors.ConnectionAuthorizer, cur connectors.Connection, conn connectors.Connector, creds connectors.Credentials) (connectors.Connection, connectors.Connector, connectors.Credentials, bool, error) {
+	if az.NeedsAuthorization(creds) {
+		return cur, conn, nil, true, nil
+	}
+	if cur.Status != connectors.StatusConnected && cur.Status != connectors.StatusDisabled {
+		return cur, conn, creds, false, nil
+	}
+	fresh, err := az.FreshCredentials(ctx, cur.TenantID, cur.ID, cur.Status == connectors.StatusDisabled)
+	switch {
+	case errors.Is(err, connectors.ErrNeedsReauth):
+		return cur, conn, nil, true, nil
+	case errors.Is(err, connectors.ErrNotConnected):
+		return cur, conn, creds, false, nil // the status changed meanwhile: check with the stored credentials
+	case err != nil:
+		return connectors.Connection{}, nil, nil, false, oauthFailure(err)
+	}
+	if cur, _, err = s.store.Get(ctx, cur.TenantID, cur.ID); err != nil {
+		return connectors.Connection{}, nil, nil, false, err
+	}
+	return cur, conn, fresh, false, nil
 }
 
 // SetDisabled disables a connection (it leaves the catalog of nodes of the tenant) or enables it again:
@@ -876,7 +926,7 @@ func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.
 			case testErr == nil:
 				next.Identity, next.Status, next.StatusReason = identity, connectors.StatusConnected, ""
 			case errors.As(testErr, &failed):
-				next.Status, next.StatusReason = failedStatus(conn, failed.Reason)
+				next.Status, next.StatusReason = failedStatus(conn, creds, failed.Reason)
 			default:
 				return ConnectionEntry{}, serrors.Wrap(op, testErr)
 			}
@@ -899,7 +949,7 @@ func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.
 					return ConnectionEntry{}, mapStoreError(op, err)
 				}
 				// The provider refused the setup: the connection comes back with that error.
-				next.Status, next.StatusReason = failedStatus(conn, refused.Reason)
+				next.Status, next.StatusReason = failedStatus(conn, creds, refused.Reason)
 				if _, err := s.store.Save(ctx, next, nil); err != nil {
 					return ConnectionEntry{}, mapStoreError(op, err)
 				}
@@ -998,6 +1048,9 @@ func (s *IntegrationsService) OAuthStart(ctx context.Context, a Actor, kind cata
 	if !ok {
 		return "", connectors.ErrNotFound
 	}
+	if az, ok := conn.(connectors.ConnectionAuthorizer); ok {
+		return s.signInStart(ctx, a, az, kind, connectionID, redirectURL)
+	}
 	if conn.Descriptor().Auth != connectors.AuthOAuth2 {
 		return "", &InvalidInputError{Fields: map[string]string{"kind": "oauth2"}}
 	}
@@ -1033,6 +1086,88 @@ func (s *IntegrationsService) OAuthStart(ctx context.Context, a Actor, kind cata
 	return authURL, nil
 }
 
+// signInStart begins the sign-in of a saved connection with its own authorization server: the connector
+// discovers it and registers a client when the connection has none; the state is kept for this user
+// and tenant only, as a sign-in of the platform's OAuth2.
+func (s *IntegrationsService) signInStart(ctx context.Context, a Actor, az connectors.ConnectionAuthorizer, kind catalog.ConnectorKind, connectionID uuid.UUID, redirectURL string) (string, error) {
+	const op = serrors.Op("automations.IntegrationsService.OAuthStart")
+	if s.states == nil {
+		return "", ErrOAuthUnavailable
+	}
+	if connectionID == uuid.Nil {
+		// The settings come first: the connection is saved, then signed in.
+		return "", &InvalidInputError{Fields: map[string]string{"connection_id": "required"}}
+	}
+	cur, creds, err := s.store.Get(ctx, a.TenantID, connectionID)
+	if err != nil {
+		return "", mapStoreError(op, err)
+	}
+	if cur.Kind != kind {
+		return "", connectors.ErrNotFound
+	}
+	if !az.SignsIn(creds) {
+		return "", &InvalidInputError{Fields: map[string]string{"auth": "oauth2"}}
+	}
+	authURL, state, err := az.BeginAuthorization(ctx, connectors.AuthorizationStart{TenantID: a.TenantID, ConnectionID: connectionID, RedirectURL: redirectURL})
+	switch {
+	case errors.Is(err, connectors.ErrClientRequired):
+		return "", &InvalidInputError{Fields: map[string]string{"oauth_client_id": "required"}}
+	case err != nil:
+		return "", serrors.Wrap(op, oauthFailure(err))
+	}
+	if err := s.states.Put(ctx, OAuthState{
+		Hash: StateHash(state), TenantID: a.TenantID, UserID: a.UserID, Kind: kind, Name: cur.Name, DisplayName: cur.DisplayName,
+		ConnectionID: connectionID, ExpiresAt: s.now().Add(s.stateTTL),
+	}); err != nil {
+		return "", serrors.Wrap(op, err)
+	}
+	return authURL, nil
+}
+
+// signInComplete finishes the sign-in of a connection with its own authorization server: the connector
+// exchanges the code and stores the tokens, the connection is checked with them and saved connected (a
+// disabled one stays disabled).
+func (s *IntegrationsService) signInComplete(ctx context.Context, a Actor, az connectors.ConnectionAuthorizer, conn connectors.Connector, pending OAuthState, state, code string) (connectors.Connection, OAuthState, error) {
+	const op = serrors.Op("automations.IntegrationsService.OAuthComplete")
+	if pending.ConnectionID == uuid.Nil {
+		return connectors.Connection{}, OAuthState{}, ErrStateInvalid
+	}
+	creds, err := az.CompleteAuthorization(ctx, connectors.AuthorizationReturn{TenantID: a.TenantID, ConnectionID: pending.ConnectionID, State: state, Code: code})
+	switch {
+	case errors.Is(err, connectors.ErrInvalid):
+		return connectors.Connection{}, OAuthState{}, ErrStateInvalid
+	case errors.Is(err, connectors.ErrNotFound):
+		return connectors.Connection{}, pending, connectors.ErrNotFound
+	case err != nil:
+		return connectors.Connection{}, pending, serrors.Wrap(op, ErrOAuthExchange)
+	}
+	identity, err := s.test(ctx, conn, creds)
+	if err != nil {
+		return connectors.Connection{}, pending, ErrOAuthRefused
+	}
+	cur, old, err := s.store.Get(ctx, a.TenantID, pending.ConnectionID)
+	if err != nil {
+		return connectors.Connection{}, pending, mapStoreError(op, err)
+	}
+	// The status confirms the credentials just tested: a row changed since (another sign-in, new
+	// settings) is not marked connected by this check. The save below is versioned against this read.
+	if !sameCredentials(old, creds) {
+		return connectors.Connection{}, pending, serrors.Wrap(op, ErrOAuthExchange)
+	}
+	secret := secretsOf(conn.Descriptor())
+	cur.Identity = validIdentity(identity, secret, creds, old)
+	scrubRetained(&cur, secret, old, creds)
+	if cur.Status != connectors.StatusDisabled {
+		cur.Status, cur.StatusReason = connectors.StatusConnected, ""
+	}
+	saved, err := s.store.Save(ctx, cur, nil)
+	if err != nil {
+		return connectors.Connection{}, pending, mapStoreError(op, err)
+	}
+	s.touch(ctx, a.TenantID, saved.ID)
+	return saved, pending, nil
+}
+
 // OAuthComplete finishes an authorization the same user started in the same tenant: the state is
 // accepted once. The code is exchanged and tested first; then exactly one row is saved — the connection
 // being re-authorized (its version checked, a disabled one stays disabled), or a new connection under
@@ -1040,7 +1175,7 @@ func (s *IntegrationsService) OAuthStart(ctx context.Context, a Actor, kind cata
 // with any error but ErrStateInvalid, so the page reopens the form it came from.
 func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state, code string) (connectors.Connection, OAuthState, error) {
 	const op = serrors.Op("automations.IntegrationsService.OAuthComplete")
-	if s.oauth == nil || s.states == nil {
+	if s.states == nil {
 		return connectors.Connection{}, OAuthState{}, ErrOAuthUnavailable
 	}
 	if state == "" || code == "" {
@@ -1049,6 +1184,14 @@ func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state,
 	pending, err := s.states.Take(ctx, a.TenantID, a.UserID, StateHash(state), s.now())
 	if err != nil {
 		return connectors.Connection{}, OAuthState{}, err
+	}
+	if conn, ok := s.dir.Get(pending.Kind); ok {
+		if az, ok := conn.(connectors.ConnectionAuthorizer); ok {
+			return s.signInComplete(ctx, a, az, conn, pending, state, code)
+		}
+	}
+	if s.oauth == nil {
+		return connectors.Connection{}, OAuthState{}, ErrOAuthUnavailable
 	}
 	grant, err := s.oauth.Exchange(ctx, a.TenantID, state, code)
 	switch {
@@ -1141,8 +1284,10 @@ func (s *IntegrationsService) OAuthAbandon(ctx context.Context, a Actor, state s
 // failedStatus is the status and stored reason of a connection its provider refused: an OAuth2 token
 // the provider no longer accepts needs a new sign-in (the page offers it); other credentials are an
 // error. The reason is a Reason, never the provider's text.
-func failedStatus(conn connectors.Connector, r Reason) (connectors.ConnectionStatus, string) {
-	if conn.Descriptor().Auth == connectors.AuthOAuth2 && (r == ReasonAuth || r == ReasonUnknown) {
+func failedStatus(conn connectors.Connector, creds connectors.Credentials, r Reason) (connectors.ConnectionStatus, string) {
+	az, custom := conn.(connectors.ConnectionAuthorizer)
+	oauth := conn.Descriptor().Auth == connectors.AuthOAuth2 || (custom && az.SignsIn(creds))
+	if oauth && (r == ReasonAuth || r == ReasonUnknown) {
 		return connectors.StatusNeedsReauth, string(ReasonReauth)
 	}
 	return connectors.StatusError, string(r)
@@ -1172,6 +1317,13 @@ func StateHash(state string) []byte {
 
 func (s *IntegrationsService) entry(ctx context.Context, tenantID uuid.UUID, c connectors.Connection, withFields bool) (ConnectionEntry, error) {
 	e := ConnectionEntry{Connection: c}
+	if conn, ok := s.dir.Get(c.Kind); ok {
+		if az, ok := conn.(connectors.ConnectionAuthorizer); ok {
+			if _, creds, err := s.store.Get(ctx, tenantID, c.ID); err == nil {
+				e.SignIn = az.SignsIn(creds)
+			}
+		}
+	}
 	var err error
 	if e.UsedBy, err = s.usedBy(ctx, tenantID, c.ID); err != nil {
 		return ConnectionEntry{}, err
@@ -1288,13 +1440,14 @@ func mergeCredentials(d connectors.Descriptor, stored, given connectors.Credenti
 	// The same predicate as the metadata checks: without x-secret fields every field is secret.
 	secret := secretsOf(d)
 	declared := declaredFields(d)
+	internal := connectors.InternalFields(d)
 	out := connectors.Credentials{}
 	for k, v := range stored {
 		out[k] = v
 	}
 	for k, v := range given {
-		if declared != nil && !declared[k] {
-			continue
+		if (declared != nil && !declared[k]) || internal[k] {
+			continue // a field the connector writes itself is never taken from a client
 		}
 		switch {
 		case v == "" && secret(k):

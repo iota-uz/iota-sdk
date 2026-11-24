@@ -105,6 +105,7 @@ const (
 	ErrVersionConflict  ErrorCode = "VERSION_CONFLICT"
 	ErrRunFinished      ErrorCode = "run_finished"
 	ErrConnectionGone   ErrorCode = "connection_unavailable"
+	ErrUnavailable      ErrorCode = "unavailable"
 )
 
 // ListRequest is automations.list.
@@ -252,6 +253,15 @@ type GraphError struct {
 	Path    string `json:"path"`
 	Message string `json:"message"`
 	Code    string `json:"code,omitempty"`
+	// Fix is an action that resolves the issue: remove the value at its path (the next save fills it
+	// again, e.g. pins a tool's schema anew).
+	Fix *GraphFix `json:"fix,omitempty"`
+}
+
+// GraphFix is GraphError.Fix.
+type GraphFix struct {
+	Remove string `json:"remove"`
+	Label  string `json:"label"`
 }
 
 // Conflict is VERSION_CONFLICT of a save: the latest version and who saved it.
@@ -619,4 +629,25 @@ type RunRestartRequest struct {
 // RunRef is a started run.
 type RunRef struct {
 	RunID string `json:"run_id"`
+}
+
+// MCPToolsRequest is automations.mcp_tools: the tools of an MCP connection.
+type MCPToolsRequest struct {
+	Connection string `json:"connection"`
+}
+
+// MCPTool is a tool of an MCP server.
+type MCPTool struct {
+	Name         string          `json:"name"`
+	Title        string          `json:"title,omitempty"`
+	Description  string          `json:"description,omitempty"`
+	InputSchema  json.RawMessage `json:"input_schema"`
+	OutputSchema json.RawMessage `json:"output_schema,omitempty"`
+	ReadOnly     bool            `json:"read_only,omitempty"`
+}
+
+// MCPToolsResponse is the tools, or error "unavailable" when the server could not be asked.
+type MCPToolsResponse struct {
+	Tools []MCPTool `json:"tools"`
+	Error string    `json:"error,omitempty"`
 }

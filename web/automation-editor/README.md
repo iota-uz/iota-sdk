@@ -92,7 +92,7 @@ Shortcuts do nothing while focus is in a field (⌘Z there is the field's own un
 
 | Check | Limit | Where |
 | --- | --- | --- |
-| Canvas chunk (minified, gzip, without solid-js) | ≤ 51 KB | `scripts/check-chunk.mjs` in `build:package` |
+| Canvas chunk (minified, gzip, without solid-js) | ≤ 52 KB | `scripts/check-chunk.mjs` in `build:package` |
 | Mount, 200 steps / 500 edges, 4× CPU throttle | ≤ 150 ms | `e2e/bench.spec.ts` |
 | Whole-graph replacement (undo), same graph | ≤ 60 ms (median of 10) | `e2e/bench.spec.ts` |
 | Drag: long tasks · p95 frame | 0 · ≤ 17 ms | `e2e/bench.spec.ts` |

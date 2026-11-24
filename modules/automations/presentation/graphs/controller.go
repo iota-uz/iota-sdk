@@ -28,6 +28,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/agentsession"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/mcp"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
@@ -78,6 +79,7 @@ const (
 	MethodRunResolve     = "automations.run_resolve"
 	MethodRunRetry       = "automations.run_retry"
 	MethodRunRestart     = "automations.run_restart"
+	MethodMCPTools       = "automations.mcp_tools"
 )
 
 // screen declares the Solid module. The call keeps string literals so the iota-solid generator can
@@ -105,6 +107,7 @@ var screen = solid.Import[Props]("./web/Automations.tsx", solid.WithRPC(
 	solid.Action[RunResolveRequest, OKResponse]("automations.run_resolve", solid.Invalidates("automations.runs", "automations.run")),
 	solid.Action[RunRetryRequest, OKResponse]("automations.run_retry", solid.Invalidates("automations.runs", "automations.run")),
 	solid.Action[RunRestartRequest, RunRef]("automations.run_restart", solid.Invalidates("automations.runs", "automations.list")),
+	solid.Query[MCPToolsRequest, MCPToolsResponse]("automations.mcp_tools"),
 ))
 
 // Engine is what the controller calls: the engine's services (engine.Runtime provides all three).
@@ -144,6 +147,9 @@ type Config struct {
 	MessageKeys    []string
 	TrustedOrigins []string
 	Logger         *slog.Logger
+	// MCPTools lists the tools of an MCP connection for the mcp_tool node (nil: automations.mcp_tools
+	// answers unavailable).
+	MCPTools mcp.ToolLister
 }
 
 // Controller serves the section's pages and their RPC.
