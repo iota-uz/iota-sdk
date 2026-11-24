@@ -1,0 +1,6 @@
+@config "../../../../../../../tailwind.config.js";
+@import "tailwindcss";
+@import "../../../../../../../styles/tailwind/iota.css";
+@source "../../*.tsx";
+@source "../../../../../../../web/solid-ui/src/**/*.{ts,tsx}";
+@source "../../../../../../../web/automation-editor/src/**/*.{ts,tsx}";

@@ -278,7 +278,8 @@ type preparingNode struct {
 	specNode
 	mu       sync.Mutex
 	prepares int
-	idleInTx []int // sessions idle in a transaction while PrepareEffect ran
+	stamps   []string // params.stamp as PrepareEffect and then ApplyEffectResult saw it
+	idleInTx []int    // sessions idle in a transaction while PrepareEffect ran
 	applied  []*engine.PreparedEffect
 	db       interface {
 		QueryRow(context.Context, string, ...any) pgx.Row
@@ -294,6 +295,8 @@ func (n *preparingNode) PrepareEffect(ctx context.Context, _ engine.StepContext,
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	n.prepares++
+	stamp, _ := e.Params["stamp"].(string)
+	n.stamps = append(n.stamps, "prepare:"+stamp)
 	n.idleInTx = append(n.idleInTx, idle)
 	if n.prepareTo != nil {
 		return nil, n.prepareTo
@@ -310,6 +313,8 @@ func (n *preparingNode) ApplyEffect(ctx context.Context, tx pgx.Tx, run engine.S
 func (n *preparingNode) ApplyEffectResult(_ context.Context, _ pgx.Tx, run engine.StepContext, _ graph.Node, e graph.Effect) (engine.EffectResult, error) {
 	n.mu.Lock()
 	n.applied = append(n.applied, run.Prepared)
+	stamp, _ := e.Params["stamp"].(string)
+	n.stamps = append(n.stamps, "apply:"+stamp)
 	n.mu.Unlock()
 	if run.Prepared != nil && run.Prepared.Err != nil {
 		return engine.EffectResult{}, run.Prepared.Err
@@ -324,8 +329,9 @@ func newPreparingEnv(t *testing.T) (*env, *preparingNode) {
 	e := newEnv(t)
 	n := &preparingNode{db: e.db, specNode: specNode{graph.NodeSpec{Type: "acme.pick_outcome", Title: "Pick", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture,
 		Outcomes: []string{"sent", "none", "failed"}, DoneOutcome: "sent", FailedOutcome: "failed",
-		Params: graph.MustSchemaParams(`{"type":"object","properties":{"pick":{"type":"string"}},"required":["pick"],"additionalProperties":false}`),
-		Output: expr.Fields{{Name: "picked", Field: expr.OptionalOf(expr.StringField)}, {Name: "previewed", Field: expr.OptionalOf(expr.BoolField)}}}}}
+		Params:    graph.MustSchemaParams(`{"type":"object","properties":{"pick":{"type":"string"},"stamp":{"type":"string"}},"required":["pick"],"additionalProperties":false}`),
+		Templates: []string{"stamp"},
+		Output:    expr.Fields{{Name: "picked", Field: expr.OptionalOf(expr.StringField)}, {Name: "previewed", Field: expr.OptionalOf(expr.BoolField)}}}}}
 	require.NoError(t, e.reg.RegisterNode(n))
 	return e, n
 }
@@ -376,4 +382,42 @@ func TestTestNodePreparesTheEffect(t *testing.T) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	assert.Equal(t, 1, n.prepares)
+}
+
+// What was prepared is what is applied: an effect whose params depend on `now` renders differently when the step is
+// taken again, but the step applies the effect the preparation was made for.
+func TestStepAppliesTheEffectItWasPreparedFor(t *testing.T) {
+	e, n := newPreparingEnv(t)
+	p := e.proc()
+	a := e.human()
+	g := strings.Replace(pickGraph("sent"), `"params": {"pick": "sent"}`, `"params": {"pick": "sent", "stamp": "{{ now.getMilliseconds() }}-{{ now.getSeconds() }}"}`, 1)
+	e.create(p, a, g)
+	for i := 0; i < 3; i++ {
+		e.publish(e.tenant, orderCreated, "o-"+string(rune('1'+i)), order{Amount: 7}, 2)
+	}
+	p.until(func() bool { return len(e.runs(p, a, engine.RunFilter{})) == 3 }, "the runs start")
+	p.until(func() bool {
+		for _, r := range e.runs(p, a, engine.RunFilter{}) {
+			if e.status(p, r.RunID) != engine.RunDone {
+				return false
+			}
+		}
+		return true
+	}, "the runs end")
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	require.Len(t, n.stamps, 6)
+	prepared := map[string]bool{}
+	for _, s := range n.stamps {
+		if strings.HasPrefix(s, "prepare:") {
+			prepared[strings.TrimPrefix(s, "prepare:")] = true
+		}
+	}
+	require.Len(t, prepared, 3)
+	for _, s := range n.stamps {
+		if strings.HasPrefix(s, "apply:") {
+			assert.True(t, prepared[strings.TrimPrefix(s, "apply:")], "%s is the effect that was prepared", s)
+		}
+	}
 }

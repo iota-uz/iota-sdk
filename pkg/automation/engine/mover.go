@@ -84,6 +84,12 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 		return behavior, err
 	}
 	st := in.Start(node.ID, &graph.StepContext{Ctx: gctx, Token: tok.Path, From: tok.From, Tokens: active})
+	if p := m.x.preparedFor(tok.ID, tok.StepSeq+1, node.ID); p != nil && len(st.Effects) > 0 && len(p.Effects) == len(st.Effects) {
+		// The step is taken again after its preparation: what was prepared is what is applied, whatever the
+		// fresh evaluation rendered (`now` moved on). The token, the step's number and the node still have to
+		// be the ones prepared, or the preparation is not used.
+		st.Effects = p.Effects
+	}
 	switch st.Kind {
 	case graph.StepFailed, graph.StepMissingContext:
 		if stopsRun(st) {
@@ -193,6 +199,7 @@ func applyEach(ctx context.Context, sp pgx.Tx, sc StepContext, node graph.Node, 
 		if err != nil {
 			var np *needsPrepareError
 			if errors.As(err, &np) {
+				np.effects = effects
 				return EffectResult{}, nil, err
 			}
 			if platformErrors && (host.IsInfrastructure(err) || ctx.Err() != nil) {

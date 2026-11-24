@@ -438,7 +438,7 @@ func (x *execution) stepOne(ctx context.Context) (bool, error) {
 	if errors.As(err, &np) {
 		// The step was rolled back: nothing of it stands. Prepare outside any transaction, then take it again.
 		v, perr := np.preparer.PrepareEffect(ctx, np.sc, np.node, np.effect)
-		x.prepared = &preparedStep{token: np.sc.TokenID, seq: np.sc.Seq, node: np.node.ID, PreparedEffect: PreparedEffect{Value: v, Err: perr}}
+		x.prepared = &preparedStep{token: np.sc.TokenID, seq: np.sc.Seq, node: np.node.ID, PreparedEffect: PreparedEffect{Value: v, Err: perr, Effects: np.effects}}
 		if host.IsInfrastructure(perr) || ctx.Err() != nil {
 			return true, perr
 		}

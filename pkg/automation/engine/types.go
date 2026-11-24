@@ -126,10 +126,19 @@ type Service interface {
 	// Validation failure → *ValidationError; nothing is written.
 	SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in SaveInput) (Version, error)
 	SaveLayout(ctx context.Context, a Actor, id uuid.UUID, l graph.Layout) error // merge, last write wins; no version
+	// SaveLayoutAt merges l into the layout when its revision is still baseRevision and returns the new
+	// revision; a stale base → *LayoutConflictError (ErrVersionConflict) with the current layout.
+	SaveLayoutAt(ctx context.Context, a Actor, id uuid.UUID, baseRevision int, l graph.Layout) (int, error)
 	Get(ctx context.Context, a Actor, id uuid.UUID) (Automation, error)
 	GetVersion(ctx context.Context, a Actor, id uuid.UUID, version int) (Version, error)
 	List(ctx context.Context, a Actor, f ListFilter) (Page[Automation], error)
 	ListVersions(ctx context.Context, a Actor, id uuid.UUID) ([]VersionInfo, error)
+	// Overviews are what a list of graphs shows of each of ids (graphs of other tenants and deleted ones
+	// are left out): the latest version's author and triggers, the last run and the runs that need
+	// attention.
+	Overviews(ctx context.Context, a Actor, ids []uuid.UUID) (map[uuid.UUID]Overview, error)
+	// CountLive counts what Disable and Delete would cancel (Automations.Read, Enable or Author).
+	CountLive(ctx context.Context, a Actor, id uuid.UUID) (LiveCount, error)
 
 	// EnableReview returns what a human must see before enabling: code nodes, their secrets and the digest.
 	EnableReview(ctx context.Context, a Actor, id uuid.UUID, version int) (EnableReview, error)
@@ -158,15 +167,21 @@ type SaveInput struct {
 	BaseVersion int
 	Graph       json.RawMessage
 	Layout      graph.Layout // optional; saved together with the version
-	Note        string
+	// LayoutBase, when set, is the layout revision Layout was made over: when another write moved the
+	// layout since, the stored positions stay and only steps the layout does not place yet take
+	// Layout's.
+	LayoutBase *int
+	Note       string
 }
 
 // ListFilter selects graphs of a list.
 type ListFilter struct {
 	Query   string // a substring of the name, case-insensitive
 	Enabled *bool
-	Cursor  string
-	Limit   int // ≤ 100, default 50
+	// Attention keeps graphs with runs that need attention (failed, blocked or filter_failed).
+	Attention bool
+	Cursor    string
+	Limit     int // ≤ 100, default 50
 }
 
 // Automation is a graph: its versions, the one that runs and its layout.
@@ -177,6 +192,8 @@ type Automation struct {
 	EnabledVersion *int
 	OwnerUserID    *int64
 	Layout         graph.Layout
+	// LayoutRevision counts the changes of Layout (SaveLayout, SaveLayoutAt, a version saved with one).
+	LayoutRevision int
 	CreatedBy      int64
 	CreatedOrigin  Origin
 	CreatedAt      time.Time
@@ -213,6 +230,9 @@ type EnableReview struct {
 	CodeDigest string           // sha256 over code nodes (id, lang, source, declared secrets, fetch allow) of the version
 	Triggers   []TriggerReview  // event keys / schedules the version subscribes to
 	RunAs      string           // run_as of the version; shown to the human with the code
+	// Problems are why the version does not enable now (validation against the reviewer's catalog: an
+	// unavailable connection, a type the reviewer may not use); empty when it does.
+	Problems []graph.GraphError
 }
 
 // CodeNodeReview is a Code node of a version as the reviewer sees it.
@@ -231,6 +251,9 @@ type TriggerReview struct{ TriggerID, Kind, Event, Schedule string }
 type EnableInput struct {
 	Version    int
 	CodeDigest string
+	// Latest: the version must still be the graph's latest when the enable takes the graph's lock (a
+	// person enables what they reviewed; a version saved meanwhile → ErrReviewRequired).
+	Latest bool
 }
 
 // ManualStart starts a run from a manual trigger.
@@ -252,6 +275,7 @@ type RunRef struct {
 // RunFilter selects runs.
 type RunFilter struct {
 	AutomationID *uuid.UUID
+	Version      int // 0: every version
 	Status       []RunStatus
 	Subject      *SubjectRef
 	Since, Until *time.Time
@@ -382,6 +406,37 @@ func (e *ValidationError) Is(target error) bool {
 	return false
 }
 
+// LayoutConflictError is ErrVersionConflict of SaveLayoutAt: the layout's revision and positions now.
+type LayoutConflictError struct {
+	Revision int
+	Layout   graph.Layout
+}
+
+func (e *LayoutConflictError) Error() string {
+	return fmt.Sprintf("%s: the layout is at revision %d", ErrVersionConflict.Error(), e.Revision)
+}
+
+func (e *LayoutConflictError) Is(target error) bool { return target == ErrVersionConflict }
+
+// Overview is a graph as a list shows it.
+type Overview struct {
+	AutomationID uuid.UUID
+	// LatestSavedBy and LatestSavedOrigin saved the latest version, at LatestSavedAt.
+	LatestSavedBy     int64
+	LatestSavedOrigin Origin
+	LatestSavedAt     time.Time
+	// LatestDescription is the description of the latest version's graph.
+	LatestDescription string
+	// LatestCodeDigest and EnabledCodeDigest tell whether the latest version changed the code of the
+	// enabled one.
+	LatestCodeDigest  string
+	EnabledCodeDigest string
+	Triggers          []TriggerReview // of the latest version
+	LastRun           *RunSummary     // CurrentNodes and Error are left empty
+	// Attention counts the kept runs that failed, are blocked or whose filter failed.
+	Attention int
+}
+
 // ConflictError is ErrVersionConflict with the latest version and who saved it.
 type ConflictError struct {
 	Latest int
@@ -403,6 +458,8 @@ const (
 	CodeEffectFailed          = "effect_failed"
 	CodeTimeout               = "timeout"
 	CodeCancelled             = "cancelled"
+	// CodeTriggersUnreadable: the reviewer may not read an event the version's triggers are on.
+	CodeTriggersUnreadable = "triggers_unreadable"
 )
 
 // SubjectLoader loads the subject entity for CEL scope `subject`, with the run-as rights.
@@ -485,6 +542,10 @@ type EffectPreparer interface {
 type PreparedEffect struct {
 	Value any
 	Err   error
+	// Effects are the effects the preparation was made for. The step taken again applies exactly these, not
+	// the ones its fresh evaluation renders (an expression on `now` renders differently the second time), so
+	// what was prepared is what is applied.
+	Effects []graph.Effect
 }
 
 // needsPrepareError is what a step's transaction returns when an effect node wants its preparation first: the step is
@@ -494,6 +555,7 @@ type needsPrepareError struct {
 	sc       StepContext
 	node     graph.Node
 	effect   graph.Effect
+	effects  []graph.Effect // every effect of the node's step
 }
 
 func (*needsPrepareError) Error() string { return "the effect needs its preparation before the step" }

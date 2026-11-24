@@ -194,14 +194,15 @@ func TestSendToContactPreparesTheContactCheckBeforeTheTransaction(t *testing.T) 
 	require.Len(t, s.sends, 1)
 	assert.False(t, s.sends[0].CheckContacts, "the contact was checked before the transaction")
 
-	// A preparation made for another record is not trusted: the delivery layer checks in the transaction.
+	// A preparation made for another record is not trusted, and the contact is not asked again in the
+	// transaction either: the record is queued unchecked for the worker.
 	elsewhere := step()
 	elsewhere.Subject = engine.SubjectRef{Entity: "crm.client", Key: "7"}
 	s = &sender{resolved: clientAudience(), receipt: notifications.AudienceReceipt{NoticeID: notice, Recipients: 1}}
 	res, err = applyWith(s, prepareAs(s, elsewhere))
 	require.NoError(t, err)
 	assert.Equal(t, notify.OutcomeSent, res.Outcome)
-	assert.True(t, s.sends[0].CheckContacts)
+	assert.False(t, s.sends[0].CheckContacts)
 
 	// A preparation that failed fails the node with its error, and queues nothing.
 	s = &sender{resolveErr: serrors.New(serrors.FailedPrecondition, "notification channel is not available: sms")}

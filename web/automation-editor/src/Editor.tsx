@@ -85,6 +85,7 @@ function EditorBody(props: EditorProps): JSX.Element {
   const [base, setBase] = createSignal(props.version)
   const [persistedLayout, setPersistedLayout] = createSignal<AutomationLayout>(initial.layout)
   const dirty = createMemo(() => !graphsEqual(draft(), saved()))
+  createEffect(on(dirty, (d) => props.onDirtyChange?.(d)))
 
   let lastKey: string | null = null
   let lastAt = 0
@@ -98,6 +99,17 @@ function EditorBody(props: EditorProps): JSX.Element {
     lastAt = now
   }
   const commitGraph = (graph: AutomationGraph, key?: string) => commit({ graph, layout: ensureLayout(graph, props.catalog, layout()) }, key)
+
+  // Positions the host read from storage (another tab moved steps): they replace the positions on screen
+  // and become the saved layout, without a history step or a layout save.
+  createEffect(on(() => props.remoteLayout, (remote) => {
+    if (!remote) return
+    const next = ensureLayout(draft(), props.catalog, { ...layout(), ...remote.positions })
+    batch(() => {
+      setHistory((h) => amend(h, { graph: h.present.graph, layout: next }))
+      setPersistedLayout(next)
+    })
+  }, { defer: true }))
 
   // ——— selection, layers ———
   const [selected, setSelectedSignal] = createSignal<string | null>(props.selected ?? null)
