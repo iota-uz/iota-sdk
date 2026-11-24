@@ -388,6 +388,7 @@ func (s *IntegrationsService) Create(ctx context.Context, a Actor, in CreateInpu
 	if err != nil || done != nil {
 		return deref(done), err
 	}
+	var run provisionRun
 	saved, err := func() (connectors.Connection, error) {
 		identity, err := s.test(ctx, conn, creds)
 		if err != nil {
@@ -396,10 +397,14 @@ func (s *IntegrationsService) Create(ctx context.Context, a Actor, in CreateInpu
 		if err := s.advise(ctx, conn, nil, creds, in.Confirmed); err != nil {
 			return connectors.Connection{}, err
 		}
-		return s.store.SaveWith(ctx, connectors.Connection{
+		saved, err := s.store.SaveWith(ctx, connectors.Connection{
 			TenantID: a.TenantID, Kind: in.Kind, Name: name, DisplayName: display,
 			Identity: identity, Status: connectors.StatusConnected, CreatedBy: a.UserID,
-		}, creds, s.within(conn, creds, req))
+		}, creds, s.within(conn, creds, req, in.Confirmed, &run))
+		if err != nil {
+			s.reconcile(ctx, conn, &run, creds, false)
+		}
+		return saved, err
 	}()
 	if err != nil {
 		req.release(ctx)
@@ -415,8 +420,8 @@ func (s *IntegrationsService) Create(ctx context.Context, a Actor, in CreateInpu
 
 // advise asks a connector that reports what connecting credentials would change elsewhere
 // (connectors.Advisor). A warning that cannot be lifted (the bot belongs to another connection) refuses the
-// credentials; the others refuse the save until the person confirmed them. A connector that fails to look
-// gives no warnings: a check that cannot run never blocks a connection.
+// credentials; the others refuse the save until the person confirmed them. A connector that cannot look
+// refuses the save too: what it would change is not known.
 func (s *IntegrationsService) advise(ctx context.Context, conn connectors.Connector, existing *connectors.Connection, creds connectors.Credentials, confirmed []string) error {
 	adv, ok := conn.(connectors.Advisor)
 	if !ok {
@@ -427,7 +432,9 @@ func (s *IntegrationsService) advise(ctx context.Context, conn connectors.Connec
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		return nil //nolint:nilerr // see above: an advice that cannot be had is no warning
+		// Fail closed: without the provider's state there is no knowing what the save would change, so it
+		// is not made (the provider is looked at again when it is changed, too).
+		return &TestFailedError{Reason: classify(err.Error())}
 	}
 	for _, w := range warnings {
 		if w.Blocking {
@@ -444,18 +451,61 @@ func (s *IntegrationsService) advise(ctx context.Context, conn connectors.Connec
 	return nil
 }
 
-// within is what a save does in its transaction beside writing the row: the provider's side of the
-// connection is set up (connectors.Provisioner) and the idempotency key is completed. A provider that
-// refuses fails the save, which rolls the row back.
-func (s *IntegrationsService) within(conn connectors.Connector, creds connectors.Credentials, req request) func(ctx context.Context, tx pgx.Tx, saved connectors.Connection) error {
+// provisionRun records whether a save changed the provider, for the cleanup of a save that did not commit.
+type provisionRun struct {
+	ran   bool
+	saved connectors.Connection
+}
+
+// identityField is the credentials field an exclusive identity's refusal is shown at: the first secret one.
+func identityField(conn connectors.Connector) string {
+	names := make([]string, 0)
+	for name := range connectors.SecretFields(conn.Descriptor()) {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	if len(names) > 0 {
+		return names[0]
+	}
+	return "credentials"
+}
+
+// within is what a save does in its transaction beside writing the row: the provider account is reserved
+// for the connection (connectors.ExclusiveIdentity, under a lock on it, so two saves for one account run one
+// after the other), the provider's side of the connection is set up (connectors.Provisioner) with the
+// confirmations the person gave, what it hands back is kept in the connection's inbound state, and the
+// idempotency key is completed. A provider that refuses fails the save, which rolls the row back. The
+// provider is changed only after the row's version check, which the write of the row has passed by then.
+func (s *IntegrationsService) within(conn connectors.Connector, creds connectors.Credentials, req request, confirmed []string, run *provisionRun) func(ctx context.Context, tx pgx.Tx, saved connectors.Connection) error {
 	return func(ctx context.Context, tx pgx.Tx, saved connectors.Connection) error {
 		if p, ok := conn.(connectors.Provisioner); ok && saved.Status == connectors.StatusConnected && creds != nil {
-			state, err := p.Provision(ctx, saved, creds)
+			if ex, ok := conn.(connectors.ExclusiveIdentity); ok {
+				if err := connectors.ReserveIdentity(ctx, tx, saved.Kind, ex.ExternalID(creds), saved.ID); err != nil {
+					if errors.Is(err, connectors.ErrIdentityTaken) {
+						return &InvalidInputError{Fields: map[string]string{identityField(conn): "in_use"}}
+					}
+					return err
+				}
+			}
+			state, err := p.Provision(ctx, saved, creds, confirmed)
 			if err != nil {
-				if ctx.Err() != nil {
+				var blocked *connectors.BlockedError
+				switch {
+				case ctx.Err() != nil:
 					return ctx.Err()
+				case errors.As(err, &blocked):
+					field := blocked.Field
+					if field == "" {
+						field = identityField(conn)
+					}
+					return &InvalidInputError{Fields: map[string]string{field: "in_use"}}
+				case errors.Is(err, connectors.ErrConfirmationRequired):
+					return err
 				}
 				return &TestFailedError{Reason: classify(err.Error())}
+			}
+			if run != nil {
+				run.ran, run.saved = true, saved
 			}
 			if err := connectors.MergeInboundTx(ctx, tx, saved.TenantID, saved.ID, state); err != nil {
 				return err
@@ -463,6 +513,17 @@ func (s *IntegrationsService) within(conn connectors.Connector, creds connectors
 		}
 		return req.complete(ctx, tx, saved)
 	}
+}
+
+// reconcile undoes the provider's side of a save that changed the provider and did not commit: the webhook
+// of the credentials it set up is removed (a connection whose row was not saved, or is not connected, must
+// not have one). keep: the connection is connected with these very credentials already, so what the save
+// set up is what the row says and stays.
+func (s *IntegrationsService) reconcile(ctx context.Context, conn connectors.Connector, run *provisionRun, creds connectors.Credentials, keep bool) {
+	if run == nil || !run.ran || keep {
+		return
+	}
+	s.deprovision(ctx, conn, run.saved, creds)
 }
 
 // deprovision tells the provider that a connection's credentials are no longer used; it never fails the
@@ -621,8 +682,10 @@ func (s *IntegrationsService) update(ctx context.Context, a Actor, in UpdateInpu
 		// longer be recognised, so it is checked against both.
 		scrubRetained(&next, secretsOf(d), stored, creds)
 	}
-	saved, err := s.store.SaveWith(ctx, next, creds, s.within(conn, creds, req))
+	var run provisionRun
+	saved, err := s.store.SaveWith(ctx, next, creds, s.within(conn, creds, req, in.Confirmed, &run))
 	if err != nil {
+		s.reconcile(ctx, conn, &run, creds, cur.Status == connectors.StatusConnected && sameCredentials(stored, creds))
 		var failed *TestFailedError
 		if errors.As(err, &failed) {
 			return ConnectionEntry{}, err
@@ -773,31 +836,27 @@ func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.
 			default:
 				return ConnectionEntry{}, serrors.Wrap(op, testErr)
 			}
-			var state map[string]json.RawMessage
 			if next.Status == connectors.StatusConnected {
 				// Enabled again: the bot may have been given to another service meanwhile, so what a new
 				// connection is asked, this one is asked too, before the provider is changed.
 				if err := s.advise(ctx, conn, &cur, creds, confirmed); err != nil {
 					return ConnectionEntry{}, err
 				}
-				if p, ok := conn.(connectors.Provisioner); ok {
-					var perr error
-					if state, perr = p.Provision(ctx, next, creds); perr != nil {
-						if ctx.Err() != nil {
-							return ConnectionEntry{}, ctx.Err()
-						}
-						next.Status, next.StatusReason = failedStatus(conn, classify(perr.Error()))
-					}
-				}
 			}
-			saved, err := s.store.Save(ctx, next, nil)
+			// One transaction: the version check of the row, the provider's change and the status with the
+			// provider's state commit together; a competing enable loses the version check before it touches
+			// the provider, and a save that does not commit has the provider's change undone.
+			var run provisionRun
+			_, err := s.store.SaveWith(ctx, next, nil, s.within(conn, creds, request{}, confirmed, &run))
 			if err != nil {
-				return ConnectionEntry{}, mapStoreError(op, err)
-			}
-			if len(state) > 0 {
-				if err := s.store.UpdateInbound(ctx, a.TenantID, saved.ID, func(cur json.RawMessage) (json.RawMessage, error) {
-					return connectors.MergeInbound(cur, state)
-				}); err != nil {
+				s.reconcile(ctx, conn, &run, creds, false)
+				var refused *TestFailedError
+				if !errors.As(err, &refused) {
+					return ConnectionEntry{}, mapStoreError(op, err)
+				}
+				// The provider refused the setup: the connection comes back with that error.
+				next.Status, next.StatusReason = failedStatus(conn, refused.Reason)
+				if _, err := s.store.Save(ctx, next, nil); err != nil {
 					return ConnectionEntry{}, mapStoreError(op, err)
 				}
 			}

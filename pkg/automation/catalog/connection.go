@@ -200,7 +200,11 @@ func ConnectionRule(v View) func(graph.Graph) []graph.GraphError {
 					Message: fmt.Sprintf("%s needs a connection the tenant does not have", n.Type)})
 				continue
 			}
-			checkIn(fmt.Sprintf("nodes[%d]", i), v.Connections, v.NodeRequires[n.Type], n.Params)
+			connections := v.Connections
+			if v.TenantOnly[n.Type] {
+				connections = ownRefs(connections)
+			}
+			checkIn(fmt.Sprintf("nodes[%d]", i), connections, v.NodeRequires[n.Type], n.Params)
 		}
 		return out
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 )
@@ -21,7 +22,11 @@ type Provisioner interface {
 	// neither it nor its error carries credential values. The keys it returns are merged into the
 	// connection's inbound state in the same transaction as the save (a webhook secret it generated): the
 	// connector reads them back through InboundReader, never from the credentials.
-	Provision(ctx context.Context, c Connection, creds Credentials) (inbound map[string]json.RawMessage, err error)
+	//
+	// consent are the codes of the warnings the person confirmed. Provision looks at the provider's state
+	// itself, at the moment it changes it, and refuses (a *ConfirmationRequiredError, a *BlockedError) what
+	// needs a confirmation that is not among them or cannot be given: advice given earlier may be stale.
+	Provision(ctx context.Context, c Connection, creds Credentials, consent []string) (inbound map[string]json.RawMessage, err error)
 	// Deprovision undoes Provision for credentials a connection no longer uses: it was deleted or
 	// disabled, or its credentials were replaced (these are the old ones). The caller ignores its error:
 	// a provider that cannot be reached never keeps a connection from being removed.
@@ -89,7 +94,9 @@ type PlatformProvider interface {
 // PlatformStarter is an optional interface of a Connector that sets up its platform credential when the
 // application starts (a webhook of the platform bot). An error is logged; the application still starts.
 type PlatformStarter interface {
-	StartPlatform(ctx context.Context) error
+	// StartPlatform sets the platform credential up. creds is the effective platform credential: the
+	// configured one when the configuration names the kind, else the connector's own (PlatformProvider).
+	StartPlatform(ctx context.Context, creds Credentials) error
 }
 
 // WithPlatformProviders adds the platform credentials the connectors of dir bring themselves, for a
@@ -169,4 +176,106 @@ func MergeInboundTx(ctx context.Context, tx pgx.Tx, tenantID, id uuid.UUID, add 
 // belongs to a live connection from a webhook nobody owns any more.
 type ExistenceChecker interface {
 	ConnectionExists(ctx context.Context, id uuid.UUID) (bool, error)
+}
+
+// ExclusiveIdentity is an optional interface of a Connector whose provider account can deliver to one place
+// only (a Telegram bot has one webhook): the account (Identity.External) belongs to one connection, or to
+// the platform credential, never two. The integrations service reserves it in the transaction of the save,
+// under a lock on the account, before the provider is changed.
+type ExclusiveIdentity interface {
+	// ExternalID is the provider's identifier of the account the credentials belong to, as Test reports it in
+	// Identity.External; "" when the credentials name none.
+	ExternalID(creds Credentials) string
+}
+
+// BlockedError is credentials that cannot be connected: the provider account belongs to another connection
+// (or to the platform). Field is the credentials field the screen shows it at. No confirmation lifts it.
+type BlockedError struct{ Field string }
+
+func (e *BlockedError) Error() string {
+	return "automation connections: the provider account belongs to another connection"
+}
+
+// ErrIdentityTaken: the exclusive identity belongs to another connection or to the platform credential.
+var ErrIdentityTaken = errors.New("automation connections: the provider account belongs to another connection")
+
+func identityLockKey(kind catalog.ConnectorKind, external string) string {
+	return string(kind) + "|" + external
+}
+
+// ReserveIdentity gives the exclusive identity to a connection in the caller's transaction (the save): it
+// takes an advisory lock on the identity until the transaction ends, so concurrent saves for the same
+// account run one after the other and the later one sees the earlier's reservation. The connection's
+// reservation of another account (its credentials changed to another bot) is released. ErrIdentityTaken
+// when another connection or the platform credential holds it.
+func ReserveIdentity(ctx context.Context, tx pgx.Tx, kind catalog.ConnectorKind, external string, connectionID uuid.UUID) error {
+	if external == "" {
+		return nil
+	}
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, identityLockKey(kind, external)); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE connection_id = $1 AND kind = $2 AND external <> $3`,
+		connectionID, string(kind), external); err != nil {
+		return err
+	}
+	var holder *uuid.UUID
+	err := tx.QueryRow(ctx, `SELECT connection_id FROM automation.exclusive_identities WHERE kind = $1 AND external = $2`, string(kind), external).Scan(&holder)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		_, err = tx.Exec(ctx, `INSERT INTO automation.exclusive_identities (kind, external, connection_id) VALUES ($1, $2, $3)`, string(kind), external, connectionID)
+		return err
+	case err != nil:
+		return err
+	case holder != nil && *holder == connectionID:
+		return nil
+	}
+	return ErrIdentityTaken
+}
+
+// IdentityHolder is who holds an exclusive identity: the connection, whether it is the platform credential's, and
+// whether anyone holds it.
+func IdentityHolder(ctx context.Context, q interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}, kind catalog.ConnectorKind, external string) (connectionID uuid.UUID, platform, held bool, err error) {
+	var holder *uuid.UUID
+	err = q.QueryRow(ctx, `SELECT connection_id, platform FROM automation.exclusive_identities WHERE kind = $1 AND external = $2`, string(kind), external).Scan(&holder, &platform)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, false, false, nil
+	}
+	if err != nil {
+		return uuid.Nil, false, false, err
+	}
+	if holder != nil {
+		connectionID = *holder
+	}
+	return connectionID, platform, true, nil
+}
+
+// ReservePlatformIdentity gives the exclusive identity to the platform credential, under the same lock as a
+// connection's reservation. A connection that holds it already keeps it (ErrIdentityTaken): the platform's
+// credential then cannot be set up for that account. The platform's reservation of another account is released.
+func ReservePlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind, external string) error {
+	if external == "" {
+		return nil
+	}
+	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, identityLockKey(kind, external)); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE platform AND kind = $1 AND external <> $2`, string(kind), external); err != nil {
+			return err
+		}
+		holder, platform, held, err := IdentityHolder(ctx, tx, kind, external)
+		switch {
+		case err != nil:
+			return err
+		case held && platform:
+			return nil
+		case held && holder != uuid.Nil:
+			return ErrIdentityTaken
+		}
+		_, err = tx.Exec(ctx, `INSERT INTO automation.exclusive_identities (kind, external, platform) VALUES ($1, $2, TRUE)`, string(kind), external)
+		return err
+	})
 }

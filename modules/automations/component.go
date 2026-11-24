@@ -302,16 +302,30 @@ func (c *component) Build(b *composition.Builder) error {
 			if err != nil {
 				return nil, err
 			}
+			db, dbErr := composition.Resolve[*pgxpool.Pool](container)
 			for _, conn := range dir.List() {
 				starter, ok := conn.(connectors.PlatformStarter)
-				if _, _, has := platform.Platform(conn.Kind()); !ok || !has {
+				creds, _, has := platform.Platform(conn.Kind())
+				if !ok || !has {
 					continue
 				}
-				if err := starter.StartPlatform(ctx); err != nil {
-					// The application starts without it: the platform credential works for sending.
+				warn := func(format string, err error) {
 					if logger := b.Context().Logger(); logger != nil {
-						logger.Warnf("automations: the platform credential of %s was not set up: %v", conn.Kind(), err)
+						logger.Warnf(format, conn.Kind(), err)
 					}
+				}
+				// The platform credential in effect (the configuration's, else the connector's own) is the
+				// one that is registered, verified and reserved: an account a tenant's connection holds
+				// cannot be the platform's too.
+				if ex, ok := conn.(connectors.ExclusiveIdentity); ok && dbErr == nil {
+					if err := connectors.ReservePlatformIdentity(ctx, db, conn.Kind(), ex.ExternalID(creds)); err != nil {
+						warn("automations: the platform credential of %s was not set up: %v", err)
+						continue
+					}
+				}
+				if err := starter.StartPlatform(ctx, creds); err != nil {
+					// The application starts without it: the platform credential works for sending.
+					warn("automations: the platform credential of %s was not set up: %v", err)
 				}
 			}
 			return nil, nil

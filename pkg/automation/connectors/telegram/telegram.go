@@ -26,7 +26,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 
@@ -43,7 +45,7 @@ const Kind catalog.ConnectorKind = "telegram_bot"
 const (
 	WarnBotInUse       = "bot_in_use"
 	WarnForeignWebhook = "foreign_webhook"
-	WarnPollingInUse   = "polling_in_use"
+	WarnPollingUnknown = "polling_unknown"
 )
 
 // Config configures the connector.
@@ -82,6 +84,8 @@ type Connector struct {
 	starts  starts
 	chats   chatMemory
 	presses presses
+	// platformToken is the platform credential StartPlatform was given (the effective one).
+	platformToken atomic.Pointer[string]
 }
 
 // New is the connector.
@@ -172,7 +176,7 @@ func (c *Connector) ownerOf(ctx context.Context, url, own string) (hookOwner, er
 	}
 	rest := strings.TrimPrefix(url, c.hookPrefix())
 	if rest == "platform/"+string(Kind) {
-		if c.cfg.PlatformToken != "" {
+		if c.platformLive() {
 			return hookTaken, nil // the platform bot's route is live
 		}
 		return hookFree, nil
@@ -195,12 +199,13 @@ func (c *Connector) ownerOf(ctx context.Context, url, own string) (hookOwner, er
 	return hookFree, nil
 }
 
-// Advise looks at the bot before it is connected. A bot another connection of this application owns (or
-// the platform's) cannot be connected twice: Telegram has one webhook per bot, so the second connection
-// would silently take the first one's messages (a blocking warning, no confirmation lifts it). A webhook
-// another service set, or a long poll (getUpdates) running, is a warning the person confirms. It changes
-// nothing at Telegram.
-func (c *Connector) Advise(ctx context.Context, existing *connectors.Connection, creds connectors.Credentials) ([]connectors.Warning, error) {
+// assess looks at the bot's current webhook and says what connecting the credentials would change
+// elsewhere. A bot another live connection owns (or the platform's) is blocked: Telegram has one webhook per
+// bot, so the second connection would silently take the first one's messages. A webhook another service set
+// is a warning the person confirms. With no webhook at all, whether another service reads the bot by polling
+// (getUpdates) cannot be told without disturbing it (a request for updates takes over the long poll of the
+// service that has it), so a new connection needs the person's word that nobody does.
+func (c *Connector) assess(ctx context.Context, creds connectors.Credentials, existing *connectors.Connection) ([]connectors.Warning, error) {
 	b := c.bot(creds["token"])
 	info, err := b.webhookInfo(ctx)
 	if err != nil {
@@ -214,26 +219,20 @@ func (c *Connector) Advise(ctx context.Context, existing *connectors.Connection,
 	if err != nil {
 		return nil, err
 	}
-	switch owner {
-	case hookTaken:
+	switch {
+	case owner == hookTaken:
 		return []connectors.Warning{{Code: WarnBotInUse, Blocking: true, Field: "token"}}, nil
-	case hookForeign:
+	case owner == hookForeign:
 		return []connectors.Warning{{Code: WarnForeignWebhook}}, nil
-	case hookOwn:
-		return nil, nil
+	case owner == hookOwn || info.Url != "" || existing != nil:
+		return nil, nil // this connection's own, a stale one of a connection that is gone, or a bot it had
 	}
-	if info.Url != "" {
-		return nil, nil // a stale webhook of a connection that is gone
-	}
-	// No webhook: another service may be polling. A request for the updates of a bot another one is
-	// polling at the moment is refused with 409; it takes none (no offset confirms anything).
-	var updates []json.RawMessage
-	err = b.call(ctx, "getUpdates", map[string]string{"limit": "1", "timeout": "0", "allowed_updates": "[]"}, nil, &updates)
-	var api *apiError
-	if errors.As(err, &api) && api.Code == 409 {
-		return []connectors.Warning{{Code: WarnPollingInUse}}, nil
-	}
-	return nil, nil
+	return []connectors.Warning{{Code: WarnPollingUnknown}}, nil
+}
+
+// Advise warns before a bot is connected (see assess). It changes nothing at Telegram.
+func (c *Connector) Advise(ctx context.Context, existing *connectors.Connection, creds connectors.Credentials) ([]connectors.Warning, error) {
+	return c.assess(ctx, creds, existing)
 }
 
 // secretKey is the key of the connection's inbound state the webhook secret is kept under.
@@ -249,30 +248,37 @@ func newSecret() (string, error) {
 }
 
 // Provision sets the connection's webhook with a generated secret, which it hands back for the service to
-// keep in the connection's inbound state (Verify reads it there). A bot that another live connection owns
-// is refused.
-func (c *Connector) Provision(ctx context.Context, conn connectors.Connection, creds connectors.Credentials) (map[string]json.RawMessage, error) {
+// keep in the connection's inbound state. It looks at the webhook as it is now: a bot another live connection
+// owns is refused, and a foreign webhook (or a bot that may be polled) is replaced only when the person
+// confirmed it, whatever advice an earlier look gave.
+func (c *Connector) Provision(ctx context.Context, conn connectors.Connection, creds connectors.Credentials, consent []string) (map[string]json.RawMessage, error) {
 	if c.cfg.PublicOrigin == "" {
 		return nil, errors.New("telegram: the application's public origin is not configured (status 400)")
 	}
 	token := creds["token"]
-	b := c.bot(token)
-	info, err := b.webhookInfo(ctx)
+	warnings, err := c.assess(ctx, creds, &conn)
 	if err != nil {
 		return nil, err
 	}
-	owner, err := c.ownerOf(ctx, info.Url, c.hookURL(conn))
-	if err != nil {
-		return nil, err
+	for _, w := range warnings {
+		if w.Blocking {
+			return nil, &connectors.BlockedError{Field: w.Field}
+		}
 	}
-	if owner == hookTaken {
-		return nil, errors.New("telegram: the bot already belongs to another connection (status 400)")
+	// Consent is for the warning of a new connection too (the polling one), which the save was asked for.
+	if open := connectors.Unconfirmed(warnings, consent); len(open) > 0 {
+		return nil, &connectors.ConfirmationRequiredError{Warnings: open}
 	}
-	secret, err := newSecret()
-	if err != nil {
-		return nil, err
+	// A connection keeps its secret across saves and re-enables: a save that does not commit after the
+	// provider was changed, or a competing one, then never leaves Telegram with a secret the SDK does not
+	// hold. Only a connection with none (a new one) gets a generated one.
+	secret, err := c.storedSecret(ctx, conn)
+	if err != nil || secret == "" {
+		if secret, err = newSecret(); err != nil {
+			return nil, err
+		}
 	}
-	if err := b.setWebhook(ctx, c.hookURL(conn), secret); err != nil {
+	if err := c.bot(token).setWebhook(ctx, c.hookURL(conn), secret); err != nil {
 		return nil, err
 	}
 	raw, err := json.Marshal(map[string]string{"secret": secret})
@@ -304,13 +310,31 @@ func (c *Connector) PlatformCredential() (connectors.PlatformCredential, bool) {
 	return connectors.PlatformCredential{Credentials: connectors.Credentials{"token": c.cfg.PlatformToken}}, true
 }
 
-// StartPlatform sets the platform bot's webhook at /automations/hooks/platform/telegram_bot.
-func (c *Connector) StartPlatform(ctx context.Context) error {
-	if c.cfg.PlatformToken == "" || c.cfg.PublicOrigin == "" {
+// ExternalID is the id of the bot a token belongs to, as Test reports it.
+func (c *Connector) ExternalID(creds connectors.Credentials) string {
+	if id := botID(creds["token"]); id != 0 {
+		return strconv.FormatInt(id, 10)
+	}
+	return ""
+}
+
+// StartPlatform sets the platform bot's webhook at /automations/hooks/platform/telegram_bot, for the
+// credential that is in effect (the configuration's when it names the kind, else APP_TELEGRAMBOTTOKEN).
+func (c *Connector) StartPlatform(ctx context.Context, creds connectors.Credentials) error {
+	token := creds["token"]
+	if token == "" || c.cfg.PublicOrigin == "" {
 		return nil
 	}
+	c.platformToken.Store(&token)
 	// The platform bot has no connection row to keep a secret in: its secret is derived (WebhookSecret).
-	b := c.bot(c.cfg.PlatformToken)
 	conn := connectors.Connection{Kind: Kind, Name: "platform"}
-	return b.setWebhook(ctx, c.hookURL(conn), WebhookSecret(c.cfg.PlatformToken, connKey(conn)))
+	return c.bot(token).setWebhook(ctx, c.hookURL(conn), WebhookSecret(token, connKey(conn)))
+}
+
+// platformLive reports whether the platform bot's route is in use.
+func (c *Connector) platformLive() bool {
+	if t := c.platformToken.Load(); t != nil && *t != "" {
+		return true
+	}
+	return c.cfg.PlatformToken != ""
 }

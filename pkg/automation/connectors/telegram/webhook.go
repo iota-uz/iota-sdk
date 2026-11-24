@@ -27,13 +27,14 @@ const SecretHeader = "X-Telegram-Bot-Api-Secret-Token"
 const AlreadyAnswered = "Ответ уже принят или время истекло"
 
 var (
-	_ engine.WebhookReceiver     = (*Connector)(nil)
-	_ engine.ClosedAnswerer      = (*Connector)(nil)
-	_ engine.PublishedAnswerer   = (*Connector)(nil)
-	_ connectors.Connector       = (*Connector)(nil)
-	_ connectors.Provisioner     = (*Connector)(nil)
-	_ connectors.Advisor         = (*Connector)(nil)
-	_ connectors.PlatformStarter = (*Connector)(nil)
+	_ engine.WebhookReceiver       = (*Connector)(nil)
+	_ engine.ClosedAnswerer        = (*Connector)(nil)
+	_ engine.PublishedAnswerer     = (*Connector)(nil)
+	_ connectors.Connector         = (*Connector)(nil)
+	_ connectors.Provisioner       = (*Connector)(nil)
+	_ connectors.Advisor           = (*Connector)(nil)
+	_ connectors.PlatformStarter   = (*Connector)(nil)
+	_ connectors.ExclusiveIdentity = (*Connector)(nil)
 )
 
 // connKey is a connection as the webhook secret and the events name it: its UUID, or "platform:<kind>".

@@ -334,6 +334,16 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	if wi.Event == "" {
 		kind = waitTimer
 	}
+	// A node type that names the conversation it waits in (WaitKeyer) listens there or nowhere: a run that
+	// cannot say which conversation (the connection is not the tenant's own, cannot be resolved) never
+	// falls back to the run's own conversation, or to none, where another chat's message could answer it.
+	var keyed *SubjectRef
+	if kind == waitEvent {
+		var serr *StepError
+		if keyed, serr = m.keyedSubject(ctx, node, params); serr != nil {
+			return m.nodeFailed(ctx, tok, node.ID, behavior, 0, input, *serr)
+		}
+	}
 	timeout := m.capWait(wi.Timeout)
 	if kind == waitEvent && timeout == 0 {
 		timeout = m.x.r.cfg.Limits.WaitMax // a wait never outlives WaitMax
@@ -356,7 +366,11 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 			f := wi.Filter
 			w.Filter = &f
 		}
-		w.Subject = m.waitSubject(node, ev, m.withConnection(ctx, node, params))
+		if keyed != nil {
+			w.Subject = keyed
+		} else {
+			w.Subject = m.waitSubject(node, ev, params)
+		}
 	}
 	if timeout > 0 {
 		at, err := m.deadline(ctx, timeout)
@@ -372,35 +386,45 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	return saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *tok)
 }
 
-// withConnection is the params of a wait with the connection the node resolves to when its params leave it
-// out (the tenant's only one of the kinds it needs), as a call resolves it: a node type that names the
-// conversation of its wait (WaitKeyer) builds the conversation's key from it. A connection that cannot be
-// resolved leaves the params as they are.
-func (m *mover) withConnection(ctx context.Context, node graph.Node, params map[string]any) map[string]any {
+// keyedSubject is the conversation a wait of a WaitKeyer node listens on, nil for a node type that does not
+// name one. The connection it is keyed by is the one in the params, or, when they leave it out, the one the
+// node resolves to as a call does (the tenant's own one for a node that takes no platform credential). It
+// is an error when that connection or the conversation cannot be named.
+func (m *mover) keyedSubject(ctx context.Context, node graph.Node, params map[string]any) (*SubjectRef, *StepError) {
 	nt, ok := m.x.r.cfg.Catalog.Node(node.Type)
 	if !ok {
-		return params
+		return nil, nil
 	}
-	if _, keyed := nt.(WaitKeyer); !keyed {
-		return params
+	wk, keyed := nt.(WaitKeyer)
+	if !keyed {
+		return nil, nil
 	}
-	if ref, set := params[catalog.ConnectionParam]; set && ref != nil {
-		return params
-	}
+	unnamed := &StepError{Code: CodeConnectionUnavailable, Message: node.ID + " cannot name the conversation it waits in: its connection or its chat is not usable"}
 	view, err := m.x.r.cfg.Catalog.ForTenant(ctx, m.x.tenant)
-	if err != nil || len(view.NodeRequires[node.Type]) == 0 {
-		return params
-	}
-	ref, _, err := catalog.ResolveConnection(view.Connections, view.NodeRequires[node.Type], nil)
 	if err != nil {
-		return params
+		return nil, &StepError{Code: CodeConnectionUnavailable, Message: "the connections of the tenant could not be read for " + node.ID}
 	}
-	out := make(map[string]any, len(params)+1)
-	for k, v := range params {
-		out[k] = v
+	if kinds := view.NodeRequires[node.Type]; len(kinds) > 0 {
+		connections := view.Connections
+		if view.TenantOnly[node.Type] {
+			connections = catalog.OwnConnections(connections)
+		}
+		ref, _, err := catalog.ResolveConnection(connections, kinds, params[catalog.ConnectionParam])
+		if err != nil {
+			return nil, unnamed
+		}
+		out := make(map[string]any, len(params)+1)
+		for k, v := range params {
+			out[k] = v
+		}
+		out[catalog.ConnectionParam] = ref.ID
+		params = out
 	}
-	out[catalog.ConnectionParam] = ref.ID
-	return out
+	s, ok := wk.WaitSubject(params)
+	if !ok {
+		return nil, unnamed
+	}
+	return &s, nil
 }
 
 // waitSubject is the subject a wait listens on: the run's when the event is about the run's entity, the

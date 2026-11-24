@@ -86,6 +86,7 @@ type state struct {
 	reason  string
 	inbound json.RawMessage
 	exists  map[uuid.UUID]bool // connections of the application that are alive
+	owner   uuid.UUID          // the connection the inbound state is of
 }
 
 func (s *state) ConnectionExists(_ context.Context, id uuid.UUID) (bool, error) {
@@ -112,9 +113,12 @@ func (s *state) UpdateInbound(_ context.Context, _, _ uuid.UUID, fn func(json.Ra
 	return nil
 }
 
-func (s *state) InboundState(context.Context, uuid.UUID, uuid.UUID) (json.RawMessage, error) {
+func (s *state) InboundState(_ context.Context, _, id uuid.UUID) (json.RawMessage, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if id != s.owner {
+		return json.RawMessage(`{}`), nil
+	}
 	return s.inbound, nil
 }
 
@@ -145,6 +149,7 @@ func newRig(t *testing.T) *rig {
 	r.bot = api.Bot(tenantToken, "tenant_bot")
 	r.platform = api.Bot(platformToken, "platform_bot")
 	r.st.exists = map[uuid.UUID]bool{r.conn.ID: true}
+	r.st.owner = r.conn.ID
 	// The connection's webhook is set up as the integrations service does: the secret Provision generates
 	// is kept in its inbound state.
 	r.provision()
@@ -154,7 +159,7 @@ func newRig(t *testing.T) *rig {
 // provision sets the tenant connection's webhook and keeps the secret it generated in the inbound state.
 func (r *rig) provision() {
 	r.t.Helper()
-	state, err := r.c.Provision(context.Background(), r.conn, r.creds())
+	state, err := r.c.Provision(context.Background(), r.conn, r.creds(), nil)
 	require.NoError(r.t, err)
 	r.st.mu.Lock()
 	defer r.st.mu.Unlock()

@@ -151,13 +151,13 @@ func (te *tgEnv) proc(tune ...func(*engine.Config)) *proc {
 func (te *tgEnv) provision() {
 	te.t.Helper()
 	ctx := context.Background()
-	state, err := te.tg.Provision(ctx, te.conn, connectors.Credentials{"token": tgToken})
+	state, err := te.tg.Provision(ctx, te.conn, connectors.Credentials{"token": tgToken}, nil)
 	require.NoError(te.t, err)
 	// The secret Provision generated is kept in the connection's inbound state, as the service does.
 	require.NoError(te.t, te.store.UpdateInbound(ctx, te.tenant, te.conn.ID, func(cur json.RawMessage) (json.RawMessage, error) {
 		return connectors.MergeInbound(cur, state)
 	}))
-	require.NoError(te.t, te.tg.StartPlatform(ctx))
+	require.NoError(te.t, te.tg.StartPlatform(ctx, connectors.Credentials{"token": tgPlatformToken}))
 }
 
 func (te *tgEnv) chat(id int64) { te.api.Chat(telegramtest.Chat{ID: id, Type: "private"}) }
@@ -653,4 +653,26 @@ func TestTelegramReadOfARunWithoutAConversation(t *testing.T) {
 	require.NoError(t, err)
 	p.until(func() bool { return len(noteTexts(t, te.env)) == 1 }, "the message wakes the run")
 	assert.Equal(t, []string{"got hello order"}, noteTexts(t, te.env))
+}
+
+// A read that cannot name the conversation it waits in (a chat given by @username, which has no id to key
+// by) fails; it never falls back to the conversation of the run, where another chat's message could answer.
+func TestTelegramReadThatCannotBeKeyedFailsInsteadOfFallingBack(t *testing.T) {
+	te := newTgEnv(t)
+	p := te.proc()
+	te.provision()
+	te.chat(700)
+	g := graphJSON("Dialog", `{"id": "m", "event": "telegram.message_received.v1"}`,
+		`{"id": "read", "type": "telegram.read", "params": {"chat_id": "\"@salesteam\"", "timeout": "1h"}},
+		 {"id": "fin", "type": "end", "params": {}}`,
+		`{"from": {"node": "m", "outcome": "fired"}, "to": "read"},
+		 {"from": {"node": "read", "outcome": "received"}, "to": "fin"}, {"from": {"node": "read", "outcome": "timeout"}, "to": "fin"}`)
+	te.create(p, te.human(), g)
+	_, err := te.bot.SendText(700, tgAlice, "start")
+	require.NoError(t, err)
+	p.until(func() bool {
+		runs := te.runs(p, te.human(), engine.RunFilter{})
+		return len(runs) == 1 && te.status(p, runs[0].RunID) == engine.RunFailed
+	}, "the run fails")
+	assert.Zero(t, te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event'`), "no wait was left listening")
 }

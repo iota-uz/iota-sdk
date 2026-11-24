@@ -132,7 +132,7 @@
         "RetryChanged": "The first save may have gone through with the earlier values. Close the form and edit the connection from the list.",
         "Warnings": {
           "foreign_webhook": "This bot is already used by another service. After you connect it, that service will stop receiving messages.",
-          "polling_in_use": "This bot is already used by another service. After you connect it, that service will stop receiving messages."
+          "polling_unknown": "We cannot tell whether another service reads this bot's messages (by polling). If one does, it will stop receiving them after you connect."
         },
         "ConfirmWarning": "Connect anyway",
         "ConfirmRequired": "Confirm to connect this bot: the other service will stop receiving its messages.",

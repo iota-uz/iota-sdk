@@ -79,8 +79,14 @@ type View struct {
 	EventRequires map[string][]ConnectorKind
 	// Connections are the tenant's working connections by kind, preferred first.
 	Connections map[ConnectorKind][]ConnectionRef
-	// TenantOnly are the events (TenantConnectionTriggers) that only the tenant's own connections serve.
+	// TenantOnly are the events (TenantConnectionTriggers) and node types (TenantConnectionNode) that only the
+	// tenant's own connections serve.
 	TenantOnly map[string]bool
+}
+
+// OwnConnections are the refs of connected that are the tenant's own connections: no platform credential.
+func OwnConnections(connected map[ConnectorKind][]ConnectionRef) map[ConnectorKind][]ConnectionRef {
+	return ownRefs(connected)
 }
 
 // ownRefs are the refs of connected that are the tenant's own connections: no platform credential.
@@ -432,8 +438,14 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 		if o.author == nil {
 			perm = ""
 		}
-		if why := reason(e.requires, perm, connected); why != "" {
+		from := connected
+		if tc, ok := e.node.(TenantConnectionNode); ok && tc.TenantConnectionOnly() {
+			from = own
+			v.TenantOnly[typ] = true
+		}
+		if why := reason(e.requires, perm, from); why != "" {
 			v.Unavailable[typ] = why
+			delete(v.TenantOnly, typ)
 			continue
 		}
 		spec := e.node.Spec()

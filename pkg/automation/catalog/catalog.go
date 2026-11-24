@@ -172,6 +172,13 @@ type TriggerSource interface {
 	Requires() []ConnectorKind
 }
 
+// TenantConnectionNode is an optional interface of a NodeType: the node works only with a tenant's own
+// connection, never with the platform credential (a wait for a message that only a tenant's own bot
+// receives). The catalog neither offers nor accepts the platform credential for it.
+type TenantConnectionNode interface {
+	TenantConnectionOnly() bool
+}
+
 // TenantConnectionTriggers is an optional interface of a TriggerSource: events that only a tenant's own
 // connection can deliver (a platform credential never receives them: a message to the platform bot belongs
 // to no tenant). A graph that triggers on such an event is offered, and valid with, the tenant's own

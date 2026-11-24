@@ -330,6 +330,10 @@ func (n *readNode) Spec() graph.NodeSpec {
 	}
 }
 
+// TenantConnectionOnly: only a tenant's own bot receives messages, so a read never works with the platform
+// credential.
+func (n *readNode) TenantConnectionOnly() bool { return true }
+
 // WaitSubject is the conversation of the chat: "<connection_id>:<chat_id>". Without the connection named
 // in the params the run's own conversation is the default, and the filter narrows by chat.
 func (n *readNode) WaitSubject(params map[string]any) (engine.SubjectRef, bool) {
