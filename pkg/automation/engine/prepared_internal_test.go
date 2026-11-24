@@ -84,10 +84,10 @@ func TestExhaustedPreparationRetriesTheStepInsteadOfApplyingTheEffect(t *testing
 type preparingEffect struct{ applied *bool }
 
 func (p *preparingEffect) PrepareEffect(context.Context, StepContext, graph.Node, graph.Effect) (any, error) {
-	return nil, nil
+	return "prepared", nil
 }
 
 func (p *preparingEffect) ApplyEffect(context.Context, pgx.Tx, StepContext, graph.Node, graph.Effect) (map[string]any, error) {
 	*p.applied = true
-	return nil, nil
+	return map[string]any{}, nil
 }

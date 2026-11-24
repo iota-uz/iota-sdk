@@ -48,7 +48,7 @@ func (s *contactSender) SendTx(_ context.Context, _ pgx.Tx, _ notifications.Audi
 	return notifications.AudienceReceipt{NoticeID: uuid.New(), Recipients: 1}, nil
 }
 
-func (s *contactSender) counts() (resolves, sends int) {
+func (s *contactSender) counts() (int, int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.resolves, s.sends

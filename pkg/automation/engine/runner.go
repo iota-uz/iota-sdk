@@ -99,14 +99,7 @@ type preparedStep struct {
 	PreparedEffect
 }
 
-// preparedFor is the preparation of this step, if the runner made one.
-func (x *execution) preparedFor(token uuid.UUID, seq int, node string) *PreparedEffect {
-	if p := x.preparedStepFor(token, seq, node); p != nil {
-		return &p.PreparedEffect
-	}
-	return nil
-}
-
+// preparedStepFor is the preparation of this step, if the runner made one.
 func (x *execution) preparedStepFor(token uuid.UUID, seq int, node string) *preparedStep {
 	if p := x.prepared; p != nil && p.token == token && p.seq == seq && p.node == node {
 		return p
