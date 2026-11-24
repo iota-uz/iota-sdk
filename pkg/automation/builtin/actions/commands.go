@@ -138,7 +138,17 @@ func Native(template Action, build func(native.Deps) (Action, error)) (native.It
 	templatesMu.Lock()
 	templates[native.Definition(def)] = template
 	templatesMu.Unlock()
-	return def, nil
+	// The command lists its error codes as domain errors of the catalog (Spec.Errors): the extension
+	// kit resolves each of them, so they are declared with the command. Actions that raise the same
+	// code share one declaration.
+	items := make([]native.Item, 0, len(declared)+1)
+	items = append(items, def)
+	for _, id := range declared {
+		items = append(items, native.Declare(manifest.Resource{
+			ID: id, Kind: manifest.ResDomainError, Label: manifest.Label{"en": strings.TrimPrefix(id, ErrorPrefix)},
+		}))
+	}
+	return native.Items(items...), nil
 }
 
 // MustNative is Native for actions declared in Go: it panics on an invalid action.

@@ -48,12 +48,21 @@ type NativeContract struct {
 	// engine moves an instance of this contract to blocked, terminated,
 	// failed or completed. Its error rolls the transition back.
 	StatusObserver StatusObserver
+	// HumanOnly, when set, marks the contract's instances and their human tasks as ones only a person
+	// acts on through the product's own pages: agents' management tools (pkg/extruntime/mcptools) refuse
+	// to signal, decide, terminate, restart, resolve, retry or resume them and point to the page it
+	// returns.
+	HumanOnly HumanPage
 	// Private keeps the data of its instances out of the engine's history API (List, Get): their input,
 	// the results and errors of their occurrences, the payloads of their signals and the decisions of
 	// their tasks. The contract's owner shows them with its own access rules (the automation engine's
 	// runs project the fields a viewer may not read).
 	Private bool
 }
+
+// HumanPage is the page where a person acts on an instance of a human-only contract; "" when there is
+// none to name.
+type HumanPage func(ctx context.Context, inst Instance) (string, error)
 
 // CompletionPolicy decides the fate of an instance's open waits and tasks
 // when it completes or fails.

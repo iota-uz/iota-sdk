@@ -343,24 +343,30 @@ func (c *Client) Complete(ctx context.Context, ep Endpoint, r Request) (Response
 	return out, nil
 }
 
-// readUsage reads the usage an answer reports; one that is missing or malformed is none (an answer
-// whose usage cannot be read cannot be accounted).
+// readUsage reads the usage an answer reports, each figure on its own: a cost that is not a number, or a
+// counter of another type, does not take the other figures down with it. A usage that is missing or not an
+// object is none.
 func readUsage(raw json.RawMessage) Usage {
-	var u struct {
-		PromptTokens     int      `json:"prompt_tokens"`
-		CompletionTokens int      `json:"completion_tokens"`
-		InputTokens      int      `json:"input_tokens"`
-		OutputTokens     int      `json:"output_tokens"`
-		Cost             *float64 `json:"cost"`
-	}
-	if len(raw) == 0 || json.Unmarshal(raw, &u) != nil {
+	var fields map[string]json.RawMessage
+	if len(raw) == 0 || json.Unmarshal(raw, &fields) != nil {
 		return Usage{}
 	}
-	in, outTokens := u.PromptTokens, u.CompletionTokens
-	if in == 0 && outTokens == 0 {
-		in, outTokens = u.InputTokens, u.OutputTokens
+	count := func(names ...string) int {
+		for _, name := range names {
+			if v, ok := wireNumber(fields[name]); ok && v >= 0 && v == float64(int(v)) {
+				return int(v)
+			}
+		}
+		return 0
 	}
-	return Usage{InputTokens: in, OutputTokens: outTokens, CostUSD: u.Cost}
+	usage := Usage{
+		InputTokens:  count("prompt_tokens", "input_tokens"),
+		OutputTokens: count("completion_tokens", "output_tokens"),
+	}
+	if cost, ok := wireNumber(fields["cost"]); ok && cost >= 0 {
+		usage.CostUSD = &cost
+	}
+	return usage
 }
 
 // contentText is the text of a message's content: a string, or the text parts of a list.

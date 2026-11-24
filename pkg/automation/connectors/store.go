@@ -61,6 +61,8 @@ type Store interface {
 	// MatchesFingerprint reports whether fp (from Fingerprint) is data's fingerprint under the key that
 	// made it, so a record stays verifiable after the active key rotates while that key is readable.
 	MatchesFingerprint(fp string, data []byte) bool
+	CredentialLocker
+	Sealer
 }
 
 // NewStore is the connection store. keys nil: tenant connections are unavailable (ErrNotConfigured)
@@ -108,7 +110,7 @@ func (s *store) Connected(ctx context.Context, tenantID uuid.UUID) (map[catalog.
 	const op = serrors.Op("automation.connectors.Store.Connected")
 	out := map[catalog.ConnectorKind][]catalog.ConnectionRef{}
 	if s.keys != nil {
-		rows, err := s.db.Query(ctx, `SELECT `+connectionColumns+`, nonce, secret FROM automation.connections
+		rows, err := ambient(ctx, s.db).Query(ctx, `SELECT `+connectionColumns+`, nonce, secret FROM automation.connections
 			WHERE tenant_id = $1 AND status = $2 ORDER BY kind, created_at, name`, tenantID, string(StatusConnected))
 		if err != nil {
 			return nil, serrors.Wrap(op, err)

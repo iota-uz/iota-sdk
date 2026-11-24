@@ -664,10 +664,22 @@ func TestDecisionWithANULIsCached(t *testing.T) {
 	in := engine.DryRunInput{Graph: json.RawMessage(text), Decisions: engine.DecisionsCached,
 		Subject: engine.SubjectRef{Entity: "acme.order", Key: "o-1"},
 		Events:  []json.RawMessage{json.RawMessage(`{"kind": "acme.order.created.v1", "amount": 1, "note": "x", "secret": ""}`)}}
+	var outputs []string
 	for i := 0; i < 2; i++ {
-		_, err := p.rt.Authoring().DryRun(context.Background(), ae.human(), in)
+		res, err := p.rt.Authoring().DryRun(context.Background(), ae.human(), in)
 		require.NoError(t, err)
+		for _, st := range res.Trace {
+			if st.Node == "llm" {
+				outputs = append(outputs, string(st.Output))
+			}
+		}
 	}
+	var stored string
+	require.NoError(t, ae.db.QueryRow(context.Background(), `SELECT output->'output'->>'text' FROM automation.decision_cache LIMIT 1`).Scan(&stored))
+	assert.Equal(t, "a\ufffdb", stored, "the cache holds the output as JSON, with the canonical text")
+	require.Len(t, outputs, 2)
+	assert.JSONEq(t, outputs[0], outputs[1], "a cached decision is the value a fresh one had")
+	assert.NotContains(t, outputs[0], `\u0000`)
 	assert.Len(t, ae.provider.requests(), 1, "the second dry run took the decision from the cache")
 	assert.Equal(t, 1, ae.count(`SELECT count(*) FROM automation.decision_cache`))
 }

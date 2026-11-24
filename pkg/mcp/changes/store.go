@@ -48,6 +48,16 @@ type Store interface {
 	PendingEffects(ctx context.Context, limit int) ([]PendingEffect, error)
 	FinishEffect(ctx context.Context, effectID string, delivered bool, attempts int, lastError string, final bool) error
 	SettleEffects(ctx context.Context, operationID string) error
+	// SaveAudit records, inside the apply transaction, the audit events of the changes it applied.
+	SaveAudit(ctx context.Context, records []AuditRecord) error
+	// UndeliveredAudit lists audit events not delivered yet whose next attempt is due: of one operation,
+	// or ("") of any, the earliest due first.
+	UndeliveredAudit(ctx context.Context, operationID string, limit int) ([]AuditRecord, error)
+	// MarkAudited records that an audit event was delivered.
+	MarkAudited(ctx context.Context, operationID string, item int) error
+	// DeferAudit puts off an event the auditor did not confirm, with a growing backoff: the others are
+	// delivered meanwhile.
+	DeferAudit(ctx context.Context, operationID string, item int) error
 }
 
 type PostgresStore struct {
@@ -356,4 +366,57 @@ func (s *PostgresStore) SettleEffects(ctx context.Context, operationID string) e
 		FROM counts c
 		WHERE o.id = $1 AND c.pending = 0 AND o.external_effects = 'pending'`, operationID, failure)
 	return serrors.FromDB(op, err)
+}
+
+func (s *PostgresStore) SaveAudit(ctx context.Context, records []AuditRecord) error {
+	const op serrors.Op = "changes.PostgresStore.SaveAudit"
+	for _, r := range records {
+		if _, err := s.db(ctx).Exec(ctx, `
+			INSERT INTO mcp.operation_audit (operation_id, item, tenant_id, subject, client_id, request_id, tool)
+			VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (operation_id, item) DO NOTHING`,
+			r.OperationID, r.Item, r.TenantID, r.Subject, r.ClientID, r.RequestID, r.Tool); err != nil {
+			return serrors.FromDB(op, err)
+		}
+	}
+	return nil
+}
+
+func (s *PostgresStore) UndeliveredAudit(ctx context.Context, operationID string, limit int) ([]AuditRecord, error) {
+	const op serrors.Op = "changes.PostgresStore.UndeliveredAudit"
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := s.db(ctx).Query(ctx, `
+		SELECT operation_id::text, item, tenant_id::text, subject, client_id, request_id, tool FROM mcp.operation_audit
+		WHERE delivered_at IS NULL AND next_attempt_at <= now() AND ($1 = '' OR operation_id::text = $1)
+		ORDER BY next_attempt_at, created_at, operation_id, item LIMIT $2`, operationID, limit)
+	if err != nil {
+		return nil, serrors.FromDB(op, err)
+	}
+	defer rows.Close()
+	var out []AuditRecord
+	for rows.Next() {
+		var r AuditRecord
+		if err := rows.Scan(&r.OperationID, &r.Item, &r.TenantID, &r.Subject, &r.ClientID, &r.RequestID, &r.Tool); err != nil {
+			return nil, serrors.FromDB(op, err)
+		}
+		out = append(out, r)
+	}
+	return out, serrors.FromDB(op, rows.Err())
+}
+
+func (s *PostgresStore) MarkAudited(ctx context.Context, operationID string, item int) error {
+	_, err := s.db(ctx).Exec(ctx, `UPDATE mcp.operation_audit SET delivered_at = now() WHERE operation_id = $1 AND item = $2 AND delivered_at IS NULL`, operationID, item)
+	return serrors.FromDB("changes.PostgresStore.MarkAudited", err)
+}
+
+// auditBackoffMax bounds the wait before an unconfirmed audit event is delivered again.
+const auditBackoffMax = time.Hour
+
+func (s *PostgresStore) DeferAudit(ctx context.Context, operationID string, item int) error {
+	_, err := s.db(ctx).Exec(ctx, `
+		UPDATE mcp.operation_audit SET attempts = attempts + 1,
+			next_attempt_at = now() + least(interval '1 second' * power(2, least(attempts, 12)), $3::interval)
+		WHERE operation_id = $1 AND item = $2 AND delivered_at IS NULL`, operationID, item, auditBackoffMax.String())
+	return serrors.FromDB("changes.PostgresStore.DeferAudit", err)
 }

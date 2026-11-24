@@ -101,6 +101,52 @@ type ConnectionNode interface {
 	PrepareParams(ctx context.Context, tenantID uuid.UUID, conn ConnectionRef, params map[string]any) (map[string]any, []graph.Issue)
 }
 
+// PreparingNode is an optional interface of a NodeType whose params are checked against the outside
+// world when a graph is saved, validated or checked before a dry run or a test: a connector's live data
+// (the tools of an MCP server). Prepare may fill params in (a schema pinned when the node carries none);
+// its errors refuse the graph, its warnings do not. It is never called while a run executes.
+type PreparingNode interface {
+	Prepare(ctx context.Context, in PrepareInput) (PrepareResult, error)
+}
+
+// PrepareInput is a node of a graph being checked.
+type PrepareInput struct {
+	TenantID uuid.UUID
+	NodeID   string
+	// Params are the node's params as the graph holds them (templates and expressions not evaluated),
+	// without the connection param.
+	Params map[string]any
+	// Connection is the connection the node resolves to; nil when it needs none.
+	Connection *ConnectionInfo
+	// Author is who checks the graph; the node reads the outside world with the author's rights.
+	Author spi.Subject
+	// Fill: the graph is being saved or tried, so params may be filled in. Off (a stored version being
+	// enabled), a node that would change its params reports it as an error instead.
+	Fill bool
+	// TypeOf is the CEL type of an expression in the node's scope ("string", "int", "list(dyn)", ...),
+	// or its check's first issue: what a node compares with a schema it learns elsewhere.
+	TypeOf func(src string) (string, error)
+}
+
+// PrepareResult is what Prepare found. Paths of issues are dotted paths inside the node's params
+// ("tool", "arguments.city"); an empty path is the node itself.
+type PrepareResult struct {
+	// Params, when non-nil, replace the node's params (the connection param is kept by the caller).
+	Params           map[string]any
+	Errors, Warnings []PrepareIssue
+}
+
+// PrepareIssue is one finding of Prepare.
+type PrepareIssue struct {
+	Path    string
+	Code    string
+	Message string // no secrets
+	// FixRemove is a dotted param path whose removal resolves the issue (the editor offers it, labelled
+	// FixLabel); empty: no such action.
+	FixRemove string
+	FixLabel  string
+}
+
 // CallNode is a node with an external effect (behavior call). The engine calls Execute outside of a
 // locked step.
 type CallNode interface {

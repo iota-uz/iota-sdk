@@ -309,7 +309,7 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 	vars := varsOf(s.Ctx)
 	templates, values := templatesAndValues(params, spec)
 	for _, t := range templates {
-		raw, ok := paramAt(params, t)
+		raw, ok := valueAt(params, t)
 		text, isStr := raw.(string)
 		if !ok || !isStr {
 			continue
@@ -324,10 +324,10 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 			st := stepOfError(err)
 			return Effect{}, &st
 		}
-		rendered = setAt(rendered, t, out)
+		rendered = setKeys(rendered, t, out)
 	}
 	for _, path := range values {
-		raw, ok := paramAt(params, path)
+		raw, ok := valueAt(params, path)
 		src, isStr := raw.(string)
 		if !ok || !isStr {
 			continue
@@ -338,10 +338,10 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 		}
 		j, err := jsonOut(v)
 		if err != nil {
-			s := failed(FailExpression, "%s: %v", path, err)
+			s := failed(FailExpression, "%s: %v", path.String(), err)
 			return Effect{}, &s
 		}
-		rendered = setAt(rendered, path, j)
+		rendered = setKeys(rendered, path, j)
 	}
 	e := Effect{Node: node.Type, Params: rendered}
 	if spec.StepContext {

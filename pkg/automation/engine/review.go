@@ -24,19 +24,34 @@ type validated struct {
 	// connState is the tenant's connections (connectionsState) read before view: an enable compares it
 	// under its locks to tell whether view still resolves the graph's connections.
 	connState string
+	// warnings are what the nodes' Prepare noted without refusing the graph.
+	warnings []graph.GraphError
 }
+
+// validateMode is how validate treats params a node's Prepare fills in.
+type validateMode int
+
+const (
+	// fillParams: a save, a check or a try of a graph: filled params become the graph's.
+	fillParams validateMode = iota
+	// storedParams: a stored version being enabled: params that would change are an error.
+	storedParams
+)
+
+// CodeParamsOutdated is a stored version whose node would get other params when saved now.
+const CodeParamsOutdated = "params_outdated"
 
 var nodePathRe = regexp.MustCompile(`^nodes\[(\d+)\]\.type$`)
 var triggerPathRe = regexp.MustCompile(`^triggers\[(\d+)\]\.event$`)
 
 // validate decodes and validates a graph against the catalog the actor sees as an author, with the
 // connection rule and the engine's executors. Nothing is written.
-func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (validated, error) {
+func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage, mode ...validateMode) (validated, error) {
 	g, errs := graph.Decode(raw)
 	if len(errs) > 0 {
 		return validated{}, &ValidationError{Errors: errs}
 	}
-	connState, err := connectionsState(ctx, r.cfg.DB, a.TenantID)
+	connState, err := connectionsState(ctx, r.reader(ctx), a.TenantID)
 	if err != nil {
 		return validated{}, err
 	}
@@ -61,11 +76,117 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 	if len(errs) > 0 {
 		return validated{}, &ValidationError{Errors: errs}
 	}
+	fill := len(mode) == 0 || mode[0] == fillParams
+	g, changed, errs, warnings, err := r.prepare(ctx, a, view, g, fill, opts)
+	if err != nil {
+		return validated{}, err
+	}
+	if changed && len(errs) == 0 {
+		// The filled params are checked as the author's own would be.
+		errs = connectionErrors(view, g, graph.Validate(view.Catalog, g, opts))
+	}
+	if len(errs) > 0 {
+		return validated{}, &ValidationError{Errors: errs, Warnings: warnings}
+	}
 	canon, err := json.Marshal(g)
 	if err != nil {
 		return validated{}, err
 	}
-	return validated{g: g, raw: canon, view: view, connState: connState}, nil
+	return validated{g: g, raw: canon, view: view, connState: connState, warnings: warnings}, nil
+}
+
+// prepare runs catalog.PreparingNode.Prepare of every node whose type has it: params it fills in become
+// the node's (fill), or an error of a stored version (not fill); its errors and warnings are the graph's,
+// on the node's params.
+func (r *Runtime) prepare(ctx context.Context, a Actor, view catalog.View, g graph.Graph, fill bool, opts graph.Options) (graph.Graph, bool, []graph.GraphError, []graph.GraphError, error) {
+	var (
+		errs, warnings []graph.GraphError
+		changed        bool
+		types          *graph.ExprTypes
+	)
+	original := g
+	nodes := g.Nodes
+	for i, n := range nodes {
+		nt, ok := r.cfg.Catalog.Node(n.Type)
+		if !ok {
+			continue
+		}
+		pn, ok := nt.(catalog.PreparingNode)
+		if !ok {
+			continue
+		}
+		in := catalog.PrepareInput{TenantID: a.TenantID, NodeID: n.ID, Params: map[string]any{}, Author: a.Subject, Fill: fill}
+		nodeID := n.ID
+		in.TypeOf = func(src string) (string, error) {
+			if types == nil {
+				types = graph.NewExprTypes(view.Catalog, original, opts)
+			}
+			return types.TypeOf(nodeID, src)
+		}
+		in.Author.TenantID = a.TenantID
+		for k, v := range n.Params {
+			if k != catalog.ConnectionParam {
+				in.Params[k] = v
+			}
+		}
+		if kinds := view.NodeRequires[n.Type]; len(kinds) > 0 {
+			ref, kind, err := catalog.ResolveConnection(view.Connections, kinds, n.Params[catalog.ConnectionParam])
+			if err != nil {
+				continue // the connection rule reported it
+			}
+			in.Connection = &catalog.ConnectionInfo{ID: ref.ID, Kind: kind, Name: ref.Name, Platform: strings.HasPrefix(ref.ID, catalog.PlatformPrefix)}
+		}
+		res, err := pn.Prepare(ctx, in)
+		if err != nil {
+			return g, false, nil, nil, fmt.Errorf("prepare %s: %w", n.ID, err)
+		}
+		at := fmt.Sprintf("nodes[%d].params", i)
+		issue := func(p catalog.PrepareIssue) graph.GraphError {
+			path := at
+			if p.Path != "" {
+				path += "." + p.Path
+			}
+			e := graph.GraphError{Path: path, Code: p.Code, Message: p.Message}
+			if p.FixRemove != "" {
+				e.Fix = &graph.Fix{Remove: at + "." + p.FixRemove, Label: p.FixLabel}
+			}
+			return e
+		}
+		for _, e := range res.Errors {
+			errs = append(errs, issue(e))
+		}
+		for _, w := range res.Warnings {
+			warnings = append(warnings, issue(w))
+		}
+		if res.Params == nil || sameJSON(res.Params, in.Params) {
+			continue
+		}
+		if !fill {
+			errs = append(errs, graph.GraphError{Path: at, Code: CodeParamsOutdated,
+				Message: n.ID + " would be saved with other params now: save the graph again before enabling it"})
+			continue
+		}
+		next := make(map[string]any, len(res.Params)+1)
+		for k, v := range res.Params {
+			next[k] = v
+		}
+		if ref, ok := n.Params[catalog.ConnectionParam]; ok {
+			next[catalog.ConnectionParam] = ref
+		}
+		if !changed {
+			nodes = append([]graph.Node(nil), g.Nodes...)
+			changed = true
+		}
+		nodes[i].Params = next
+	}
+	g.Nodes = nodes
+	return g, changed, errs, warnings, nil
+}
+
+func sameJSON(a, b any) bool {
+	x, err1 := json.Marshal(a)
+	y, err2 := json.Marshal(b)
+	return err1 == nil && err2 == nil && string(x) == string(y)
 }
 
 // completeParams lets each node type that implements catalog.CompletedNode pin the values it fixes at

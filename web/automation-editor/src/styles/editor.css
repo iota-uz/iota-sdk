@@ -196,6 +196,7 @@
   color: oklch(var(--clr-text-200)); background: oklch(var(--clr-surface-300));
 }
 .ae-state--failed, .ae-badge--error { color: oklch(var(--clr-danger-btn-text)); border-color: oklch(var(--clr-border-danger)); }
+.ae-badge--warning { color: oklch(var(--clr-text-yellow)); }
 .ae-state--passed { color: oklch(var(--clr-text-green)); border-color: oklch(var(--clr-border-success)); }
 .ae-state--running, .ae-state--waiting { color: oklch(var(--clr-primary-outline-btn-text)); border-color: oklch(var(--clr-border-brand)); }
 .ae-card .ae-state__text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -277,6 +278,7 @@
 .ae-issue--warning .ae-issue__icon { color: oklch(var(--clr-text-yellow)); }
 .ae-issue__where { font-weight: 500; flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ae-issue__text { color: oklch(var(--clr-text-200)); min-width: 0; }
+.ae-issue__fix { margin: 0 0 6px 32px; }
 
 /* ——— palette & menu ——— */
 .ae-palette {

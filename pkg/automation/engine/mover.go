@@ -78,6 +78,10 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 	}
 	behavior := string(spec.Behavior)
 	if m.x.ie.unavailable[node.Type] {
+		// A connection that waits for a new sign-in left the catalog: the node is unauthorized.
+		if nt, ok := m.x.r.cfg.Catalog.Node(node.Type); ok && needsReauth(ctx, m.x.r.cfg.DB, m.x.tenant, node.Params[catalog.ConnectionParam], nt.Requires()) {
+			return behavior, m.nodeFailed(ctx, tok, node.ID, behavior, 0, nil, StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth})
+		}
 		// The node names the platform credential, or the platform credential is the one it would use, and
 		// the tenant's administrator has not enabled it or switched it off after the run started.
 		if ref, _ := node.Params[catalog.ConnectionParam].(string); strings.HasPrefix(ref, catalog.PlatformPrefix) || (ref == "" && m.x.ie.platformOff[node.Type]) {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/automations/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost/solid"
@@ -62,6 +63,7 @@ func (c *Controller) bindings() []solid.Binding {
 		bind(MethodRunResolve, c.runResolve),
 		bind(MethodRunRetry, c.runRetry),
 		bind(MethodRunRestart, c.runRestart),
+		bind(MethodMCPTools, c.mcpTools),
 	}
 }
 
@@ -160,7 +162,11 @@ func mapErr(err error) error {
 func graphErrors(list []graph.GraphError) []GraphError {
 	out := make([]GraphError, 0, len(list))
 	for _, e := range list {
-		out = append(out, GraphError{Path: e.Path, Message: e.Message, Code: e.Code})
+		ge := GraphError{Path: e.Path, Message: e.Message, Code: e.Code}
+		if e.Fix != nil {
+			ge.Fix = &GraphFix{Remove: e.Fix.Remove, Label: e.Fix.Label}
+		}
+		out = append(out, ge)
 	}
 	return out
 }
@@ -444,7 +450,7 @@ func (c *Controller) create(ctx context.Context, req CreateRequest) (SaveResult,
 	if err != nil {
 		return c.saveResult(ctx, a, err)
 	}
-	return SaveResult{OK: true, ID: am.ID.String(), Graph: v.Graph, Version: v.Version, LayoutRevision: am.LayoutRevision}, nil
+	return SaveResult{OK: true, ID: am.ID.String(), Graph: v.Graph, Version: v.Version, LayoutRevision: am.LayoutRevision, Warnings: graphErrors(v.Warnings)}, nil
 }
 
 func (c *Controller) save(ctx context.Context, req SaveRequest) (SaveResult, error) {
@@ -464,7 +470,7 @@ func (c *Controller) save(ctx context.Context, req SaveRequest) (SaveResult, err
 	if err != nil {
 		return c.saveResult(ctx, a, err)
 	}
-	out := SaveResult{OK: true, Graph: v.Graph, Version: v.Version}
+	out := SaveResult{OK: true, Graph: v.Graph, Version: v.Version, Warnings: graphErrors(v.Warnings)}
 	am, err := c.cfg.Engine.Service.Get(ctx, a, id)
 	if err != nil {
 		return SaveResult{}, mapErr(err)
@@ -505,11 +511,11 @@ func (c *Controller) validate(ctx context.Context, req ValidateRequest) (Validat
 	if err != nil {
 		return ValidateResponse{}, err
 	}
-	err = c.cfg.Engine.Authoring.Validate(ctx, a, req.Graph)
+	warnings, err := c.cfg.Engine.Authoring.Validate(ctx, a, req.Graph)
 	var verr *engine.ValidationError
 	switch {
 	case err == nil:
-		return ValidateResponse{OK: true, Errors: []GraphError{}, Warnings: []GraphError{}}, nil
+		return ValidateResponse{OK: true, Errors: []GraphError{}, Warnings: graphErrors(warnings)}, nil
 	case errors.As(err, &verr):
 		return ValidateResponse{Errors: graphErrors(verr.Errors), Warnings: graphErrors(verr.Warnings)}, nil
 	}
@@ -1010,4 +1016,37 @@ func manualTriggersOf(raw json.RawMessage, title string) []ManualTrigger {
 		out = append(out, mt)
 	}
 	return out
+}
+
+// mcpTools lists the tools of an MCP connection for the editor: with Automations.Author or
+// Connections.Manage only.
+func (c *Controller) mcpTools(ctx context.Context, req MCPToolsRequest) (MCPToolsResponse, error) {
+	sub, err := listext.SubjectFromContext(ctx)
+	if err != nil {
+		return MCPToolsResponse{}, solid.NewRPCError(solid.CodeUnauthenticated, "sign in required", nil)
+	}
+	if !sub.Has(permAuthor) && !sub.Has(permissions.ConnectionsManage.Name()) {
+		return MCPToolsResponse{}, forbidden("permission " + permAuthor + " or " + permissions.ConnectionsManage.Name() + " is required")
+	}
+	if c.cfg.MCPTools == nil {
+		return MCPToolsResponse{}, rpcError(ErrUnavailable, "MCP connections are not available in this application", nil)
+	}
+	id, err := uuid.Parse(strings.TrimSpace(req.Connection))
+	if err != nil {
+		return MCPToolsResponse{}, notFound()
+	}
+	tools, err := c.cfg.MCPTools.Tools(ctx, sub.TenantID, id)
+	switch {
+	case errors.Is(err, connectors.ErrNotFound):
+		return MCPToolsResponse{}, notFound()
+	case err != nil:
+		// The server's own text is never shown: a category only.
+		return MCPToolsResponse{Error: "unavailable"}, nil //nolint:nilerr // an unreachable server is the answer, not an RPC failure
+	}
+	out := MCPToolsResponse{Tools: make([]MCPTool, 0, len(tools))}
+	for _, t := range tools {
+		out.Tools = append(out.Tools, MCPTool{Name: t.Name, Title: t.Title, Description: t.Description,
+			InputSchema: t.InputSchema, OutputSchema: t.OutputSchema, ReadOnly: t.ReadOnly})
+	}
+	return out, nil
 }

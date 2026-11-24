@@ -141,6 +141,10 @@ func (n *contactNode) ApplyEffectResult(ctx context.Context, tx pgx.Tx, run engi
 	return result(OutcomeSent, out)
 }
 
+// PreviewsOffline marks the preview safe for an offline dry run (engine.OfflinePreviewer): offline it does not
+// check the record's contact, which may run a package's resolver, and reads only the delivery layer's data.
+func (n *contactNode) PreviewsOffline() {}
+
 // PreviewEffect is what a dry run shows: the audience the delivery layer resolves, with the record's contact
 // checked as a send would, without a send. The trace names the records and the reasons recipients were
 // skipped, never the addresses of a contact.
@@ -150,6 +154,11 @@ func (n *contactNode) PreviewEffect(ctx context.Context, run engine.StepContext,
 		return engine.EffectResult{}, err
 	}
 	out := map[string]any{"notice_id": "", "channel": string(channel), "skipped": []any{}}
+	if run.Offline {
+		// An agent's dry run: the record's contact is not checked, since a package's resolver would run its code.
+		req.CheckContacts = false
+		out["contact_checked"] = false
+	}
 	resolved, err := n.cfg.Sender.Resolve(n.readCtx(ctx, run), req)
 	if err != nil {
 		return engine.EffectResult{}, failure(err)

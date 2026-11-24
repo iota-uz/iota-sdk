@@ -106,6 +106,10 @@ type ConnectionView struct {
 	LastChecked  *string `json:"last_checked_at"`
 	// Fields are the non-secret credential values for the edit form (administrators only).
 	Fields map[string]string `json:"fields,omitempty"`
+	// SignIn: the connection signs in through the browser with its own authorization server (an MCP
+	// server with OAuth): one that needs re-authorization offers «Sign in», and a new one is signed in
+	// right after it is saved.
+	SignIn bool `json:"sign_in,omitempty"`
 }
 
 // ConnectorView is a registered connector and the tenant's connections.

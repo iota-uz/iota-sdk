@@ -1018,3 +1018,34 @@ func TestAPropertyCalledEnumDoesNotHideEnumValues(t *testing.T) {
 	_, issues = n.Spec().Params.Parse(map[string]any{"prompt": "x", "format": "json", "schema": map[string]any{"type": "object", "properties": props, "required": required}})
 	require.Empty(t, issues)
 }
+
+// The cost is output-only: a cost that is not a number, or a counter of another type, does not erase the
+// figures that are valid.
+func TestMalformedUsageFiguresDoNotEraseTheValidOnes(t *testing.T) {
+	for name, usage := range map[string]struct {
+		body        string
+		in, out     int64
+		hasCostNull bool
+	}{
+		"cost as text":    {`{"prompt_tokens":10,"completion_tokens":2,"cost":"unknown"}`, 10, 2, true},
+		"cost as object":  {`{"prompt_tokens":10,"completion_tokens":2,"cost":{"a":1}}`, 10, 2, true},
+		"negative cost":   {`{"prompt_tokens":10,"completion_tokens":2,"cost":-1}`, 10, 2, true},
+		"counter as text": {`{"prompt_tokens":"ten","completion_tokens":2,"cost":0.5}`, 0, 2, false},
+		"fractional":      {`{"prompt_tokens":10.5,"completion_tokens":2}`, 0, 2, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := aitest.New(t, aitest.Reply{Body: `{"model":"m","choices":[{"finish_reason":"stop","message":{"content":"ok"}}],"usage":` + usage.body + `}`})
+			n, _ := newNode(t, openai.WithTransport(srv.Transport()))
+			rec := &aitest.Usage{}
+			res, err := n.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, parsed(t, n, map[string]any{"prompt": "x"}), rec))
+			require.NoError(t, err)
+			assert.Equal(t, usage.in, rec.Total("token_in"))
+			assert.Equal(t, usage.out, rec.Total("token_out"))
+			if usage.hasCostNull {
+				assert.Nil(t, res.Output["usage"].(map[string]any)["cost_usd"])
+			} else {
+				assert.InDelta(t, 0.5, res.Output["usage"].(map[string]any)["cost_usd"], 1e-9)
+			}
+		})
+	}
+}
