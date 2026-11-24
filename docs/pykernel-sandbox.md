@@ -1,11 +1,13 @@
 # Python worker sandbox (pykernel)
 
 `pkg/pykernel` runs model-authored Python for the built-in chat and for MCP
-`execute`. Every kernel is confined by the OS before the first instruction of
-user code. This page is the contract a consumer relies on and the steps to
+`execute`. With `isolation.ModeRequired` every kernel is confined by the OS
+before the first instruction of user code. The sandbox is opt-in: the zero
+`Profile` (`ModeInsecureDisabled`) runs kernels unconfined, and nothing below
+applies to it except the environment allowlist and rlimits. This page is the contract a consumer relies on and the steps to
 verify it on its own hosts.
 
-## What a kernel can and cannot do
+## What a confined kernel (`ModeRequired`) can and cannot do
 
 | Area | Guarantee | Mechanism |
 |---|---|---|
