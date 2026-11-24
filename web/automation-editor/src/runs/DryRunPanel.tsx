@@ -7,7 +7,8 @@ import { catalogEvent, findItem } from '../graph'
 import { Icon } from '../icons'
 import { describeItem } from '../names'
 import { strings } from '../strings'
-import type { AutomationGraph, DecisionMode, EditorApi, EditorCatalog, EditorLocale, Subject, TraceStep } from '../types'
+import type { AutomationGraph, DecisionMode, EditorApi, EditorCatalog, EditorLocale, Overlay, Subject, TraceStep } from '../types'
+import { traceOverlay } from './model'
 import { Value } from './Data'
 import { runStrings } from './strings'
 import { createAction } from './util'
@@ -17,7 +18,8 @@ export interface DryRunPanelProps {
   catalog: EditorCatalog
   api: EditorApi
   locale: EditorLocale
-  onTrace(trace: TraceStep[] | null): void
+  /** The trace's overlay on the draft it ran on; null takes it off. */
+  onOverlay(overlay: Overlay | null): void
   onPick(id: string): void
   onClose(): void
 }
@@ -98,7 +100,7 @@ export function DryRunPanel(props: DryRunPanelProps): JSX.Element {
     })).then((res) => {
       if (!res) return
       setTrace(res.trace)
-      props.onTrace(res.trace)
+      props.onOverlay(traceOverlay(graph, res.trace))
     }, () => undefined)
   }
 
@@ -121,7 +123,7 @@ export function DryRunPanel(props: DryRunPanelProps): JSX.Element {
       <header class="ae-validation__head">
         <h2 class="ae-validation__title" id="ae-dryrun-title">{t().title}</h2>
         <span class="ae-validation__summary"><Icon name="check" size={14} /> {t().note}</span>
-        <button type="button" class="ae-iconbtn" aria-label={t().close} title={t().close} onClick={() => { props.onTrace(null); props.onClose() }}><Icon name="close" /></button>
+        <button type="button" class="ae-iconbtn" aria-label={t().close} title={t().close} onClick={() => { props.onOverlay(null); props.onClose() }}><Icon name="close" /></button>
       </header>
       <div class="ae-dock__body">
         <form class="ae-dock__form" onSubmit={(e) => { e.preventDefault(); run() }}>

@@ -537,19 +537,21 @@ type StepError struct {
 
 // RunSummary is a run in a list (RunSummary of #1347).
 type RunSummary struct {
-	RunID        string     `json:"run_id"`
-	AutomationID string     `json:"automation_id"`
-	Version      int        `json:"version"`
-	State        RunState   `json:"state"`
-	Status       RunStatus  `json:"status"`
-	Reason       string     `json:"reason,omitempty"`
-	TriggerKind  string     `json:"trigger_kind"`
-	TriggerID    string     `json:"trigger_id"`
-	Subject      Subject    `json:"subject"`
-	CurrentNodes []string   `json:"current_nodes"`
-	Error        *StepError `json:"error"`
-	CreatedAt    string     `json:"created_at"`
-	UpdatedAt    string     `json:"updated_at"`
+	RunID        string    `json:"run_id"`
+	AutomationID string    `json:"automation_id"`
+	Version      int       `json:"version"`
+	State        RunState  `json:"state"`
+	Status       RunStatus `json:"status"`
+	Reason       string    `json:"reason,omitempty"`
+	TriggerKind  string    `json:"trigger_kind"`
+	TriggerID    string    `json:"trigger_id"`
+	Subject      Subject   `json:"subject"`
+	CurrentNodes []string  `json:"current_nodes"`
+	// SubjectURL is the page of the run's subject (automations.run only; "" without a link).
+	SubjectURL string     `json:"subject_url,omitempty"`
+	Error      *StepError `json:"error"`
+	CreatedAt  string     `json:"created_at"`
+	UpdatedAt  string     `json:"updated_at"`
 }
 
 // RunsResponse is a page of runs.

@@ -1199,7 +1199,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
             <Icon name="broom" />
           </button>
         </Show>
-        <button type="button" class="ae-iconbtn ae-iconbtn--text" aria-label={t().canvas.zoomReset} title={t().canvas.zoomReset} onClick={() => api.zoomReset()}>
+        <button type="button" class="ae-iconbtn ae-iconbtn--text" aria-label={`${Math.round(viewport().zoom * 100)}% · ${t().canvas.zoomReset}`} title={t().canvas.zoomReset} onClick={() => api.zoomReset()}>
           {Math.round(viewport().zoom * 100)}%
         </button>
       </div>

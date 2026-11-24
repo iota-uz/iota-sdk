@@ -210,7 +210,7 @@ export function RunView(props: RunViewProps): JSX.Element {
 
   const strip = (d: RunData) => {
     const subject = () => subjectName(d.subject)
-    const href = () => (d.subject ? props.subjectHref?.(d.subject) : undefined)
+    const href = () => (d.subject ? d.subject.url || props.subjectHref?.(d.subject) : undefined)
     return (
       <div class="ae-runstrip" data-testid="run-strip">
         <Show when={props.mobile && props.onBack}>

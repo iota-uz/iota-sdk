@@ -129,6 +129,8 @@ type Config struct {
 	// Behaviors are the graph behaviors of the catalog (default graph.DefaultBehaviors).
 	Behaviors *graph.Behaviors
 	Users     UserNames
+	// Links gives a run's subject its page («Open <subject>» in the run view); nil: no link.
+	Links engine.Links
 	// Origin is who acts in a request; default: human for an interactive session, agent for an agent
 	// session (agentsession.Audience), a request with an Authorization header or no session.
 	Origin func(r *http.Request) engine.Origin

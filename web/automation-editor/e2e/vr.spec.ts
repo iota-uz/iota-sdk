@@ -3,7 +3,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { card, open } from './helpers'
 
-type Shot = { name: string; query: string; width: number; height: number; prepare?: (page: Page) => Promise<void> }
+type Shot = { name: string; query: string; width: number; height: number; ready?: string; prepare?: (page: Page) => Promise<void> }
 
 const shots: Shot[] = [
   { name: 'editor', query: '', width: 1440, height: 900 },
@@ -54,6 +54,31 @@ const shots: Shot[] = [
   // Tidy v2 (#1391): a column per trigger, a failure lane, orthogonal links; a parallel with its join and a for each.
   { name: 'tidy-multi', query: 'graph=multi', width: 1440, height: 900 },
   { name: 'tidy-foreach', query: 'graph=foreach', width: 1440, height: 900 },
+  // Runs (#1347): a failed run with its node's drawer, a run of an older version, a waiting parallel,
+  // the empty and filtered states, a run not found, the phone list and run, Dry run and Test node.
+  { name: 'runs', query: 'tab=runs&run=00000000-0000-4000-8000-0000000000r2&node=send_email', width: 1440, height: 900, ready: '.ae-runview .ae-canvas', prepare: async (page) => { await expect(page.getByTestId('run-node')).toBeVisible() } },
+  { name: 'runs-ru', query: 'locale=ru&tab=runs&run=00000000-0000-4000-8000-0000000000r2&node=send_email', width: 1440, height: 900, ready: '.ae-runview .ae-canvas', prepare: async (page) => { await expect(page.getByTestId('run-node')).toBeVisible() } },
+  { name: 'run-old-version', query: 'tab=runs&run=00000000-0000-4000-8000-0000000000r3', width: 1440, height: 900, ready: '.ae-runview .ae-canvas', prepare: async (page) => { await expect(page.getByTestId('run-version-banner')).toBeVisible() } },
+  { name: 'run-blocked', query: 'tab=runs&run=00000000-0000-4000-8000-0000000000r4', width: 1440, height: 900, ready: '.ae-runview .ae-canvas', prepare: async (page) => { await expect(page.getByTestId('run-resolve')).toBeVisible() } },
+  { name: 'run-parallel', query: 'graph=approval&tab=runs&run=00000000-0000-4000-8000-00000000a001&node=answer', width: 1440, height: 900, ready: '.ae-runview .ae-canvas', prepare: async (page) => { await expect(page.getByTestId('run-node')).toBeVisible() } },
+  { name: 'runs-empty', query: 'tab=runs&runs=empty&manual=1', width: 1440, height: 900, ready: '[data-testid="runs-empty"]' },
+  { name: 'runs-filtered', query: 'tab=runs&state=blocked&subject=zz', width: 1440, height: 900, ready: '[data-testid="runs-empty-filter"]' },
+  { name: 'runs-error', query: 'tab=runs&runs=error', width: 1440, height: 900, ready: '[data-testid="runs-error"]' },
+  { name: 'run-not-found', query: 'tab=runs&run=00000000-0000-4000-8000-0000000000r2&runs=notfound', width: 1440, height: 900, ready: '[data-testid="run-not-found"]' },
+  { name: 'runs-phone', query: 'tab=runs', width: 390, height: 844, ready: '.ae-runlist__rows[role="listbox"]' },
+  { name: 'run-phone', query: 'tab=runs&run=00000000-0000-4000-8000-0000000000r2&node=send_email', width: 390, height: 844, ready: '.ae-runview .ae-outline', prepare: async (page) => { await expect(page.getByTestId('run-node')).toBeVisible() } },
+  { name: 'dry-run', query: '', width: 1440, height: 900, prepare: async (page) => {
+    await page.getByTestId('open-dry-run').click()
+    await page.getByTestId('dry-run-start').click()
+    await expect(page.getByTestId('dry-effects')).toBeVisible()
+  } },
+  { name: 'test-node', query: 'test=secret', width: 1440, height: 900, prepare: async (page) => {
+    await card(page, 'send_email').click()
+    await page.getByTestId('open-test-node').click()
+    await page.getByTestId('test-start').click()
+    await page.getByTestId('test-confirm').getByRole('button', { name: 'Run for real' }).click()
+    await expect(page.getByTestId('test-error')).toBeVisible()
+  } },
 ]
 
 for (const theme of ['light', 'dark'] as const) {
@@ -67,7 +92,7 @@ for (const theme of ['light', 'dark'] as const) {
         await page.goto(`/?${query}`)
         await expect(page.locator('.ae-skeleton')).toBeVisible()
       } else {
-        await open(page, query, shot.width < 768 ? '.ae-outline' : '.ae-canvas')
+        await open(page, query, shot.ready ?? (shot.width < 768 ? '.ae-outline' : '.ae-canvas'))
       }
       await shot.prepare?.(page)
       // The canvas layers are composited (will-change) for drag performance; tiled software raster of a

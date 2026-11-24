@@ -31,7 +31,6 @@ import { isMac } from './locale'
 import { Outline } from './Outline'
 import type { PaletteChoice, PaletteMode } from './Palette'
 import { keyLabel, strings } from './strings'
-import { testOverlay, traceOverlay } from './runs/model'
 import type { AutomationGraph, AutomationLayout, CanvasApi, CanvasMenu, EditorProps, GraphError, Overlay, RunData, XY } from './types'
 import { localErrors } from './validation'
 import { rebaseErrors, type ValidationState } from './validation'
@@ -976,7 +975,7 @@ function EditorBody(props: EditorProps): JSX.Element {
                       {...(props.automationId ? { automationId: props.automationId } : {})}
                       cache={runCache}
                       {...(props.connectionName ? { connectionName: props.connectionName } : {})}
-                      onResult={(result) => setLocalOverlay(result ? { overlay: testOverlay((d() as { node: string }).node, result), graph: draft() } : null)}
+                      onOverlay={(o) => setLocalOverlay(o ? { overlay: o, graph: draft() } : null)}
                       onClose={() => setDock(null)}
                     />
                   }>
@@ -985,7 +984,7 @@ function EditorBody(props: EditorProps): JSX.Element {
                       catalog={props.catalog}
                       api={props.api}
                       locale={props.locale}
-                      onTrace={(trace) => setLocalOverlay(trace ? { overlay: traceOverlay(draft(), trace), graph: draft() } : null)}
+                      onOverlay={(o) => setLocalOverlay(o ? { overlay: o, graph: draft() } : null)}
                       onPick={(id) => { setSelected(id); canvasApi?.focus(id) }}
                       onClose={() => setDock(null)}
                     />

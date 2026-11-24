@@ -60,6 +60,47 @@ Only `solid-js` and the SDK's own `solid-ui` subpath stay external.
   `code: "connection_unavailable"` whose message names the connection; a catalog type with
   `connected: false` is reported by the editor itself. Such steps get a "No connection" badge.
 
+## Runs, Dry run and Test node (issue #1347)
+
+The host adds `runs`, `run` and, optionally, `version`, `cancelRun`, `retryRun` and `resolveRun` to
+`EditorApi`, and passes `automationId`. The editor then owns the Runs tab (`src/runs/`, its own lazy
+chunk); a host that passes `runsBody` keeps its own.
+
+- **Runs tab** (RV1–RV2, RV9): a tab in the same toolbar; the draft, its version and Save survive the
+  switch, the canvas tools are hidden. The list searches by subject (`runs({ subject })`, a key prefix),
+  filters by state chips, shows the state as a dot and a word, the subject, node, version, time and the
+  phrase of a failure; ↑ ↓ Home End move between rows. With no run chosen the newest opens (not on a
+  phone, where the list is the screen). An answer to an older filter never replaces a newer one.
+- **View state** (D1): `runsView` + `onRunsView(view, push)` — run, node, state filter, subject search. The
+  host keeps it in the URL; without `onRunsView` the tab keeps it itself.
+- **Run view** (RV3–RV4): the graph of the run's **version** (`api.version(n)`, cached per editor), never
+  the draft, so steps removed since are still drawn; a banner «Run on version N · Open vN» when it is not
+  the open version. The overlay is the pure `runOverlay(graph, run)` (`src/runs/model.ts`): finished step →
+  passed / failed (the last attempt decides), active token → running, open wait → waiting, unreached by
+  the end of a final run → skipped, taken edges, badges for attempts (> 1) and for each items (> 1),
+  the message of a failed branch (`output.error.message`) as the card's note. A join with tokens
+  arrived has no state.
+- **Polling**: `run(id)` every 2 s while the run is `running` or `waiting`; an equal answer redraws
+  nothing (P4). The indicator says Live / Reconnecting… / Finished. Runs read in the editor are kept, so
+  a finished run is not asked for again and its poll does not resume on a tab switch.
+- **Node drawer** (RV5): waits, steps (attempts, items), outcome, error, input and output as text or a
+  JSON tree (no HTML is interpreted; above 256 KB folded with «Load in full»), logs (masked by the server)
+  with a filter and its own empty state; «Copy» is announced through `aria-live`.
+- **Operate** (RV10): Cancel (confirmed, focus on «Keep running», the refusal shown in the dialog), Retry
+  and Resolve (a combobox of the blocked step's outcomes, each with its target) for a blocked call. A
+  button exists only with `can.operate` and its method. Every action follows F1–F3: spinner, «Still
+  waiting…» after 4 s, an error with «Retry» in place, a second click ignored.
+- **Dry run** (RV7, `can.author`): subject, events, the decision mode (from cache, live call, set the
+  answer), the path on the canvas and in the panel, the condition that kept a trigger from firing, the
+  number of live decisions and what would be sent (captured effects with rendered params). The result
+  belongs to the draft it ran on: an edit takes it off the canvas.
+- **Test node** (RV8, `can.author`): the input is a form by the outputs of the steps before it
+  (`nodes.<id>.output`), filled «From the last run»; a step with an external effect is confirmed first,
+  with the connection's name (`connectionName`) and «The effect is irreversible» unless the catalog says
+  `idempotent: true`; a secret the step lacks (`secret_missing`) is marked «not set».
+- **Phone**: the list full width, a run its own screen with the read-only outline (items open the
+  drawer as a bottom sheet).
+
 ## Keys (K1)
 
 | Key | Result |
@@ -80,6 +121,9 @@ Only `solid-js` and the SDK's own `solid-ui` subpath stay external.
 | ⇧1 · ⇧0 | Fit · zoom to 100 % |
 | ⇧⌘L | Tidy |
 | ? | Key map (on touch it starts with gestures) |
+| ↑ ↓ · Home End (Runs list) | Open the previous / next run, the first / last |
+| Enter · Space (a run's row) | Open the run |
+| Esc (a run's node drawer) | Close the drawer, focus its step |
 
 Shortcuts do nothing while focus is in a field (⌘Z there is the field's own undo), except ⌘S.
 
@@ -87,7 +131,7 @@ Shortcuts do nothing while focus is in a field (⌘Z there is the field's own un
 
 | Check | Limit | Where |
 | --- | --- | --- |
-| Canvas chunk (minified, gzip, without solid-js) | ≤ 51 KB | `scripts/check-chunk.mjs` in `build:package` |
+| Canvas chunk (minified, gzip, without solid-js) | ≤ 52 KB | `scripts/check-chunk.mjs` in `build:package` |
 | Mount, 200 steps / 500 edges, 4× CPU throttle | ≤ 150 ms | `e2e/bench.spec.ts` |
 | Whole-graph replacement (undo), same graph | ≤ 60 ms (median of 10) | `e2e/bench.spec.ts` |
 | Drag: long tasks · p95 frame | 0 · ≤ 17 ms | `e2e/bench.spec.ts` |

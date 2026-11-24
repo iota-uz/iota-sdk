@@ -1,6 +1,6 @@
 // The package's bounds, measured as a consumer ships them (minified, gzip, solid-js external):
 // - the entry stays small and holds neither @xyflow/system nor d3;
-// - the lazy canvas chunk with @xyflow/system and d3 is at most 51 KB gzip.
+// - the lazy canvas chunk with @xyflow/system and d3 is at most 52 KB gzip.
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -9,7 +9,9 @@ import { transformWithEsbuild } from 'vite'
 
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../package-dist')
 // 50 KB before Tidy v2 (#1391): the orthogonal router (src/route.ts) runs in the canvas chunk.
-export const CHUNK_GZIP_LIMIT = 51 * 1024
+// 51 KB before the runs view (#1347): the editor holds the Runs tab, the Dry run / Test node docks and the
+// loaders of their own lazy chunk (the list, the run view, the drawer and both panels live there).
+export const CHUNK_GZIP_LIMIT = 52 * 1024
 // 24 KB before Tidy v2 (#1391), whose layout and its public helpers (tidyLayout, ensureLayout, placeNew) live in the entry.
 const ENTRY_GZIP_LIMIT = 26 * 1024
 const CANVAS = /XYPanZoom|zoomIdentity|d3-zoom|__zoom/

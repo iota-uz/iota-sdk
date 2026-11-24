@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { EditorCatalog } from '@iota-uz/sdk/automation-editor'
 import {
   counted, editorLocale, errorText, graphPath, graphStatus, graphStatusText, highlight, inputFields, inputValue, manualTriggers, readFilters,
-  relativeTime, runStatusKey, translator, writeFilters,
+  readRunsView, relativeTime, runDataOf, runStatusKey, runSummaryOf, translator, writeFilters, writeRunsView,
 } from './model'
 
 const messages: Record<string, string> = {
@@ -104,5 +104,39 @@ describe('small helpers', () => {
     const now = new Date('2026-11-24T10:00:00Z')
     expect(relativeTime('2026-11-24T09:55:00Z', now, 'en')).toBe('5 minutes ago')
     expect(relativeTime('2026-11-24T09:59:50Z', now, 'en')).toBe('now')
+  })
+})
+
+describe('runs wire', () => {
+  const wire = {
+    run: {
+      run_id: 'r-1', automation_id: 'a-1', version: 2, state: 'blocked' as const, status: 'blocked' as const, trigger_kind: 'event', trigger_id: 'created',
+      subject: { entity: 'core.user', key: '42' }, current_nodes: ['email'], error: null, created_at: '2026-11-20T09:00:00Z', updated_at: '2026-11-20T09:01:00Z',
+      subject_url: '/users/42',
+    },
+    tokens: [{ id: 't-1', parent: null, node_id: 'email', status: 'waiting', foreach_index: null }, { id: 't-2', parent: 't-1', node_id: 'join', status: 'waiting', foreach_index: null }],
+    steps: [{ token_id: 't-1', seq: 1, node_id: 'email', attempt: 1, outcome: '', error: { code: 'effect_failed', message: 'refused' }, started_at: '2026-11-20T09:00:00Z', ended_at: null }],
+    waits: [
+      { token_id: 't-1', node_id: 'email', wait_id: 'call-1', kind: 'call', timeout_at: null, status: 'open' },
+      { token_id: 't-2', node_id: 'join', wait_id: 'join-1', kind: 'join', timeout_at: null, status: 'open' },
+      { token_id: 't-1', node_id: 'email', wait_id: 'old', kind: 'timer', timeout_at: null, status: 'fired' },
+    ],
+  }
+  it('maps a run: subject with its link, open waits only (a join is not a wait), tokens and steps', () => {
+    const d = runDataOf(wire)
+    expect(d.subject).toEqual({ entity: 'core.user', key: '42', url: '/users/42' })
+    expect(d.trigger).toBe('created')
+    expect(d.waits).toEqual([{ node: 'email', token_id: 't-1', kind: 'call', since: '2026-11-20T09:01:00Z', timeout_at: null, wait_id: 'call-1' }])
+    expect(d.tokens.map((t) => t.state)).toEqual(['waiting', 'waiting'])
+    expect(d.steps[0]).toMatchObject({ node: 'email', outcome: null, logs: [], error: { code: 'effect_failed', message: 'refused' } })
+    expect(runSummaryOf({ ...wire.run, subject: { entity: 'none', key: '' } }).subject).toBeNull()
+  })
+  it('keeps the Runs tab in the URL and reads it back', () => {
+    const href = writeRunsView('/automations', 'a-1', { run: '00000000-0000-4000-8000-0000000000f1', node: 'email', state: ['failed', 'done'], subject: 'c-' }, 'https://x.test/automations/a-1?version=2&tab=runs')
+    expect(href).toBe('/automations/a-1/runs/00000000-0000-4000-8000-0000000000f1?version=2&node=email&state=failed%2Cdone&subject=c-')
+    const url = new URL(href, 'https://x.test')
+    expect(readRunsView(url.pathname, url.search)).toEqual({ run: '00000000-0000-4000-8000-0000000000f1', node: 'email', state: ['failed', 'done'], subject: 'c-' })
+    expect(writeRunsView('/automations', 'a-1', { run: null, state: [], subject: '' }, 'https://x.test/automations/a-1')).toBe('/automations/a-1?tab=runs')
+    expect(readRunsView('/automations/a-1', '?tab=runs&state=bogus,waiting')).toEqual({ run: null, node: null, state: ['waiting'], subject: '' })
   })
 })

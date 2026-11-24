@@ -127,7 +127,7 @@
 .ae-json__key { color: oklch(var(--clr-text-200)); }
 .ae-json__str { color: oklch(var(--clr-text-green)); }
 .ae-json__num, .ae-json__bool { color: oklch(var(--clr-primary-outline-btn-text)); }
-.ae-json__null, .ae-json__punct { color: oklch(var(--clr-text-300)); }
+.ae-json__null, .ae-json__punct { color: oklch(var(--clr-text-200)); }
 
 /* ——— Dry run and Test node docks ——— */
 .ae-dock { flex: none; max-height: 55%; min-height: 12rem; display: flex; flex-direction: column; border-top: 1px solid oklch(var(--clr-border-subtle)); background: oklch(var(--clr-surface-300)); }

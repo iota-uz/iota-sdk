@@ -907,6 +907,13 @@ func (c *Controller) run(ctx context.Context, req RunRequest) (RunData, error) {
 		return RunData{}, mapErr(err)
 	}
 	out := RunData{Run: runSummary(d.RunSummary), Tokens: []TokenView{}, Steps: []StepView{}, Waits: []WaitView{}}
+	if c.cfg.Links != nil && d.Subject.Entity != "" && d.Subject.Entity != graph.SubjectNone {
+		if link, err := c.cfg.Links.SubjectURL(ctx, a.TenantID, d.Subject); err == nil {
+			out.Run.SubjectURL = link
+		} else {
+			c.log.DebugContext(ctx, "automations: no link for the run's subject", "entity", d.Subject.Entity, "error", err)
+		}
+	}
 	nodeOf := make(map[string]string, len(d.Tokens))
 	for _, t := range d.Tokens {
 		nodeOf[t.ID.String()] = t.NodeID

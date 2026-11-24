@@ -44,7 +44,8 @@ export function Outline(props: OutlineProps): JSX.Element {
               const badge = () => props.overlay?.badges.get(id)
               const icon = () => name().icon ?? (ref()?.kind === 'trigger' ? 'event' : catalogNode(props.catalog, (ref()?.item as { type?: string }).type ?? '')?.behavior ?? 'node')
               return (
-                <li class="ae-outline__item" classList={{ 'ae-outline__item--trigger': ref()?.kind === 'trigger' }} role="group" aria-label={name().title}>
+                <li class="ae-outline__item" classList={{ 'ae-outline__item--trigger': ref()?.kind === 'trigger' }}>
+                  <div role="group" aria-label={name().title}>
                   <Dynamic component={props.onPick ? 'button' : 'div'} class="ae-outline__head" classList={{ 'ae-outline__head--pick': Boolean(props.onPick) }}
                     {...(props.onPick ? { type: 'button', onClick: () => props.onPick?.(id), 'data-pick': id } : {})}>
                     <Icon name={icon()} />
@@ -75,6 +76,7 @@ export function Outline(props: OutlineProps): JSX.Element {
                       )}
                     </For>
                   </ul>
+                  </div>
                 </li>
               )
             }}

@@ -127,6 +127,7 @@ export type RunStrings = {
     title(node: string): string
     note: string
     input: string
+    noInput: string
     example: string
     exampleNone: string
     run: string
@@ -279,7 +280,8 @@ const en: RunStrings = {
     open: 'Test step',
     title: (node) => `Test “${node}”`,
     note: 'The step runs for real with this input.',
-    input: 'Input (JSON)',
+    input: 'Input',
+    noInput: 'No step before this one has an output to set: it runs with the subject alone.',
     example: 'From the last run',
     exampleNone: 'No run reached this step yet.',
     run: 'Test',
@@ -311,7 +313,7 @@ const ru: RunStrings = {
     search: 'Поиск по объекту',
     searchLabel: 'Объект',
     filter: 'Состояние',
-    states: { running: 'Идёт', waiting: 'Ждёт', blocked: 'Заблокирован', failed: 'Упал', done: 'Готово', cancelled: 'Отменён' },
+    states: { running: 'Выполняется', waiting: 'Ожидает', blocked: 'Заблокирован', failed: 'Ошибка', done: 'Готово', cancelled: 'Отменён' },
     noSubject: 'Без объекта',
     empty: 'Запусков ещё нет',
     emptyText: 'Запуск появляется здесь каждый раз, когда срабатывает триггер графа.',
@@ -430,7 +432,8 @@ const ru: RunStrings = {
     open: 'Проверить шаг',
     title: (node) => `Проверка «${node}»`,
     note: 'Шаг выполняется по-настоящему с этим входом.',
-    input: 'Вход (JSON)',
+    input: 'Вход',
+    noInput: 'Ни у одного шага до этого нет выхода, который можно задать: шаг выполнится только с объектом.',
     example: 'Из последнего запуска',
     exampleNone: 'Ни один запуск ещё не дошёл до этого шага.',
     run: 'Проверить',
@@ -462,7 +465,7 @@ const uz: RunStrings = {
     search: 'Obyekt bo‘yicha qidirish',
     searchLabel: 'Obyekt',
     filter: 'Holat',
-    states: { running: 'Bajarilmoqda', waiting: 'Kutmoqda', blocked: 'Bloklangan', failed: 'Xato', done: 'Tayyor', cancelled: 'Bekor qilingan' },
+    states: { running: 'Bajarilmoqda', waiting: 'Kutmoqda', blocked: 'Bloklangan', failed: 'Xato', done: 'Tayyor', cancelled: 'Bekor qilindi' },
     noSubject: 'Obyektsiz',
     empty: 'Hali ishga tushirishlar yo‘q',
     emptyText: 'Grafning triggeri har safar ishlaganda bu yerda ishga tushirish paydo bo‘ladi.',
@@ -581,7 +584,8 @@ const uz: RunStrings = {
     open: 'Qadamni sinash',
     title: (node) => `«${node}» ni sinash`,
     note: 'Qadam shu kirish bilan haqiqatan bajariladi.',
-    input: 'Kirish (JSON)',
+    input: 'Kirish',
+    noInput: 'Bu qadamdan oldingi qadamlarda beriladigan chiqish yo‘q: qadam faqat obyekt bilan bajariladi.',
     example: 'Oxirgi ishga tushirishdan',
     exampleNone: 'Hali hech bir ishga tushirish bu qadamga yetmagan.',
     run: 'Sinash',
@@ -613,7 +617,7 @@ const uzCyrl: RunStrings = {
     search: 'Объект бўйича қидириш',
     searchLabel: 'Объект',
     filter: 'Ҳолат',
-    states: { running: 'Бажарилмоқда', waiting: 'Кутмоқда', blocked: 'Блокланган', failed: 'Хато', done: 'Тайёр', cancelled: 'Бекор қилинган' },
+    states: { running: 'Бажарилмоқда', waiting: 'Кутмоқда', blocked: 'Блокланган', failed: 'Хато', done: 'Тайёр', cancelled: 'Бекор қилинди' },
     noSubject: 'Объектсиз',
     empty: 'Ҳали ишга туширишлар йўқ',
     emptyText: 'Графнинг триггери ҳар сафар ишлаганда бу ерда ишга тушириш пайдо бўлади.',
@@ -732,7 +736,8 @@ const uzCyrl: RunStrings = {
     open: 'Қадамни синаш',
     title: (node) => `«${node}» ни синаш`,
     note: 'Қадам шу кириш билан ҳақиқатан бажарилади.',
-    input: 'Кириш (JSON)',
+    input: 'Кириш',
+    noInput: 'Бу қадамдан олдинги қадамларда бериладиган чиқиш йўқ: қадам фақат объект билан бажарилади.',
     example: 'Охирги ишга туширишдан',
     exampleNone: 'Ҳали ҳеч бир ишга тушириш бу қадамга етмаган.',
     run: 'Синаш',

@@ -12,6 +12,9 @@ test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(new Date('20
 const DIGEST = '00000000-0000-4000-8000-0000000000a1'
 const WELCOME = '00000000-0000-4000-8000-0000000000a2'
 const STALE = '00000000-0000-4000-8000-0000000000a3'
+const FAILED_RUN = '00000000-0000-4000-8000-0000000000f1'
+const BLOCKED_RUN = '00000000-0000-4000-8000-0000000000f3'
+const runOpen = async (p: Page) => { await expect(p.getByTestId('run-strip')).toBeVisible(); await expect(p.locator('.ae-runview .iota-flow__node, .ae-runview .ae-outline__item').first()).toBeVisible() }
 
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: { method: string; params: unknown }[] }).__calls)
 const settle = (page: Page) => page.evaluate(() => Promise.all(document.getAnimations()
@@ -31,6 +34,11 @@ const states: { name: string; query: string; ready: (p: Page) => Promise<void>; 
     open: async (p) => { await listed(p); await toggleOf(p, STALE).click() },
     ready: async (p) => { await expect(p.getByTestId('review-blocked')).toBeVisible() },
   },
+  // #1347: the Runs tab, a run with its node's drawer, a blocked run, no runs, a run not found.
+  { name: 'runs', query: `view=editor&id=${DIGEST}&run=${FAILED_RUN}&node=email`, ready: async (p) => { await runOpen(p); await expect(p.getByTestId('run-node')).toBeVisible() } },
+  { name: 'run-blocked', query: `view=editor&id=${DIGEST}&run=${BLOCKED_RUN}`, ready: async (p) => { await runOpen(p); await expect(p.getByTestId('run-resolve')).toBeVisible() } },
+  { name: 'runs-empty', query: `view=editor&id=${STALE}&tab=runs`, ready: async (p) => { await expect(p.getByTestId('runs-empty')).toBeVisible() } },
+  { name: 'run-not-found', query: 'view=run&run=00000000-0000-4000-8000-00000000dead', ready: async (p) => { await expect(p.getByTestId('run-not-found')).toBeVisible() } },
   {
     name: 'review-code', query: 'view=editor&id=' + DIGEST, scope: '[data-testid="review-dialog"]',
     open: async (p) => { await p.getByTestId('review-and-enable').click() },
@@ -274,10 +282,11 @@ test('D1: Back restores the tab the URL names', async ({ page }) => {
   await page.goto(`/?view=editor&id=${WELCOME}`)
   await expect(page.getByTestId('crumb')).toBeVisible()
   await page.getByRole('tab', { name: 'Runs' }).click()
-  await expect(page).toHaveURL(/tab=runs/)
+  // The newest run opens in place of the bare tab (the same history entry).
+  await expect(page).toHaveURL(/\/runs\/00000000-0000-4000-8000-0000000000f2/)
   await expect(page.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
   await page.goBack()
-  await expect(page).not.toHaveURL(/tab=runs/)
+  await expect(page).not.toHaveURL(/tab=runs|\/runs\//)
   await expect(page.getByRole('tab', { name: 'Edit' })).toHaveAttribute('aria-selected', 'true')
   await page.goForward()
   await expect(page.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
@@ -366,4 +375,115 @@ test('D1: edits made while another version loads are not dropped without consent
   await dialog.getByTestId('discard-confirm').click()
   await expect(page.getByTestId('open-latest')).toBeVisible({ timeout: 5000 })
   await expect(page).toHaveURL(/version=2/)
+})
+
+test('RV1–RV3: Runs is a tab of the same shell; the draft survives; the newest run opens on its version\'s graph', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}`)
+  await expect(page.locator('.ae-canvas')).toBeVisible()
+  await page.locator('.ae-toolbar__name').click()
+  await page.getByLabel('Name').fill('Digest (draft)')
+  await page.keyboard.press('Escape')
+  await page.getByRole('tab', { name: 'Runs' }).click()
+  // The canvas tools are hidden; the draft, its version and Save stay.
+  await expect(page.getByRole('button', { name: 'Validate' })).toHaveCount(0)
+  await expect(page.locator('.ae-save')).toBeVisible()
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Digest (draft)')
+  await expect(page.getByTestId('run-row')).toHaveCount(2)
+  await expect(page).toHaveURL(new RegExp(`/runs/${FAILED_RUN}`))
+  await expect(page.getByTestId('run-state')).toHaveText('Failed')
+  await expect(page.getByTestId('run-error')).toHaveText('The mail server refused the message')
+  await expect(page.getByTestId('run-version-banner')).toContainText('Run on version 2')
+  await expect(page.getByTestId('run-conn')).toHaveText('Finished')
+  await expect(page.locator('.ae-runview .iota-flow__node[data-id="email"]')).toHaveClass(/ae-card--failed/)
+  const versions = (await calls(page)).filter((c) => c.method === 'automations.get' && (c.params as { version?: number }).version === 2)
+  expect(versions).toHaveLength(1)
+  await page.getByRole('tab', { name: 'Edit' }).click()
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Digest (draft)')
+  await expect(page.getByRole('button', { name: 'Validate' })).toBeVisible()
+})
+
+test('RV2/RV5: ↑ ↓ move between runs; state and subject filters and the node live in the URL', async ({ page }) => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.goto(`/?view=editor&id=${DIGEST}&tab=runs`)
+  await expect(page.getByTestId('run-row')).toHaveCount(2)
+  await page.getByTestId('run-row').first().focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(page).toHaveURL(new RegExp(`/runs/${BLOCKED_RUN}`))
+  await expect(page.getByTestId('run-state')).toHaveText('Blocked')
+  await expect(page.getByTestId('run-row').nth(1)).toBeFocused()
+  await page.keyboard.press('ArrowUp')
+  await expect(page).toHaveURL(new RegExp(`/runs/${FAILED_RUN}`))
+  // The node's drawer: input and output as a tree, a node the run did not reach says so.
+  await page.locator('.ae-runview .iota-flow__node[data-id="email"]').click()
+  await expect(page).toHaveURL(/node=email/)
+  const drawer = page.getByTestId('run-node')
+  await expect(drawer).toContainText('sales@acme.test')
+  await expect(drawer).toContainText('The mail server refused the message')
+  await drawer.getByRole('button', { name: 'Copy: Input' }).click()
+  await expect(drawer.getByRole('status').filter({ hasText: 'Copied' })).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await expect(page).not.toHaveURL(/node=/)
+  await page.getByRole('button', { name: 'Failed' }).click()
+  await expect(page).toHaveURL(/state=failed/)
+  await expect(page.getByTestId('run-row')).toHaveCount(1)
+  await page.getByTestId('runs-search').fill('zzz')
+  await expect(page.getByTestId('runs-empty-filter')).toBeVisible()
+  await expect(page).toHaveURL(/subject=zzz/)
+  await page.getByRole('button', { name: 'Reset filters' }).click()
+  await expect(page.getByTestId('run-row')).toHaveCount(2)
+  await expect(page).not.toHaveURL(/state=|subject=/)
+  const filtered = (await calls(page)).filter((c) => c.method === 'automations.runs').map((c) => c.params as { state?: string[]; subject?: string })
+  expect(filtered.some((p) => p.state?.join() === 'failed')).toBe(true)
+  expect(filtered.some((p) => p.subject === 'zzz')).toBe(true)
+})
+
+test('RV6: a link with only a run id opens its graph; a run that is not there says so', async ({ page }) => {
+  await page.goto(`/?view=run&run=${BLOCKED_RUN}`)
+  await expect(page).toHaveURL(new RegExp(`/automations/${DIGEST}/runs/${BLOCKED_RUN}$`))
+  await page.goto('/?view=run&run=00000000-0000-4000-8000-00000000dead')
+  await expect(page.getByTestId('run-not-found')).toContainText('Run not found')
+  // Inside the editor, a run that is not found has its own screen too.
+  await page.goto(`/?view=editor&id=${DIGEST}&run=00000000-0000-4000-8000-00000000dead`)
+  await expect(page.getByTestId('run-not-found')).toContainText('Run not found')
+})
+
+test('RV10: Retry and Resolve a blocked call; Cancel is confirmed with the focus on «Keep running»', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&run=${BLOCKED_RUN}&delay=300`)
+  await expect(page.getByTestId('run-state')).toHaveText('Blocked')
+  const retry = page.getByTestId('run-retry')
+  await retry.click()
+  await retry.click() // F1: a second click while the request runs is ignored
+  await expect(page.getByText('The call is repeated')).toBeVisible()
+  const retries = (await calls(page)).filter((c) => c.method === 'automations.run_retry')
+  expect(retries).toHaveLength(1)
+  expect(retries[0]!.params).toEqual({ run_id: BLOCKED_RUN, wait_id: 'call-1' })
+  await expect(page.getByTestId('run-state')).toHaveText('Running')
+  await page.getByTestId('run-cancel').click()
+  const dialog = page.getByTestId('cancel-dialog')
+  await expect(dialog.getByRole('button', { name: 'Keep running' })).toBeFocused()
+  await dialog.getByRole('button', { name: 'Cancel run' }).click()
+  await expect(page.getByText('Run cancelled')).toBeVisible()
+  await expect(page.getByTestId('run-state')).toHaveText('Cancelled')
+  await expect(page.getByTestId('run-cancel')).toHaveCount(0)
+})
+
+test('RV10: Resolve picks an outcome of the blocked step', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&run=${BLOCKED_RUN}`)
+  await page.getByTestId('run-resolve').click()
+  const dialog = page.getByTestId('resolve-dialog')
+  await dialog.getByRole('combobox').click()
+  await page.getByRole('option', { name: /^sent/ }).click()
+  await dialog.getByTestId('resolve-confirm').click()
+  await expect(page.getByText('The run goes on')).toBeVisible()
+  const resolved = (await calls(page)).find((c) => c.method === 'automations.run_resolve')!
+  expect(resolved.params).toEqual({ run_id: BLOCKED_RUN, wait_id: 'call-1', outcome: 'sent' })
+  await expect(page.getByTestId('run-state')).toHaveText('Done')
+})
+
+test('RV10 / S5: without Operate there is no Cancel, Retry or Resolve in the DOM', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&run=${BLOCKED_RUN}&cannot=operate`)
+  await expect(page.getByTestId('run-state')).toHaveText('Blocked')
+  await expect(page.getByTestId('run-retry')).toHaveCount(0)
+  await expect(page.getByTestId('run-resolve')).toHaveCount(0)
+  await expect(page.getByTestId('run-cancel')).toHaveCount(0)
 })

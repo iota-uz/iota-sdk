@@ -416,9 +416,9 @@
         "Waiting": "Aguardando"
       },
       "Runs": {
-        "Empty": "Nenhuma execução ainda.",
-        "NoSteps": "Nenhuma etapa ainda.",
-        "Steps": "Etapas da execução"
+        "NotFound": "Execução não encontrada",
+        "NotFoundText": "Ela foi excluída ou pertence a outro espaço de trabalho.",
+        "Opening": "Abrindo a execução…"
       },
       "Status": {
         "Disabled": "Desativada",

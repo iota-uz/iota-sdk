@@ -97,7 +97,8 @@ export function RunsTab(props: RunsTabProps): JSX.Element {
     }
   }
   // The filters are the key of the list: a change reloads it, a node or run change does not.
-  createEffect(on(() => [states().join(','), subject()] as const, () => void load()))
+  const filterKey = createMemo(() => `${states().join(',')}\u0000${subject().trim()}`)
+  createEffect(on(filterKey, () => void load()))
 
   // With no run chosen, the newest opens (not on a phone, where the list is the screen).
   createEffect(() => {

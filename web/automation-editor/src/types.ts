@@ -80,7 +80,8 @@ export type CatalogNode = {
 }
 
 export type GraphError = { path: string; message: string; line?: number; column?: number; code?: string }
-export type Subject = { entity: string; key: string; label?: string }
+/** url: the subject's page, when the host knows it (a run's «Open <subject>»). */
+export type Subject = { entity: string; key: string; label?: string; url?: string }
 
 // ——— runs, dry run and test node (#1347) ———
 /**

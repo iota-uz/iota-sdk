@@ -10,9 +10,9 @@ import { Icon } from '../icons'
 import { describeItem } from '../names'
 import { SchemaForm } from '../SchemaForm'
 import { strings } from '../strings'
-import type { AutomationGraph, EditorApi, EditorCatalog, EditorLocale, JsonSchema, RunData, TestNodeResult } from '../types'
+import type { AutomationGraph, EditorApi, EditorCatalog, EditorLocale, JsonSchema, Overlay, RunData, TestNodeResult } from '../types'
 import { Value } from './Data'
-import { missingSecret } from './model'
+import { missingSecret, testOverlay } from './model'
 import { Logs } from './NodeDrawer'
 import { runStrings } from './strings'
 import { createAction } from './util'
@@ -27,7 +27,8 @@ export interface TestPanelProps {
   /** Runs read in this editor; the example comes from the newest that reached the step. */
   cache: Map<string, RunData>
   connectionName?(id: string): string | undefined
-  onResult(result: TestNodeResult | null): void
+  /** The result's overlay on the draft it ran on; null takes it off. */
+  onOverlay(overlay: Overlay | null): void
   onClose(): void
 }
 
@@ -98,7 +99,7 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
       setConfirming(false)
       if (!res) return
       setResult(res)
-      props.onResult(res)
+      props.onOverlay(testOverlay(props.node, res))
     }, () => setConfirming(false))
   }
 
@@ -135,7 +136,7 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
       <header class="ae-validation__head">
         <h2 class="ae-validation__title" id="ae-test-title">{t().title(title())}</h2>
         <span class="ae-validation__summary">{t().note}</span>
-        <button type="button" class="ae-iconbtn" aria-label={t().close} title={t().close} onClick={() => { props.onResult(null); props.onClose() }}><Icon name="close" /></button>
+        <button type="button" class="ae-iconbtn" aria-label={t().close} title={t().close} onClick={() => { props.onOverlay(null); props.onClose() }}><Icon name="close" /></button>
       </header>
       <div class="ae-dock__body">
         <form class="ae-dock__form" onSubmit={(e) => { e.preventDefault(); start() }}>
@@ -148,7 +149,7 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
             </Show>
           </div>
           <Show when={exampleNote()}>{(note) => <p class="ae-muted" role="status">{note()}</p>}</Show>
-          <Show when={hasFields()} fallback={<p class="ae-muted">{runStrings(props.locale).node.noData}</p>}>
+          <Show when={hasFields()} fallback={<p class="ae-muted">{t().noInput}</p>}>
             <SchemaForm
               schema={schema()}
               value={input()}
