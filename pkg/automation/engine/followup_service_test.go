@@ -705,3 +705,93 @@ func TestConnectionDeleteIsRefusedWhileAnOmittedConnectionMayResolveToIt(t *test
 	require.NoError(t, store.SetStatus(ctx, e.tenant, a.ID, connectors.StatusNeedsReauth, "expired"))
 	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.connections WHERE id = $1`, b.ID), "the graph now runs with B, which is still there")
 }
+
+// hookCatalog runs change once, right after the view of its at-th ForTenant.
+type hookCatalog struct {
+	catalog.Registry
+	calls, at atomic.Int32
+	change    func(ctx context.Context)
+}
+
+func (c *hookCatalog) ForTenant(ctx context.Context, tenant uuid.UUID, opts ...catalog.ViewOption) (catalog.View, error) {
+	v, err := c.Registry.ForTenant(ctx, tenant, opts...)
+	if n := c.calls.Add(1); err == nil && n == c.at.Load() {
+		c.change(ctx)
+	}
+	return v, err
+}
+
+// botSetup is a runtime whose catalog reads a connector store, with one working bot A.
+func botSetup(t *testing.T, e *env, p *proc) (*proc, *hookCatalog, connectors.Store, connectors.Connection) {
+	t.Helper()
+	ctx := context.Background()
+	avail := &storeAvailability{}
+	reg := catalog.NewRegistry(avail)
+	require.NoError(t, reg.RegisterTriggers(engine.Triggers()))
+	for _, spec := range append(graph.BuiltinNodes(nil, []string{engine.EventRunFinished}), graph.FlowNodes(nil)...) {
+		require.NoError(t, reg.RegisterNode(specNode{spec}))
+	}
+	require.NoError(t, reg.RegisterNode(botNode{specNode{graph.NodeSpec{Type: "acme.bot", Title: "Bot", Behavior: graph.BehaviorEffect,
+		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}}}))
+	cat := &hookCatalog{Registry: reg}
+	rt := runtimeOn(t, e, p, e.db, cat)
+	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": []byte("0123456789abcdef0123456789abcdef")})
+	require.NoError(t, err)
+	store := connectors.NewStore(e.db, keys, rt.UsageIndex(), nil, nil)
+	avail.s = store
+	a, err := store.Save(ctx, connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "bot_a"}, connectors.Credentials{"token": "a"})
+	require.NoError(t, err)
+	return &proc{e: e, wf: p.wf, rt: rt, disp: p.disp}, cat, store, a
+}
+
+// botGraph names no connection: it runs with the only working bot.
+func botGraph(name string) string {
+	return `{"name": "` + name + `", "triggers": [{"id": "go", "event": "automation.manual.v1"}],
+	 "nodes": [{"id": "bot", "type": "acme.bot", "params": {}}, {"id": "fin", "type": "end", "params": {}}],
+	 "edges": [{"from": {"node": "go", "outcome": "fired"}, "to": "bot"}, {"from": {"node": "bot", "outcome": "done"}, "to": "fin"}]}`
+}
+
+func TestEnableIsRefusedWhenItsResolvedConnectionChangedAfterValidation(t *testing.T) {
+	e := newEnv(t)
+	bp, cat, store, a := botSetup(t, e, e.proc())
+	ctx := context.Background()
+	human := e.human()
+	am, v1, err := bp.rt.Service().Create(ctx, human, engine.CreateInput{Graph: json.RawMessage(botGraph("Bot"))})
+	require.NoError(t, err)
+	// A later version uses no bot: version 1 is neither latest nor enabled, so nothing blocks deleting a bot for it.
+	_, err = bp.rt.Service().SaveVersion(ctx, human, am.ID, engine.SaveInput{BaseVersion: 1, Graph: json.RawMessage(`{"name": "Plain",
+	 "triggers": [{"id": "go", "event": "automation.manual.v1"}], "nodes": [{"id": "fin", "type": "end", "params": {}}],
+	 "edges": [{"from": {"node": "go", "outcome": "fired"}, "to": "fin"}]}`)})
+	require.NoError(t, err)
+	// After the enable validated version 1 (A), and before its lock: A needs reauthorization, B comes and goes.
+	cat.change = func(ctx context.Context) {
+		require.NoError(t, store.SetStatus(ctx, e.tenant, a.ID, connectors.StatusNeedsReauth, "expired"))
+		b, err := store.Save(ctx, connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "bot_b"}, connectors.Credentials{"token": "b"})
+		require.NoError(t, err)
+		require.NoError(t, store.Delete(ctx, e.tenant, b.ID))
+	}
+	cat.at.Store(cat.calls.Load() + 2) // the triggers' rights, then the validation
+	_, err = bp.rt.Service().Enable(ctx, human, am.ID, engine.EnableInput{Version: v1.Version})
+	var verr *engine.ValidationError
+	require.ErrorAs(t, err, &verr, "validated again: the graph has no working bot")
+	assert.Equal(t, engine.CodeConnectionUnavailable, verr.Errors[0].Code)
+	assert.Equal(t, 0, e.count(`SELECT count(*) FROM automation.automations WHERE id = $1 AND enabled_version IS NOT NULL`, am.ID))
+}
+
+func TestAutoEnableKeepsTheEnabledVersionWhenItsConnectionChangedAfterValidation(t *testing.T) {
+	e := newEnv(t)
+	bp, cat, store, a := botSetup(t, e, e.proc())
+	ctx := context.Background()
+	human := e.human()
+	am := e.create(bp, human, botGraph("Bot"))
+	// The save validates against A; before its transaction A needs reauthorization.
+	cat.change = func(ctx context.Context) {
+		require.NoError(t, store.SetStatus(ctx, e.tenant, a.ID, connectors.StatusNeedsReauth, "expired"))
+	}
+	cat.at.Store(cat.calls.Load() + 1)
+	v2, err := bp.rt.Service().SaveVersion(ctx, human, am.ID, engine.SaveInput{BaseVersion: 1, Graph: json.RawMessage(botGraph("Bot renamed"))})
+	require.NoError(t, err, "the version is saved")
+	assert.Equal(t, 2, v2.Version)
+	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.automations WHERE id = $1 AND enabled_version = 1`, am.ID),
+		"the running version stays: the new one is not enabled over a view that changed")
+}

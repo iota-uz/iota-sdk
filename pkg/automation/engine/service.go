@@ -168,9 +168,9 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 		if enabled.CodeDigest != digest || enabled.RunAs != string(v.g.RunAs) || !triggersReadable(v.view, v.g) {
 			return nil
 		}
-		err = s.r.enableTx(ctx, tx, a, id, next, v.view, v.g)
+		err = s.r.enableTx(ctx, tx, a, id, next, v)
 		if errors.Is(err, errConnectionGone) {
-			// A connection the version uses was deleted since it was validated: the version is saved, the
+			// The connections the version uses changed since it was validated: the version is saved, the
 			// graph keeps running the version it runs until a human enables this one.
 			return nil
 		}
@@ -192,16 +192,25 @@ func triggersReadable(view catalog.View, g graph.Graph) bool {
 	return true
 }
 
-// errConnectionGone: a connection the version uses was deleted after the version was validated.
-var errConnectionGone = errors.New("automation engine: a connection the version uses was deleted")
+// errConnectionGone: the connections the version was validated against changed (one it uses was
+// deleted, left the connected status, or another one changed what it resolves to).
+var errConnectionGone = errors.New("automation engine: the connections the version uses changed since it was validated")
 
-// lockConnections locks the tenant connections g uses FOR SHARE until the enable commits: a connection
-// Delete locks its row FOR UPDATE from its UsageIndex check to its delete, so it either sees this enable
-// committed (the use blocks it) or commits before the lock is granted, when the row is gone here and the
-// enable is refused (errConnectionGone) instead of committing a version over a stale catalog view.
-func lockConnections(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, view catalog.View, g graph.Graph) error {
+// lockConnections locks the tenant connections v's graph uses FOR SHARE until the enable commits and
+// checks that v's view still resolves them. A connection Delete locks its row FOR UPDATE from its
+// UsageIndex check to its delete, so it either sees this enable committed (the use blocks it) or commits
+// before the lock is granted, when the row is gone here. A status change of a used connection waits for
+// the lock as well. Each used connection must still be connected, and the tenant's connections must be
+// as they were when v was validated (connState): otherwise another connection may have become the one
+// an omitted parameter resolves to (or been deleted meanwhile), and the enable is refused with
+// errConnectionGone instead of publishing a version over a stale view.
+func lockConnections(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, v validated) error {
+	uses := connectionUses(v.view, v.g)
+	if len(uses) == 0 {
+		return nil
+	}
 	want := map[uuid.UUID]bool{}
-	for _, c := range connectionUses(view, g) {
+	for _, c := range uses {
 		if strings.HasPrefix(c, catalog.PlatformPrefix) {
 			continue // a platform credential has no row to delete
 		}
@@ -211,23 +220,29 @@ func lockConnections(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, view cata
 		}
 		want[id] = true
 	}
-	if len(want) == 0 {
-		return nil
+	if len(want) > 0 {
+		ids := make([]uuid.UUID, 0, len(want))
+		for id := range want {
+			ids = append(ids, id)
+		}
+		sort.Slice(ids, func(i, j int) bool { return ids[i].String() < ids[j].String() })
+		rows, err := tx.Query(ctx, `SELECT id FROM automation.connections WHERE tenant_id = $1 AND id = ANY($2) AND status = 'connected' ORDER BY id FOR SHARE`, tenant, ids)
+		if err != nil {
+			return serrors.FromDB(opService, err)
+		}
+		found, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+		if err != nil {
+			return serrors.FromDB(opService, err)
+		}
+		if len(found) != len(ids) {
+			return errConnectionGone
+		}
 	}
-	ids := make([]uuid.UUID, 0, len(want))
-	for id := range want {
-		ids = append(ids, id)
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i].String() < ids[j].String() })
-	rows, err := tx.Query(ctx, `SELECT id FROM automation.connections WHERE tenant_id = $1 AND id = ANY($2) ORDER BY id FOR SHARE`, tenant, ids)
+	now, err := connectionsState(ctx, tx, tenant)
 	if err != nil {
-		return serrors.FromDB(opService, err)
+		return err
 	}
-	found, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
-	if err != nil {
-		return serrors.FromDB(opService, err)
-	}
-	if len(found) != len(ids) {
+	if now != v.connState {
 		return errConnectionGone
 	}
 	return nil
@@ -236,8 +251,9 @@ func lockConnections(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, view cata
 // enableTx pins a version: enabled_version, the owner (trigger_owners) and the version's triggers with
 // the current outbox watermark, so events published before do not start runs. The caller holds the
 // graph's row lock; the connections the version uses are locked first (lockConnections).
-func (r *Runtime) enableTx(ctx context.Context, tx pgx.Tx, a Actor, id uuid.UUID, version int, view catalog.View, g graph.Graph) error {
-	if err := lockConnections(ctx, tx, a.TenantID, view, g); err != nil {
+func (r *Runtime) enableTx(ctx context.Context, tx pgx.Tx, a Actor, id uuid.UUID, version int, v validated) error {
+	view, g := v.view, v.g
+	if err := lockConnections(ctx, tx, a.TenantID, v); err != nil {
 		return err
 	}
 	// The triggers become active now, after the graph's lock was granted: the transaction's start
@@ -527,17 +543,17 @@ func (s *service) Enable(ctx context.Context, a Actor, id uuid.UUID, in EnableIn
 			if _, err := loadAutomation(ctx, tx, a.TenantID, id, true); err != nil {
 				return err
 			}
-			if err := s.r.enableTx(ctx, tx, a, id, in.Version, checked.view, checked.g); err != nil {
+			if err := s.r.enableTx(ctx, tx, a, id, in.Version, checked); err != nil {
 				return err
 			}
 			am, err = loadAutomation(ctx, tx, a.TenantID, id, false)
 			return err
 		})
 		if errors.Is(err, errConnectionGone) && attempt == 0 {
-			continue // validated again against the catalog of now: the deleted connection is a validation error
+			continue // validated again against the catalog of now: a connection that is gone is a validation error
 		}
 		if errors.Is(err, errConnectionGone) {
-			return Automation{}, fmt.Errorf("%w: a connection the version uses was deleted meanwhile", ErrInvalidInput)
+			return Automation{}, fmt.Errorf("%w: the connections the version uses changed meanwhile", ErrInvalidInput)
 		}
 		if err != nil {
 			return Automation{}, err
