@@ -26,6 +26,8 @@ export interface FakeOptions {
   oldVersionDelay: number
   can: { author: boolean; enable: boolean; operate: boolean }
   calls: { method: string; params: unknown }[]
+  /** Validation warns about the first node (a pinned tool schema the server changed), with its fix. */
+  warn?: boolean
 }
 
 const now = '2026-11-20T09:30:00Z'
@@ -243,7 +245,10 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       s.revision++
       return { ok: true, revision: s.revision }
     },
-    'automations.validate': () => ({ ok: true, errors: [], warnings: [] }),
+    'automations.validate': () => ({
+      ok: true, errors: [],
+      warnings: opts.warn ? [{ path: 'nodes[0].params.tool_schema', code: 'tool_schema_changed', message: 'the server changed the schema of weather since it was pinned: runs keep the pinned one; update the pin to use the new schema', fix: { remove: 'nodes[0].params.tool_schema', label: 'Update the pinned schema' } }] : [],
+    }),
     'automations.enable_review': (p) => {
       const s = find(p.id)
       if (reviewFails) { reviewFails = false; rpcError('internal', 'internal error') }

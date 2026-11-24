@@ -35,8 +35,8 @@ type Authoring interface {
 	// SearchSubjects: subjects for dry run and test, visible to the actor.
 	SearchSubjects(ctx context.Context, a Actor, entity, query string, limit int) ([]SubjectOption, error)
 	// Validate checks a graph against the author's catalog as a save does (*ValidationError); nothing is
-	// written.
-	Validate(ctx context.Context, a Actor, raw json.RawMessage) error
+	// written. A graph that validates may still have warnings.
+	Validate(ctx context.Context, a Actor, raw json.RawMessage) ([]graph.GraphError, error)
 }
 
 // Decision modes of a dry run: how its execute nodes answer.
@@ -44,6 +44,13 @@ const (
 	DecisionsLive     = "live"     // a real call
 	DecisionsCached   = "cached"   // the cache, else a real call recorded in the cache
 	DecisionsScripted = "scripted" // the Context; no credentials are read and no network call is made
+)
+
+// Which execute nodes a dry run calls for real (DryRunInput.RealCalls).
+const (
+	RealCallsAll       = ""
+	RealCallsDecisions = "decisions"
+	RealCallsNone      = "none"
 )
 
 // MaxDryRunEvents bounds DryRunInput.Events.
@@ -60,6 +67,13 @@ type DryRunInput struct {
 	Events []json.RawMessage
 	// Decisions is live, cached or scripted (default).
 	Decisions string
+	// MaxCalls bounds the real calls the dry run makes (live decisions, cache misses, execute nodes): the
+	// call past it is not made and the dry run fails with ErrLimitExceeded. 0: no bound.
+	MaxCalls int
+	// RealCalls narrows which execute nodes a live or cached dry run calls for real: RealCallsAll (the
+	// default, the editor's), RealCallsDecisions (decision nodes only) or RealCallsNone (cached reads the
+	// cache only). A node not called is answered from Context, as a captured one.
+	RealCalls string
 }
 
 // DryRunResult is the trace of a dry run.
@@ -154,12 +168,15 @@ func (au *authoring) authorGraph(ctx context.Context, a Actor, raw json.RawMessa
 	return v, in, nil
 }
 
-func (au *authoring) Validate(ctx context.Context, a Actor, raw json.RawMessage) error {
+func (au *authoring) Validate(ctx context.Context, a Actor, raw json.RawMessage) ([]graph.GraphError, error) {
 	if err := au.r.service.authorize(a, PermAuthor); err != nil {
-		return err
+		return nil, err
 	}
-	_, err := au.r.validate(ctx, a, raw)
-	return err
+	v, err := au.r.validate(ctx, a, raw)
+	if err != nil {
+		return nil, err
+	}
+	return v.warnings, nil
 }
 
 // decodeContext reads the overrides of a dry run or a test.
@@ -179,8 +196,13 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 	if err := au.r.service.authorize(a, PermAuthor); err != nil {
 		return DryRunResult{}, err
 	}
-	if len(in.Events) > MaxDryRunEvents {
-		return DryRunResult{}, fmt.Errorf("%w: a dry run takes at most %d events", ErrInvalidInput, MaxDryRunEvents)
+	if n := DryRunEventCount(in.Events); n > MaxDryRunEvents {
+		return DryRunResult{}, fmt.Errorf("%w: a dry run takes at most %d events, batches counted by their events; got %d", ErrLimitExceeded, MaxDryRunEvents, n)
+	}
+	switch in.RealCalls {
+	case RealCallsAll, RealCallsDecisions, RealCallsNone:
+	default:
+		return DryRunResult{}, fmt.Errorf("%w: real_calls is all, decisions or none", ErrInvalidInput)
 	}
 	mode := in.Decisions
 	switch mode {
@@ -208,7 +230,9 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 			inputs = append(inputs, graph.DryRunInput{Timeout: true})
 			continue
 		}
-		if batch, ok := m["events"].([]any); ok && len(m) == 1 {
+		if _, isBatch := dryRunBatch(raw); isBatch {
+			// The rule DryRunEventCount counts by: the only field, an array.
+			batch, _ := m["events"].([]any)
 			if len(batch) == 0 || len(batch) > graph.CollectMaxEvents {
 				return DryRunResult{}, fmt.Errorf("%w: events[%d] is a batch of 1..%d events", ErrInvalidInput, i, graph.CollectMaxEvents)
 			}
@@ -232,6 +256,10 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 		return DryRunResult{}, &host.InfraError{Err: err}
 	}
 	opts := graph.DryRunOptions{Modes: true}
+	var budget *callBudget
+	if in.MaxCalls > 0 {
+		budget = &callBudget{left: in.MaxCalls}
+	}
 	// Whether each execute call, in order per node, was answered from the cache: the trace's steps of a
 	// node come in the same order, so a cached one is reported as such and not as a live call.
 	cachedBy := map[string][]bool{}
@@ -239,14 +267,18 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 	if mode != DecisionsScripted {
 		opts.Execute = func(node graph.Node, effects []graph.Effect) graph.ExecAnswer {
 			params := map[string]any{}
+			var stepCtx map[string]any
 			if len(effects) > 0 {
-				params = effects[0].Params
+				params, stepCtx = effects[0].Params, effects[0].Context
 			}
-			res := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params,
-				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode})
+			res := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params, context: stepCtx,
+				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode, budget: budget, realCalls: in.RealCalls})
 			cachedBy[node.ID] = append(cachedBy[node.ID], res.cached)
 			if res.called {
 				live++
+			}
+			if res.script {
+				return graph.ExecAnswer{Script: true}
 			}
 			if res.err != nil {
 				return graph.ExecAnswer{Code: res.err.Code, Message: res.err.Message, Retryable: res.err.Retryable}
@@ -255,7 +287,18 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 			return graph.ExecAnswer{Outcome: res.outcome, Output: out}
 		}
 	}
+	opts.Preview = func(node graph.Node, effects []graph.Effect, started graph.Event) (graph.ExecAnswer, bool) {
+		// The event that started the dry run, as the interpreter chose it, and the author as its initiator.
+		trigger := triggerOfEvent(started, "dry-run")
+		if trigger != nil {
+			trigger.ActorUserID = a.UserID
+		}
+		return au.r.previewEffects(ctx, a.TenantID, sub, normSubject(in.Subject), trigger, node, effects, in.RealCalls != RealCallsAll)
+	}
 	steps := interp.DryRun(normSubject(in.Subject), gctx, inputs, opts)
+	if budget.wasExceeded() {
+		return DryRunResult{}, fmt.Errorf("%w: a dry run makes at most %d real calls", ErrLimitExceeded, in.MaxCalls)
+	}
 	trace := traceOf(interp, steps)
 	for i := range trace {
 		if trace[i].Status != graph.StatusExecuted {
@@ -269,6 +312,34 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 		}
 	}
 	return DryRunResult{Trace: trace, LiveCalls: live}, nil
+}
+
+// DryRunEventCount is how many events a dry run's input feeds: a batch counts its entries, anything
+// else one. A batch is what DryRun takes for one: an object whose only field is the array events (an
+// event with its own payload field events is one event).
+func DryRunEventCount(events []json.RawMessage) int {
+	n := 0
+	for _, raw := range events {
+		if batch, ok := dryRunBatch(raw); ok {
+			n += len(batch)
+			continue
+		}
+		n++
+	}
+	return n
+}
+
+// dryRunBatch is the entries of a batch input {"events": [...]}: the only field, an array.
+func dryRunBatch(raw json.RawMessage) ([]json.RawMessage, bool) {
+	var m map[string]json.RawMessage
+	if json.Unmarshal(raw, &m) != nil || len(m) != 1 {
+		return nil, false
+	}
+	var batch []json.RawMessage
+	if json.Unmarshal(m["events"], &batch) != nil || batch == nil {
+		return nil, false
+	}
+	return batch, true
 }
 
 // traceOf maps the interpreter's trace to the engine's.
@@ -363,6 +434,23 @@ func triggerCondition(in *graph.Interpreter, id, failed string) string {
 
 // MaxTestKey bounds TestNodeInput.Key.
 const MaxTestKey = 100
+
+// testedNodeNeedsReauth reports whether the node a test names needs a connection that waits for a new
+// sign-in (needsReauth).
+func (au *authoring) testedNodeNeedsReauth(ctx context.Context, a Actor, in TestNodeInput) bool {
+	g, errs := graph.Decode(in.Graph)
+	if len(errs) > 0 {
+		return false
+	}
+	for _, n := range g.Nodes {
+		if n.ID != in.NodeID {
+			continue
+		}
+		nt, ok := au.r.cfg.Catalog.Node(n.Type)
+		return ok && len(nt.Requires()) > 0 && needsReauth(ctx, au.r.cfg.DB, a.TenantID, n.Params[catalog.ConnectionParam], nt.Requires())
+	}
+	return false
+}
 
 func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (TestNodeResult, error) {
 	if err := au.r.service.authorize(a, PermAuthor); err != nil {
@@ -462,6 +550,11 @@ func (au *authoring) repeatedTest(ctx context.Context, a Actor, in TestNodeInput
 func (au *authoring) testNode(ctx context.Context, a Actor, in TestNodeInput, key string) (TestNodeResult, error) {
 	v, interp, err := au.authorGraph(ctx, a, in.Graph)
 	if err != nil {
+		// A node whose connection waits for a new sign-in left the catalog, so the graph does not
+		// validate: the test answers as the call would, unauthorized.
+		if errors.Is(err, ErrConnectionUnavailable) && au.testedNodeNeedsReauth(ctx, a, in) {
+			return TestNodeResult{Error: &StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth}}, nil
+		}
 		return TestNodeResult{}, err
 	}
 	node, ok := interp.View().Node(in.NodeID)
@@ -503,10 +596,11 @@ func (au *authoring) testNode(ctx context.Context, a Actor, in TestNodeInput, ke
 		res.Error = &e
 	case graph.StepCall:
 		params := map[string]any{}
+		var stepCtx map[string]any
 		if len(st.Effects) > 0 {
-			params = st.Effects[0].Params
+			params, stepCtx = st.Effects[0].Params, st.Effects[0].Context
 		}
-		dr := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params,
+		dr := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params, context: stepCtx,
 			subject: subject, key: key, decisions: DecisionsLive})
 		res.Outcome, res.Output, res.Error = dr.outcome, dr.output, dr.err
 		if dr.masker != nil {
@@ -531,15 +625,20 @@ func (au *authoring) testNode(ctx context.Context, a Actor, in TestNodeInput, ke
 			}
 		}
 		if len(st.Effects) > 0 {
-			out, serr, err := au.r.effectRolledBack(ctx, a.TenantID, sub, subject, node, st.Effects)
+			applied, serr, err := au.r.effectRolledBack(ctx, a.TenantID, sub, subject, authorTrigger(event, a), node, interp.View().Catalog().Nodes[node.Type], st.Effects)
 			if err != nil {
 				return TestNodeResult{}, err
 			}
 			if serr != nil {
 				res.Error = serr
-			} else if out != nil {
-				if res.Output, err = json.Marshal(out); err != nil {
-					return TestNodeResult{}, err
+			} else {
+				if applied.Outcome != "" {
+					res.Outcome = applied.Outcome
+				}
+				if applied.Output != nil {
+					if res.Output, err = json.Marshal(applied.Output); err != nil {
+						return TestNodeResult{}, err
+					}
 				}
 			}
 		}
@@ -564,36 +663,81 @@ func (au *authoring) testNode(ctx context.Context, a Actor, in TestNodeInput, ke
 	return res, nil
 }
 
+// authorTrigger is the event a node test runs on, with the author as its initiator.
+func authorTrigger(event map[string]any, a Actor) *TriggerEvent {
+	t := triggerOfEvent(event, "test-node")
+	if t != nil {
+		t.ActorUserID = a.UserID
+	}
+	return t
+}
+
+// triggerOfEvent is the trigger event of an event as the context shows it (payload, and its kind); nil for
+// an event that names no kind.
+func triggerOfEvent(ev map[string]any, id string) *TriggerEvent {
+	kind, _ := ev["kind"].(string)
+	if kind == "" {
+		return nil
+	}
+	payload := make(map[string]any, len(ev))
+	for k, v := range ev {
+		if k != "kind" && k != catalog.BySelfField {
+			payload[k] = v
+		}
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil
+	}
+	return &TriggerEvent{Key: kind, ID: id, Payload: raw}
+}
+
+// previewEffects is the answer of a node that previews its effect (EffectPreviewer) in a dry run; offline
+// (an agent's dry run) only an OfflinePreviewer is asked. ok is false
+// for a node that does not.
+func (r *Runtime) previewEffects(ctx context.Context, tenant uuid.UUID, as spi.Subject, subject SubjectRef, trigger *TriggerEvent, node graph.Node, effects []graph.Effect, offline bool) (graph.ExecAnswer, bool) {
+	nt, _ := r.cfg.Catalog.Node(node.Type)
+	pv, ok := nt.(EffectPreviewer)
+	if !ok || len(effects) == 0 {
+		return graph.ExecAnswer{}, false
+	}
+	if _, local := pv.(OfflinePreviewer); offline && !local {
+		// An offline dry run (an agent's) runs no previewer that may call out or run package code.
+		return graph.ExecAnswer{}, false
+	}
+	sc := StepContext{TenantID: tenant, RunAs: as, Subject: subject, NodeID: node.ID, Trigger: trigger, Offline: offline}
+	res, err := pv.PreviewEffect(ctx, sc, node, effects[0])
+	if err != nil {
+		var se *StepError
+		if errors.As(err, &se) {
+			return graph.ExecAnswer{Code: se.Code, Message: se.Message, Retryable: se.Retryable}, true
+		}
+		return graph.ExecAnswer{Code: CodeEffectFailed, Message: err.Error()}, true
+	}
+	return graph.ExecAnswer{Outcome: res.Outcome, Output: res.Output}, true
+}
+
 // effectRolledBack applies an effect node's effects in a transaction it rolls back: the node's output
 // is shown, and nothing it wrote (rows, outbox events) stays.
-func (r *Runtime) effectRolledBack(ctx context.Context, tenant uuid.UUID, as spi.Subject, subject SubjectRef, node graph.Node, effects []graph.Effect) (map[string]any, *StepError, error) {
+func (r *Runtime) effectRolledBack(ctx context.Context, tenant uuid.UUID, as spi.Subject, subject SubjectRef, trigger *TriggerEvent, node graph.Node, spec graph.NodeSpec, effects []graph.Effect) (EffectResult, *StepError, error) {
 	nt, _ := r.cfg.Catalog.Node(node.Type)
 	en, ok := nt.(EffectNode)
 	if !ok {
 		// As in a run: an effect node without an executor applies nothing, so its test says so.
-		return nil, &StepError{Code: CodeUnsupported, Message: fmt.Sprintf("node type %s has no effect executor", node.Type)}, nil
+		return EffectResult{}, &StepError{Code: CodeUnsupported, Message: fmt.Sprintf("node type %s has no effect executor", node.Type)}, nil
+	}
+	sc := StepContext{TenantID: tenant, RunAs: as, Subject: subject, NodeID: node.ID, Trigger: trigger}
+	if prep, ok := en.(EffectPreparer); ok && len(effects) > 0 {
+		// Prepared before the transaction opens, as a run does.
+		v, err := prep.PrepareEffect(ctx, sc, node, effects[0])
+		sc.Prepared = &PreparedEffect{Value: v, Err: err}
 	}
 	tx, err := r.cfg.DB.Begin(ctx)
 	if err != nil {
-		return nil, nil, serrors.FromDB(opAuthoring, err)
+		return EffectResult{}, nil, serrors.FromDB(opAuthoring, err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	sc := StepContext{TenantID: tenant, RunAs: as, Subject: subject}
-	var out map[string]any
-	for _, e := range effects {
-		o, err := en.ApplyEffect(ctx, tx, sc, node, e)
-		if err != nil {
-			var se *StepError
-			if errors.As(err, &se) {
-				return nil, se, nil
-			}
-			return nil, &StepError{Code: CodeEffectFailed, Message: err.Error()}, nil
-		}
-		if o != nil {
-			out = o
-		}
-	}
-	return out, nil, nil
+	return applyEach(ctx, tx, sc, node, spec, en, effects, false)
 }
 
 func (au *authoring) SearchSubjects(ctx context.Context, a Actor, entity, query string, limit int) ([]SubjectOption, error) {
@@ -626,9 +770,44 @@ type directCall struct {
 	view      catalog.View
 	node      graph.Node
 	params    map[string]any
+	context   map[string]any // the step's context (graph.NodeSpec.StepContext)
 	subject   SubjectRef
 	key       string
 	decisions string
+	// budget, when set, bounds the real calls of a dry run.
+	budget *callBudget
+	// realCalls narrows the nodes called for real (DryRunInput.RealCalls).
+	realCalls string
+}
+
+// callBudget is how many real calls a dry run may still make.
+type callBudget struct {
+	mu       sync.Mutex
+	left     int
+	exceeded bool
+}
+
+func (b *callBudget) take() bool {
+	if b == nil {
+		return true
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.left <= 0 {
+		b.exceeded = true
+		return false
+	}
+	b.left--
+	return true
+}
+
+func (b *callBudget) wasExceeded() bool {
+	if b == nil {
+		return false
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.exceeded
 }
 
 type directResult struct {
@@ -638,6 +817,8 @@ type directResult struct {
 	output  json.RawMessage
 	err     *StepError
 	masker  Masker // the connection's: what the node logged is masked with it
+	// script: the dry run may not make this call; the node is answered from the context.
+	script bool
 }
 
 // execDirect runs a call node once, as the actor, with the connection the actor may use; the output and
@@ -648,6 +829,9 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	if !ok || !isCall {
 		return directResult{err: &StepError{Code: CodeUnsupported, Message: c.node.Type + " has no call executor"}}
 	}
+	if _, decides := cn.(DecisionNode); !decides && c.realCalls != RealCallsAll {
+		return directResult{script: true}
+	}
 	if perm, ok := cn.(catalog.PermissionedNode); ok && perm.Permission() != "" && !c.as.Has(perm.Permission()) {
 		return directResult{err: &StepError{Code: CodeForbidden, Message: "you may not use " + c.node.Type}}
 	}
@@ -655,12 +839,24 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	var creds catalog.Credentials
 	if kinds := c.view.NodeRequires[c.node.Type]; len(kinds) > 0 {
 		ref, _, err := catalog.ResolveConnection(c.view.Connections, kinds, c.params[catalog.ConnectionParam])
+		if err != nil && needsReauth(ctx, r.cfg.DB, c.tenant, c.params[catalog.ConnectionParam], kinds) {
+			return directResult{err: &StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth}}
+		}
 		if err != nil || r.cfg.Credentials == nil {
+			if c.realCalls == RealCallsNone {
+				return directResult{script: true} // offline: answered from the context
+			}
 			return directResult{err: &StepError{Code: CodeConnectionUnavailable, Message: "the connection of " + c.node.ID + " is not available"}}
 		}
 		ci, cr, err := r.cfg.Credentials.Open(ctx, c.tenant, ref.ID)
+		if err != nil && c.realCalls == RealCallsNone {
+			// Offline: no cache key without the connection, so the context answers.
+			return directResult{script: true}
+		}
 		switch {
-		case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrNeedsReauth), errors.Is(err, connectors.ErrUndecryptable):
+		case errors.Is(err, connectors.ErrNeedsReauth):
+			return directResult{err: &StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth}}
+		case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrUndecryptable):
 			return directResult{err: &StepError{Code: CodeConnectionUnavailable, Message: "the connection is not connected"}}
 		case err != nil:
 			return directResult{err: &StepError{Code: CodeConnectionUnavailable, Message: "the connection could not be opened"}}
@@ -674,7 +870,7 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	}
 	deadline := time.Now().Add(timeout)
 	in := catalog.CallInput{
-		TenantID: c.tenant, NodeID: c.node.ID, Attempt: 1, IdempotencyKey: c.key, Params: c.params, Subject: c.subject,
+		TenantID: c.tenant, NodeID: c.node.ID, Attempt: 1, IdempotencyKey: c.key, Params: c.params, Context: c.context, Subject: c.subject,
 		RunAs: c.as, Connection: info, Credentials: creds, Deadline: deadline, Usage: r.cfg.Usage,
 	}
 	dn, decides := cn.(DecisionNode)
@@ -692,6 +888,13 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 				}
 			}
 		}
+	}
+	if c.realCalls == RealCallsNone {
+		// Offline: only the cache answers; a miss is answered from the context.
+		return directResult{script: true}
+	}
+	if !c.budget.take() {
+		return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: CodeLimitExceeded, Message: "the dry run reached its limit of real calls"}}
 	}
 	callCtx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()

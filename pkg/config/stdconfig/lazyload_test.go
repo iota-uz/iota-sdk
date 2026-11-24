@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/eskizconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/meiliconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
@@ -46,6 +47,7 @@ func TestLazyLoading_EmptySource_AllOptionalFeaturesDisabled(t *testing.T) {
 		"oidc":        reflect.TypeOf(oidcconfig.Config{}),
 		"smtp":        reflect.TypeOf(smtpconfig.Config{}),
 		"twilio":      reflect.TypeOf(twilioconfig.Config{}),
+		"eskiz":       reflect.TypeOf(eskizconfig.Config{}),
 		"meili":       reflect.TypeOf(meiliconfig.Config{}),
 		"googleoauth": reflect.TypeOf(googleoauthconfig.Config{}),
 		"redis":       reflect.TypeOf(redisconfig.Config{}),

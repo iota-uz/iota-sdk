@@ -43,7 +43,7 @@ const EMPTY_GEOMETRY = cardGeometry([], true)
 function sameItem(a: CanvasItem | undefined, b: CanvasItem | undefined): boolean {
   if (a === b) return true
   if (!a || !b) return false
-  return a.id === b.id && a.kind === b.kind && a.type === b.type && a.state === b.state && a.error === b.error &&
+  return a.id === b.id && a.kind === b.kind && a.type === b.type && a.state === b.state && a.error === b.error && a.warning === b.warning &&
     a.outs.length === b.outs.length && a.outs.every((o, i) => {
       const other = b.outs[i]!
       return o.outcome === other.outcome && o.to === other.to && o.ignore === other.ignore
@@ -155,6 +155,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
     }
     const specs = new Map(props.catalog.nodes.map((n) => [n.type, n]))
     const errors = errorMap()
+    const warnings = errorsByItem(props.graph, props.warnings)
     const states = props.overlay?.states
     const add = (id: string, kind: 'trigger' | 'node', type: string, outcomes: string[]) => {
       for (const outcome of extra.get(id) ?? []) if (!outcomes.includes(outcome)) outcomes.push(outcome)
@@ -162,7 +163,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
         const to = edgeIndex.get(edgeKey(id, outcome)) ?? null
         return { outcome, to: to === IGNORE ? null : to, ignore: to === IGNORE }
       })
-      map.set(id, { id, kind, type, outs, state: states?.get(id), error: errors.get(id) })
+      map.set(id, { id, kind, type, outs, state: states?.get(id), error: errors.get(id), warning: warnings.get(id) })
     }
     for (const trigger of graph.triggers) add(trigger.id, 'trigger', trigger.event, [FIRED])
     for (const node of graph.nodes) add(node.id, 'node', node.type, nodeOutcomes(node, specs.get(node.type)))
@@ -1045,6 +1046,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
                   <span>{unavailable() ? t().canvas.unavailable : lost().has(id) ? t().canvas.noConnection : '!'}</span>
                 </span>
               </Show>
+              <Show when={!item()?.error && item()?.warning}><span class="ae-badge ae-badge--warning" title={item()?.warning}>!</span></Show>
             </div>
             <Show when={props.overlay?.notes?.get(id)} fallback={<div class="ae-card__sub" title={name().subtitle}>{name().subtitle}</div>}>
               {(note) => <div class="ae-card__sub ae-card__note" title={note()}>{note()}</div>}

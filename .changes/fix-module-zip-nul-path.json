@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Rename pkg/automation/catalog/nul.go to nulbytes.go: the Go module proxy refuses a zip with a Windows-reserved file name, so v0.55.0 of the Go module could not be downloaded. A test now checks every tracked path with the proxy's rule."}

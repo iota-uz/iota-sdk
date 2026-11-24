@@ -8,6 +8,7 @@ package catalog
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -77,6 +78,52 @@ type LocalizedNode interface {
 	Localize(spec graph.NodeSpec, locale string) graph.NodeSpec
 }
 
+// PreparingNode is an optional interface of a NodeType whose params are checked against the outside
+// world when a graph is saved, validated or checked before a dry run or a test: a connector's live data
+// (the tools of an MCP server). Prepare may fill params in (a schema pinned when the node carries none);
+// its errors refuse the graph, its warnings do not. It is never called while a run executes.
+type PreparingNode interface {
+	Prepare(ctx context.Context, in PrepareInput) (PrepareResult, error)
+}
+
+// PrepareInput is a node of a graph being checked.
+type PrepareInput struct {
+	TenantID uuid.UUID
+	NodeID   string
+	// Params are the node's params as the graph holds them (templates and expressions not evaluated),
+	// without the connection param.
+	Params map[string]any
+	// Connection is the connection the node resolves to; nil when it needs none.
+	Connection *ConnectionInfo
+	// Author is who checks the graph; the node reads the outside world with the author's rights.
+	Author spi.Subject
+	// Fill: the graph is being saved or tried, so params may be filled in. Off (a stored version being
+	// enabled), a node that would change its params reports it as an error instead.
+	Fill bool
+	// TypeOf is the CEL type of an expression in the node's scope ("string", "int", "list(dyn)", ...),
+	// or its check's first issue: what a node compares with a schema it learns elsewhere.
+	TypeOf func(src string) (string, error)
+}
+
+// PrepareResult is what Prepare found. Paths of issues are dotted paths inside the node's params
+// ("tool", "arguments.city"); an empty path is the node itself.
+type PrepareResult struct {
+	// Params, when non-nil, replace the node's params (the connection param is kept by the caller).
+	Params           map[string]any
+	Errors, Warnings []PrepareIssue
+}
+
+// PrepareIssue is one finding of Prepare.
+type PrepareIssue struct {
+	Path    string
+	Code    string
+	Message string // no secrets
+	// FixRemove is a dotted param path whose removal resolves the issue (the editor offers it, labelled
+	// FixLabel); empty: no such action.
+	FixRemove string
+	FixLabel  string
+}
+
 // CallNode is a node with an external effect (behavior call). The engine calls Execute outside of a
 // locked step.
 type CallNode interface {
@@ -84,6 +131,28 @@ type CallNode interface {
 	Execute(ctx context.Context, in CallInput) (CallResult, error)
 	// Idempotent reports whether the engine may repeat a call automatically with the same IdempotencyKey.
 	Idempotent() bool
+}
+
+// IdempotentCall is an optional interface of a CallNode whose repeat safety depends on its params (an
+// HTTP GET may be repeated, a POST without an idempotency header may not): the engine asks it instead of
+// Idempotent. Params are the rendered params of the call.
+type IdempotentCall interface {
+	IdempotentWith(params map[string]any) bool
+}
+
+// IsIdempotent reports whether the engine may repeat a call of the node with these params.
+func IsIdempotent(n CallNode, params map[string]any) bool {
+	if ic, ok := n.(IdempotentCall); ok {
+		return ic.IdempotentWith(params)
+	}
+	return n.Idempotent()
+}
+
+// TerminalUnknown is an optional interface of a CallNode whose call must never be repeated by anyone, an
+// operator included (an SMS): its unknown outcome always ends as the failed outcome with code
+// outcome_unknown, never blocks the call for an operator to retry it.
+type TerminalUnknown interface {
+	UnknownIsTerminal() bool
 }
 
 // CallInput is what a call node is executed with.
@@ -95,13 +164,35 @@ type CallInput struct {
 	Attempt        int            // 1: the first attempt
 	IdempotencyKey string         // stable between attempts: run:node:token:seq
 	Params         map[string]any // templates and values are already evaluated
-	Subject        graph.Subject
-	RunAs          spi.Subject     // a node acting in the SDK checks rights itself
-	Connection     *ConnectionInfo // nil: the node needs no connector
-	Credentials    Credentials     // decrypted by the engine; the node neither keeps nor logs them
-	Deadline       time.Time
-	Usage          UsageRecorder
+	// Context is the step's expression context (event, nodes, the subject's variables, subject, run,
+	// tenant, now) for a node type that declares graph.NodeSpec.StepContext; nil otherwise.
+	Context     map[string]any
+	Subject     graph.Subject
+	RunAs       spi.Subject     // a node acting in the SDK checks rights itself
+	Connection  *ConnectionInfo // nil: the node needs no connector
+	Credentials Credentials     // decrypted by the engine; the node neither keeps nor logs them
+	Deadline    time.Time
+	Usage       UsageRecorder
 }
+
+// CommandCall is an optional interface of a CallNode whose call is a command: the engine calls it with
+// the workflow's call primitive (wf.call, NativeRun.CallAs) under the call's invocation ID (InvocationIDOf
+// of its idempotency key), so the workflow journal and the host's invocation record keep its outcome and
+// a call that may have run is never repeated blindly. Execute is not used for such a call.
+type CommandCall interface {
+	// Command is the command and its input for the call; a *CallError refuses the call before it is made.
+	Command(in CallInput) (command string, input json.RawMessage, err error)
+	// CommandResult is the call's result from the command's output; a *CallError fails it.
+	CommandResult(in CallInput, output json.RawMessage) (CallResult, error)
+}
+
+// InvocationIDOf is the invocation ID (a UUID) a call node passes to SDK commands: derived from the
+// call's idempotency key, so every attempt of one call is the same invocation.
+func InvocationIDOf(idempotencyKey string) string {
+	return uuid.NewSHA1(invocationNamespace, []byte(idempotencyKey)).String()
+}
+
+var invocationNamespace = uuid.MustParse("6f1d1f0e-8a8b-4c39-9b0e-3c1b2a7a5d10")
 
 // Credentials are the decrypted fields of a connection. They never appear in a Connection, an error or
 // a log.

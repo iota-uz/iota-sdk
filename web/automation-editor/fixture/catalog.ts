@@ -94,3 +94,35 @@ export const catalog: EditorCatalog = {
 }
 
 export const emptyCatalog: EditorCatalog = { ...catalog, events: [] }
+
+// A notify node and two events, one with a notification definition (participants) and one without: the
+// participants field of the node is offered only after the first (?catalog=notify).
+const notifyNode: CatalogNode = {
+  type: 'notify', title: 'Notify', description: 'Sends a notice to users, groups, roles or the participants of the trigger event.', group: 'Messages', behavior: 'effect',
+  params: {
+    type: 'object', required: ['recipients', 'title', 'body'], additionalProperties: false,
+    properties: {
+      recipients: {
+        type: 'object', minProperties: 1, additionalProperties: false,
+        properties: {
+          roles: { type: 'array', maxItems: 50, items: { type: 'string' } },
+          participants: { type: 'array', maxItems: 20, items: { type: 'string' }, 'x-event-participants': true, description: "recipient keys of the trigger event's notification definition" },
+        },
+      },
+      title: { type: 'string', maxLength: 1000 },
+      body: { type: 'string', maxLength: 10000 },
+    },
+  },
+  outcomes: ['sent', 'no_recipients', 'failed'], outcome_rule: { fixed: ['sent', 'no_recipients', 'failed'] }, expressions: [], templates: ['title', 'body'],
+  output: { type: 'object', properties: { notice_id: { type: 'string' }, recipients: { type: 'integer' } } },
+}
+
+export const notifyCatalog: EditorCatalog = {
+  ...catalog,
+  events: [
+    ...catalog.events,
+    { key: 'acme.policy.created.v1', title: 'Policy created', group: 'Policies', subject: 'none', payload: { type: 'object' }, trigger_params: null, participants: ['created_user', 'actor'] },
+    { key: 'acme.policy.deleted.v1', title: 'Policy deleted', group: 'Policies', subject: 'none', payload: { type: 'object' }, trigger_params: null },
+  ],
+  nodes: [...catalog.nodes, notifyNode],
+}

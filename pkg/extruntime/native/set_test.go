@@ -80,6 +80,28 @@ func TestSetRejectsDuplicatesAndMisroutedDeclarations(t *testing.T) {
 	require.ErrorContains(t, err, "boom")
 }
 
+// A domain error is shared by the contracts that raise it: the same declaration twice is one resource,
+// a different one under the same ID (or any other kind declared twice) is refused.
+func TestSetDomainErrorsAreDeclaredOnce(t *testing.T) {
+	t.Parallel()
+	notFound := manifest.Resource{ID: "billing.errors.notFound", Kind: manifest.ResDomainError, Label: manifest.Label{"en": "Not found"}}
+	set := native.NewSet()
+	require.NoError(t, set.Add(native.Items(native.Declare(notFound), native.Declare(notFound)), native.Declare(notFound)))
+	require.Len(t, set.ResourcesOf(manifest.ResDomainError), 1)
+
+	relabelled := notFound
+	relabelled.Label = manifest.Label{"en": "Missing"}
+	require.NoError(t, set.Add(native.Declare(relabelled)), "labels are not part of the contract")
+
+	other := notFound
+	other.Params = &manifest.Type{Kind: manifest.KindObject}
+	require.Error(t, set.Add(native.Declare(other)), "another contract under a taken ID")
+
+	slot := manifest.Resource{ID: "billing.slots.top", Kind: manifest.ResSlot, Props: &manifest.Type{Kind: manifest.KindObject}}
+	require.NoError(t, set.Add(native.Declare(slot)))
+	require.Error(t, set.Add(native.Declare(slot)), "only domain errors are shared")
+}
+
 func TestEventIntentValidatesPayloadAndSubject(t *testing.T) {
 	note := "late"
 	subject := &spi.ObjectRef{Entity: "billing.invoice", Key: "7"}

@@ -99,6 +99,7 @@ pkg/automation/
   connectors/  connector interfaces, encrypted connection store, OAuth2, usage
   code/        Code node sandbox
   builtin/     built-in node types
+  mcpops/      MCP operations of agents: read tools, validate, dry run, changes kinds, guard
 modules/automations/        module: tables, controllers, pages, permissions
 web/automation-editor/      Solid editor, published as @iota-uz/sdk/automation-editor
 ```
@@ -317,6 +318,185 @@ queued conversation runs, runs of disabled graphs, retention.
   `TestNode` runs one node once as the author: no run, no steps; an effect node's transaction is
   rolled back. `SearchSubjects` uses an optional `SubjectSearcher` of the subject loader.
 
+### Built-in nodes (#1337)
+
+`pkg/automation/builtin` registers the node types every tenant's catalog has without a connector; the
+`automations` module registers them in its `catalog.Registry` when it is composed (`builtin.Register` for
+an application that builds its own registry). Params are in the field language; a `"*"` segment of a
+`Values`/`Templates`/`Expressions`/`Mixed` path stands for every key of a map param (`values.*`,
+`headers.*`), and each key's expression is checked at save time at its own path
+(`nodes[i].params.values.total`). A `Mixed` param is CEL or, with `{{ }}`, a template.
+
+| Type | Behavior | Params | Outcomes | Output |
+|---|---|---|---|---|
+| `set` | effect (in the step) | `values: map<name, cel>` | `done` | one field per name (`OutputKeys`) |
+| `code` | call | `lang ts\|js`, `source` ≤ 100 000, `secrets[]`, `connections[]`, `fetch`, `timeout` (30s, ≤ 5m), `outcomes[]` (≤ 20, default `done`) | declared, `failed` | `{output, logs}` |
+| `http` | call | `method`, `url` (tpl), `headers`/`query` (map of tpl), `body {kind none\|json\|form\|text, value: cel\|tpl, template: tpl}`, `auth {secret (a NAME), scheme bearer\|basic\|header, header} \| {connection}`, `timeout` (30s, ≤ 120s), `success` (cel over `status`, `headers`, `body`, `url`; default `status < 400`), `idempotency_header` | `success`, `failed` | `{status, headers, body, url, body_omitted?}` |
+| `start_automation` | effect (in the step) | `automation_id`, `trigger_id?`, `input: map<name, cel>`, `subject` (cel `{entity, key}`; default the run's) | `started`, `failed` | `{run_id}` |
+| `run_automation` | wait with effect | as `start_automation`, `timeout` (1h, ≤ 30d) | `done`, `failed`, `timeout` | `{run_id, status, output, output_withheld}` |
+| `action` | call | `action` (a key), `args: {<name>: tpl for a string type \| cel}` | the action's, `failed` | the action's |
+
+- **Code.** The source compiles at save time (`engine.NodeValidator`): a syntax error or an import is
+  `VALIDATION_FAILED` at `nodes[i].params.source` with line and column. The node declares
+  `NodeSpec.StepContext`: the step's context (`event`, `nodes`, the subject's variables, `subject`, `run`,
+  `tenant`, `now`) is its `ctx`. The engine keeps that context in `automation.call_contexts` for the call's
+  child instance and drops it with the call's result. Only the declared secrets are in `env.secrets`;
+  `env.fetch` exists with `fetch: true`. A failure is `failed` with `output.error.code` the sandbox's
+  reason (`timeout`, `exception`, `network_blocked`, `unknown_outcome`, `secret_missing`,
+  `connection_missing`, `connection_origin_mismatch`, ...) and the masked logs; a run that ended without a
+  result is `outcome_unknown`. The node is not idempotent: it is never repeated after an unknown outcome.
+  `EnableReview` lists its source, secrets, fetch and connections.
+- **History.** `automation.run` and `automation.call` are private native contracts
+  (`workflow.NativeContract.Private`): the workflow history API (`List`, `Get`, `Extensions.Read`) shows
+  their shape and leaves out their input, results, errors, blocked detail, signal payloads and task
+  decisions. The data of
+  a run is read through `GetRun`, which hides the steps a viewer may not read.
+- **Secrets.** Code and HTTP read a declared name (`^[A-Z][A-Z0-9_]{0,63}$`) from the tenant's store, the
+  container's `host.SecretResolver`: `CONNECTION__FIELD` is the secret field `field` of the tenant's
+  connection `connection` (`TELEGRAM__TOKEN` → `telegram.token`, an `x-secret` field of a connected
+  connection); any other name goes to the resolver as it is (what the application adds behind it).
+- **Connections in code.** A connector that implements `connectors.CodeAccessor` declares its API's
+  `BaseURL` and the methods of `env.connections.<name>` (`get(path)`, `list(path)`, each an HTTP method);
+  `Authorize` adds the credentials to a request in Go, so no token reaches the sandbox. Every value of the
+  credentials and of the authorization it added is redacted from the response before the code sees it:
+  header names and values, the URL, and the body (as JSON when it is JSON: strings, keys and numbers
+  decoded first, so an escaped spelling is found). A path or URL off the base URL's origin, and a redirect
+  off it, is `connection_origin_mismatch` (the fetcher's `SameOrigin`); a name that is not a connected
+  connection with code access is `connection_missing`. `auth: {connection}` does the same for an HTTP node.
+- **HTTP.** The request goes through `code.NewGuardedFetcher` (https on 443, every hop's DNS checked,
+  `Authorization`/`Cookie` and every non-safelisted header dropped once a redirect leaves the origin, and
+  the headers of a secret's authorization and the idempotency key whatever their names: `Sensitive`).
+  With `auth` the URL names its https host before any template (`https://api.example.com/{{ ... }}`). A
+  refusal is `network_blocked` with the host only; a DNS or dial failure is `unavailable` (nothing was
+  sent); a body over 10 MiB is `response_too_large`; a 429 with `Retry-After` is repeated by the engine's
+  rule. Only `GET`/`HEAD` and a request with `idempotency_header` (it carries the call's idempotency key)
+  are idempotent (`catalog.IdempotentCall`); the header is one of the request's own (not one the
+  transport sets: `Host`, `Content-Length`, `Connection`, `Authorization`, ...), and such a changing
+  request is not followed off its origin (`redirect_refused`), where its key would not go. A response the success expression rejects takes
+  `failed` with the response in the output and `output.error.code = http_status`. The node type declares
+  `NodeSpec.MaxOutputBytes` above the engine's payload limit (6× the body, the worst JSON escaping), so
+  any body up to 10 MiB comes back. `body.value` is CEL or a `{{ }}` template: the text of a `text` body,
+  the JSON text of an object or array of a `json` body, the encoded form of a `form` body;
+  `body.template` is always a template.
+- **Another graph.** The run-as needs `Automations.Operate`, as for a manual start (`forbidden`). Both
+  nodes start the target's enabled version in the step's transaction (`engine.RunStarter`,
+  `Runtime.StartFromStep`) through `trigger_id`, else its first «Called by an automation» trigger
+  (`automation.called.v1`, params `{input_schema}`, payload `{input, caller_run_id, caller_automation_id,
+  initiator_user_id}`) by id, else its first manual one, else its first trigger. Through a called or
+  manual trigger `input` is `event.input`, validated by the trigger's `input_schema`; through an event or
+  schedule trigger `input` is the event's payload, checked against the event's schema: its required
+  fields and their types (`invalid_input` otherwise). A graph of another tenant or a disabled one is `not_enabled`. The started run's depth is the
+  run's plus one, so `A → B → A` ends at `Limits.MaxDepth` with `depth_exceeded`. Its data derives from
+  what the step's run read: it inherits the run's sensitive fields (a viewer who may not read them does
+  not see its steps), and its run-as must be allowed to read them (`forbidden`). The run keeps that
+  provenance (`automation.runs.inherited`): a restart carries it and checks the new run-as again. It is about the run's
+  subject unless `subject` says otherwise; `run_automation`'s run on the run's conversation takes its turn
+  inside the waiting runs' (the run and the ancestors that wait for it on that conversation, however
+  deep), `start_automation`'s queues behind them. `run_automation`'s run is a child
+  instance of the step's run (cancelling the run terminates it); its wait listens for
+  `automation.run.finished.v1` about that run (`engine.EffectWaitKeyer`) and takes `done` or `failed`
+  by its status (`engine.WakeResolver`). Its output comes from the run when the event withheld it (the run
+  read sensitive fields) and this run's run-as may read them; otherwise `output: null,
+  output_withheld: true`. A run started by `start_automation` lives on its own. The composition provides
+  `engine.RunStarter` (the `*engine.Runtime`); without it the nodes fail with `runs_unavailable`.
+- **Before the call.** A failure to read a secret or open a connection, or of the compiler, is
+  `unavailable` (retryable), never `outcome_unknown`: nothing ran.
+- **Actions.** A graph names an action as `{"type": "action", "params": {"action": "core.user.block",
+  "args": {...}}}`. The `action` node dispatches (`graph.Dispatch`, `graph.Resolve`) to the node type
+  `action.<key>`, which carries the action's `ActionSpec` (label, group, args and output as
+  `manifest.Type`, outcomes, `Permission`, `Idempotent`, `Subjects`, declared `Errors`): its args, outcomes
+  and output are checked like any node's. A module registers an action once, in its `native.Set`:
+  `actions.Native(template, build)` is the action's command contract, implemented by the action `build`
+  makes from the application's dependencies; the set refuses a key twice. The automations module makes
+  the node types of the set's action commands when the application starts. A call of an action is
+  `wf.call` of its command (`catalog.CommandCall`, `NativeRun.CallAs`) under the call's invocation ID
+  (from its idempotency key): the workflow journals it and the host records the invocation, so a repeat
+  returns the recorded outcome and one that may have run is never repeated blindly. A command that has not
+  started runs within the call's deadline and holds one of the tenant's call slots (`CallLimits`); a
+  recorded one is read back. The action of a command is bound to its definition in the set
+  (`actions.TemplateOf`), never to its ID. The command runs the
+  action in a host transaction as the run-as (`actions.InvocationID(ctx)` is the invocation's ID). An
+  author without the permission does not see the action; the run-as's permission is checked on every
+  call (`forbidden`, nothing done); args are validated before the command (`invalid_args`); a declared
+  `*ActionError` is `failed` with its code, dots and all. `servicectx.Context` builds the services' context
+  (the run-as as the user). The SDK's actions: `core.user.block`, `core.user.unblock`,
+  `core.group.add_user`, `core.group.remove_user`, `crm.chat.send_message`.
+
+### Effect nodes beyond a single outcome, and the notification nodes (#1338)
+
+An effect node normally takes its done outcome (or its failed outcome when `ApplyEffect` fails). Three
+optional interfaces of the node type widen that:
+
+- `engine.OutcomeEffectNode` (`ApplyEffectResult`) picks one of the outcomes the node type declares, with its
+  output; an outcome it does not declare is the node's failure (`effect_failed`). `TestNode` shows it.
+- `engine.EffectPreviewer` (`PreviewEffect`) is what a dry run shows for the node instead of the bare
+  captured effect: its outcome and output computed without writing or sending. The step stays `captured`.
+- `engine.EffectPreparer` (`PrepareEffect`) reads before the step's transaction opens, when the node must not
+  wait for a connection while the transaction holds one; the result reaches the effect as `StepContext.Prepared`.
+- `engine.GraphChecker` (`CheckNode`) adds rules over the whole graph that uses the node (what its trigger
+  events offer), checked when the graph is saved, dry run and enabled.
+
+`StepContext` carries the step's `NodeID` and `StepKey()` (run, node, token and sequence: the same when the step
+is applied again) and `Trigger`, the event that started the run (key, id, the payload the run-as could read and
+`ActorUserID`, the run's initiator, which is what the event's `actor` recipient resolves to). A dry run and a node
+test give the preview the event that started the dry run (the first one a trigger took, as the interpreter chose
+it) or the test's event, with the author as initiator.
+
+`pkg/automation/builtin/notify` holds two effect nodes and the notification definition `automations.notify.v1`.
+The `automations` module registers both with the composition (`notify.Register` over its catalog registry with
+core's `AudienceSender`, notification catalog and contact resolvers; `notify.Contribute` for the definition), so
+they are offered wherever the module and core are composed. Both queue the notice with
+`notifications.AudienceSender.SendTx` in the step's transaction, so it commits with the step; the delivery layer
+(channel preferences, retries, the subject access check per user) does the rest after the commit. The nodes
+resolve no audience and check no access themselves.
+
+| Node | Params | Outcomes | Output |
+|---|---|---|---|
+| `notify` | `recipients {users (CEL list of user IDs), groups, roles, participants}`, `title`, `body`, `action_url` (templates), `channels` (empty: in-app), `level` info\|warning\|critical | `sent`, `no_recipients`, `failed` | `notice_id`, `recipients`, `skipped [{kind, ref, reason}]` |
+| `send_to_contact` | `record` (CEL `{entity, key}`; default the run's subject), `channel` (an external channel), `subject`, `body` | `sent`, `no_contact`, `failed` | `notice_id`, `channel`, `skipped` |
+
+- The `Producer` of a send is the run plus `node:token:seq` of the step, so applying the same step again
+  returns the notice it queued (no second notice); a second visit of the node is a new notice. `Source` is the
+  run's trigger event, used only to resolve `participants`.
+- An audience that resolves to nobody queues nothing: `no_recipients`. `send_to_contact` checks the record's
+  contact **before the step's transaction opens**: the node implements `engine.EffectPreparer`, so the runner
+  rolls the step back at the effect, calls `PrepareEffect` with no transaction and no connection held, and
+  takes the step again with the result in `StepContext.Prepared`. The preparation resolves the audience with
+  `AudienceRequest.CheckContacts` (the channel first, then the entity's contact resolver for an address on it;
+  a record without one is left out with the reason `no_address`); the node then takes `no_contact`, and a dry
+  run agrees. The send itself stays atomic with the step (`SendTx` with no second check), and a resolver that
+  takes its own connection, such as a package's (`notifications.ContactChecker`, which runs the package's query
+  without an invocation record, `host.RunRequest.Unrecorded`), never waits for one the transaction holds, even
+  on a pool without a spare connection. The step taken again applies the effects it was prepared for, so an
+  expression that renders differently the second time (on `now`) cannot send what was not checked; it does so
+  only while the subject's variables the run-as may read are unchanged, so a right lost in between is honored
+  by the fresh evaluation, and a step whose fresh evaluation fails takes that failure. A preparation that no
+  longer fits (the variables changed) is not handed to the node: the step is prepared again, at most three times;
+  if what it reads keeps changing, the step is not applied but retried later (a platform error), so a node that
+  asked for a check never acts without it. A node applied without the runner's preparation (a test of the node)
+  has the delivery layer check the contact in the transaction instead. A resolver that is neither a
+  `ContactChecker` nor a `TxSafeContactResolver`, or one that cannot be asked yet (`ErrContactUnverifiable`),
+  leaves its record unchecked: the worker records a missing address at delivery. A channel that is not
+  available is `failed` / `unavailable` whether or not the record has an address.
+- `participants` need every trigger event that can reach the node to have a notification definition with those
+  recipient keys; otherwise the graph is not saved (`params` error on `recipients.participants`). A run without
+  an event (manual, schedule) fails with `no_trigger_event`.
+- `action_url` is a path of the application, or a URL on the application's host (`Config.BaseURL`), which is
+  stored as its path; anything else is refused when the graph is saved (a link that starts with a template is
+  checked when it is rendered, `invalid_input`). `critical` is the SDK's `error` level. A title is at most 300
+  bytes and a text 10000 bytes, as the inbox counts them (a Cyrillic character is two).
+- A `FailedPrecondition` of the delivery layer (platform not configured, channel not available) is the failed
+  outcome with code `unavailable`; any other error carries its code (`invalid`, `conflict`, ...).
+- `skipped` comes with the receipt of the send (`AudienceReceipt.Skipped`): the resolution that queued the notice
+  names who it left out, so the step reads nothing more while it holds its transaction.
+- A dry run shows `AudienceSender.Resolve`: `recipients`, `skipped` and `resolved {users, records}` in the trace
+  (for `send_to_contact` also the records and the skip reasons when the record has no address, never an address);
+  nothing is queued.
+- The catalog view gives each event `participants` (the recipient keys of its notification definition, filled
+  through `catalog.WithParticipants`), and the notify params schema marks the field `x-event-participants`: the
+  editor shows `recipients.participants` only where every trigger event that reaches the node offers some (a
+  field that already holds a value stays visible so it can be cleared).
+
 ### The module wires the engine and serves its pages (#1339)
 
 - **Wiring.** `modules/automations` builds `engine.Runtime` whenever the composition has the extension
@@ -422,8 +602,62 @@ Three actions are human-only and fail for an agent with `HUMAN_REQUIRED`:
 - answering a human node (a task);
 - managing connections.
 
-MCP operations for automations are declared in the SDK operation registry (#1084), which
-is where this rule is enforced.
+MCP operations for automations (#1340, `pkg/automation/mcpops`) live in the shared registry
+of `pkg/mcp` (#1084) and are reached through `lookup` / `execute` (#1314). Every call acts as
+`Actor{Origin: agent}` for the MCP principal's user; access is the grant's scopes
+(`automations:read`, `automations:author`) intersected with `Automations.Read` /
+`Automations.Author`, checked on every call. An author reads the graphs it edits
+(`Service.Get`/`GetVersion` admit `Automations.Author`).
+
+- Read-only tools: `automation_catalog` (projected for the principal), `automation_list`,
+  `automation_get` (with `revision` and `layout_revision`), `automation_runs`,
+  `automation_run_get` (steps derived from fields the principal may not read are hidden),
+  `automation_validate`, `automation_dry_run`. A dry run takes ≤ 50 events (the entries of a
+  batch counted one by one) and answers calls from context: `decisions` is `scripted` (default),
+  `cached` (decision nodes from the decision cache, else context) or `live`. Real calls happen
+  only with `allow_live: true`, only for decision nodes, at most 20; beyond either limit the
+  answer is `limit_exceeded`. Effect previews are offline (`StepContext.Offline`): only an
+  `engine.OfflinePreviewer` previews, without package code (`send_to_contact` does not check the
+  record's contact, `contact_checked: false`); any other effect is captured from context. Test node
+  is not offered: it makes a real external effect.
+- Writes are `changes.Kind`s of entity `automation` behind `prepare_changes` / `apply_changes`:
+  `automation.create` (`{graph, layout?}`), `automation.update` (`{graph, layout?, layout_revision?,
+  note?}`, `expected_revision` is the latest version; a stale one is the shared `revision_mismatch`;
+  `layout_revision` is required with `layout`; a stale one is `VERSION_CONFLICT` on
+  `/fields/layout_revision` in plan and at apply too: a layout another write moved after the plan
+  makes the apply fail with `conflict` (`SaveInput.StrictLayout`, checked under the graph's lock) and
+  nothing of the plan is saved — no version, no positions. The editor saves without `StrictLayout`:
+  there a stale base keeps the positions another tab moved, #1339) and `automation.layout`
+  (`fields: {id, base_revision, positions}`, the base is `layout_revision` — `0` for a new graph; a
+  stale one is `VERSION_CONFLICT` with the current revision, in plan and at apply through
+  `SaveLayoutAt`). Revisions are accepted as JSON integers or the strings `automation_get` returns. Plan validates
+  the graph as the principal (issues under `/fields/graph/...`). Fields naming what only a person
+  does — `enabled`, `enabled_version`, `decision`, `decisions`, `task`, `connection`,
+  `connections` — are issues `HUMAN_REQUIRED` with the page where the person does it, and the plan
+  is invalid; any other unknown field is `invalid_input`. No change needs approval: a saved
+  version never runs until a person enables it. Apply works in the transaction of the operation
+  (`engine.WithTx`, reads included), so a retried `apply_changes` never saves a graph twice and an
+  apply needs one connection; the receipt item's `result` is
+  `{id, version, enabled: false | <enabled_version>, editor_url}`.
+- Audit: a plan's `HUMAN_REQUIRED` refusals are entries of the MCP engine's audit (`mcp.Audit`).
+  Every applied change is an audit event (tool `changes:automation.<op>`, `OperationID`, `Item`)
+  stored in `mcp.operation_audit` in the transaction that commits the receipt, naming the
+  principal and client that applied it, and delivered after it; one left undelivered (lost commit response, stopped process) is delivered by the next call
+  about the operation or by `DispatchEffects` (`changes.Config.Auditor`).
+- A receipt item's `result` is shown on a retried `apply_changes` and on `operation_get` only
+  while the caller still passes the kind's policy; otherwise only status, ids and revisions.
+- `HUMAN_REQUIRED` is the shared failure `approval_required` / `open_approval` with an issue of
+  code `HUMAN_REQUIRED` and the URL of the page where the person acts. The engine marks
+  `automation.run` and `automation.call` human-only (`workflow.NativeContract.HumanOnly`), so the
+  extension runtime's workflow actions (signal, decide task, terminate, start v2, resolve, retry,
+  resume) on their instances and tasks answer it with the run's page (`Config.Links.RunURL`)
+  wherever the workflow tools are registered, the standard wiring included. Such an instance or task
+  never reaches the workflow service from these tools: a caller who passes the action's own check
+  (`Extensions.Operate`, or the right to decide the task) gets `HUMAN_REQUIRED` with the page, anyone
+  else that check's refusal without it. Reads stay (`ext_workflow_list`, `ext_workflow_get`),
+  reduced to an allowlist of fields with no business data (no input, results, errors, signal
+  payloads, task titles, decisions or delegation comments): `automation_run_get` shows the rest
+  projected for the viewer.
 
 ## 9. Code node
 

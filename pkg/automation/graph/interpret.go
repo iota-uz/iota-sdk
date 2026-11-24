@@ -140,6 +140,9 @@ type Arrival struct {
 type Effect struct {
 	Node   string         `json:"node"`
 	Params map[string]any `json:"params"`
+	// Context is the step's expression context as JSON (event, nodes, subject, run, the subject's
+	// variables, tenant, now) for a node type that declares StepContext; nil otherwise.
+	Context map[string]any `json:"context,omitempty"`
 }
 
 // WaitIntent is what a wait sleeps on: an event kind (empty: only the timeout), a filter, a timeout.
@@ -304,8 +307,9 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 	params := s.Params(node)
 	rendered := params
 	vars := varsOf(s.Ctx)
-	for _, t := range spec.Templates {
-		raw, ok := paramAt(params, t)
+	templates, values := templatesAndValues(params, spec)
+	for _, t := range templates {
+		raw, ok := valueAt(params, t)
 		text, isStr := raw.(string)
 		if !ok || !isStr {
 			continue
@@ -320,10 +324,10 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 			st := stepOfError(err)
 			return Effect{}, &st
 		}
-		rendered = setAt(rendered, t, out)
+		rendered = setKeys(rendered, t, out)
 	}
-	for _, path := range spec.Values {
-		raw, ok := paramAt(params, path)
+	for _, path := range values {
+		raw, ok := valueAt(params, path)
 		src, isStr := raw.(string)
 		if !ok || !isStr {
 			continue
@@ -334,12 +338,21 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 		}
 		j, err := jsonOut(v)
 		if err != nil {
-			s := failed(FailExpression, "%s: %v", path, err)
+			s := failed(FailExpression, "%s: %v", path.String(), err)
 			return Effect{}, &s
 		}
-		rendered = setAt(rendered, path, j)
+		rendered = setKeys(rendered, path, j)
 	}
-	return Effect{Node: node.Type, Params: rendered}, nil
+	e := Effect{Node: node.Type, Params: rendered}
+	if spec.StepContext {
+		c, err := jsonOut(vars)
+		if err != nil {
+			s := failed(FailExpression, "the step's context: %v", err)
+			return Effect{}, &s
+		}
+		e.Context, _ = c.(map[string]any)
+	}
+	return e, nil
 }
 
 // jsonOut is a CEL value as JSON: timestamps as RFC 3339 strings, durations as seconds.
@@ -449,6 +462,7 @@ func NewInterpreter(c Catalog, g Graph, o Options) (*Interpreter, error) {
 		hooks[name] = h
 	}
 	o.MatchHooks = hooks
+	g = Resolve(c, g)
 	format := o
 	format.Rules = nil
 	if errs := Validate(c, g, format); len(errs) > 0 {

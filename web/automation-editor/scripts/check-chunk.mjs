@@ -9,8 +9,10 @@ import { transformWithEsbuild } from 'vite'
 
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../package-dist')
 // 50 KB before Tidy v2 (#1391): the orthogonal router (src/route.ts) runs in the canvas chunk.
-// 51 KB before the runs view (#1347): the editor holds the Runs tab, the Dry run / Test node docks and the
-// loaders of their own lazy chunk (the list, the run view, the drawer and both panels live there).
+// 51 KB before #1346: validation warnings on the cards, warnings of a passed save and issue fixes that
+// follow their item. 51 KB as well before the runs view (#1347): the editor holds the Runs tab, the Dry
+// run / Test node docks and the loaders of their own lazy chunk (the list, the run view, the drawer and
+// both panels live there).
 export const CHUNK_GZIP_LIMIT = 52 * 1024
 // 24 KB before Tidy v2 (#1391), whose layout and its public helpers (tidyLayout, ensureLayout, placeNew) live in the entry.
 const ENTRY_GZIP_LIMIT = 26 * 1024
