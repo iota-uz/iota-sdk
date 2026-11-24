@@ -593,9 +593,16 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	if kinds := c.view.NodeRequires[c.node.Type]; len(kinds) > 0 {
 		ref, _, err := catalog.ResolveConnection(c.view.Connections, kinds, c.params[catalog.ConnectionParam])
 		if err != nil || r.cfg.Credentials == nil {
+			if c.realCalls == RealCallsNone {
+				return directResult{script: true} // offline: answered from the context
+			}
 			return directResult{err: &StepError{Code: CodeConnectionUnavailable, Message: "the connection of " + c.node.ID + " is not available"}}
 		}
 		ci, cr, err := r.cfg.Credentials.Open(ctx, c.tenant, ref.ID)
+		if err != nil && c.realCalls == RealCallsNone {
+			// Offline: no cache key without the connection, so the context answers.
+			return directResult{script: true}
+		}
 		switch {
 		case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrNeedsReauth), errors.Is(err, connectors.ErrUndecryptable):
 			return directResult{err: &StepError{Code: CodeConnectionUnavailable, Message: "the connection is not connected"}}

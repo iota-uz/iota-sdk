@@ -426,7 +426,15 @@ func (k updateKind) Plan(ctx context.Context, c changes.Change) (changes.Planned
 		p.Diff = graphDiff(latest.Graph, f.Graph)
 	}
 	if len(f.Layout) > 0 {
-		p.Diff = append(p.Diff, fielddiff.Diff{Field: "layout", Before: fielddiff.Present(marshal(am.Layout)), After: fielddiff.Present(marshal(f.Layout))})
+		// What Apply saves: the given positions over the stored ones.
+		merged := make(graph.Layout, len(am.Layout)+len(f.Layout))
+		for k, xy := range am.Layout {
+			merged[k] = xy
+		}
+		for k, xy := range f.Layout {
+			merged[k] = xy
+		}
+		p.Diff = append(p.Diff, fielddiff.Diff{Field: "layout", Before: fielddiff.Present(marshal(am.Layout)), After: fielddiff.Present(marshal(merged))})
 	}
 	if f.Note != "" {
 		p.Diff = append(p.Diff, fielddiff.Diff{Field: "note", Before: fielddiff.Absent(), After: fielddiff.Present(marshal(f.Note))})

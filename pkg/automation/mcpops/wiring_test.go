@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/automation/mcpops"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/artifact"
 	excatalog "github.com/iota-uz/iota-sdk/pkg/extruntime/catalog"
@@ -285,6 +286,29 @@ func TestLayoutRevisionsAreStringsAndGuardUpdates(t *testing.T) {
 	assert.Equal(t, "VERSION_CONFLICT", conflict.Errors[0].Code)
 
 	e.ok(agentID, mcpops.ToolGet, map[string]any{"id": created.ID}, &g)
+	// The preview shows the layout Apply saves: the given position over the stored ones ("fin" stays).
+	preview := e.call(agentID, changes.ToolPrepare, map[string]any{"changes": []any{map[string]any{"op": "update", "entity": "automation",
+		"id": created.ID, "expected_revision": "1", "fields": map[string]any{"graph": noteGraph("L", "b"), "layout": pos, "layout_revision": g.LayoutRevision}}}})
+	require.True(t, preview.OK, "%+v", preview.Error)
+	var items struct {
+		Items []struct {
+			Diff []struct {
+				Field string `json:"field"`
+				After struct {
+					Value json.RawMessage `json:"value"`
+				} `json:"after"`
+			} `json:"diff"`
+		} `json:"items"`
+	}
+	require.NoError(t, json.Unmarshal(preview.Data, &items))
+	var after graph.Layout
+	for _, d := range items.Items[0].Diff {
+		if d.Field == "layout" {
+			require.NoError(t, json.Unmarshal(d.After.Value, &after))
+		}
+	}
+	assert.Equal(t, graph.XY{X: 9, Y: 9}, after["note"])
+	assert.Equal(t, graph.XY{X: 1, Y: 1}, after["fin"], "an omitted node keeps its stored position")
 	res := receiptResult(t, e.apply(agentID, update(map[string]any{"layout": pos, "layout_revision": g.LayoutRevision}), "l-3"))
 	assert.Equal(t, 2, res.Version)
 	assert.Equal(t, false, res.Enabled)
