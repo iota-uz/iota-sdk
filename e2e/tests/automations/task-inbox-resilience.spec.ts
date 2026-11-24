@@ -101,6 +101,37 @@ test.describe('automations: my tasks under failures', () => {
 		for (const s of [a, b]) await s.context.close();
 	});
 
+	test('a failed colleague search is retried in place: the delegation draft stays', async ({ page, browser, baseURL }) => {
+		const { members: [gleb], outsider } = await people(['Gleb']);
+		await login(page, ADMIN, PASSWORD);
+		const title = `Search retry ${randomUUID().slice(0, 6)}`;
+		await startTask(page, title, { assignees: [{ kind: 'user', user_id: gleb.id }], allow_delegate: true });
+		const g = await sessionOf(browser, baseURL, gleb);
+		await (await rowOf(g.page, title)).locator('a').first().click();
+		await g.page.getByTestId('automations-task-delegate').locator('summary').click();
+		const comment = g.page.getByLabel('Comment for the colleague');
+		await comment.fill('Draft for the colleague');
+		let down = true;
+		await g.page.route('**/delegates?*', async (route) => {
+			const q = new URL(route.request().url()).searchParams.get('q') ?? '';
+			if (down && q !== '') {
+				down = false;
+				await route.fulfill({ status: 503, body: 'Service Unavailable' });
+				return;
+			}
+			await route.continue();
+		});
+		const picker = g.page.getByRole('combobox', { name: 'Colleague' });
+		await picker.fill(outsider.email);
+		await expect(g.page.getByTestId('automations-tasks-offline')).toBeVisible();
+		await g.page.getByTestId('automations-tasks-offline').getByRole('button', { name: 'Retry' }).click();
+		await expect(g.page.getByRole('option')).toHaveCount(1);
+		await expect(g.page.getByTestId('automations-tasks-offline')).toBeHidden();
+		await expect(comment).toHaveValue('Draft for the colleague');
+		await expect(picker).toHaveValue(outsider.email);
+		await g.context.close();
+	});
+
 	test('a late answer of the colleague search never chooses: Enter waits for the current query (K5)', async ({ page, browser, baseURL }) => {
 		const { members: [gleb], outsider } = await people(['Gleb']);
 		await login(page, ADMIN, PASSWORD);

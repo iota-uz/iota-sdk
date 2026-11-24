@@ -320,26 +320,32 @@ func connection(rereadOnline bool) templ.Attributes {
 		reread = "true"
 	}
 	return templ.Attributes{
-		"x-data": `{ offline: !navigator.onLine, lastSubmit: null, rereadOnline: ` + reread + `,
+		"x-data": `{ offline: !navigator.onLine, lastSubmit: null, lastRead: null, rereadOnline: ` + reread + `,
 			action(d) { const verb = d.requestConfig && d.requestConfig.verb; return (!!verb && verb.toLowerCase() !== 'get') || (!!d.elt && d.elt.tagName === 'BUTTON') },
-			retry() { this.offline = false; const b = this.lastSubmit; this.lastSubmit = null;
-				if (!b || !document.body.contains(b)) { location.reload() } else if (b.tagName === 'FORM') { b.requestSubmit() } else { b.click() } } }`,
+			retry() { this.offline = false; const b = this.lastSubmit || this.lastRead; this.lastSubmit = null; this.lastRead = null;
+				if (!b || !document.body.contains(b)) { location.reload() }
+				else if (b.tagName === 'FORM') { b.requestSubmit() }
+				else if (b.tagName === 'BUTTON') { b.click() }
+				else { b.focus(); htmx.trigger(b, 'retry') } },
+			failed(d) { this.offline = true; if (!this.action(d) && d.elt) this.lastRead = d.elt } }`,
 		// The action to repeat: the button that submitted, the form submitted from the keyboard (no
 		// button), or the button that asked (Show more). A read in the background (the colleague search)
 		// neither replaces the failed action nor clears its banner when it succeeds.
 		"@htmx:before-request": `const d = $event.detail, e = d.requestConfig && d.requestConfig.triggeringEvent;
 			if (action(d)) lastSubmit = (e && e.submitter) || d.elt || null`,
-		"@htmx:after-request": `if ($event.detail.successful && action($event.detail)) { offline = false; lastSubmit = null }`,
+		"@htmx:after-request": `const d = $event.detail; if (d.successful && action(d)) { offline = false; lastSubmit = null }
+			if (d.successful && d.elt === lastRead) { lastRead = null; if (!lastSubmit) offline = false }`,
 		// The screen's banner is the signal: the global error toast (which would cover the decision
 		// buttons on a phone) is not shown for this screen's requests.
 		"data-htmx-error-toast": "banner",
-		"@htmx:send-error":      "offline = true",
-		"@htmx:timeout":         "offline = true",
+		// A failed read (the colleague search) is repeated in place by Retry: what was typed stays.
+		"@htmx:send-error": "failed($event.detail)",
+		"@htmx:timeout":    "failed($event.detail)",
 		// The server unavailable (502, 503, 504, any 5xx) is the same banner: what was typed stays.
-		"@htmx:response-error": "if ($event.detail.xhr && $event.detail.xhr.status >= 500) offline = true",
+		"@htmx:response-error": "if ($event.detail.xhr && $event.detail.xhr.status >= 500) failed($event.detail)",
 		"@offline.window":      "offline = true",
 		// Back online: a failed action keeps the banner until Retry sends it again; otherwise the banner
 		// goes and a list reads itself again.
-		"@online.window": "if (offline && !lastSubmit) { offline = false; if (rereadOnline) location.reload() }",
+		"@online.window": "if (offline && !lastSubmit) { if (lastRead) { retry() } else { offline = false; if (rereadOnline) location.reload() } }",
 	}
 }

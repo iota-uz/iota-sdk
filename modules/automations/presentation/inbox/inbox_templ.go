@@ -3433,7 +3433,7 @@ func delegatePicker(p *TaskProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 292, "\" hx-trigger=\"input changed delay:250ms, focus once\" hx-sync=\"this:replace\" hx-target=\"#automations-task-delegates\" hx-swap=\"innerHTML\"><ul id=\"automations-task-delegates\" x-ref=\"list\" role=\"listbox\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 292, "\" hx-trigger=\"input changed delay:250ms, focus once, retry\" hx-sync=\"this:replace\" hx-target=\"#automations-task-delegates\" hx-swap=\"innerHTML\"><ul id=\"automations-task-delegates\" x-ref=\"list\" role=\"listbox\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

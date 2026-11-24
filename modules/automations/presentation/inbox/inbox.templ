@@ -678,7 +678,7 @@ templ delegatePicker(p *TaskProps) {
 			@keydown.enter.prevent="enter()"
 			@keydown.escape.prevent="open = false; closed = true"
 			hx-get={ p.delegatesURL() }
-			hx-trigger="input changed delay:250ms, focus once"
+			hx-trigger="input changed delay:250ms, focus once, retry"
 			hx-sync="this:replace"
 			hx-target="#automations-task-delegates"
 			hx-swap="innerHTML"
