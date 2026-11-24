@@ -283,6 +283,31 @@ func TestStartPlatformUsesTheEffectiveCredential(t *testing.T) {
 	assert.Equal(t, origin+"/automations/hooks/platform/telegram_bot", r.platform.Webhook().URL)
 }
 
+// After a rotation of the platform credential the retired bot keeps a webhook on the platform's route that
+// nobody serves for it: it is free to be connected as a tenant's own bot, while the bot that is the
+// platform's now stays taken.
+func TestARetiredPlatformBotCanBeConnectedByATenant(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	require.NoError(t, r.c.StartPlatform(ctx, r.platformCreds()))
+	assert.Equal(t, origin+"/automations/hooks/platform/telegram_bot", r.platform.Webhook().URL)
+
+	next := "333333:CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+	r.api.Bot(next, "next_platform_bot")
+	require.NoError(t, r.c.StartPlatform(ctx, connectors.Credentials{"token": next}))
+
+	w, err := r.c.Advise(ctx, nil, r.platformCreds())
+	require.NoError(t, err)
+	assert.Empty(t, w, "the retired bot's webhook on the platform route is stale: no block, no confirmation")
+	_, err = r.prov(ctx, r.conn, r.platformCreds(), nil)
+	require.NoError(t, err, "and it can be connected")
+
+	w, err = r.c.Advise(ctx, nil, connectors.Credentials{"token": next})
+	require.NoError(t, err)
+	require.Len(t, w, 1)
+	assert.True(t, w[0].Blocking, "the current platform bot stays the platform's")
+}
+
 // One bot has one webhook: a bot another live connection owns (or the platform's) cannot be connected
 // twice, and removing the older connection never removes the newer one's webhook.
 func TestABotBelongsToOneConnection(t *testing.T) {

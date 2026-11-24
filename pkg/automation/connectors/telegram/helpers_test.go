@@ -81,17 +81,17 @@ func (u *uploads) Open(_ context.Context, _ uuid.UUID, id string) (telegram.Uplo
 
 // state records the writes of the connector to its connection.
 type state struct {
-	mu         sync.Mutex
-	status     connectors.ConnectionStatus
-	reason     string
-	inbound    json.RawMessage
-	exists     map[uuid.UUID]bool // connections of the application that are alive
-	owner      uuid.UUID          // the connection the inbound state is of
-	done       map[string]bool    // updates recorded as handled (connectors.InboundOnce)
-	failDone   int                // InboundDone calls that fail
-	failWrites int                // inbound writes that fail
-	token      string             // the token the connection holds now ("" : the tenant bot's)
-	version    int
+	mu          sync.Mutex
+	status      connectors.ConnectionStatus
+	reason      string
+	inbound     json.RawMessage
+	exists      map[uuid.UUID]bool                   // connections of the application that are alive
+	owner       uuid.UUID                            // the connection the inbound state is of
+	actions     map[string]*connectors.InboundAction // updates the connector handled itself
+	failHandled int                                  // InboundHandled calls that fail
+	failWrites  int                                  // inbound writes that fail
+	token       string                               // the token the connection holds now ("" : the tenant bot's)
+	version     int
 }
 
 func (s *state) ConnectionExists(_ context.Context, id uuid.UUID) (bool, error) {
@@ -120,24 +120,62 @@ func (s *state) SetStatusIf(_ context.Context, _, _ uuid.UUID, st connectors.Con
 	return true, nil
 }
 
-func (s *state) InboundSeen(_ context.Context, connection, event, key string) (bool, error) {
+// ClaimInbound, InboundHandled, InboundCompleted and ReleaseInbound are connectors.InboundActions: the
+// updates the connector handles itself.
+func (s *state) ClaimInbound(_ context.Context, connection, event, key string) (connectors.InboundAction, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.done[connection+"/"+event+"/"+key], nil
+	k := connection + "/" + event + "/" + key
+	if a, ok := s.actions[k]; ok {
+		return *a, false, nil
+	}
+	if s.actions == nil {
+		s.actions = map[string]*connectors.InboundAction{}
+	}
+	s.actions[k] = &connectors.InboundAction{State: connectors.InboundClaimed}
+	return connectors.InboundAction{}, true, nil
 }
 
-func (s *state) InboundDone(_ context.Context, _ uuid.UUID, connection, event, key string) error {
+func (s *state) InboundHandled(_ context.Context, connection, event, key string, tenant uuid.UUID, reply string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.failDone > 0 {
-		s.failDone--
+	if s.failHandled > 0 {
+		s.failHandled--
 		return errors.New("storage is down")
 	}
-	if s.done == nil {
-		s.done = map[string]bool{}
+	a := s.actions[connection+"/"+event+"/"+key]
+	if a == nil {
+		return errors.New("no claim")
 	}
-	s.done[connection+"/"+event+"/"+key] = true
+	*a = connectors.InboundAction{State: connectors.InboundHandled, Tenant: tenant, Reply: reply}
 	return nil
+}
+
+func (s *state) InboundCompleted(_ context.Context, connection, event, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if a := s.actions[connection+"/"+event+"/"+key]; a != nil {
+		a.State = connectors.InboundDone
+	}
+	return nil
+}
+
+func (s *state) ReleaseInbound(_ context.Context, connection, event, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.actions, connection+"/"+event+"/"+key)
+	return nil
+}
+
+// abandon forgets a fresh claim, as the store does with one that is old: its handler never finished.
+func (s *state) abandon() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for k, a := range s.actions {
+		if a.State == connectors.InboundClaimed {
+			delete(s.actions, k)
+		}
+	}
 }
 
 func (s *state) UpdateInbound(_ context.Context, _, _ uuid.UUID, fn func(json.RawMessage) (json.RawMessage, error)) error {

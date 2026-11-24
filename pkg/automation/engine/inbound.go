@@ -270,7 +270,9 @@ type WebhookReceiver interface {
 // ClosedAnswerer is an optional interface of a WebhookReceiver: the answer to the provider for an event
 // whose correlation closed meanwhile (a second press of a button: "already answered").
 type ClosedAnswerer interface {
-	AnswerClosed(ctx context.Context, ev InboundEvent, c connectors.Connection, creds connectors.Credentials)
+	// An error says the answer to the provider could not be completed: the provider is answered 503 and
+	// redelivers the update.
+	AnswerClosed(ctx context.Context, ev InboundEvent, c connectors.Connection, creds connectors.Credentials) error
 }
 
 // PublishedAnswerer is an optional interface of a WebhookReceiver: the follow-up to the provider for an
@@ -430,12 +432,14 @@ func (h *inboundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
+	redeliver := false
 	if ca, ok := recv.(ClosedAnswerer); ok {
 		for _, ev := range closed {
-			ca.AnswerClosed(ctx, ev, conn, creds)
+			if err := ca.AnswerClosed(ctx, ev, conn, creds); err != nil {
+				redeliver = true
+			}
 		}
 	}
-	redeliver := false
 	if pa, ok := recv.(PublishedAnswerer); ok {
 		for _, ev := range published {
 			if err := pa.AnswerPublished(ctx, ev, conn, creds); err != nil {

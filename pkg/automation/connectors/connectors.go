@@ -156,6 +156,10 @@ type ConnectionStore interface {
 	SetStatusIf(ctx context.Context, tenantID, id uuid.UUID, s ConnectionStatus, reason string, cond func(state json.RawMessage, version int) bool) (bool, error)
 	// Delete refuses a connection in use with ErrConnectionInUse (an *InUseError).
 	Delete(ctx context.Context, tenantID, id uuid.UUID) error
+	// DeleteReturning is Delete that also returns the connection as it was when it was deleted, read in the
+	// deleting transaction under the row's lock (credentials nil when they cannot be read): what the provider's
+	// side of the deleted connection is cleaned up for, never a snapshot taken before a concurrent save.
+	DeleteReturning(ctx context.Context, tenantID, id uuid.UUID) (Connection, Credentials, error)
 	// UpdateInbound changes the inbound state (a polling cursor, a subscription id) under the row lock.
 	// The state is stored in the clear: a webhook signing secret belongs in the credentials (Save).
 	UpdateInbound(ctx context.Context, tenantID, id uuid.UUID, fn func(state json.RawMessage) (json.RawMessage, error)) error

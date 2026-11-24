@@ -88,8 +88,6 @@ type Connector struct {
 	presses presses
 	// usernames caches the username of a bot by its token (the addressee of a command).
 	usernames sync.Map
-	// startPending holds the /start updates a handler completed whose record is still to be written.
-	startPending sync.Map
 	// platformToken is the platform credential StartPlatform was given (the effective one).
 	platformToken atomic.Pointer[string]
 }
@@ -171,7 +169,7 @@ const (
 // ownerOf classifies the webhook URL of a bot against own, the URL the connection being saved would set
 // (empty for a new one). A URL of this application that names a connection is another's while that
 // connection exists; one whose connection is gone is nobody's and may be taken over without a word.
-func (c *Connector) ownerOf(ctx context.Context, url, own string, lookup bool) (hookOwner, error) {
+func (c *Connector) ownerOf(ctx context.Context, url, own, account string, lookup bool) (hookOwner, error) {
 	switch {
 	case url == "":
 		return hookFree, nil
@@ -182,8 +180,11 @@ func (c *Connector) ownerOf(ctx context.Context, url, own string, lookup bool) (
 	}
 	rest := strings.TrimPrefix(url, c.hookPrefix())
 	if rest == "platform/"+string(Kind) {
-		if c.platformLive() {
-			return hookTaken, nil // the platform bot's route is live
+		// The platform route belongs to the bot that is the platform's now. A bot that was the platform's
+		// before a rotation still has a webhook on that route, which nobody serves for it any more: it is
+		// free to be connected as a tenant's own.
+		if account != "" && account == c.platformAccount() {
+			return hookTaken, nil
 		}
 		return hookFree, nil
 	}
@@ -227,7 +228,7 @@ func (c *Connector) assess(ctx context.Context, creds connectors.Credentials, ex
 	if existing != nil {
 		own = c.hookURL(*existing)
 	}
-	owner, err := c.ownerOf(ctx, info.Url, own, lookup)
+	owner, err := c.ownerOf(ctx, info.Url, own, c.ExternalID(creds), lookup)
 	if err != nil {
 		return nil, err
 	}
@@ -375,10 +376,12 @@ func (c *Connector) StartPlatform(ctx context.Context, creds connectors.Credenti
 	return c.bot(token).setWebhook(ctx, c.hookURL(conn), WebhookSecret(token, connKey(conn)))
 }
 
-// platformLive reports whether the platform bot's route is in use.
-func (c *Connector) platformLive() bool {
+// platformAccount is the bot that is the platform's now: the credential StartPlatform was given, else the
+// configured token ("" when there is none).
+func (c *Connector) platformAccount() string {
+	token := c.cfg.PlatformToken
 	if t := c.platformToken.Load(); t != nil && *t != "" {
-		return true
+		token = *t
 	}
-	return c.cfg.PlatformToken != ""
+	return c.ExternalID(connectors.Credentials{"token": token})
 }

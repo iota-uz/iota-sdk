@@ -281,75 +281,95 @@ func fromOf(u *gotgbot.User) map[string]any {
 // start hands `/start <payload>` to its handler and sends its reply. An unknown or used payload (or one
 // of another tenant, on a tenant's bot) reaches the handler with the nil tenant, which only replies. A
 // failure of the lookup or of the handler is redelivered by Telegram.
+//
+// With a store that keeps the updates a connector handles itself (connectors.InboundActions) the update is
+// claimed durably before the handler runs, so two deliveries of it never both run the handler; the handler's
+// result (the reply) is kept apart from the delivery of the reply, so a reply that could not be sent (a 429)
+// is sent again by the redelivery without asking the handler, which has consumed its one-use link.
 func (c *Connector) start(ctx context.Context, b *bot, h StartHandler, m *gotgbot.Message, payload string, conn connectors.Connection, updateKey string) error {
-	// An update that was handled completely (the handler ran, its reply went out) is not handled again when
-	// Telegram redelivers it because the answer to it was lost. It is looked up before the payload is
-	// resolved: a one-use link the first delivery consumed no longer names a tenant, and would otherwise be
-	// answered "unknown or used" after the successful reply.
-	once, hasOnce := c.cfg.Connections.(connectors.InboundOnce)
-	if hasOnce {
-		seen, err := once.InboundSeen(ctx, connKey(conn), startEvent, updateKey)
+	retry := func(err error) error { return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err) }
+	acts, durable := c.cfg.Connections.(connectors.InboundActions)
+	key := connKey(conn)
+	if durable {
+		action, claimed, err := acts.ClaimInbound(ctx, key, startEvent, updateKey)
 		if err != nil {
-			return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
+			return retry(err)
 		}
-		if seen {
-			return nil
-		}
-		// A /start whose handler completed and whose record could not be written: only the record is
-		// retried, never the handler.
-		if p, pending := c.startPending.Load(connKey(conn) + "/" + updateKey); pending {
-			if err := once.InboundDone(ctx, p.(uuid.UUID), connKey(conn), startEvent, updateKey); err != nil {
-				return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
+		if !claimed {
+			switch action.State {
+			case connectors.InboundDone:
+				return nil
+			case connectors.InboundHandled:
+				return c.deliverStartReply(ctx, b, m, conn, acts, updateKey, action.Tenant, action.Reply)
+			case connectors.InboundClaimed:
 			}
-			c.startPending.Delete(connKey(conn) + "/" + updateKey)
-			return nil
+			return retry(errors.New("the update is being handled by another delivery"))
+		}
+	}
+	release := func() {
+		if durable {
+			if err := acts.ReleaseInbound(ctx, key, startEvent, updateKey); err != nil {
+				c.log().Warn("telegram: a claim of a /start was not released", "error", err.Error())
+			}
 		}
 	}
 	tenant, ok, err := h.TenantOf(ctx, payload)
 	if err != nil {
-		return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
+		release()
+		return retry(err)
 	}
 	if !ok || (!isPlatform(conn) && tenant != conn.TenantID) {
 		tenant = uuid.Nil
 	}
-	// It is recorded under the tenant the link belongs to (the platform bot: the payload's); with none (an
-	// unknown link) there is nowhere to record it, and repeating the "unknown" reply is harmless.
+	// The tenant the link belongs to (the platform bot: the payload's); a tenant's own bot: its tenant.
 	account := conn.TenantID
 	if isPlatform(conn) {
 		account = tenant
 	}
-	hasOnce = hasOnce && account != uuid.Nil
-	up := StartUpdate{TenantID: tenant, ConnectionID: connKey(conn), ChatID: m.Chat.Id, ChatType: chatType(m.Chat.Type), Payload: payload}
+	up := StartUpdate{TenantID: tenant, ConnectionID: key, ChatID: m.Chat.Id, ChatType: chatType(m.Chat.Type), Payload: payload}
 	if m.From != nil {
 		up.UserID, up.Username, up.FirstName = m.From.Id, m.From.Username, m.From.FirstName
 	}
 	reply, err := h.Handle(ctx, up)
 	if err != nil {
-		return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
+		release()
+		return retry(err)
 	}
+	if durable {
+		// The handler completed (it may have consumed the link): its result is kept before anything else.
+		if err := acts.InboundHandled(ctx, key, startEvent, updateKey, account, reply); err != nil {
+			return retry(err) // the claim stays; a redelivery after it is abandoned asks the handler again
+		}
+	}
+	return c.deliverStartReply(ctx, b, m, conn, acts, updateKey, account, reply)
+}
+
+// deliverStartReply sends the reply of a handled /start and finishes the update. A send that failed in a way
+// that may pass (429, a 5xx, a lost connection) is answered 503, and the redelivery sends it again; one that
+// can never succeed (the chat is blocked) is given up.
+func (c *Connector) deliverStartReply(ctx context.Context, b *bot, m *gotgbot.Message, conn connectors.Connection, acts connectors.InboundActions, updateKey string, account uuid.UUID, reply string) error {
 	if reply != "" {
 		_, sent, err := c.send(ctx, b.api.Token, strconv.FormatInt(m.Chat.Id, 10), outgoing{Text: reply})
 		if err != nil {
+			var refused *catalog.CallError
+			if acts != nil && !errors.As(callFailure(err), &refused) {
+				c.log().Warn("telegram: the reply to /start was not sent; it is retried", "error", err.Error())
+				return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
+			}
 			c.log().Warn("telegram: the reply to /start was not sent", "error", err.Error())
-		} else {
-			// The reply is a message of the tenant the link belongs to (the platform bot: the payload's),
-			// counted for the bot that sent it.
-			if c.cfg.Usage != nil && account != uuid.Nil {
-				err := c.cfg.Usage.Record(ctx, catalog.UsageEntry{TenantID: account, Kind: Kind, ConnectionID: connKey(conn), Unit: "message", Quantity: int64(sent), At: time.Now()})
-				if err != nil {
-					c.log().Warn("telegram: a message was not counted", "error", err.Error())
-				}
+		} else if c.cfg.Usage != nil && account != uuid.Nil {
+			// The reply is a message of the tenant the link belongs to, counted for the bot that sent it.
+			err := c.cfg.Usage.Record(ctx, catalog.UsageEntry{TenantID: account, Kind: Kind, ConnectionID: connKey(conn), Unit: "message", Quantity: int64(sent), At: time.Now()})
+			if err != nil {
+				c.log().Warn("telegram: a message was not counted", "error", err.Error())
 			}
 		}
 	}
-	if hasOnce {
-		if err := once.InboundDone(ctx, account, connKey(conn), startEvent, updateKey); err != nil {
-			// The handler consumed what it was given: the update is answered 503 so that Telegram redelivers
-			// it, and the redelivery writes the record without running the handler again (the account is kept
-			// here for it). A restart in between loses the note; the handler is then asked again.
-			c.log().Warn("telegram: a handled /start was not recorded", "error", err.Error())
-			c.startPending.Store(connKey(conn)+"/"+updateKey, account)
-			return fmt.Errorf("%w: %v", engine.ErrWebhookRetry, err)
+	if acts != nil {
+		if err := acts.InboundCompleted(ctx, connKey(conn), startEvent, updateKey); err != nil {
+			// The reply went out; a redelivery would send it again, which is worse than an unfinished record
+			// (the record is abandoned with the claim's age).
+			c.log().Warn("telegram: a handled /start was not finished in the record", "error", err.Error())
 		}
 	}
 	return nil
@@ -470,15 +490,17 @@ func (c *Connector) callback(ctx context.Context, b *bot, u gotgbot.Update, conn
 
 // AnswerClosed answers a press of a button whose question is closed (answered, expired) while the update
 // was handled: a second press, a press after the timeout.
-func (c *Connector) AnswerClosed(ctx context.Context, ev engine.InboundEvent, conn connectors.Connection, creds connectors.Credentials) {
+func (c *Connector) AnswerClosed(ctx context.Context, ev engine.InboundEvent, conn connectors.Connection, creds connectors.Credentials) error {
 	if ev.Event != EventCallback {
-		return
+		return nil
 	}
 	pr, ok := c.presses.take(pressKey(connKey(conn), ev.DedupKey))
 	if !ok {
-		return
+		return nil
 	}
-	_ = c.closed(ctx, c.bot(creds["token"]), pr.queryID, pr.chatID, pr.message) // logged: the answer was closed already
+	// A cleanup that fails is answered 503 like an accepted press's: Telegram redelivers it, and the
+	// redelivery (the answer being closed) takes the keyboard off.
+	return c.closed(ctx, c.bot(creds["token"]), pr.queryID, pr.chatID, pr.message)
 }
 
 // AnswerPublished follows the first accepted press: the press is acknowledged, the keyboard is taken off and

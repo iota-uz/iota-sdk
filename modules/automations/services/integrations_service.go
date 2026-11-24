@@ -903,15 +903,17 @@ func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.
 
 // Delete removes a connection nothing uses; a connection in use is a *connectors.InUseError.
 func (s *IntegrationsService) Delete(ctx context.Context, a Actor, id uuid.UUID) error {
-	// What the provider needs to be told is read before the row is gone; a connection that cannot be
-	// read (no key, undecryptable) is still deleted, only the provider is not told.
-	cur, creds, readErr := s.store.Get(ctx, a.TenantID, id)
-	if err := s.store.Delete(ctx, a.TenantID, id); err != nil {
+	// What the provider needs to be told is the connection as it was when it was deleted, read in the deleting
+	// transaction under the row's lock: a save that committed before it is what is cleaned up for, and one
+	// that comes after finds no row. A connection that cannot be read (no key, undecryptable) is still
+	// deleted, only the provider is not told.
+	deleted, creds, err := s.store.DeleteReturning(ctx, a.TenantID, id)
+	if err != nil {
 		return mapStoreError("automations.IntegrationsService.Delete", err)
 	}
-	if readErr == nil && cur.Status != connectors.StatusDisabled {
-		if conn, ok := s.dir.Get(cur.Kind); ok {
-			s.cleanup(ctx, conn, cur, creds) // the row is gone: under the account's lock, so a replacement's setup is never raced
+	if creds != nil && deleted.Status != connectors.StatusDisabled {
+		if conn, ok := s.dir.Get(deleted.Kind); ok {
+			s.cleanup(ctx, conn, deleted, creds) // the row is gone: under the account's lock, so a replacement's setup is never raced
 		}
 	}
 	return nil

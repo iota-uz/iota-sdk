@@ -422,12 +422,23 @@ func TestAPressThatLostTheRaceIsAnsweredAsClosed(t *testing.T) {
 	u := r.pressUpdate(m, alice, 0)
 	_, evs := r.tenantUpdate(u)
 	require.Len(t, evs, 1)
-	r.c.AnswerClosed(context.Background(), evs[0], r.conn, r.creds())
+	require.NoError(t, r.c.AnswerClosed(context.Background(), evs[0], r.conn, r.creds()))
 	queryID := u["callback_query"].(map[string]any)["id"].(string)
 	text, _ := r.bot.Answered(queryID)
 	assert.Equal(t, telegram.AlreadyAnswered, text)
 	got, _ := r.bot.Message(700, m.ID)
 	assert.Equal(t, "Approve the order?", got.Text, "the text stays")
+}
+
+// A cleanup of the late press that fails is reported: the engine answers 503 and Telegram delivers the press again.
+func TestALatePressWhoseCleanupFailsIsReported(t *testing.T) {
+	r := newRig(t)
+	m := r.asked()
+	r.in.open[askToken] = r.tenant
+	_, evs := r.tenantUpdate(r.pressUpdate(m, alice, 0))
+	require.Len(t, evs, 1)
+	r.bot.Fail(telegramtest.Failure{Method: "editMessageReplyMarkup", Code: 502, Description: "Bad Gateway", Times: 3})
+	require.Error(t, r.c.AnswerClosed(context.Background(), evs[0], r.conn, r.creds()))
 }
 
 func TestPressOfAnotherTenantsQuestionIsClosedForThisBot(t *testing.T) {

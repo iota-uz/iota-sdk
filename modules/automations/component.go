@@ -22,6 +22,7 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -328,9 +329,13 @@ func (c *component) Build(b *composition.Builder) error {
 				// cannot be the platform's too, and is then not offered to tenants as a platform credential.
 				if exclusive && dbErr == nil {
 					if err := connectors.ReservePlatformIdentity(ctx, db, conn.Kind(), ex.ExternalID(creds)); err != nil {
-						if w, ok := platform.(connectors.PlatformWithdrawer); ok {
-							w.Withdraw(conn.Kind())
+						w, ok := platform.(connectors.PlatformWithdrawer)
+						if !ok {
+							// A credential that cannot be withdrawn would be served next to the account of a
+							// tenant that holds it: the application does not start with it.
+							return nil, fmt.Errorf("automations: the platform credential of %s cannot be used and cannot be withdrawn: %w", conn.Kind(), err)
 						}
+						w.Withdraw(conn.Kind())
 						warn("automations: the platform credential of %s is withdrawn: %v", err)
 						continue
 					}

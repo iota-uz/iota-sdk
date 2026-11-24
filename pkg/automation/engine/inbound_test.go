@@ -233,6 +233,11 @@ func TestTwoAnswersOfAnAskGiveOneTransition(t *testing.T) {
 	assert.Equal(t, http.StatusOK, first.Code)
 	assert.Equal(t, http.StatusOK, second.Code)
 	assert.Equal(t, int64(1), ae.acme.closed.Load(), "the second press is answered as already answered")
+	// A late answer whose cleanup fails is redelivered by the provider: 503.
+	ae.acme.closeErr.Store(true)
+	third := ae.hook(h, ae.hookPath(), acmeSig, acmeUpdate{ID: "a-3", Event: evAnswer, Choice: "no", Correlation: token, From: "ann"})
+	assert.Equal(t, http.StatusServiceUnavailable, third.Code)
+	ae.acme.closeErr.Store(false)
 	p.until(func() bool { return len(noteTexts(t, ae.env)) == 1 }, "the answer moved the run")
 	run := runOf(t, ae.env, p)
 	p.until(func() bool { return ae.status(p, run.RunID) == engine.RunDone }, "done")

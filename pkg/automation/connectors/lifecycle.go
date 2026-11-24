@@ -310,14 +310,36 @@ func ReleasePlatformIdentities(ctx context.Context, db *pgxpool.Pool, kind catal
 	return err
 }
 
-// InboundOnce is an optional interface of a ConnectionStore: a record of provider updates a connector handled
-// itself (no event was published for them), by the provider's id, on the table of the engine's own dedup
-// (automation.inbound_dedup, pruned with it). A connector checks it before it acts on a repeated delivery
-// and records the update once it has completed, so an update whose answer to the provider was lost is not
-// acted on twice.
-type InboundOnce interface {
-	// InboundSeen asks across tenants: a repeated delivery is recognised even when what it carried no longer
-	// names the tenant it was first handled for (a one-use link that was consumed).
-	InboundSeen(ctx context.Context, connection, event, key string) (bool, error)
-	InboundDone(ctx context.Context, tenantID uuid.UUID, connection, event, key string) error
+// InboundState is how far a provider update a connector handles itself has got.
+type InboundState string
+
+// States of an InboundAction.
+const (
+	InboundClaimed InboundState = "claimed" // the handler is running
+	InboundHandled InboundState = "handled" // the handler completed; its reply is kept, to be delivered
+	InboundDone    InboundState = "done"
+)
+
+// InboundAction is the record of a provider update a connector handles itself.
+type InboundAction struct {
+	State  InboundState
+	Tenant uuid.UUID // whose update it is, once the handler completed
+	Reply  string    // what is to be sent back, once the handler completed
+}
+
+// InboundActions is an optional interface of a ConnectionStore for the updates a connector handles itself (no
+// event is published for them): the update is claimed durably before the handler runs, so two deliveries of
+// it (two workers, two replicas) never both run it, the handler's result is kept apart from its reply's
+// delivery, and a redelivery only finishes what is left. A claim whose handler never finished (a crash) is
+// abandoned after a few minutes and may be taken over. Records are pruned with the engine's dedup.
+type InboundActions interface {
+	// ClaimInbound claims the update: claimed true means the caller runs the handler; false returns what
+	// the earlier delivery left (done, handled with its reply, or a claim that is still fresh).
+	ClaimInbound(ctx context.Context, connection, event, key string) (action InboundAction, claimed bool, err error)
+	// InboundHandled keeps the result of a handler that completed.
+	InboundHandled(ctx context.Context, connection, event, key string, tenantID uuid.UUID, reply string) error
+	// InboundCompleted marks the update finished.
+	InboundCompleted(ctx context.Context, connection, event, key string) error
+	// ReleaseInbound gives a claim up (the handler failed): a redelivery runs the handler again.
+	ReleaseInbound(ctx context.Context, connection, event, key string) error
 }

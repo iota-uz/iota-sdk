@@ -513,9 +513,14 @@ func (s *store) SetStatusIf(ctx context.Context, tenantID, id uuid.UUID, status 
 }
 
 func (s *store) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
+	_, _, err := s.DeleteReturning(ctx, tenantID, id)
+	return err
+}
+
+func (s *store) DeleteReturning(ctx context.Context, tenantID, id uuid.UUID) (Connection, Credentials, error) {
 	const op = serrors.Op("automation.connectors.Store.Delete")
 	if err := s.configured(); err != nil {
-		return serrors.Wrap(op, err)
+		return Connection{}, nil, serrors.Wrap(op, err)
 	}
 	// The row stays locked from the check to the delete: whoever starts using the connection (enabling a
 	// graph version) locks it FOR SHARE, so a use cannot appear in between. A TxUsageIndex reads the
@@ -524,28 +529,39 @@ func (s *store) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	// The check reports ErrUsageChanged when a status change between the catalog read and the lock
 	// (another connection reauthorized, this one reconnected) changed what a graph resolves to: the
 	// catalog is read again.
-	var err error
+	var (
+		err  error
+		conn Connection
+		cred Credentials
+	)
 	for attempt := 0; attempt < maxUsageAttempts; attempt++ {
-		if err = s.deleteOnce(ctx, tenantID, id); !errors.Is(err, ErrUsageChanged) {
+		if conn, cred, err = s.deleteOnce(ctx, tenantID, id); !errors.Is(err, ErrUsageChanged) {
 			break
 		}
 	}
-	return serrors.Wrap(op, err)
+	if err != nil {
+		return Connection{}, nil, serrors.Wrap(op, err)
+	}
+	return conn, cred, nil
 }
 
 // maxUsageAttempts bounds the Delete retries after ErrUsageChanged.
 const maxUsageAttempts = 5
 
-func (s *store) deleteOnce(ctx context.Context, tenantID, id uuid.UUID) error {
+func (s *store) deleteOnce(ctx context.Context, tenantID, id uuid.UUID) (Connection, Credentials, error) {
 	var check UsesCheck
 	if tu, ok := s.usage.(TxUsageIndex); ok {
 		c, err := tu.PrepareUses(ctx, tenantID)
 		if err != nil {
-			return err
+			return Connection{}, nil, err
 		}
 		check = c
 	}
-	return pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+	var (
+		snapshot Connection
+		creds    Credentials
+	)
+	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 		var locked uuid.UUID
 		err := tx.QueryRow(ctx, `SELECT id FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, tenantID, id).Scan(&locked)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -569,9 +585,17 @@ func (s *store) deleteOnce(ctx context.Context, tenantID, id uuid.UUID) error {
 				return &InUseError{Uses: uses}
 			}
 		}
+		// The connection as it is now, under the lock: a connection whose credentials do not decrypt is
+		// still deleted, with no credentials to clean up for.
+		if c, cr, lerr := s.load(ctx, tx, tenantID, id, false); lerr == nil {
+			snapshot, creds = c, cr
+		} else if c2, serr := scanConnection(tx.QueryRow(ctx, `SELECT `+connectionColumns+` FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, id)); serr == nil {
+			snapshot = c2
+		}
 		_, err = tx.Exec(ctx, `DELETE FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, id)
 		return err
 	})
+	return snapshot, creds, err
 }
 
 func (s *store) WithLatest(ctx context.Context, kind catalog.ConnectorKind, tenantID, id uuid.UUID, external string, fn func(found bool, c Connection, creds Credentials) error) error {
@@ -597,19 +621,70 @@ func (s *store) WithLatest(ctx context.Context, kind catalog.ConnectorKind, tena
 	return serrors.Wrap(op, err)
 }
 
-// InboundSeen reports whether an update was recorded as handled (InboundOnce).
-func (s *store) InboundSeen(ctx context.Context, connection, event, key string) (bool, error) {
-	var seen bool
-	err := s.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM automation.inbound_dedup WHERE connection_id = $1 AND event = $2 AND dedup_key = $3)`,
-		connection, event, key).Scan(&seen)
-	return seen, serrors.Wrap("automation.connectors.Store.InboundSeen", err)
+// claimTimeout is how long a claim whose handler has not finished is held before it is abandoned.
+const claimTimeout = 2 * time.Minute
+
+func (s *store) ClaimInbound(ctx context.Context, connection, event, key string) (InboundAction, bool, error) {
+	const op = serrors.Op("automation.connectors.Store.ClaimInbound")
+	tag, err := s.db.Exec(ctx, `INSERT INTO automation.inbound_actions (connection_id, event, dedup_key, state) VALUES ($1, $2, $3, 'claimed') ON CONFLICT DO NOTHING`,
+		connection, event, key)
+	if err != nil {
+		return InboundAction{}, false, serrors.Wrap(op, err)
+	}
+	if tag.RowsAffected() == 1 {
+		return InboundAction{State: InboundClaimed}, true, nil
+	}
+	// A claim that was abandoned (its handler never finished) is taken over, atomically.
+	tag, err = s.db.Exec(ctx, `UPDATE automation.inbound_actions SET updated_at = now()
+		WHERE connection_id = $1 AND event = $2 AND dedup_key = $3 AND state = 'claimed' AND updated_at < now() - $4::interval`,
+		connection, event, key, fmt.Sprintf("%d seconds", int(claimTimeout.Seconds())))
+	if err != nil {
+		return InboundAction{}, false, serrors.Wrap(op, err)
+	}
+	if tag.RowsAffected() == 1 {
+		return InboundAction{State: InboundClaimed}, true, nil
+	}
+	var (
+		state  string
+		tenant *uuid.UUID
+		reply  string
+	)
+	err = s.db.QueryRow(ctx, `SELECT state, tenant_id, reply FROM automation.inbound_actions WHERE connection_id = $1 AND event = $2 AND dedup_key = $3`,
+		connection, event, key).Scan(&state, &tenant, &reply)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Released between the two statements: claim it again.
+		return s.ClaimInbound(ctx, connection, event, key)
+	}
+	if err != nil {
+		return InboundAction{}, false, serrors.Wrap(op, err)
+	}
+	out := InboundAction{State: InboundState(state), Reply: reply}
+	if tenant != nil {
+		out.Tenant = *tenant
+	}
+	return out, false, nil
 }
 
-// InboundDone records an update as handled (InboundOnce).
-func (s *store) InboundDone(ctx context.Context, tenantID uuid.UUID, connection, event, key string) error {
-	_, err := s.db.Exec(ctx, `INSERT INTO automation.inbound_dedup (tenant_id, connection_id, event, dedup_key) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
-		tenantID, connection, event, key)
-	return serrors.Wrap("automation.connectors.Store.InboundDone", err)
+func (s *store) InboundHandled(ctx context.Context, connection, event, key string, tenantID uuid.UUID, reply string) error {
+	var tenant any
+	if tenantID != uuid.Nil {
+		tenant = tenantID
+	}
+	_, err := s.db.Exec(ctx, `UPDATE automation.inbound_actions SET state = 'handled', tenant_id = $4, reply = $5, updated_at = now()
+		WHERE connection_id = $1 AND event = $2 AND dedup_key = $3`, connection, event, key, tenant, reply)
+	return serrors.Wrap("automation.connectors.Store.InboundHandled", err)
+}
+
+func (s *store) InboundCompleted(ctx context.Context, connection, event, key string) error {
+	_, err := s.db.Exec(ctx, `UPDATE automation.inbound_actions SET state = 'done', updated_at = now() WHERE connection_id = $1 AND event = $2 AND dedup_key = $3`,
+		connection, event, key)
+	return serrors.Wrap("automation.connectors.Store.InboundCompleted", err)
+}
+
+func (s *store) ReleaseInbound(ctx context.Context, connection, event, key string) error {
+	_, err := s.db.Exec(ctx, `DELETE FROM automation.inbound_actions WHERE connection_id = $1 AND event = $2 AND dedup_key = $3 AND state = 'claimed'`,
+		connection, event, key)
+	return serrors.Wrap("automation.connectors.Store.ReleaseInbound", err)
 }
 
 // ConnectionExists reports whether a connection of any tenant has the id.

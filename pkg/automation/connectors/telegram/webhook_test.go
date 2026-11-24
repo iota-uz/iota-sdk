@@ -501,23 +501,55 @@ func TestAnAddressedCommandIsRedeliveredWhenTheBotCannotBeNamed(t *testing.T) {
 	assert.Len(t, h.got, 1, "the redelivery was handled")
 }
 
-// The record of a completed /start that could not be written is written by the redelivery, which does not run
-// the handler again: no "unknown or used" after the reply that worked.
-func TestAFailedStartRecordIsWrittenByTheRedelivery(t *testing.T) {
+// The result of a completed /start that could not be kept leaves the claim: the handler has consumed its
+// link, so the redelivery (once the claim is abandoned) is the only way on, and nothing was sent meanwhile.
+func TestAStartWhoseResultCannotBeKeptIsRedelivered(t *testing.T) {
+	r := newRig(t)
+	h := &linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}
+	require.NoError(t, r.c.RegisterStart(h))
+	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
+	r.st.failHandled = 1
+	u := r.platform.Update(800, alice, "/start u_abc")
+	code, _ := r.platformUpdate(u)
+	assert.Equal(t, http.StatusServiceUnavailable, code, "Telegram is asked to deliver it again")
+	assert.Empty(t, r.platform.Sent(), "nothing was sent before the result was kept")
+	code, _ = r.platformUpdate(u)
+	assert.Equal(t, http.StatusServiceUnavailable, code, "the claim is fresh: the other delivery may still be running")
+	r.st.abandon()
+	code, _ = r.platformUpdate(u)
+	assert.Equal(t, http.StatusOK, code)
+	assert.Len(t, r.platform.Sent(), 1)
+}
+
+// A reply that Telegram refused for now (429) is sent again by the redelivery, from the result that was kept: the
+// handler, which consumed the one-use link, is not asked again.
+func TestAStartReplyThatWasRateLimitedIsSentAgain(t *testing.T) {
 	r := newRig(t)
 	h := &oneUseLink{linkHandler: linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}}
 	require.NoError(t, r.c.RegisterStart(h))
 	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
-	r.st.failDone = 1
+	r.platform.Fail(telegramtest.Failure{Method: "sendMessage", Code: 429, Description: "Too Many Requests", RetryAfter: 1})
 	u := r.platform.Update(800, alice, "/start u_abc")
 	code, _ := r.platformUpdate(u)
-	assert.Equal(t, http.StatusServiceUnavailable, code, "Telegram is asked to deliver it again")
+	assert.Equal(t, http.StatusServiceUnavailable, code)
+	assert.Empty(t, r.platform.Sent())
+	code, _ = r.platformUpdate(u)
+	assert.Equal(t, http.StatusOK, code)
 	require.Len(t, r.platform.Sent(), 1)
+	assert.Equal(t, "Linked, Alice", r.platform.Sent()[0].Text, "the kept reply, not \"unknown or used\"")
+	assert.Len(t, h.got, 1, "the handler ran once")
 	code, _ = r.platformUpdate(u)
 	assert.Equal(t, http.StatusOK, code)
-	assert.Len(t, h.got, 1, "the handler was not asked again")
-	assert.Len(t, r.platform.Sent(), 1, "and nothing contradicts the first reply")
-	code, _ = r.platformUpdate(u)
+	assert.Len(t, r.platform.Sent(), 1, "and a finished update is not answered again")
+}
+
+// A chat that blocked the bot cannot be written to ever: the update is finished, not redelivered for ever.
+func TestAStartReplyToABlockedChatIsGivenUp(t *testing.T) {
+	r := newRig(t)
+	h := &linkHandler{prefix: "u_", tenant: r.tenant, known: map[string]bool{"u_abc": true}}
+	require.NoError(t, r.c.RegisterStart(h))
+	r.api.Chat(telegramtest.Chat{ID: 800, Type: "private"})
+	r.platform.Fail(telegramtest.Failure{Method: "sendMessage", Code: 403, Description: "Forbidden: bot was blocked by the user"})
+	code, _ := r.platformUpdate(r.platform.Update(800, alice, "/start u_abc"))
 	assert.Equal(t, http.StatusOK, code)
-	assert.Len(t, h.got, 1, "the record is written: later deliveries are recognised")
 }

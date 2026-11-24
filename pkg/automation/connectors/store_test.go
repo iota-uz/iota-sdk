@@ -908,3 +908,83 @@ func TestCheckTokenRefreshesADisabledConnection(t *testing.T) {
 	assert.Equal(t, refused.Version, after.Version, "a refused check writes nothing")
 	assert.Equal(t, connectors.StatusDisabled, after.Status)
 }
+
+// An update a connector handles itself is claimed before its handler runs: two deliveries never both run it,
+// the result is kept apart from its delivery, and a claim whose handler never finished is taken over.
+func TestInboundActionsClaimOnce(t *testing.T) {
+	e := newEnv(t)
+	store := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, nil, nil)
+	acts, ok := store.(connectors.InboundActions)
+	require.True(t, ok)
+	const conn, event, key = "platform:telegram_bot", "start", "u1"
+
+	var claims atomic.Int32
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, claimed, err := acts.ClaimInbound(e.ctx, conn, event, key); err == nil && claimed {
+				claims.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+	assert.Equal(t, int32(1), claims.Load(), "one delivery runs the handler")
+
+	a, claimed, err := acts.ClaimInbound(e.ctx, conn, event, key)
+	require.NoError(t, err)
+	assert.False(t, claimed)
+	assert.Equal(t, connectors.InboundClaimed, a.State)
+
+	tenant := uuid.New()
+	require.NoError(t, acts.InboundHandled(e.ctx, conn, event, key, tenant, "Linked"))
+	a, claimed, err = acts.ClaimInbound(e.ctx, conn, event, key)
+	require.NoError(t, err)
+	assert.False(t, claimed)
+	assert.Equal(t, connectors.InboundAction{State: connectors.InboundHandled, Tenant: tenant, Reply: "Linked"}, a)
+	require.NoError(t, acts.ReleaseInbound(e.ctx, conn, event, key))
+	_, claimed, err = acts.ClaimInbound(e.ctx, conn, event, key)
+	require.NoError(t, err)
+	assert.False(t, claimed, "a handled update is not released")
+
+	require.NoError(t, acts.InboundCompleted(e.ctx, conn, event, key))
+	a, claimed, err = acts.ClaimInbound(e.ctx, conn, event, key)
+	require.NoError(t, err)
+	assert.False(t, claimed)
+	assert.Equal(t, connectors.InboundDone, a.State)
+
+	// A failed handler gives its claim up, and a claim that was abandoned is taken over.
+	_, claimed, err = acts.ClaimInbound(e.ctx, conn, event, "u2")
+	require.NoError(t, err)
+	require.True(t, claimed)
+	require.NoError(t, acts.ReleaseInbound(e.ctx, conn, event, "u2"))
+	_, claimed, err = acts.ClaimInbound(e.ctx, conn, event, "u2")
+	require.NoError(t, err)
+	assert.True(t, claimed, "released: the redelivery runs the handler")
+	_, err = e.db.Exec(e.ctx, `UPDATE automation.inbound_actions SET updated_at = now() - interval '1 hour' WHERE dedup_key = 'u2'`)
+	require.NoError(t, err)
+	_, claimed, err = acts.ClaimInbound(e.ctx, conn, event, "u2")
+	require.NoError(t, err)
+	assert.True(t, claimed, "abandoned: taken over")
+	_, claimed, err = acts.ClaimInbound(e.ctx, conn, event, "u2")
+	require.NoError(t, err)
+	assert.False(t, claimed, "and fresh again")
+}
+
+// DeleteReturning gives what the row held when it was deleted (under its lock), not what an earlier read saw.
+func TestDeleteReturningGivesTheDeletedRow(t *testing.T) {
+	e := newEnv(t)
+	store := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, nil, nil)
+	c := e.save(store, e.tenant, "support_bot", connectors.Credentials{"token": botToken})
+	c2, err := store.Save(e.ctx, connectors.Connection{ID: c.ID, TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "support_bot", DisplayName: "Support", Version: c.Version},
+		connectors.Credentials{"token": botToken + "-rotated"})
+	require.NoError(t, err)
+	require.Equal(t, c.ID, c2.ID, "saved again: the same connection")
+	got, creds, err := store.DeleteReturning(e.ctx, e.tenant, c.ID)
+	require.NoError(t, err)
+	assert.Equal(t, c.ID, got.ID)
+	assert.Equal(t, botToken+"-rotated", creds["token"], "the credentials of the deleted row")
+	_, _, err = store.DeleteReturning(e.ctx, e.tenant, c.ID)
+	require.ErrorIs(t, err, connectors.ErrNotFound)
+}
