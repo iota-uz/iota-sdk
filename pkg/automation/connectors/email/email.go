@@ -75,7 +75,9 @@ type Config struct {
 	// error "no_storage".
 	Uploads Uploads
 	// Connections is the store the connector marks the other connection of a sign-in with when the
-	// provider refuses its tokens (needs_reauth); without it only the refusing connection is marked.
+	// provider refuses its tokens (needs_reauth), and seeds the cursor of the mailbox a reply to a message
+	// it sends will come to; without it only the refusing connection is marked and the first poll of a
+	// mailbox no graph has used yet may jump over an early reply.
 	Connections ConnectionState
 	// Usage records a message sent outside a node; nodes use the one their call carries.
 	Usage catalog.UsageRecorder
@@ -107,6 +109,7 @@ type ConnectionState interface {
 	List(ctx context.Context, tenantID uuid.UUID, kind catalog.ConnectorKind) ([]connectors.Connection, error)
 	Get(ctx context.Context, tenantID, id uuid.UUID) (connectors.Connection, connectors.Credentials, error)
 	SetStatus(ctx context.Context, tenantID, id uuid.UUID, s connectors.ConnectionStatus, reason string) error
+	UpdateInbound(ctx context.Context, tenantID, id uuid.UUID, fn func(state json.RawMessage) (json.RawMessage, error)) error
 }
 
 // New is the smtp connector and the imap connector (which is also an engine.Poller).

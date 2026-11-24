@@ -247,3 +247,143 @@ func TestSignInPairIsSavedAtomically(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, left, "the second write failed: the first did not stay")
 }
+
+type signIn struct {
+	t          *testing.T
+	ctx        context.Context
+	ts         *tokenServer
+	store      connectors.Store
+	o          connectors.OAuth2
+	tenant     uuid.UUID
+	smtp, imap connectors.Connection
+}
+
+// signInEnv is a tenant that has signed in with Google once: a sending and a receiving connection.
+func signInEnv(t *testing.T) *signIn {
+	t.Helper()
+	h := itf.NewHarness(t, itf.HarnessConfig{
+		Name:      "automation_email_lifecycle",
+		Database:  itf.DatabaseConfig{Provisioning: itf.ProvisioningPerTestDatabase},
+		Isolation: itf.IsolationConfig{Mode: itf.IsolationCommitted},
+	})
+	scope := h.Scope(t)
+	e := &signIn{t: t, ctx: context.Background(), ts: newTokenServer(t, mailbox), tenant: scope.Tenant.ID}
+	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": []byte("0123456789abcdef0123456789abcdef")})
+	require.NoError(t, err)
+	mailSrv := emailtest.New(t, emailtest.ModeTLS, emailtest.Account{User: mailbox, Password: password})
+	for _, tok := range []string{"access-1", "access-2", "access-3"} {
+		mailSrv.AcceptToken(mailbox, tok)
+	}
+	providers := map[string]Provider{PresetGmail: {
+		AuthURL: e.ts.URL + "/auth", TokenURL: e.ts.URL + "/token",
+		SMTPHost: "127.0.0.1", SMTPPort: atoi(port(mailSrv.SMTPAddr)), IMAPHost: "127.0.0.1", IMAPPort: atoi(port(mailSrv.IMAPAddr)), Security: "tls",
+	}}
+	dir := connectors.NewDirectory(nil)
+	for _, c := range New(Config{Providers: providers, TLSConfig: mailSrv.TLS}) {
+		require.NoError(t, dir.Register(c))
+	}
+	platform := connectors.NewPlatformCredentials(dir, map[catalog.ConnectorKind]connectors.PlatformCredential{
+		GoogleClient: {Credentials: connectors.Credentials{"client_id": "cid", "client_secret": "csecret"}},
+	})
+	e.store = connectors.NewStore(scope.Pool, keys, nil, platform, nil)
+	e.o, err = connectors.NewOAuth2(e.store, dir, platform, connectors.WithHTTPClient(e.ts.Client()))
+	require.NoError(t, err)
+	_, state, err := e.o.(connectors.PresetOAuth2).BeginPreset(e.ctx, e.tenant, KindSMTP, PresetGmail, "https://app.test/cb")
+	require.NoError(t, err)
+	e.smtp, err = e.o.Complete(e.ctx, e.tenant, state, "code")
+	require.NoError(t, err)
+	imaps, err := e.store.List(e.ctx, e.tenant, KindIMAP)
+	require.NoError(t, err)
+	require.Len(t, imaps, 1)
+	e.imap = imaps[0]
+	return e
+}
+
+// age makes the access token of a connection run out.
+func (e *signIn) age(id uuid.UUID) {
+	e.t.Helper()
+	c, cr, err := e.store.Get(e.ctx, e.tenant, id)
+	require.NoError(e.t, err)
+	cr["expires_at"] = "2000-01-01T00:00:00Z"
+	_, err = e.store.Save(e.ctx, c, cr)
+	require.NoError(e.t, err)
+}
+
+// Disabling the connection that owns the token set does not break the one that is still on: the shared
+// grant is not tied to either connection's status.
+func TestDisabledOwnerStillServesTheOtherConnection(t *testing.T) {
+	e := signInEnv(t)
+	require.NoError(t, e.store.SetStatus(e.ctx, e.tenant, e.smtp.ID, connectors.StatusDisabled, "off"))
+	e.age(e.imap.ID)
+	e.age(e.smtp.ID)
+	tok, err := e.o.Token(e.ctx, e.tenant, e.imap.ID)
+	require.NoError(t, err, "the enabled connection refreshes through its disabled owner")
+	assert.Equal(t, "access-2", tok)
+	owner, _, err := e.store.Get(e.ctx, e.tenant, e.smtp.ID)
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusDisabled, owner.Status, "and the owner stays disabled")
+	_, err = e.o.Token(e.ctx, e.tenant, e.smtp.ID)
+	require.ErrorIs(t, err, connectors.ErrNotConnected, "a disabled connection itself gives no token")
+}
+
+// Deleting the owner hands the token set to the connection that took it from it: it goes on working.
+func TestDeletingTheOwnerKeepsTheOtherConnectionWorking(t *testing.T) {
+	e := signInEnv(t)
+	require.NoError(t, e.store.Delete(e.ctx, e.tenant, e.smtp.ID))
+	_, cr, err := e.store.Get(e.ctx, e.tenant, e.imap.ID)
+	require.NoError(t, err)
+	assert.Empty(t, cr[connectors.OAuth2TokenFrom], "it owns its tokens now")
+	assert.Equal(t, "refresh-1", cr["refresh_token"])
+	assert.Equal(t, PresetGmail, cr["preset"])
+	e.age(e.imap.ID)
+	tok, err := e.o.Token(e.ctx, e.tenant, e.imap.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "access-2", tok)
+}
+
+// A sign-in does not rewrite a connection of the same mailbox that was made with a login and a password:
+// graphs bound to that connection keep its server, folder and credentials, and a connection switched off
+// stays off.
+func TestSignInDoesNotOverwriteAPasswordConnection(t *testing.T) {
+	e := signInEnv(t)
+	for _, id := range []uuid.UUID{e.smtp.ID, e.imap.ID} {
+		require.NoError(t, e.store.Delete(e.ctx, e.tenant, id))
+	}
+	password, err := e.store.Save(e.ctx, connectors.Connection{TenantID: e.tenant, Kind: KindIMAP, Name: "imap", DisplayName: "Old box", Status: connectors.StatusDisabled,
+		Identity: connectors.Identity{Display: mailbox, External: mailbox, Kind: connectors.IdentityEmail}},
+		connectors.Credentials{"preset": "custom", "host": "imap.corp.example", "port": "993", "username": mailbox, "password": "pw", "mailbox": "Support"})
+	require.NoError(t, err)
+
+	_, state, err := e.o.(connectors.PresetOAuth2).BeginPreset(e.ctx, e.tenant, KindSMTP, PresetGmail, "https://app.test/cb")
+	require.NoError(t, err)
+	_, err = e.o.Complete(e.ctx, e.tenant, state, "code")
+	require.NoError(t, err)
+
+	got, cr, err := e.store.Get(e.ctx, e.tenant, password.ID)
+	require.NoError(t, err)
+	assert.Equal(t, password.Version, got.Version, "untouched")
+	assert.Equal(t, connectors.StatusDisabled, got.Status)
+	assert.Equal(t, "imap.corp.example", cr["host"])
+	assert.Equal(t, "Support", cr["mailbox"])
+	imaps, err := e.store.List(e.ctx, e.tenant, KindIMAP)
+	require.NoError(t, err)
+	require.Len(t, imaps, 2, "the sign-in made its own connection to receive")
+
+	// Signing in again as the same mailbox updates the sign-in's connections, and keeps a switched-off one off.
+	var signed connectors.Connection
+	for _, c := range imaps {
+		if c.ID != password.ID {
+			signed = c
+		}
+	}
+	require.NoError(t, e.store.SetStatus(e.ctx, e.tenant, signed.ID, connectors.StatusDisabled, "off"))
+	_, state, err = e.o.(connectors.PresetOAuth2).BeginPreset(e.ctx, e.tenant, KindSMTP, PresetGmail, "https://app.test/cb")
+	require.NoError(t, err)
+	_, err = e.o.Complete(e.ctx, e.tenant, state, "code")
+	require.NoError(t, err)
+	again, _, err := e.store.Get(e.ctx, e.tenant, signed.ID)
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusDisabled, again.Status)
+	imaps, _ = e.store.List(e.ctx, e.tenant, KindIMAP)
+	assert.Len(t, imaps, 2)
+}

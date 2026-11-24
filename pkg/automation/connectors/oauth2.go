@@ -392,8 +392,17 @@ func PlanGrant(ctx context.Context, s ConnectionStore, secret func(string) bool,
 			if err != nil {
 				return GroupItem{}, err
 			}
+			// A sign-in with a preset updates only a connection made by a sign-in with that preset: a
+			// connection of the same mailbox made by a login and a password is another connection, and
+			// graphs bound to it keep their server, folder and credentials.
+			if p := creds[OAuth2Preset]; p != "" && old[OAuth2Preset] != p {
+				continue
+			}
 			cur = scrubAcrossChange(cur, secret, old, creds)
-			cur.Identity, cur.Status, cur.StatusReason = SafeIdentity(identity, secret, creds, old), StatusConnected, ""
+			cur.Identity = SafeIdentity(identity, secret, creds, old)
+			if cur.Status != StatusDisabled { // a connection an administrator switched off stays off
+				cur.Status, cur.StatusReason = StatusConnected, ""
+			}
 			return GroupItem{Connection: cur, Credentials: creds}, nil
 		}
 	}
@@ -470,6 +479,16 @@ func serves(status ConnectionStatus, check bool) bool {
 // token is Token, or CheckToken with check: then the connection must be disabled, and a refused refresh
 // is reported without recording needs_reauth.
 func (o *oauth) token(ctx context.Context, tenantID, connectionID uuid.UUID, check bool) (string, error) {
+	return o.tokenAs(ctx, tenantID, connectionID, check, false)
+}
+
+// tokenAs is token; asOwner: the connection owns the token set another connection shares, so it serves
+// that one whether it is connected or disabled: the owner's own status is its own business (a disabled
+// owner is not used by graphs itself, and still keeps the tokens of the connection that is).
+func (o *oauth) tokenAs(ctx context.Context, tenantID, connectionID uuid.UUID, check, asOwner bool) (string, error) {
+	serves := func(status ConnectionStatus, check bool) bool {
+		return serves(status, check) || (asOwner && status == StatusDisabled)
+	}
 	const op = serrors.Op("automation.connectors.OAuth2.Token")
 	c, creds, err := o.s.load(ctx, o.s.db, tenantID, connectionID, false)
 	if err != nil {
@@ -568,10 +587,7 @@ func (o *oauth) token(ctx context.Context, tenantID, connectionID uuid.UUID, che
 // re-authorization is this one's too.
 func (o *oauth) tokenOfOwner(ctx context.Context, tenantID, id, owner uuid.UUID, check bool) (string, error) {
 	const op = serrors.Op("automation.connectors.OAuth2.Token")
-	tok, err := o.token(ctx, tenantID, owner, false)
-	if errors.Is(err, ErrNotConnected) && check {
-		tok, err = o.token(ctx, tenantID, owner, true)
-	}
+	tok, err := o.tokenAs(ctx, tenantID, owner, false, true)
 	if errors.Is(err, ErrNeedsReauth) || errors.Is(err, ErrNotFound) {
 		if !check {
 			_ = pgx.BeginFunc(ctx, o.s.db, func(tx pgx.Tx) error {

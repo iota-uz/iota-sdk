@@ -7,7 +7,7 @@ import {
 import { rpcContracts, type Props, type RPC } from './Integrations.solid.generated'
 import {
   CATEGORY_KEY, NAME_RE, changedCredentials, oauthErrorText, reasonSentence, reasonText, errorCode, fieldErrorText, groupByCategory, missingRequired, newCredentials, saveErrorText,
-  schemaFields, slugify, translator, usageHref, usedByText,
+  schemaFields, availablePresets, connectionPreset, knownPresets, presetOptions, slugify, translator, usageHref, usedByText,
   type ConnectionView, type ConnectorView, type FormField, type ListResult, type Status, type Translator, type UsageView,
 } from './model'
 
@@ -427,7 +427,7 @@ function ConnectionRow(props: { ctx: Ctx; connector: ConnectorView; connection: 
   }
   const reauth = async () => {
     try {
-      const r = await props.ctx.call('automations.connections.oauth_start', { kind: props.connector.kind, name: c().name, connection_id: c().id })
+      const r = await props.ctx.call('automations.connections.oauth_start', { kind: props.connector.kind, name: c().name, connection_id: c().id, ...presetParam(connectionPreset(props.connector, c())) })
       window.location.assign(r.authorize_url)
     } catch (e) {
       console.warn('automations: oauth_start failed', errorCode(e))
@@ -471,7 +471,7 @@ function ConnectionRow(props: { ctx: Ctx; connector: ConnectorView; connection: 
           </Dropdown>
         </Show>
       </div>
-      <Show when={c().status === 'needs_reauth' && props.connector.auth === 'oauth2' && props.ctx.canManage()}>
+      <Show when={c().status === 'needs_reauth' && (props.connector.auth === 'oauth2' || connectionPreset(props.connector, c()) !== undefined) && props.ctx.canManage()}>
         <div><Button size="sm" onClick={() => void reauth()} class="min-h-11 sm:min-h-9" data-testid="reauth">{t('SignInAgain')}</Button></div>
       </Show>
       <div role="status" aria-live="polite" class="flex min-h-5 flex-col gap-1 text-sm" data-testid="check-status">
@@ -521,10 +521,15 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
   const [slow, setSlow] = createSignal(false)
   let slowTimer: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(slowTimer))
-  const oauth = () => connector().auth === 'oauth2'
+  // A connector with a form and a sign-in (an email box) chooses by its preset field: a provider's sign-in,
+  // or the form. Only the providers the application can sign in with are offered.
+  const preset = () => (editing() ? connectionPreset(connector(), editing()) ?? 'custom' : values().preset || 'custom')
+  const presetSignIn = () => (editing() ? connectionPreset(connector(), editing()) !== undefined : availablePresets(connector()).includes(preset()))
+  const oauth = () => connector().auth === 'oauth2' || presetSignIn()
   const oauthState = () => props.state.oauth
   // Editing an OAuth2 connection changes its name only; signing in again is its own action.
   const signIn = () => oauth() && !editing()
+  const providerTitle = () => (connector().auth === 'oauth2' ? connector().title : t(`Form.PresetProvider.${preset()}`))
 
   createEffect(() => { if (!nameTouched() && !editing()) setName(slugify(displayName(), connector().kind)) })
   const secretSet = (f: string) => Boolean(editing()) && !replaced().has(f)
@@ -544,7 +549,7 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
     begin()
     try {
       if (signIn()) {
-        const r = await props.ctx.call('automations.connections.oauth_start', { kind: connector().kind, name: name(), display_name: displayName() })
+        const r = await props.ctx.call('automations.connections.oauth_start', { kind: connector().kind, name: name(), display_name: displayName(), ...presetParam(connector().auth === 'oauth2' ? undefined : preset()) })
         window.location.assign(r.authorize_url)
         return
       }
@@ -621,7 +626,7 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
     if (!e || busy()) return
     begin()
     try {
-      const r = await props.ctx.call('automations.connections.oauth_start', { kind: connector().kind, name: e.name, connection_id: e.id })
+      const r = await props.ctx.call('automations.connections.oauth_start', { kind: connector().kind, name: e.name, connection_id: e.id, ...presetParam(connectionPreset(connector(), e)) })
       window.location.assign(r.authorize_url)
     } catch (err) {
       end()
@@ -654,18 +659,23 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
           data-field="name" error={fieldErrors().name ? fieldErrorText(t, fieldErrors().name!) : undefined} disabled={busy() || Boolean(editing())}
           required={!editing()} autocomplete="off" spellcheck={false} />
         <Show when={!oauth()} fallback={
-          <Show when={editing()} fallback={<p class="text-sm text-200">{t('Form.OAuthHint', { connector: connector().title })}</p>}>
+          <Show when={editing()} fallback={<>
+            <Show when={connector().auth !== 'oauth2'}><PresetField t={t} connector={connector()} field={fields().find((f) => f.name === 'preset')} value={preset()} onInput={(v) => setValue('preset', v)} disabled={busy()} /></Show>
+            <p class="text-sm text-200">{t('Form.OAuthHint', { connector: providerTitle() })}</p>
+          </>}>
             <div class="flex flex-col items-start gap-2">
-              <p class="text-sm text-200">{t('Form.OAuthHint', { connector: connector().title })}</p>
+              <p class="text-sm text-200">{t('Form.OAuthHint', { connector: providerTitle() })}</p>
               <Button type="button" variant="secondary" class="min-h-11 sm:min-h-9" onClick={() => void reauth()} disabled={busy()} data-testid="form-reauth">{t('SignInAgain')}</Button>
             </div>
           </Show>
         }>
-          <For each={fields()}>{(f) => <CredentialField t={t} field={f} value={values()[f.name] ?? ''} onInput={(v) => setValue(f.name, v)}
+          <For each={fields()}>{(f) => <Show when={f.name !== 'preset' || knownPresets(connector()).length === 0} fallback={
+            <PresetField t={t} connector={connector()} field={f} value={preset()} onInput={(v) => setValue('preset', v)} disabled={busy()} />}>
+            <CredentialField t={t} field={f} value={values()[f.name] ?? ''} onInput={(v) => setValue(f.name, v)}
             error={fieldErrors()[f.name] ? fieldErrorText(t, fieldErrors()[f.name]!) : undefined} disabled={busy()}
             secretSet={secretSet(f.name)} shown={shown().has(f.name)}
             onShow={(s) => setShown((cur) => { const n = new Set(cur); if (s) n.add(f.name); else n.delete(f.name); return n })}
-            onReplace={(r) => setReplaced((cur) => { const n = new Set(cur); if (r) n.add(f.name); else { n.delete(f.name); setValue(f.name, '') } return n })} />}</For>
+            onReplace={(r) => setReplaced((cur) => { const n = new Set(cur); if (r) n.add(f.name); else { n.delete(f.name); setValue(f.name, '') } return n })} /></Show>}</For>
         </Show>
         <Show when={error()}>
           <div class="flex flex-col items-start gap-2">
@@ -681,13 +691,34 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
           <Button type="button" variant="secondary" class="min-h-11 justify-center" data-dialog-close aria-disabled={busy() || undefined}
             onClick={() => { if (!busy()) props.onClose() }}>{t('Form.Cancel')}</Button>
           <Button type="submit" class="min-h-11 justify-center" loading={busy()} aria-disabled={busy() || undefined} data-testid="form-save">
-            {busy() ? (signIn() ? t('Form.Redirecting', { connector: connector().title }) : t('Form.Saving'))
-              : signIn() ? t('Form.SignInWith', { connector: connector().title }) : retry() ? t('Retry') : t('Form.Save')}
+            {busy() ? (signIn() ? t('Form.Redirecting', { connector: providerTitle() }) : t('Form.Saving'))
+              : signIn() ? t('Form.SignInWith', { connector: providerTitle() }) : retry() ? t('Retry') : t('Form.Save')}
           </Button>
         </div>
       </form>
     </ViewDrawer>
   )
+}
+
+/** The preset choice of a connector with a form and a sign-in: the form, and the providers that can be signed in with. */
+function PresetField(props: { t: Translator; connector: ConnectorView; field: FormField | undefined; value: string; onInput: (v: string) => void; disabled: boolean }) {
+  const options = () => presetOptions(props.connector, props.field?.options)
+  return (
+    <Show when={props.field && options().length > 1}>
+      <label class="flex flex-col gap-2 text-sm">
+        <span class="form-control-label">{props.field!.title}</span>
+        <select class="form-control h-11 rounded-md border border-default bg-surface-300 px-3 text-100" value={props.value} disabled={props.disabled}
+          onChange={(e) => props.onInput(e.currentTarget.value)} data-field="preset" data-testid="preset">
+          <For each={options()}>{(o) => <option value={o} selected={o === props.value}>{props.t(`Form.Preset.${o}`)}</option>}</For>
+        </select>
+      </label>
+    </Show>
+  )
+}
+
+/** The preset a sign-in is for, as an RPC param (a connector whose own auth is OAuth2 has none). */
+function presetParam(preset: string | undefined): { preset?: string } {
+  return preset && preset !== 'custom' ? { preset } : {}
 }
 
 function CredentialField(props: {

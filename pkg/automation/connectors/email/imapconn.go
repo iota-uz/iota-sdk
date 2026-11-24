@@ -111,20 +111,43 @@ func (s *imapSession) selectMailbox(name string, readOnly bool) (*imap.SelectDat
 
 var _ sasl.Client = (*xoauth2)(nil)
 
-// moveTo moves messages to another mailbox without ever losing one. With native MOVE (RFC 6851) it is one
-// atomic command. Without it the messages are copied first and the copy is checked: only then are the
-// originals flagged \Deleted, and expunged by UID when the server offers UIDPLUS, so no other message that
-// happens to be flagged is removed. (The client library's own fallback queues COPY, STORE and a plain
-// EXPUNGE without waiting for the COPY, and would delete the source when the copy fails.) Without
-// UIDPLUS the originals stay in their mailbox flagged \Deleted.
-func (s *imapSession) moveTo(set imap.UIDSet, dest string) error {
+// moveTo moves messages to another mailbox without ever losing or doubling one. With native MOVE (RFC 6851)
+// it is one atomic command. Without it the messages are copied first and the copy is checked: only then are
+// the originals flagged \\Deleted, and expunged by UID when the server offers UIDPLUS, so no other message
+// that happens to be flagged is removed. (The client library's own fallback queues COPY, STORE and a plain
+// EXPUNGE without waiting for the COPY, and would delete the source when the copy fails.) Without UIDPLUS
+// the originals stay in their mailbox flagged \\Deleted.
+//
+// The steps are repeatable: a call that is made again after the connection ended in the middle of them
+// (the node is idempotent) finds the message already in the destination, by its Message-ID, and does not
+// copy it a second time.
+func (s *imapSession) moveTo(set imap.UIDSet, source, dest, messageID string) error {
 	caps := s.c.Caps()
 	if caps.Has(imap.CapMove) {
 		_, err := s.c.Move(set, dest).Wait()
 		return err
 	}
-	if _, err := s.c.Copy(set, dest).Wait(); err != nil {
+	// Is it there already (a copy of an earlier attempt)? A destination that is not there is refused here,
+	// before anything is changed.
+	validity, err := s.selectValidity(source)
+	if err != nil {
 		return err
+	}
+	copied, err := s.hasMessage(dest, messageID)
+	if err != nil {
+		return err
+	}
+	sel, err := s.selectMailbox(source, false)
+	if err != nil {
+		return err
+	}
+	if sel.UIDValidity != validity {
+		return errors.New("email: the mailbox changed while a message was moved")
+	}
+	if !copied {
+		if _, err := s.c.Copy(set, dest).Wait(); err != nil {
+			return err
+		}
 	}
 	if err := s.c.Store(set, &imap.StoreFlags{Op: imap.StoreFlagsAdd, Silent: true, Flags: []imap.Flag{imap.FlagDeleted}}, nil).Close(); err != nil {
 		return err
@@ -133,4 +156,26 @@ func (s *imapSession) moveTo(set imap.UIDSet, dest string) error {
 		return s.c.UIDExpunge(set).Close()
 	}
 	return nil
+}
+
+// selectValidity is the UIDVALIDITY of the mailbox (opened read-write, as the caller has it).
+func (s *imapSession) selectValidity(name string) (uint32, error) {
+	sel, err := s.selectMailbox(name, false)
+	if err != nil {
+		return 0, err
+	}
+	return sel.UIDValidity, nil
+}
+
+// hasMessage reports whether a mailbox holds a message with the Message-ID (read-only; it fails for a
+// mailbox the server does not have).
+func (s *imapSession) hasMessage(mailbox, messageID string) (bool, error) {
+	if _, err := s.selectMailbox(mailbox, true); err != nil {
+		return false, err
+	}
+	found, err := s.c.UIDSearch(&imap.SearchCriteria{Header: []imap.SearchCriteriaHeaderField{{Key: "Message-ID", Value: messageID}}}, nil).Wait()
+	if err != nil {
+		return false, err
+	}
+	return len(found.AllUIDs()) > 0, nil
 }

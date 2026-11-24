@@ -394,9 +394,10 @@ func collapseBlank(s string) string {
 }
 
 // oversized reads a message past the whole-message limit by its structure: the header block, the text of
-// its first text part (the first megabyte) and the name, type and size of every other part, none of whose
-// bodies is downloaded. Each such part is reported with the limit it is over: more than 25 MB is too_large;
-// a smaller one in a message whose attachments, with it, are past 50 MB is message_too_big.
+// its first text part (the first megabyte) and every other part. A part within the limits (25 MB decoded,
+// 50 MB of attachments in the message) is fetched by itself, as it would be from a smaller message, so a
+// large text body does not cost a small image its place; a part over a limit is reported with it
+// (too_large, message_too_big) and its body is never downloaded.
 func (c *imapConnector) oversized(_ context.Context, s *imapSession, uid imap.UID) (received, bool, error) {
 	head, err := s.fetchRaw(uid, true)
 	if err != nil {
@@ -424,6 +425,11 @@ func (c *imapConnector) oversized(_ context.Context, s *imapSession, uid imap.UI
 	}
 	var textPath []int
 	var textPart *imap.BodyStructureSinglePart
+	type located struct {
+		path []int
+		sp   *imap.BodyStructureSinglePart
+	}
+	var where []located
 	structure.Walk(func(path []int, bs imap.BodyStructure) bool {
 		sp, ok := bs.(*imap.BodyStructureSinglePart)
 		if !ok {
@@ -444,14 +450,37 @@ func (c *imapConnector) oversized(_ context.Context, s *imapSession, uid imap.UI
 		if strings.EqualFold(sp.Encoding, "base64") {
 			size = size / 4 * 3
 		}
-		m.attachment = append(m.attachment, part{filename: name, contentType: kind, size: size, reason: AttachmentMessageTooBig})
-		if size > MaxAttachment {
-			m.attachment[len(m.attachment)-1].reason = AttachmentTooLarge
-		}
+		m.attachment = append(m.attachment, part{filename: name, contentType: kind, size: size})
+		where = append(where, located{path: append([]int(nil), path...), sp: sp})
 		return true
 	})
+	var total int64
+	for i := range m.attachment {
+		a := &m.attachment[i]
+		switch {
+		case a.size > MaxAttachment:
+			a.reason = AttachmentTooLarge
+		case total+a.size > MaxAttachmentsPerMsg:
+			a.reason = AttachmentMessageTooBig
+		default:
+			data, err := s.fetchDecoded(uid, where[i].path, where[i].sp, 0)
+			if err != nil {
+				return received{}, false, err
+			}
+			if int64(len(data)) > MaxAttachment {
+				a.reason, a.size = AttachmentTooLarge, int64(len(data))
+				continue
+			}
+			a.data, a.size = data, int64(len(data))
+			total += a.size
+		}
+	}
 	if textPart != nil {
-		if text, err := s.fetchText(uid, textPath, textPart); err == nil {
+		if body, err := s.fetchDecoded(uid, textPath, textPart, 1<<20); err == nil {
+			text := string(body)
+			if textPart.MediaType() == "text/html" {
+				text = htmlToText(text)
+			}
 			m.text = clip(normalizeText(text), MaxText)
 		} else if !errors.Is(err, errNotMail) {
 			return received{}, false, err
@@ -460,12 +489,16 @@ func (c *imapConnector) oversized(_ context.Context, s *imapSession, uid imap.UI
 	return m, false, nil
 }
 
-// fetchText reads the first megabyte of a text part of a message and decodes it.
-func (s *imapSession) fetchText(uid imap.UID, path []int, sp *imap.BodyStructureSinglePart) (string, error) {
-	section := &imap.FetchItemBodySection{Peek: true, Part: path, Partial: &imap.SectionPartial{Offset: 0, Size: 1 << 20}}
+// fetchDecoded reads a part of a message by itself (the first limit bytes when limit > 0) and decodes its
+// transfer encoding and charset.
+func (s *imapSession) fetchDecoded(uid imap.UID, path []int, sp *imap.BodyStructureSinglePart, limit int64) ([]byte, error) {
+	section := &imap.FetchItemBodySection{Peek: true, Part: path}
+	if limit > 0 {
+		section.Partial = &imap.SectionPartial{Offset: 0, Size: limit}
+	}
 	bufs, err := s.c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{section}}).Collect()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	var raw []byte
 	for _, b := range bufs {
@@ -480,11 +513,7 @@ func (s *imapSession) fetchText(uid imap.UID, path []int, sp *imap.BodyStructure
 	}
 	e, err := message.New(h, bytes.NewReader(raw))
 	if err != nil && e == nil {
-		return "", errNotMail
+		return nil, errNotMail
 	}
-	body, _ := io.ReadAll(io.LimitReader(e.Body, 4<<20))
-	if sp.MediaType() == "text/html" {
-		return htmlToText(string(body)), nil
-	}
-	return string(body), nil
+	return io.ReadAll(io.LimitReader(e.Body, MaxAttachment+1))
 }

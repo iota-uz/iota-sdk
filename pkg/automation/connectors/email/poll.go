@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/emersion/go-imap/v2"
+	"github.com/google/uuid"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
@@ -136,6 +137,10 @@ func (h *hub) noteRefusal(ctx context.Context, conn connectors.Connection, creds
 // initialCursor is the cursor at the mailbox's last UID: the highest one ever assigned, so every message
 // that arrives later is after it.
 func (c *imapConnector) initialCursor(s *imapSession, mailbox string, sel *imap.SelectData) (json.RawMessage, error) {
+	return initialCursorOf(s, mailbox, sel)
+}
+
+func initialCursorOf(s *imapSession, mailbox string, sel *imap.SelectData) (json.RawMessage, error) {
 	last := uint32(0)
 	if sel.UIDNext > 0 {
 		last = uint32(sel.UIDNext) - 1
@@ -316,19 +321,23 @@ func (c *imapConnector) store(ctx context.Context, conn connectors.Connection, p
 
 // Baseline is where the cursor of the connection stands now: the end of the mailbox, nothing read.
 func (c *imapConnector) Baseline(ctx context.Context, conn connectors.Connection, creds connectors.Credentials) (json.RawMessage, error) {
-	a, err := c.parseIMAP(creds)
+	return c.baseline(ctx, conn, creds)
+}
+
+func (h *hub) baseline(ctx context.Context, conn connectors.Connection, creds connectors.Credentials) (json.RawMessage, error) {
+	a, err := h.parseIMAP(creds)
 	if err != nil {
 		return nil, &catalog.CallError{Code: catalog.CallInvalidRequest, Message: "the connection's credentials are not usable: " + err.Error()}
 	}
 	token := ""
 	if a.oauth() {
-		if token, err = c.accessToken(ctx, conn.TenantID, conn.ID.String(), creds); err != nil {
+		if token, err = h.accessToken(ctx, conn.TenantID, conn.ID.String(), creds); err != nil {
 			return nil, err
 		}
 	}
-	s, err := c.openIMAP(ctx, a, token)
+	s, err := h.openIMAP(ctx, a, token)
 	if err != nil {
-		c.noteRefusal(ctx, conn, creds, a, err)
+		h.noteRefusal(ctx, conn, creds, a, err)
 		return nil, err
 	}
 	defer s.close()
@@ -336,7 +345,43 @@ func (c *imapConnector) Baseline(ctx context.Context, conn connectors.Connection
 	if err != nil {
 		return nil, err
 	}
-	return c.initialCursor(s, a.mailbox, sel)
+	return initialCursorOf(s, a.mailbox, sel)
+}
+
+// seedBaselines gives the mailboxes a reply to a message of this sender will come to a cursor before the
+// message is sent: the connections to receive of the sender's address that have none yet. The first poll
+// of a mailbox starts at its end, so one made after the reply arrived would jump over it. A failure is
+// logged and does not stop the send: the poller baselines the mailbox itself.
+func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, sender string) {
+	if h.cfg.Connections == nil || sender == "" {
+		return
+	}
+	list, err := h.cfg.Connections.List(ctx, tenant, KindIMAP)
+	if err != nil {
+		h.log().Warn("email: the mailboxes of a sender could not be listed", "error", err.Error())
+		return
+	}
+	for _, c := range list {
+		if c.Status != connectors.StatusConnected || !strings.EqualFold(c.Identity.External, sender) {
+			continue
+		}
+		has, err := engine.HasCursor(ctx, h.cfg.Connections, tenant, c.ID)
+		if err != nil || has {
+			continue
+		}
+		conn, creds, err := h.cfg.Connections.Get(ctx, tenant, c.ID)
+		if err != nil {
+			continue
+		}
+		cur, err := h.baseline(ctx, conn, creds)
+		if err != nil {
+			h.log().Warn("email: a mailbox could not be baselined before a send", "connection_id", c.ID.String())
+			continue
+		}
+		if _, err := engine.SeedCursor(ctx, h.cfg.Connections, tenant, c.ID, cur); err != nil {
+			h.log().Warn("email: a mailbox cursor could not be seeded", "connection_id", c.ID.String())
+		}
+	}
 }
 
 var _ engine.Baseliner = (*imapConnector)(nil)

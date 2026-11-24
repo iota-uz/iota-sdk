@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strconv"
 	"testing"
 
@@ -41,6 +43,22 @@ func TestEmailUploadsArePrivateAndServedToTheirTenantOnly(t *testing.T) {
 	assert.NotEmpty(t, saved.ID)
 	assert.Equal(t, "/automations/attachments/"+saved.ID, saved.URL, "the URL is the authorized route, never a static file")
 
+	// The same image already uploaded in public by the tenant does not stand in the way of the attachment.
+	pubCtx := composables.WithPool(composables.WithTenantID(context.Background(), e.tenant), e.db)
+	same := []byte("\x89PNG\r\n\x1a\n the same image")
+	_, err = core.Create(pubCtx, &upload.CreateDTO{File: bytesReader(string(same)), Name: "public.png", Size: len(same)})
+	require.NoError(t, err)
+	again, err := up.Save(context.Background(), e.tenant, email.UploadFile{Name: "cat.png", Mime: "image/png", Data: same})
+	require.NoError(t, err, "an image the tenant uploaded in public does not make the attachment fail")
+	again2, err := up.Save(context.Background(), e.tenant, email.UploadFile{Name: "cat.png", Mime: "image/png", Data: same})
+	require.NoError(t, err)
+	assert.Equal(t, again.ID, again2.ID, "an attachment received twice is one upload")
+	other, err := up.Save(context.Background(), e.tenant, email.UploadFile{Name: "cat2.png", Mime: "image/png", Data: []byte("\x89PNG\r\n\x1a\n a private one")})
+	require.NoError(t, err)
+	oneMore, err := up.Save(context.Background(), e.tenant, email.UploadFile{Name: "cat2.png", Mime: "image/png", Data: []byte("\x89PNG\r\n\x1a\n a private one")})
+	require.NoError(t, err)
+	assert.Equal(t, other.ID, oneMore.ID, "and a private one received twice is one upload")
+
 	// A page of HTML in the mail must not run in the application's origin.
 	html, err := up.Save(context.Background(), e.tenant, email.UploadFile{Name: "x.html", Mime: "text/html", Data: []byte("<script>alert(1)</script>")})
 	require.NoError(t, err)
@@ -76,8 +94,14 @@ func TestEmailUploadsArePrivateAndServedToTheirTenantOnly(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, serve(saved.ID).Code, "reading automations is required")
 	who.read = true
 
-	// A public upload of the same tenant is not an email attachment: this route does not serve it.
+	// A public upload of the tenant is already readable at its own address: the route serves it as a
+	// download too. Another feature's private file is never served by it.
 	pub, err := core.Create(composables.WithPool(composables.WithTenantID(context.Background(), e.tenant), e.db), &upload.CreateDTO{File: bytesReader("public"), Name: "p.txt", Size: 6})
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusNotFound, serve(strconv.FormatUint(uint64(pub.ID()), 10)).Code)
+	assert.Equal(t, http.StatusOK, serve(strconv.FormatUint(uint64(pub.ID()), 10)).Code)
+	elsewhere := filepath.Join(cfg.PrivatePath(), "other-feature")
+	require.NoError(t, os.MkdirAll(elsewhere, 0o700))
+	priv, err := core.CreatePrivate(composables.WithPool(composables.WithTenantID(context.Background(), e.tenant), e.db), &upload.CreateDTO{File: bytesReader("secret"), Name: "s.txt", Size: 6, Slug: "otherfeaturesecret"}, elsewhere)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, serve(strconv.FormatUint(uint64(priv.ID()), 10)).Code)
 }

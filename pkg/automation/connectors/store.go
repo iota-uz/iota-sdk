@@ -611,9 +611,71 @@ func (s *store) deleteOnce(ctx context.Context, tenantID, id uuid.UUID) error {
 				return &InUseError{Uses: uses}
 			}
 		}
+		if err := s.promoteCompanions(ctx, tx, tenantID, id); err != nil {
+			return err
+		}
 		_, err = tx.Exec(ctx, `DELETE FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, id)
 		return err
 	})
+}
+
+// promoteCompanions makes the connections that take their tokens from the deleted one (OAuth2TokenFrom)
+// owners of the token set it holds now, which is the current one: they are the connections of the same
+// sign-in, and they go on working. The deleted connection is the authority on the set (it is the one that
+// refreshed it), so what it holds is copied whole.
+func (s *store) promoteCompanions(ctx context.Context, tx pgx.Tx, tenantID, owner uuid.UUID) error {
+	rows, err := tx.Query(ctx, `SELECT id FROM automation.connections WHERE tenant_id = $1 AND id <> $2`, tenantID, owner)
+	if err != nil {
+		return err
+	}
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	_, theirs, err := s.load(ctx, tx, tenantID, owner, false)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		c, creds, err := s.load(ctx, tx, tenantID, id, true)
+		if err != nil {
+			return err
+		}
+		if creds[OAuth2TokenFrom] != owner.String() {
+			continue
+		}
+		next := Credentials{}
+		for _, k := range []string{OAuth2AccessToken, OAuth2RefreshToken, OAuth2TokenType, OAuth2ExpiresAt} {
+			if v := theirs[k]; v != "" {
+				next[k] = v
+			}
+		}
+		for k, v := range creds {
+			if _, own := next[k]; !own && !isTokenField(k) && k != OAuth2TokenFrom {
+				next[k] = v
+			}
+		}
+		identity, err := json.Marshal(c.Identity)
+		if err != nil {
+			return err
+		}
+		if _, err := s.update(ctx, tx, c, identity, next); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *store) UpdateInbound(ctx context.Context, tenantID, id uuid.UUID, fn func(state json.RawMessage) (json.RawMessage, error)) error {

@@ -118,6 +118,7 @@ func (n *sendNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.C
 		return catalog.CallResult{}, err
 	}
 	all := dedupe(append(append(append([]string(nil), to...), cc...), bcc...))
+	n.seedBaselines(ctx, in.TenantID, msg.From.Address)
 	res, err := n.deliver(ctx, a, token, msg.From.Address, all, raw)
 	if err != nil {
 		var ce *catalog.CallError
@@ -301,13 +302,14 @@ func (p waitParams) Parse(raw map[string]any) (map[string]any, []graph.Issue) {
 			return nil, []graph.Issue{{Path: []any{name}, Message: "in the wait's filter, event is the incoming message: read the id from nodes.<id>.output (the output of email.send), or from the trigger's event.threadId through an earlier node"}}
 		}
 	}
-	// The thread routes the wait; the reply must also answer the message itself: its In-Reply-To names it,
-	// or its References list it. Two runs that send in one conversation (answers to the same parent) have
-	// the same thread and different messages, and a reply to one of them wakes that run only.
+	// The thread routes the wait; the reply must also answer the message itself: the direct parent a client
+	// names in In-Reply-To, and, when it names none, the last of References (the message it answers). An
+	// older message in References is only history: a reply to B in a conversation of A and B (References
+	// root, A, B) is B's reply, not A's. Two runs that send in one conversation are woken each by its own.
 	msg := "string(" + str(out["message_id"]) + ")"
 	terms := []string{
 		"event.threadId == string(" + thread + ")",
-		"(event.inReplyTo == " + msg + " || event.references.exists(r, r == " + msg + "))",
+		`(event.inReplyTo != "" ? event.inReplyTo == ` + msg + ` : (size(event.references) > 0 && event.references[size(event.references) - 1] == ` + msg + `))`,
 	}
 	if from := str(out["from"]); from != "" {
 		cel, err := templateToCEL(from)
@@ -405,7 +407,7 @@ func (n *labelNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.
 	if _, err := s.selectMailbox(a.mailbox, false); err != nil {
 		return catalog.CallResult{}, n.callError(ctx, in, a, err)
 	}
-	found, err := s.c.UIDSearch(&imap.SearchCriteria{Header: []imap.SearchCriteriaHeaderField{{Key: "Message-ID", Value: id}}}, nil).Wait()
+	found, err := s.c.UIDSearch(&imap.SearchCriteria{Header: []imap.SearchCriteriaHeaderField{{Key: "Message-ID", Value: id}}, NotFlag: []imap.Flag{imap.FlagDeleted}}, nil).Wait()
 	if err != nil {
 		return catalog.CallResult{}, n.callError(ctx, in, a, err)
 	}
@@ -420,7 +422,7 @@ func (n *labelNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.
 		}
 	}
 	if dest != "" && dest != a.mailbox {
-		if err := s.moveTo(set, dest); err != nil {
+		if err := s.moveTo(set, a.mailbox, dest, id); err != nil {
 			return catalog.CallResult{}, n.callError(ctx, in, a, err)
 		}
 	}

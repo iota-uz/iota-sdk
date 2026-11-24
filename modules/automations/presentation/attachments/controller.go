@@ -141,8 +141,11 @@ func (c *Controller) Download(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, body)
 }
 
-// inNamespace reports whether a stored path is in the private namespace of email attachments.
+// inNamespace reports whether a stored path may be served: in the private namespace of email attachments,
+// or not in a private namespace at all (an attachment the tenant had already uploaded in public: it is
+// readable at its own address, and no more is shown here). Another feature's private files are never served.
 func inNamespace(stored string) bool {
-	p := path.Clean("/" + filepath.ToSlash(upload.LayoutPath(stored)))
-	return strings.Contains(p+"/", "/"+uploadsconfig.PrivateDirectory+"/"+services.EmailAttachmentsNamespace+"/")
+	p := path.Clean("/"+filepath.ToSlash(upload.LayoutPath(stored))) + "/"
+	private := "/" + uploadsconfig.PrivateDirectory + "/"
+	return strings.Contains(p, private+services.EmailAttachmentsNamespace+"/") || !strings.Contains(p, private)
 }

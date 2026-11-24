@@ -129,7 +129,16 @@
         "InProgress": "Birinchi urinish hali bajarilmoqda. Bir necha soniyadan soʻng qayta urining — hech narsa ikki marta saqlanmaydi.",
         "LoadLatest": "Oxirgi versiyani yuklash",
         "Reloaded": "Oxirgi versiya yuklandi. Formani tekshirib, qayta saqlang.",
-        "RetryChanged": "Birinchi saqlash avvalgi qiymatlar bilan bajarilgan bo‘lishi mumkin. Formani yoping va ulanishni ro‘yxatdan tahrirlang."
+        "RetryChanged": "Birinchi saqlash avvalgi qiymatlar bilan bajarilgan bo‘lishi mumkin. Formani yoping va ulanishni ro‘yxatdan tahrirlang.",
+        "Preset": {
+          "custom": "Istalgan server (login va parol)",
+          "gmail": "Gmail (Google orqali kirish)",
+          "m365": "Microsoft 365 (Microsoft orqali kirish)"
+        },
+        "PresetProvider": {
+          "gmail": "Google",
+          "m365": "Microsoft"
+        }
       },
       "Test": {
         "Running": "Tekshiryapmiz…",

@@ -63,7 +63,7 @@ func newEmailEnv(t *testing.T) *emailEnv {
 		return ee.store
 	})
 	ee.dir = connectors.NewDirectory(ee.reg)
-	for _, c := range email.New(email.Config{TLSConfig: srv.TLS, Uploads: &emailUploads{}}) {
+	for _, c := range email.New(email.Config{TLSConfig: srv.TLS, Uploads: &emailUploads{}, Connections: ee.store}) {
 		require.NoError(t, ee.dir.Register(c))
 	}
 	_, smtpPort := emailtest.HostPort(srv.SMTPAddr)
@@ -72,7 +72,7 @@ func newEmailEnv(t *testing.T) *emailEnv {
 	ee.smtpConn, err = ee.store.Save(ctx, connectors.Connection{TenantID: ee.tenant, Kind: email.KindSMTP, Name: "smtp", DisplayName: "Mail"},
 		connectors.Credentials{"preset": "custom", "host": "127.0.0.1", "port": smtpPort, "security": "tls", "username": mailUser, "password": mailPass, "from_address": mailUser})
 	require.NoError(t, err)
-	ee.imapConn, err = ee.store.Save(ctx, connectors.Connection{TenantID: ee.tenant, Kind: email.KindIMAP, Name: "imap", DisplayName: "Mail"},
+	ee.imapConn, err = ee.store.Save(ctx, connectors.Connection{TenantID: ee.tenant, Kind: email.KindIMAP, Name: "imap", DisplayName: "Mail", Identity: connectors.Identity{Display: mailUser, External: mailUser, Kind: connectors.IdentityEmail}},
 		connectors.Credentials{"preset": "custom", "host": "127.0.0.1", "port": imapPort, "security": "tls", "username": mailUser, "password": mailPass})
 	require.NoError(t, err)
 	return ee
@@ -391,13 +391,13 @@ func TestEmailTwoRunsInOneConversationAreWokenByTheirOwnReply(t *testing.T) {
 
 	// A reply to the second message only: its References name the parent first, as a client's do.
 	ee.srv.Deliver(mailUser, "INBOX", reply("<r2@mail>", "boss@example.org", "Re: Order #2", "answer to two",
-		"In-Reply-To: "+ids["Order #2"], "References: <parent@example.org> "+ids["Order #2"]))
+		"In-Reply-To: "+ids["Order #2"], "References: <parent@example.org> "+ids["Order #1"]+" "+ids["Order #2"]))
 	ee.poll(t, p, poller)
 	p.until(func() bool { return len(noteTexts(t, ee.env)) == 1 }, "the reply woke a run")
 	for i := 0; i < 5; i++ {
 		p.pass()
 	}
-	assert.Equal(t, []string{"reply answer to two"}, noteTexts(t, ee.env), "one run, the one whose message was answered")
+	assert.Equal(t, []string{"reply answer to two"}, noteTexts(t, ee.env), "one run, the one whose message was answered: the older message in References is history")
 	assert.Equal(t, 1, ee.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event'`), "the other still waits")
 
 	ee.srv.Deliver(mailUser, "INBOX", reply("<r1@mail>", "boss@example.org", "Re: Order #1", "answer to one",
@@ -451,4 +451,49 @@ func TestEmailFetchFailureInABatchIsRetriedFromTheSameCursor(t *testing.T) {
 	ee.poll(t, p, poller)
 	p.until(func() bool { return len(noteTexts(t, ee.env)) == 3 }, "the next poll read all three from the old cursor")
 	assert.Equal(t, 3, ee.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = 'email.received.v1'`))
+}
+
+// A mailbox connected and used before the poller ever polled it: the message that is awaited seeds the
+// cursor of its mailbox before it is sent, so a reply that arrives before the first poll is not jumped
+// over, and mail from before the send is not published.
+func TestEmailSendSeedsTheMailboxCursorBeforeTheFirstPoll(t *testing.T) {
+	ee := newEmailEnv(t)
+	p := ee.proc()
+	ee.srv.Deliver(mailUser, "INBOX", reply("<old@x>", "ann@example.org", "From before", "x"))
+	ee.create(p, ee.human(), sendWaitGraph)
+	ee.publish(ee.tenant, orderCreated, "o-1", order{Note: "#1"}, 0) // no poll has happened yet
+	p.until(func() bool {
+		return len(ee.srv.Sent()) == 1 && ee.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND kind = 'event'`) == 1
+	}, "the run sent and waits")
+	id := messageIDHeader.FindStringSubmatch(string(ee.srv.Sent()[0].Data))[1]
+	ee.srv.Deliver(mailUser, "INBOX", reply("<quick@x>", "boss@example.org", "Re: Order #1", "Immediately.", "In-Reply-To: "+id, "References: "+id))
+	poller := ee.poller(p)
+	ee.poll(t, p, poller) // the first poll of the mailbox
+	p.until(func() bool { return len(noteTexts(t, ee.env)) == 1 }, "the reply woke the run")
+	assert.Equal(t, 1, ee.count(`SELECT count(*) FROM extruntime.outbox_events WHERE event = 'email.received.v1'`), "only the reply: not the mail from before")
+}
+
+// A baseline of an idle mailbox gives way to a graph enabled while it was taken: its cursor stays, and what
+// arrived meanwhile is read by the poll of the graph that uses the mailbox now.
+func TestEmailIdleBaselineGivesWayToAGraphEnabledMeanwhile(t *testing.T) {
+	ee := newEmailEnv(t)
+	p := ee.proc()
+	slow := p.rt.NewPoller(engine.PollerConfig{Connections: ee.store, Connectors: ee.dir, Rescan: time.Hour, Clock: func() time.Time { return ee.now }})
+	ee.now = ee.now.Add(61 * time.Second)
+	_, err := slow.PollOnce(context.Background()) // idle: the cursor is kept at the end of the mailbox
+	require.NoError(t, err)
+
+	ee.srv.Deliver(mailUser, "INBOX", reply("<arrived@x>", "ann@example.org", "Arrived meanwhile", "x"))
+	ee.create(p, ee.human(), fmt.Sprintf(receivedGraph, "")) // the graph is enabled: the mailbox is used now
+	ee.now = ee.now.Add(61 * time.Second)
+	_, err = slow.PollOnce(context.Background()) // the old scan still calls it idle
+	require.NoError(t, err)
+	for i := 0; i < 5; i++ {
+		p.pass()
+	}
+
+	fresh := ee.poller(p) // a scan that knows the graph
+	ee.poll(t, p, fresh)
+	p.until(func() bool { return len(noteTexts(t, ee.env)) == 1 }, "the cursor did not jump over the message that arrived while the graph was enabled")
+	assert.Equal(t, []string{"Arrived meanwhile|ann@example.org"}, noteTexts(t, ee.env))
 }

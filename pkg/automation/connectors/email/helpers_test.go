@@ -2,6 +2,7 @@ package email
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -131,10 +132,11 @@ func (o *fakeOAuth) Token(_ context.Context, _ uuid.UUID, id uuid.UUID) (string,
 
 // fakeConns is the store of connections the connector marks siblings in.
 type fakeConns struct {
-	mu     sync.Mutex
-	conns  map[uuid.UUID]connectors.Connection
-	creds  map[uuid.UUID]connectors.Credentials
-	status map[uuid.UUID]connectors.ConnectionStatus
+	mu      sync.Mutex
+	conns   map[uuid.UUID]connectors.Connection
+	creds   map[uuid.UUID]connectors.Credentials
+	status  map[uuid.UUID]connectors.ConnectionStatus
+	inbound map[uuid.UUID]json.RawMessage
 }
 
 func (s *fakeConns) add(c connectors.Connection, creds connectors.Credentials) {
@@ -170,6 +172,20 @@ func (s *fakeConns) SetStatus(_ context.Context, _, id uuid.UUID, st connectors.
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.status[id] = st
+	return nil
+}
+
+func (s *fakeConns) UpdateInbound(_ context.Context, _, id uuid.UUID, fn func(json.RawMessage) (json.RawMessage, error)) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.inbound == nil {
+		s.inbound = map[uuid.UUID]json.RawMessage{}
+	}
+	next, err := fn(s.inbound[id])
+	if err != nil {
+		return err
+	}
+	s.inbound[id] = next
 	return nil
 }
 

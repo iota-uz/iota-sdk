@@ -3,11 +3,16 @@ package services
 import (
 	"bytes"
 	"context"
+	"crypto/md5" //nolint:gosec // the upload table keys content by md5
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
@@ -26,6 +31,7 @@ func EmailAttachmentPath(id string) string { return "/automations/attachments/" 
 // EmailUploadService is the part of the SDK's upload service (modules/core) the email connector uses.
 type EmailUploadService interface {
 	CreatePrivate(ctx context.Context, data *upload.CreateDTO, privatePath string) (upload.Upload, error)
+	GetByHash(ctx context.Context, hash string) (upload.Upload, error)
 }
 
 type emailUploads struct {
@@ -46,16 +52,35 @@ func NewEmailUploads(svc EmailUploadService, pool *pgxpool.Pool, privateRoot str
 }
 
 func (u emailUploads) Save(ctx context.Context, tenantID uuid.UUID, f email.UploadFile) (email.Stored, error) {
-	if !upload.IsS3Path(u.root) {
-		// The file storage writes where it is told and makes no directory: the namespace's own is made here,
+	// A directory of the tenant in the private namespace.
+	dir := filepath.Join(u.root, tenantID.String())
+	if !upload.IsS3Path(dir) {
+		// The file storage writes where it is told and makes no directory: the tenant's own is made here,
 		// private to the application's user like the private root above it.
-		if err := os.MkdirAll(u.root, 0o700); err != nil {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return email.Stored{}, err
 		}
 	}
 	ctx = composables.WithPool(composables.WithTenantID(ctx, tenantID), u.pool)
-	created, err := u.svc.CreatePrivate(ctx, &upload.CreateDTO{File: bytes.NewReader(f.Data), Name: f.Name, Size: len(f.Data)}, u.root)
+	// The slug of an upload is global, and the core derives it from the content: the same image uploaded in
+	// public would own it, and a private upload under it is refused. The attachments have a slug of their
+	// own, of the tenant and the content, so no public upload can stand in their way (and one attachment
+	// received twice is one upload).
+	sum := sha256.Sum256(append([]byte(tenantID.String()+"\x00"), f.Data...))
+	slug := "emailattachment" + hex.EncodeToString(sum[:20])
+	created, err := u.svc.CreatePrivate(ctx, &upload.CreateDTO{File: bytes.NewReader(f.Data), Name: f.Name, Size: len(f.Data), Slug: slug}, dir)
 	if err != nil {
+		// A tenant has one upload per content: the same file the tenant uploaded itself (in public) is
+		// already theirs, readable at its own address, and the attachment is that upload. The download route
+		// serves it to the tenant's users like any attachment.
+		var pg *pgconn.PgError
+		if errors.As(err, &pg) && pg.Code == "23505" /* unique_violation */ {
+			md := md5.Sum(f.Data)
+			if existing, gerr := u.svc.GetByHash(ctx, hex.EncodeToString(md[:])); gerr == nil && existing.TenantID() == tenantID {
+				id := strconv.FormatUint(uint64(existing.ID()), 10)
+				return email.Stored{ID: id, URL: EmailAttachmentPath(id)}, nil
+			}
+		}
 		return email.Stored{}, err
 	}
 	id := strconv.FormatUint(uint64(created.ID()), 10)

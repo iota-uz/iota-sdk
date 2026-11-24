@@ -185,15 +185,15 @@ func TestWaitReplyParamsDeriveTheFilterAndTheKey(t *testing.T) {
 	out, issues := n.params.Parse(map[string]any{"message_id": "nodes.send.output.message_id"})
 	require.Empty(t, issues)
 	assert.Equal(t, "3d", out["timeout"], "three days unless the author says")
-	assert.Equal(t, "event.threadId == string(nodes.send.output.message_id) && (event.inReplyTo == string(nodes.send.output.message_id) || event.references.exists(r, r == string(nodes.send.output.message_id)))", out["filter"])
+	assert.Equal(t, `event.threadId == string(nodes.send.output.message_id) && (event.inReplyTo != "" ? event.inReplyTo == string(nodes.send.output.message_id) : (size(event.references) > 0 && event.references[size(event.references) - 1] == string(nodes.send.output.message_id)))`, out["filter"])
 
 	out, issues = n.params.Parse(map[string]any{"message_id": "nodes.send.output.message_id", "from": "{{ nodes.who.output.address }}"})
 	require.Empty(t, issues)
-	assert.Equal(t, `event.threadId == string(nodes.send.output.message_id) && (event.inReplyTo == string(nodes.send.output.message_id) || event.references.exists(r, r == string(nodes.send.output.message_id))) && event.from.address.lowerAscii() == string((string(nodes.who.output.address))).lowerAscii()`, out["filter"])
+	assert.Equal(t, `event.threadId == string(nodes.send.output.message_id) && (event.inReplyTo != "" ? event.inReplyTo == string(nodes.send.output.message_id) : (size(event.references) > 0 && event.references[size(event.references) - 1] == string(nodes.send.output.message_id))) && event.from.address.lowerAscii() == string((string(nodes.who.output.address))).lowerAscii()`, out["filter"])
 
 	out, issues = n.params.Parse(map[string]any{"message_id": "nodes.send.output.message_id", "thread_id": "nodes.first.output.thread", "from": "Boss@Example.org"})
 	require.Empty(t, issues)
-	assert.Equal(t, `event.threadId == string(nodes.first.output.thread) && (event.inReplyTo == string(nodes.send.output.message_id) || event.references.exists(r, r == string(nodes.send.output.message_id))) && event.from.address.lowerAscii() == string(("Boss@Example.org")).lowerAscii()`, out["filter"])
+	assert.Equal(t, `event.threadId == string(nodes.first.output.thread) && (event.inReplyTo != "" ? event.inReplyTo == string(nodes.send.output.message_id) : (size(event.references) > 0 && event.references[size(event.references) - 1] == string(nodes.send.output.message_id))) && event.from.address.lowerAscii() == string(("Boss@Example.org")).lowerAscii()`, out["filter"])
 
 	_, issues = n.params.Parse(map[string]any{"message_id": "event.messageId"})
 	require.NotEmpty(t, issues, "event in the filter is the incoming message, not the run's trigger")

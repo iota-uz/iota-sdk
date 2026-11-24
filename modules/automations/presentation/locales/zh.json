@@ -129,7 +129,16 @@
         "InProgress": "第一次尝试仍在处理中。请几秒后重试，不会重复保存。",
         "LoadLatest": "加载最新版本",
         "Reloaded": "已加载最新版本。请检查表单并再次保存。",
-        "RetryChanged": "第一次保存可能已使用之前的值完成。请关闭表单，并从列表中编辑该连接。"
+        "RetryChanged": "第一次保存可能已使用之前的值完成。请关闭表单，并从列表中编辑该连接。",
+        "Preset": {
+          "custom": "任意服务器（登录名和密码）",
+          "gmail": "Gmail（使用 Google 登录）",
+          "m365": "Microsoft 365（使用 Microsoft 登录）"
+        },
+        "PresetProvider": {
+          "gmail": "Google",
+          "m365": "Microsoft"
+        }
       },
       "Test": {
         "Running": "正在检查…",

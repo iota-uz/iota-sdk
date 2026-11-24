@@ -53,9 +53,10 @@ func TestFetchFailureInTheMiddleOfABatchKeepsTheCursor(t *testing.T) {
 	assert.Equal(t, "<b1@x>", evs[0].DedupKey)
 }
 
-// A message past the whole-message limit is read by its structure: each part is reported with its size and
-// the limit it is over, and no part body is downloaded.
-func TestOversizedMessageReportsItsAttachments(t *testing.T) {
+// A message past the whole-message limit is read by its structure: a part within the limits is stored like
+// any other (a large text body does not cost a small image its place), a part over a limit is reported with
+// it, and the body of that one is never downloaded.
+func TestOversizedMessageStoresWhatFitsAndReportsWhatDoesNot(t *testing.T) {
 	old := maxRaw
 	maxRaw = 1 << 20
 	t.Cleanup(func() { maxRaw = old })
@@ -66,7 +67,7 @@ func TestOversizedMessageReportsItsAttachments(t *testing.T) {
 	big := bytes.Repeat([]byte("b"), MaxAttachment+(1<<20))
 	f.srv.Deliver(mailbox, "INBOX", multipart("<huge@x>", "Huge", "The covering text.", "<p>html</p>",
 		att{"application/pdf", "small.pdf", small}, att{"application/zip", "big.zip", big}))
-	evs, _ := f.pollOnce(t, conn, creds, cur)
+	evs, next := f.pollOnce(t, conn, creds, cur)
 	require.Len(t, evs, 1)
 	p := payloadOf(t, evs[0])
 	assert.Equal(t, "Huge", p["subject"])
@@ -76,13 +77,26 @@ func TestOversizedMessageReportsItsAttachments(t *testing.T) {
 	require.Len(t, atts, 2, "attachments are listed, not lost")
 	first, second := atts[0].(map[string]any), atts[1].(map[string]any)
 	assert.Equal(t, "small.pdf", first["filename"])
-	assert.Equal(t, "application/pdf", first["contentType"])
-	assert.InDelta(t, len(small), first["size"], float64(len(small))/10)
-	assert.Equal(t, AttachmentMessageTooBig, first["error"], "a message this large is past the attachment budget of one message")
+	assert.EqualValues(t, len(small), first["size"], "the decoded size")
+	assert.Equal(t, "https://app.example/uploads/1", first["url"], "a part within both limits is stored")
+	assert.Nil(t, first["error"])
 	assert.Equal(t, "big.zip", second["filename"])
 	assert.Equal(t, AttachmentTooLarge, second["error"])
 	assert.Nil(t, second["url"])
-	assert.Empty(t, f.uploads.files, "no body was downloaded and nothing was stored")
+	require.Len(t, f.uploads.files, 1, "the body of the part over the limit was not downloaded or stored")
+	assert.Equal(t, small, f.uploads.files["1"].Data)
+
+	// The parts together past 50 MB: the ones that fit are stored in order, the rest are message_too_big.
+	chunk := bytes.Repeat([]byte("c"), 20<<20)
+	f.srv.Deliver(mailbox, "INBOX", multipart("<huge2@x>", "Huge 2", "x", "",
+		att{"application/pdf", "a.pdf", chunk}, att{"application/pdf", "b.pdf", chunk}, att{"application/pdf", "c.pdf", chunk}))
+	evs, _ = f.pollOnce(t, conn, creds, next)
+	require.Len(t, evs, 1)
+	atts = payloadOf(t, evs[0])["attachments"].([]any)
+	require.Len(t, atts, 3)
+	assert.NotEmpty(t, atts[0].(map[string]any)["url"])
+	assert.NotEmpty(t, atts[1].(map[string]any)["url"])
+	assert.Equal(t, AttachmentMessageTooBig, atts[2].(map[string]any)["error"])
 }
 
 func (f *fx) labelOnce(t *testing.T, p map[string]any) (catalog.CallResult, error) {
@@ -135,4 +149,29 @@ func TestMoveWithoutMoveNeverLosesMail(t *testing.T) {
 		require.Len(t, inbox, 1, "never expunged by a command that is not scoped to it")
 		assert.Contains(t, lower(inbox[0].Flags), `\deleted`)
 	})
+}
+
+// The fallback is repeatable: a copy made by an earlier attempt that ended before the original was dealt
+// with is found by its Message-ID, and the message is not copied a second time.
+func TestMoveFallbackReplayDoesNotDuplicate(t *testing.T) {
+	f := newFx(t, emailtest.ModeTLS)
+	f.srv.DisableMove()
+	f.srv.DisableUIDPlus()
+	f.srv.Mailbox(mailbox, "Archive")
+	raw := mailText("<m1@x>", "a@example.org", "one", "x")
+	f.srv.Deliver(mailbox, "INBOX", raw)
+	f.srv.Deliver(mailbox, "Archive", raw) // the first attempt copied, then the connection ended
+	res, err := f.labelOnce(t, map[string]any{"message_id": "<m1@x>", "move_to": "Archive"})
+	require.NoError(t, err)
+	assert.Equal(t, "done", res.Outcome)
+	assert.Len(t, f.srv.Fetch(mailbox, "Archive"), 1, "not copied again")
+	inbox := f.srv.Fetch(mailbox, "INBOX")
+	require.Len(t, inbox, 1)
+	assert.Contains(t, lower(inbox[0].Flags), `\deleted`)
+
+	// And once more: the original is flagged, so the message is no longer the mailbox's.
+	res, err = f.labelOnce(t, map[string]any{"message_id": "<m1@x>", "move_to": "Archive"})
+	require.NoError(t, err)
+	assert.Equal(t, "not_found", res.Outcome)
+	assert.Len(t, f.srv.Fetch(mailbox, "Archive"), 1)
 }

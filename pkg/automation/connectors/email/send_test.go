@@ -240,7 +240,7 @@ func TestXOAUTH2SendAndRevocation(t *testing.T) {
 		_, err := (&sendNode{f.smtp.hub}).Execute(ctx, in)
 		assert.Equal(t, catalog.CallUnauthorized, callError(t, err).Code)
 		assert.Equal(t, connectors.StatusNeedsReauth, f.conns.statusOf(imapConn.ID))
-		assert.NotEqual(t, connectors.StatusNeedsReauth, f.conns.statusOf(smtpConn.ID), "the refusing connection is the engine's and OAuth2's to mark")
+		assert.Equal(t, connectors.StatusNeedsReauth, f.conns.statusOf(smtpConn.ID), "the mailbox's cursor was seeded first, which met the refusal on the receiving side: the whole sign-in is marked")
 	})
 }
 
