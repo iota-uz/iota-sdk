@@ -150,10 +150,16 @@ func (b *eskizBackend) send(ctx context.Context, in catalog.CallInput, m message
 	res, err := svc.SendSMS(withTrace(ctx, trace), req)
 	if err != nil {
 		hp := trace.snapshot()
-		if trace.sendRefused() && !hp.send && hp.status == http.StatusOK {
-			// The session token had expired: it was renewed (the credentials are good), the SMS was
-			// refused and is not sent again. The next send uses the new token.
-			return accepted{}, &failure{err: &catalog.CallError{Code: catalog.CallUnavailable, Message: "the session token had expired and was renewed; nothing was sent"}}
+		if trace.sendRefused() {
+			// The send endpoint refused the SMS with a 401, so it was not accepted and the answers after
+			// it (the token renewal) decide nothing about repeating it: never a retry.
+			switch {
+			case hp.status == http.StatusOK:
+				return accepted{}, &failure{err: &catalog.CallError{Code: catalog.CallUnavailable, Message: "the session token had expired and was renewed; nothing was sent"}}
+			case hp.status >= 400 && hp.status < 500 && hp.status != http.StatusTooManyRequests && hp.status != http.StatusRequestTimeout:
+				return accepted{}, &failure{err: &catalog.CallError{Code: catalog.CallUnauthorized, Message: "the provider refused the credentials"}}
+			}
+			return accepted{}, &failure{err: &catalog.CallError{Code: catalog.CallUnavailable, Message: "the session token had expired and could not be renewed; nothing was sent"}}
 		}
 		f := classify(hp, scrub(eskizDetail(err), in.Credentials["password"], in.Credentials["email"]))
 		return accepted{}, &f

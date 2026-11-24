@@ -12,7 +12,12 @@ type Eskiz struct {
 	base
 	Email, Password string
 
+	// LoginScript, when set, answers the n-th login request (1 for the first) instead of the fake; a
+	// Reply with Status 0 keeps the fake's own answer.
+	LoginScript func(n int) Reply
+
 	lmu      sync.Mutex
+	loginReq int
 	logins   int
 	requests int
 	tokens   map[string]bool
@@ -44,6 +49,16 @@ func (e *Eskiz) ExpireTokens() {
 }
 
 func (e *Eskiz) login(w http.ResponseWriter, r *http.Request) {
+	e.lmu.Lock()
+	e.loginReq++
+	n, script := e.loginReq, e.LoginScript
+	e.lmu.Unlock()
+	if script != nil {
+		if rep := script(n); rep.Status != 0 {
+			e.write(w, r, rep, rep.Status, "")
+			return
+		}
+	}
 	_ = r.ParseMultipartForm(1 << 20)
 	if r.FormValue("email") != e.Email || r.FormValue("password") != e.Password {
 		w.Header().Set("Content-Type", "application/json")

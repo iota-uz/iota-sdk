@@ -652,3 +652,23 @@ func TestUnknownOutcomeIsTerminal(t *testing.T) {
 		assert.True(t, tu.UnknownIsTerminal())
 	}
 }
+
+func TestFailedRenewalAfter401DoesNotRepeatTheSMS(t *testing.T) {
+	for name, status := range map[string]int{"429": 429, "408": 408, "503": 503} {
+		t.Run(name, func(t *testing.T) {
+			f, fake, _ := newFixture(t, sms.KindEskiz)
+			_, err := f.exec()
+			require.NoError(t, err)
+			fake.ExpireTokens()
+			fake.LoginScript = func(int) smstest.Reply {
+				return smstest.Reply{Status: status, Header: map[string]string{"Retry-After": "2"}}
+			}
+			before := fake.SendRequests()
+			res, err := f.exec()
+			require.Error(t, err, "no retry is asked for")
+			assert.Zero(t, res.RetryAfter)
+			assert.Equal(t, catalog.CallUnavailable, callErr(t, err).Code)
+			assert.Equal(t, before+1, fake.SendRequests(), "the SMS went to the send endpoint once")
+		})
+	}
+}
