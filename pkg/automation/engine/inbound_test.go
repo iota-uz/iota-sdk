@@ -375,6 +375,37 @@ func TestStalePollDoesNotSetNeedsReauth(t *testing.T) {
 	assert.Equal(t, connectors.StatusConnected, c.Status, "the stale poll did not stop polling")
 }
 
+// A poll whose credentials a reauthorization replaced while it ran, and that then got 401, leaves the
+// connection connected: no other poller took it over, but the refused credentials are no longer its.
+func TestPollAfterReauthorizationDoesNotSetNeedsReauth(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), messageGraph(`{"id": "m", "event": "acme.message.v1"}`))
+	ctx := context.Background()
+	now := time.Now()
+	poller := p.rt.NewPoller(engine.PollerConfig{Connections: ae.store, Connectors: ae.dir, Clock: func() time.Time { return now }})
+	ae.acme.onPoll = func() {
+		// The user reauthorizes the connection meanwhile; the provider then refuses the old request.
+		c, _, err := ae.store.Get(ctx, ae.tenant, ae.conn.ID)
+		require.NoError(t, err)
+		_, err = ae.store.Save(ctx, c, connectors.Credentials{"token": acmeToken, "secret": acmeSig})
+		require.NoError(t, err)
+		ae.acme.mu.Lock()
+		ae.acme.pollErr = &catalog.CallError{Code: catalog.CallUnauthorized, Message: "old token"}
+		ae.acme.mu.Unlock()
+	}
+	_, err := poller.PollOnce(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), ae.acme.polls.Load(), "no other poll ran")
+	c, _, err := ae.store.Get(ctx, ae.tenant, ae.conn.ID)
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusConnected, c.Status, "the reauthorized connection keeps polling")
+	var owner string
+	require.NoError(t, ae.db.QueryRow(ctx, `SELECT coalesce(inbound->'poll'->>'owner', '') FROM automation.connections WHERE tenant_id = $1 AND id = $2`,
+		ae.tenant, ae.conn.ID).Scan(&owner))
+	assert.Empty(t, owner, "the claim is released")
+}
+
 // A poll whose claim waited for the connection's row lock past the interval is due an interval after
 // it got the lock, not after it began: the next poll does not follow it at once.
 func TestPollerIntervalCountsFromTheClaim(t *testing.T) {

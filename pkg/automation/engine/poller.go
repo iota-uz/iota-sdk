@@ -285,15 +285,18 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 		p.r.metrics.pollError(ctx, string(t.kind))
 		if errors.Is(err, connectors.ErrNeedsReauth) || isUnauthorized(err) {
 			// Polling stops until the connection is authorized again, only while this poll still owns the
-			// connection (checked and set under its row lock): a poll that outlived its claim with stale
-			// credentials does not stop a newer owner's polling.
+			// connection and its credentials are still the connection's (version, checked and set under the
+			// row lock): a poll that outlived its claim, or whose credentials a reauthorization replaced
+			// meanwhile, does not stop polling with credentials that work.
 			set, serr := p.cfg.Connections.SetStatusIf(ctx, t.tenant, t.id, connectors.StatusNeedsReauth, "the provider refused the credentials",
-				func(raw json.RawMessage) bool { return pollOwner(raw) == owner })
+				func(raw json.RawMessage, version int) bool { return pollOwner(raw) == owner && version == c.Version })
 			if serr != nil {
 				return now.Add(interval), errors.Join(serrors.Wrap(opPoll, serr), release())
 			}
 			if !set {
-				return now.Add(interval), nil // the claim was lost: the newer owner decides
+				// The claim was lost (the newer owner decides) or the credentials changed: the next poll
+				// uses the new ones.
+				return now.Add(interval), release()
 			}
 			return now.Add(p.cfg.Rescan), release()
 		}

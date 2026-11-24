@@ -465,7 +465,7 @@ func (s *store) SetStatus(ctx context.Context, tenantID, id uuid.UUID, status Co
 	return nil
 }
 
-func (s *store) SetStatusIf(ctx context.Context, tenantID, id uuid.UUID, status ConnectionStatus, reason string, cond func(state json.RawMessage) bool) (bool, error) {
+func (s *store) SetStatusIf(ctx context.Context, tenantID, id uuid.UUID, status ConnectionStatus, reason string, cond func(state json.RawMessage, version int) bool) (bool, error) {
 	const op = serrors.Op("automation.connectors.Store.SetStatusIf")
 	if err := s.configured(); err != nil {
 		return false, serrors.Wrap(op, err)
@@ -479,14 +479,15 @@ func (s *store) SetStatusIf(ctx context.Context, tenantID, id uuid.UUID, status 
 	set := false
 	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
 		var state []byte
-		err := tx.QueryRow(ctx, `SELECT inbound FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, tenantID, id).Scan(&state)
+		var version int
+		err := tx.QueryRow(ctx, `SELECT inbound, version FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, tenantID, id).Scan(&state, &version)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
 		if err != nil {
 			return err
 		}
-		if !cond(json.RawMessage(state)) {
+		if !cond(json.RawMessage(state), version) {
 			return nil
 		}
 		_, err = tx.Exec(ctx, `UPDATE automation.connections SET status = $3, status_reason = $4, version = version + 1, updated_at = now()
