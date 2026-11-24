@@ -149,6 +149,11 @@ func isNested(ctx context.Context) bool {
 func (e *Engine) Call(ctx context.Context, name string, input json.RawMessage) Result {
 	started := time.Now()
 	p, ok := PrincipalFrom(ctx)
+	if e.audit != nil {
+		ctx = context.WithValue(ctx, auditKey{}, &auditScope{audit: e.audit, base: AuditEntry{
+			RequestID: RequestIDFrom(ctx), Subject: p.Subject(), TenantID: p.TenantID.String(), ClientID: p.ClientID, Nested: isNested(ctx),
+		}})
+	}
 	res := e.call(ctx, p, ok, name, input)
 	if e.audit != nil {
 		entry := AuditEntry{
@@ -199,6 +204,28 @@ func (e *Engine) call(ctx context.Context, p Principal, authenticated bool, name
 		return Failed(Fail(CodeDependencyUnavailable, RecoveryRetryLater, "the tool returned an unserializable result"))
 	}
 	return res
+}
+
+type auditKey struct{}
+
+// auditScope is the call an Audit event belongs to.
+type auditScope struct {
+	audit Auditor
+	base  AuditEntry
+}
+
+// Audit records an event of the running call in the engine's audit with the call's principal, client and
+// request: what a handler decided inside a successful result (a refusal it reports as a plan issue, each
+// change it applied). tool names the event, such as "changes:automation.update". Outside a call of an
+// engine with an auditor it does nothing.
+func Audit(ctx context.Context, tool string, outcome Code, operationID string) {
+	s, ok := ctx.Value(auditKey{}).(*auditScope)
+	if !ok {
+		return
+	}
+	entry := s.base
+	entry.Tool, entry.Outcome, entry.OperationID = tool, outcome, operationID
+	s.audit.Record(ctx, entry)
 }
 
 func operationIDOf(data json.RawMessage) string {

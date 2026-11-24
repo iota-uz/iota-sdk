@@ -45,6 +45,13 @@ const (
 	DecisionsScripted = "scripted" // the Context; no credentials are read and no network call is made
 )
 
+// Which execute nodes a dry run calls for real (DryRunInput.RealCalls).
+const (
+	RealCallsAll       = ""
+	RealCallsDecisions = "decisions"
+	RealCallsNone      = "none"
+)
+
 // MaxDryRunEvents bounds DryRunInput.Events.
 const MaxDryRunEvents = 50
 
@@ -59,9 +66,13 @@ type DryRunInput struct {
 	Events []json.RawMessage
 	// Decisions is live, cached or scripted (default).
 	Decisions string
-	// MaxCalls bounds the real calls the dry run makes (live decisions, cache misses, execute nodes); a
-	// call past it fails with limit_exceeded. 0: no bound.
+	// MaxCalls bounds the real calls the dry run makes (live decisions, cache misses, execute nodes): the
+	// call past it is not made and the dry run fails with ErrLimitExceeded. 0: no bound.
 	MaxCalls int
+	// RealCalls narrows which execute nodes a live or cached dry run calls for real: RealCallsAll (the
+	// default, the editor's), RealCallsDecisions (decision nodes only) or RealCallsNone (cached reads the
+	// cache only). A node not called is answered from Context, as a captured one.
+	RealCalls string
 }
 
 // DryRunResult is the trace of a dry run.
@@ -168,8 +179,13 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 	if err := au.r.service.authorize(a, PermAuthor); err != nil {
 		return DryRunResult{}, err
 	}
-	if len(in.Events) > MaxDryRunEvents {
-		return DryRunResult{}, fmt.Errorf("%w: a dry run takes at most %d events", ErrInvalidInput, MaxDryRunEvents)
+	if n := DryRunEventCount(in.Events); n > MaxDryRunEvents {
+		return DryRunResult{}, fmt.Errorf("%w: a dry run takes at most %d events, batches counted by their events; got %d", ErrLimitExceeded, MaxDryRunEvents, n)
+	}
+	switch in.RealCalls {
+	case RealCallsAll, RealCallsDecisions, RealCallsNone:
+	default:
+		return DryRunResult{}, fmt.Errorf("%w: real_calls is all, decisions or none", ErrInvalidInput)
 	}
 	mode := in.Decisions
 	switch mode {
@@ -232,7 +248,10 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 				params = effects[0].Params
 			}
 			res := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params,
-				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode, budget: budget})
+				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode, budget: budget, realCalls: in.RealCalls})
+			if res.script {
+				return graph.ExecAnswer{Script: true}
+			}
 			if res.err != nil {
 				return graph.ExecAnswer{Code: res.err.Code, Message: res.err.Message, Retryable: res.err.Retryable}
 			}
@@ -241,7 +260,27 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 		}
 	}
 	steps := interp.DryRun(normSubject(in.Subject), gctx, inputs, opts)
+	if budget.wasExceeded() {
+		return DryRunResult{}, fmt.Errorf("%w: a dry run makes at most %d real calls", ErrLimitExceeded, in.MaxCalls)
+	}
 	return DryRunResult{Trace: traceOf(interp, steps)}, nil
+}
+
+// DryRunEventCount is how many events a dry run's input feeds: a batch {"events": [...]} counts its
+// entries, anything else one.
+func DryRunEventCount(events []json.RawMessage) int {
+	n := 0
+	for _, raw := range events {
+		var batch struct {
+			Events []json.RawMessage `json:"events"`
+		}
+		if json.Unmarshal(raw, &batch) == nil && len(batch.Events) > 0 {
+			n += len(batch.Events)
+			continue
+		}
+		n++
+	}
+	return n
 }
 
 // traceOf maps the interpreter's trace to the engine's.
@@ -479,12 +518,15 @@ type directCall struct {
 	decisions string
 	// budget, when set, bounds the real calls of a dry run.
 	budget *callBudget
+	// realCalls narrows the nodes called for real (DryRunInput.RealCalls).
+	realCalls string
 }
 
 // callBudget is how many real calls a dry run may still make.
 type callBudget struct {
-	mu   sync.Mutex
-	left int
+	mu       sync.Mutex
+	left     int
+	exceeded bool
 }
 
 func (b *callBudget) take() bool {
@@ -494,10 +536,20 @@ func (b *callBudget) take() bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.left <= 0 {
+		b.exceeded = true
 		return false
 	}
 	b.left--
 	return true
+}
+
+func (b *callBudget) wasExceeded() bool {
+	if b == nil {
+		return false
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.exceeded
 }
 
 type directResult struct {
@@ -505,6 +557,8 @@ type directResult struct {
 	output  json.RawMessage
 	err     *StepError
 	masker  Masker // the connection's: what the node logged is masked with it
+	// script: the dry run may not make this call; the node is answered from the context.
+	script bool
 }
 
 // execDirect runs a call node once, as the actor, with the connection the actor may use; the output and
@@ -514,6 +568,9 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	cn, isCall := nt.(catalog.CallNode)
 	if !ok || !isCall {
 		return directResult{err: &StepError{Code: CodeUnsupported, Message: c.node.Type + " has no call executor"}}
+	}
+	if _, decides := cn.(DecisionNode); !decides && c.realCalls != RealCallsAll {
+		return directResult{script: true}
 	}
 	if perm, ok := cn.(catalog.PermissionedNode); ok && perm.Permission() != "" && !c.as.Has(perm.Permission()) {
 		return directResult{err: &StepError{Code: CodeForbidden, Message: "you may not use " + c.node.Type}}
@@ -559,6 +616,10 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 				}
 			}
 		}
+	}
+	if c.realCalls == RealCallsNone {
+		// Offline: only the cache answers; a miss is answered from the context.
+		return directResult{script: true}
 	}
 	if !c.budget.take() {
 		return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: CodeLimitExceeded, Message: "the dry run reached its limit of real calls"}}

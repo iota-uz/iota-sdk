@@ -386,28 +386,38 @@ MCP operations for automations (#1340, `pkg/automation/mcpops`) live in the shar
 of `pkg/mcp` (#1084) and are reached through `lookup` / `execute` (#1314). Every call acts as
 `Actor{Origin: agent}` for the MCP principal's user; access is the grant's scopes
 (`automations:read`, `automations:author`) intersected with `Automations.Read` /
-`Automations.Author`, checked on every call.
+`Automations.Author`, checked on every call. An author reads the graphs it edits
+(`Service.Get`/`GetVersion` admit `Automations.Author`).
 
 - Read-only tools: `automation_catalog` (projected for the principal), `automation_list`,
   `automation_get` (with `revision` and `layout_revision`), `automation_runs`,
   `automation_run_get` (steps derived from fields the principal may not read are hidden),
-  `automation_validate`, `automation_dry_run` (≤ 50 events; `decisions` scripted by default,
-  `cached`, or `live` with `allow_live: true`; at most 20 real calls). Test node is not offered:
-  it makes a real external effect.
+  `automation_validate`, `automation_dry_run`. A dry run takes ≤ 50 events (the entries of a
+  batch counted one by one) and answers calls from context: `decisions` is `scripted` (default),
+  `cached` (decision nodes from the decision cache, else context) or `live`. Real calls happen
+  only with `allow_live: true`, only for decision nodes, at most 20; beyond either limit the
+  answer is `limit_exceeded`. Test node is not offered: it makes a real external effect.
 - Writes are `changes.Kind`s of entity `automation` behind `prepare_changes` / `apply_changes`:
   `automation.create` (`{graph, layout?}`), `automation.update` (`{graph, layout?, note?}`,
-  `expected_revision` is the latest version) and `automation.layout` (`{positions}`,
-  `expected_revision` is the layout revision). A stale revision is the shared conflict. Plan
-  validates the graph as the principal (issues under `/fields/graph/...`); any `fields.enabled`
-  is an issue `HUMAN_REQUIRED` and the plan is invalid. No change needs approval: a saved
-  version never runs until a person enables it. Apply joins the transaction of the operation
-  (`engine.WithTx`), so a retried `apply_changes` never saves a graph twice; the receipt item's
-  `result` is `{id, version, enabled: false | <enabled_version>, editor_url}`.
+  `expected_revision` is the latest version; a stale one is the shared `revision_mismatch`) and
+  `automation.layout` (`fields: {id, base_revision, positions}`, the base is `layout_revision`; a
+  stale one is `VERSION_CONFLICT` with the current revision, in plan and in apply). Plan validates
+  the graph as the principal (issues under `/fields/graph/...`). Fields naming what only a person
+  does — `enabled`, `enabled_version`, `decision`, `decisions`, `task`, `connection`,
+  `connections` — are issues `HUMAN_REQUIRED` with the page where the person does it, and the plan
+  is invalid; any other unknown field is `invalid_input`. No change needs approval: a saved
+  version never runs until a person enables it. Apply works in the transaction of the operation
+  (`engine.WithTx`, reads included), so a retried `apply_changes` never saves a graph twice and an
+  apply needs one connection; the receipt item's `result` is
+  `{id, version, enabled: false | <enabled_version>, editor_url}`.
+- Audit: a plan's `HUMAN_REQUIRED` refusals and every applied change are entries of the MCP
+  engine's audit (`mcp.Audit`, tool `changes:automation.<op>`) with the principal and the client.
 - `HUMAN_REQUIRED` is the shared failure `approval_required` / `open_approval` with an issue of
-  code `HUMAN_REQUIRED` and the URL of the page where the person acts. `mcpops.NativeGuard`
-  plugs into `mcptools.Deps.HumanOnly`: the extension runtime's workflow actions (signal, decide
-  task, terminate, start v2, resolve, retry, resume) on instances of `automation.run` /
-  `automation.call` and their tasks answer it with the run's page; reads stay.
+  code `HUMAN_REQUIRED` and the URL of the page where the person acts. The engine marks
+  `automation.run` and `automation.call` human-only (`workflow.NativeContract.HumanOnly`), so the
+  extension runtime's workflow actions (signal, decide task, terminate, start v2, resolve, retry,
+  resume) on their instances and tasks answer it with the run's page (`Config.Links.RunURL`)
+  wherever the workflow tools are registered, the standard wiring included; reads stay.
 
 ## 9. Code node
 

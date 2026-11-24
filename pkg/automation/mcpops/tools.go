@@ -111,9 +111,10 @@ func Tools(svc engine.Service, auth engine.Authoring, reg catalog.Registry, urls
 	add(newTool(t.o, mcp.Spec{
 		Name: ToolDryRun,
 		Description: "Run a graph (given, or a saved version by id) over a sequence of events without persisting a run or " +
-			"making effects: effects are captured. decisions: scripted (default; answers come from context, no network call), " +
-			"cached (cached answers, a real call on a miss) or live (real calls; needs allow_live). At most 50 events and " +
-			strconv.Itoa(MaxLiveCalls) + " real calls. Requires " + engine.PermAuthor + ".",
+			"making effects: effects are captured and calls are answered from context. decisions: scripted (default), cached " +
+			"(decision nodes answered from the decision cache, else from context) or live. Real calls happen only with " +
+			"allow_live: true, only for decision nodes (live, or cache misses), at most " + strconv.Itoa(MaxLiveCalls) +
+			"; more is limit_exceeded. At most 50 events, the entries of a batch counted one by one. Requires " + engine.PermAuthor + ".",
 		Input: dryRunSchema(), Annotations: readOnly("Dry-run automation"), Policy: AuthorPolicy,
 	}, t.dryRun))
 	if len(errs) > 0 {
@@ -466,6 +467,7 @@ type runGetOut struct {
 	Tokens       []tokenOut        `json:"tokens"`
 	Steps        []stepOut         `json:"steps"`
 	Waits        []waitOut         `json:"waits"`
+	InstanceID   *string           `json:"instance_id"`
 	EditorURL    string            `json:"editor_url"`
 }
 
@@ -490,6 +492,10 @@ func (t *tools) runGet(ctx context.Context, a engine.Actor, in runGetIn) (runGet
 		Subject: d.Subject, CurrentNodes: append([]string{}, d.CurrentNodes...), Error: d.Error,
 		Tokens: make([]tokenOut, 0, len(d.Tokens)), Steps: make([]stepOut, 0, len(d.Steps)), Waits: make([]waitOut, 0, len(d.Waits)),
 		EditorURL: t.urls.Run(d.AutomationID, d.RunID)}
+	if d.InstanceID != nil {
+		inst := d.InstanceID.String()
+		out.InstanceID = &inst
+	}
 	for _, tk := range d.Tokens {
 		to := tokenOut{ID: tk.ID.String(), NodeID: tk.NodeID, Status: tk.Status, Branch: tk.Branch, ForeachIndex: tk.ForeachIndex}
 		if tk.Parent != nil {
@@ -554,7 +560,7 @@ func dryRunSchema() *jsonschema.Schema {
 		"events": {Type: "array", Items: &jsonschema.Schema{Type: "object"},
 			Description: `At most 50 events fed to triggers and waits: {kind, ...payload}, {"timeout": true} or {"events": [...]}; more is limit_exceeded.`},
 		"decisions":  {Type: "string", Enum: []any{engine.DecisionsScripted, engine.DecisionsCached, engine.DecisionsLive}},
-		"allow_live": {Type: "boolean", Description: "Required for decisions live: execute nodes make real calls."},
+		"allow_live": {Type: "boolean", Description: "Lets decision nodes make real calls (required for decisions live); nothing else ever does."},
 	}, "subject", "events")
 	s.OneOf = []*jsonschema.Schema{{Required: []string{"graph"}}, {Required: []string{"id"}}}
 	return s
@@ -588,8 +594,8 @@ type dryRunOut struct {
 }
 
 func (t *tools) dryRun(ctx context.Context, a engine.Actor, in dryRunIn) (dryRunOut, error) {
-	if len(in.Events) > engine.MaxDryRunEvents {
-		return dryRunOut{}, mcp.Fail(mcp.CodeLimitExceeded, mcp.RecoveryFixInput, "a dry run takes at most 50 events")
+	if engine.DryRunEventCount(in.Events) > engine.MaxDryRunEvents {
+		return dryRunOut{}, mcp.Fail(mcp.CodeLimitExceeded, mcp.RecoveryFixInput, "a dry run takes at most 50 events, the entries of a batch counted one by one")
 	}
 	if len(in.Graph) > MaxGraphBytes {
 		return dryRunOut{}, tooLarge("/graph")
@@ -618,9 +624,12 @@ func (t *tools) dryRun(ctx context.Context, a engine.Actor, in dryRunIn) (dryRun
 		}
 		raw = v.Graph
 	}
-	dr := engine.DryRunInput{Graph: raw, Subject: in.Subject, Context: in.Context, Events: in.Events, Decisions: in.Decisions}
-	if dr.Decisions != "" && dr.Decisions != engine.DecisionsScripted {
-		dr.MaxCalls = MaxLiveCalls
+	dr := engine.DryRunInput{Graph: raw, Subject: in.Subject, Context: in.Context, Events: in.Events, Decisions: in.Decisions,
+		RealCalls: engine.RealCallsNone}
+	if in.AllowLive {
+		// Only decision nodes call for real, at most MaxLiveCalls times; every other execute node is
+		// answered from context, as a captured one.
+		dr.RealCalls, dr.MaxCalls = engine.RealCallsDecisions, MaxLiveCalls
 	}
 	res, err := t.auth.DryRun(ctx, a, dr)
 	if err != nil {

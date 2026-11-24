@@ -47,8 +47,9 @@ type Deps struct {
 	// Docs enables ext_docs, the documentation packages ship for their
 	// users; nil leaves the tool out.
 	Docs *pkgdocs.Library
-	// HumanOnly guards the instances only a person may act on (automations: pkg/automation/mcpops);
-	// nil guards none.
+	// HumanOnly guards the instances only a person may act on. Default: the native contracts the
+	// workflow engine marks human-only (workflow.NativeContract.HumanOnly, such as automation.run and
+	// automation.call), read through Manage.
 	HumanOnly HumanOnly
 }
 
@@ -60,6 +61,9 @@ func Tools(d Deps) ([]mcp.Tool, error) {
 	}
 	if d.Catalog == nil {
 		d.Catalog = d.Manage.Catalog()
+	}
+	if d.HumanOnly == nil {
+		d.HumanOnly = managedHumanOnly{d.Manage}
 	}
 	if d.Reference == nil {
 		d.Reference = reference.New(d.Catalog)

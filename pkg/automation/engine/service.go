@@ -15,6 +15,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
@@ -43,6 +44,28 @@ func (s *service) authorize(a Actor, perms ...string) error {
 
 // inTx runs fn in a transaction of its own, or in a savepoint of the transaction the caller joined with
 // WithTx.
+// authorizeAny admits an actor that holds any one of perms.
+func (s *service) authorizeAny(a Actor, perms ...string) error {
+	if err := s.authorize(a); err != nil {
+		return err
+	}
+	for _, p := range perms {
+		if a.Subject.Has(p) {
+			return nil
+		}
+	}
+	return ErrForbidden
+}
+
+// reader is the transaction the caller joined with WithTx, else the pool: reads of a joined call never
+// wait for a second connection while the caller holds one.
+func (r *Runtime) reader(ctx context.Context) querier {
+	if outer, ok := ctx.Value(joinedTxKey{}).(pgx.Tx); ok && outer != nil {
+		return outer
+	}
+	return r.cfg.DB
+}
+
 func (s *service) inTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
 	if outer, ok := ctx.Value(joinedTxKey{}).(pgx.Tx); ok && outer != nil {
 		return pgx.BeginFunc(ctx, outer, fn)
@@ -52,12 +75,13 @@ func (s *service) inTx(ctx context.Context, fn func(tx pgx.Tx) error) error {
 
 type joinedTxKey struct{}
 
-// WithTx makes the writes of the Service called with the returned context join tx (as a savepoint):
-// they commit or roll back with the caller's transaction. A guarded change (pkg/mcp/changes) applies a
-// graph in the transaction that records its operation, so a retry after a lost commit never saves the
-// graph twice.
+// WithTx makes the Service called with the returned context work in tx: its writes join it as a
+// savepoint and commit or roll back with the caller's transaction, and its reads use it, so the call
+// never waits for a second connection. A guarded change (pkg/mcp/changes) applies a graph in the
+// transaction that records its operation, so a retry after a lost commit never saves the graph twice.
 func WithTx(ctx context.Context, tx pgx.Tx) context.Context {
-	return context.WithValue(ctx, joinedTxKey{}, tx)
+	// The tx is also the ambient one of pkg/composables: the catalog's connection store reads through it.
+	return context.WithValue(composables.WithTx(ctx, tx), joinedTxKey{}, tx)
 }
 
 func layoutJSON(l graph.Layout) ([]byte, error) {
@@ -126,7 +150,7 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 			return Version{}, &ValidationError{Errors: errs}
 		}
 	}
-	if _, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false); err != nil {
+	if _, err := loadAutomation(ctx, s.r.reader(ctx), a.TenantID, id, false); err != nil {
 		return Version{}, err
 	}
 	v, err := s.r.validate(ctx, a, in.Graph)
@@ -376,22 +400,23 @@ func (s *service) SaveLayout(ctx context.Context, a Actor, id uuid.UUID, in Layo
 	return revision, nil
 }
 
+// Get and GetVersion admit an author as well: who edits a graph reads it.
 func (s *service) Get(ctx context.Context, a Actor, id uuid.UUID) (Automation, error) {
-	if err := s.authorize(a, PermRead); err != nil {
+	if err := s.authorizeAny(a, PermRead, PermAuthor); err != nil {
 		return Automation{}, err
 	}
-	am, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false)
+	am, err := loadAutomation(ctx, s.r.reader(ctx), a.TenantID, id, false)
 	return am.Automation, err
 }
 
 func (s *service) GetVersion(ctx context.Context, a Actor, id uuid.UUID, version int) (Version, error) {
-	if err := s.authorize(a, PermRead); err != nil {
+	if err := s.authorizeAny(a, PermRead, PermAuthor); err != nil {
 		return Version{}, err
 	}
-	if _, err := loadAutomation(ctx, s.r.cfg.DB, a.TenantID, id, false); err != nil {
+	if _, err := loadAutomation(ctx, s.r.reader(ctx), a.TenantID, id, false); err != nil {
 		return Version{}, err
 	}
-	v, err := loadVersion(ctx, s.r.cfg.DB, a.TenantID, id, version)
+	v, err := loadVersion(ctx, s.r.reader(ctx), a.TenantID, id, version)
 	return v.Version, err
 }
 

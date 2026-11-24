@@ -7,15 +7,19 @@
 // arguments. A version an agent saves never runs until a person enables it. Enabling or disabling a
 // graph, deciding a human task and managing connections are not offered: they answer HUMAN_REQUIRED (the
 // shared failure contract approval_required/open_approval with issue code HUMAN_REQUIRED) and the URL of
-// the page where a person acts. NativeGuard extends the same refusal to the extension runtime's workflow
-// tools (pkg/extruntime/mcptools) for the instances of automation.run and automation.call.
+// the page where a person acts. The engine marks automation.run and automation.call human-only
+// (workflow.NativeContract.HumanOnly), so the extension runtime's workflow tools (pkg/extruntime/mcptools)
+// refuse the same actions on their instances and tasks wherever they are registered.
 //
 // Composition:
 //
 //	tools, err := mcpops.Tools(rt.Service(), rt.Authoring(), catalogRegistry, urls)
 //	registry.Register(tools...)
 //	changes.NewService(changes.Config{Kinds: append(kinds, mcpops.Kinds(rt.Service(), rt.Authoring(), urls)...), ...})
-//	mcptools.Register(registry, mcptools.Deps{..., HumanOnly: mcpops.NativeGuard(pool, urls)})
+//
+// HUMAN_REQUIRED refusals of a plan and every applied change are entries of the MCP engine's audit
+// (mcp.Audit), with the principal and the client. engine.Config.Links.RunURL is the run page the
+// workflow tools point to.
 package mcpops
 
 import (
@@ -64,6 +68,10 @@ type URLs interface {
 	Editor(id uuid.UUID, version int) string
 	// Run is the page of a run of a graph (the editor's Runs tab).
 	Run(id, runID uuid.UUID) string
+	// Automations is the list of graphs, where a person creates and enables them.
+	Automations() string
+	// Connections is the page where a person manages the tenant's connections.
+	Connections() string
 }
 
 // SubjectResolver builds the current rights of the principal's user from the context the MCP
@@ -77,7 +85,6 @@ type Option func(*options)
 type options struct {
 	subjects  SubjectResolver
 	behaviors *graph.Behaviors
-	audit     mcp.Auditor
 }
 
 // WithSubjects replaces how the acting user's rights are read.
@@ -86,10 +93,6 @@ func WithSubjects(r SubjectResolver) Option { return func(o *options) { o.subjec
 // WithBehaviors are the behaviors graphs run with (the engine's Config.Behaviors); default
 // graph.DefaultBehaviors.
 func WithBehaviors(b *graph.Behaviors) Option { return func(o *options) { o.behaviors = b } }
-
-// WithAuditor records the HUMAN_REQUIRED refusals of a plan (a refusal of a tool is recorded by the MCP
-// engine itself: its outcome is approval_required). Pass the MCP engine's auditor.
-func WithAuditor(a mcp.Auditor) Option { return func(o *options) { o.audit = a } }
 
 func buildOptions(opts []Option) options {
 	o := options{subjects: contextSubject}
@@ -133,15 +136,9 @@ func (o options) actorOf(ctx context.Context) (engine.Actor, mcp.Principal, erro
 	return engine.Actor{TenantID: p.TenantID, UserID: int64(p.UserID), Origin: engine.OriginAgent, Subject: sub}, p, nil
 }
 
-// recordHumanRequired puts a HUMAN_REQUIRED refusal of a plan in the MCP audit.
-func (o options) recordHumanRequired(ctx context.Context, p mcp.Principal, op string) {
-	if o.audit == nil {
-		return
-	}
-	o.audit.Record(ctx, mcp.AuditEntry{
-		RequestID: mcp.RequestIDFrom(ctx), Tool: "changes:" + Entity + "." + op, Subject: p.Subject(),
-		TenantID: p.TenantID.String(), ClientID: p.ClientID, Outcome: mcp.CodeApprovalRequired,
-	})
+// auditHumanRequired puts a HUMAN_REQUIRED refusal of a plan in the MCP engine's audit.
+func auditHumanRequired(ctx context.Context, op string) {
+	mcp.Audit(ctx, "changes:"+Entity+"."+op, mcp.CodeApprovalRequired, "")
 }
 
 // HumanRequired is the refusal of an action only a person may take at url.
@@ -201,7 +198,7 @@ func failure(err error) error {
 	case errors.As(err, &lc):
 		return mcp.Fail(mcp.CodeConflict, mcp.RecoveryReadThenPrepare,
 			"the layout changed: its revision is "+strconv.Itoa(lc.Revision)+"; read the graph again",
-			mcp.Issue{Path: "/expected_revision", Code: "VERSION_CONFLICT", Message: "current revision is " + strconv.Itoa(lc.Revision)})
+			mcp.Issue{Path: "/fields/base_revision", Code: "VERSION_CONFLICT", Message: "current revision is " + strconv.Itoa(lc.Revision)})
 	case errors.As(err, &vc):
 		return mcp.Fail(mcp.CodeConflict, mcp.RecoveryReadThenPrepare,
 			"another version was saved: the latest is "+strconv.Itoa(vc.Latest)+"; read the graph again",

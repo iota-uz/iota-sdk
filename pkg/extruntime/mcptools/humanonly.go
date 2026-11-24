@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/manage"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/mcp"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -16,7 +17,8 @@ import (
 const IssueHumanRequired = "HUMAN_REQUIRED"
 
 // HumanOnly tells which workflow instances only a person may act on, such as the instances of the
-// native contracts of automations (pkg/automation/mcpops.NativeGuard). Reads of them stay available;
+// native contracts of automations. The default (Deps.HumanOnly nil) asks the workflow engine through
+// manage.Service, which knows the contracts marked workflow.NativeContract.HumanOnly. Reads of them stay available;
 // every action tool (signal, decide, terminate, start v2, resolve, retry, resume) returns
 // HUMAN_REQUIRED with the page where the person acts.
 type HumanOnly interface {
@@ -64,4 +66,16 @@ func guardTask(ctx context.Context, g HumanOnly, actor spi.Subject, id uuid.UUID
 		return HumanRequired("/task_id", "decide this task", url)
 	}
 	return nil
+}
+
+// managedHumanOnly is the default guard: the human-only native contracts of the workflow engine the
+// management service runs on.
+type managedHumanOnly struct{ svc *manage.Service }
+
+func (m managedHumanOnly) Instance(ctx context.Context, tenant, id uuid.UUID) (string, bool, error) {
+	return m.svc.HumanOnlyInstance(ctx, tenant, id)
+}
+
+func (m managedHumanOnly) Task(ctx context.Context, tenant, taskID uuid.UUID) (string, bool, error) {
+	return m.svc.HumanOnlyTask(ctx, tenant, taskID)
 }

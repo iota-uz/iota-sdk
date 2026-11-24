@@ -172,8 +172,11 @@ func (r *Runtime) Service() Service { return r.service }
 
 // Natives are the native workflow contracts the engine implements: automation.run.
 func (r *Runtime) Natives() map[string]workflow.NativeContract {
+	call := r.calls.contract()
+	call.HumanOnly = r.humanPage
 	return map[string]workflow.NativeContract{
 		WorkflowID: {
+			HumanOnly:      r.humanPage,
 			Runner:         &runner{r: r},
 			Signals:        map[string]manifest.Type{InboxSignal: {Kind: manifest.KindJSON}, SubjectSignal: {Kind: manifest.KindJSON}},
 			Input:          &manifest.Type{Kind: manifest.KindObject, Properties: []manifest.Property{{Name: "run_id", Type: manifest.Type{Kind: manifest.KindString}}}},
@@ -181,7 +184,7 @@ func (r *Runtime) Natives() map[string]workflow.NativeContract {
 			Completion:     workflow.CancelPending,
 			StatusObserver: &observer{r: r},
 		},
-		CallWorkflowID: r.calls.contract(),
+		CallWorkflowID: call,
 	}
 }
 

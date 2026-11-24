@@ -52,20 +52,17 @@ func layoutSchema() *jsonschema.Schema {
 			Properties:           map[string]*jsonschema.Schema{"x": {Type: "number"}, "y": {Type: "number"}}}}
 }
 
-// enabledSchema accepts any value: the field exists only so that asking to enable gets HUMAN_REQUIRED
-// instead of a schema error.
-func enabledSchema() *jsonschema.Schema {
-	return &jsonschema.Schema{Description: "Not settable by an agent: any value is refused with HUMAN_REQUIRED; a person enables a graph in the editor."}
-}
-
 // fields is the decoded Change.Fields of every kind.
 type fields struct {
 	Graph     json.RawMessage `json:"graph"`
 	Layout    graph.Layout    `json:"layout"`
 	Note      string          `json:"note"`
 	Positions graph.Layout    `json:"positions"`
-	// enabled is set when the change names "enabled" at all.
-	enabled bool
+	ID        string          `json:"id"`
+	// BaseRevision is a pointer so that a missing base is told from 0.
+	BaseRevision *int `json:"base_revision"`
+	// human are the human-only fields the change names, in humanFields order.
+	human []humanField
 }
 
 func decodeFields(raw json.RawMessage) (fields, []mcp.Issue) {
@@ -77,19 +74,58 @@ func decodeFields(raw json.RawMessage) (fields, []mcp.Issue) {
 	if err := json.Unmarshal(raw, &f); err != nil {
 		return f, []mcp.Issue{{Path: "/fields", Code: string(mcp.CodeInvalidInput), Message: "fields do not match the schema"}}
 	}
-	_, f.enabled = present["enabled"]
+	for _, h := range humanFields {
+		if _, ok := present[h.name]; ok {
+			f.human = append(f.human, h)
+		}
+	}
 	return f, nil
 }
 
-// check is what every kind checks before the graph: the human-only field and the sizes and layouts.
-func (b base) check(ctx context.Context, op string, f fields, editorURL string) []mcp.Issue {
+// humanField is a field of a change only a person may act on: asking for it is refused with
+// HUMAN_REQUIRED and the page where the person does it.
+type humanField struct {
+	name   string
+	action string
+	page   func(u URLs, id uuid.UUID) string
+}
+
+// humanFields are the actions an agent is not offered: enabling or disabling a graph, deciding a human
+// task of its runs and managing connections.
+var humanFields = []humanField{
+	{"enabled", "enable or disable an automation: save it, then a person enables it in the editor", editorOrList},
+	{"enabled_version", "choose the version an automation runs: a person enables a version in the editor", editorOrList},
+	{"decision", "decide a human task of an automation run", editorOrList},
+	{"decisions", "decide human tasks of an automation run", editorOrList},
+	{"task", "act on a human task of an automation run", editorOrList},
+	{"connection", "create, change or delete a connection", func(u URLs, _ uuid.UUID) string { return u.Connections() }},
+	{"connections", "create, change or delete connections", func(u URLs, _ uuid.UUID) string { return u.Connections() }},
+}
+
+func editorOrList(u URLs, id uuid.UUID) string {
+	if id == uuid.Nil {
+		return u.Automations()
+	}
+	return u.Editor(id, 0)
+}
+
+// withHumanFields adds the human-only fields to a kind's fields schema: any value is accepted, so the
+// request gets HUMAN_REQUIRED from Plan instead of a schema error.
+func withHumanFields(s *jsonschema.Schema) *jsonschema.Schema {
+	for _, f := range humanFields {
+		s.Properties[f.name] = &jsonschema.Schema{Description: "Not settable by an agent: only a person may " + f.action + "; any value is refused with HUMAN_REQUIRED."}
+	}
+	return s
+}
+
+// check is what every kind checks before the graph: the human-only fields and the sizes and layouts.
+func (b base) check(ctx context.Context, op string, f fields, id uuid.UUID) []mcp.Issue {
 	var issues []mcp.Issue
-	if f.enabled {
-		if p, ok := mcp.PrincipalFrom(ctx); ok {
-			b.o.recordHumanRequired(ctx, p, op)
-		}
-		action := "enable or disable an automation: save it, then a person enables it in the editor"
-		issues = append(issues, mcp.Issue{Path: "/fields/enabled", Code: IssueHumanRequired, Message: humanMessage(action, editorURL)})
+	for _, h := range f.human {
+		issues = append(issues, mcp.Issue{Path: "/fields/" + h.name, Code: IssueHumanRequired, Message: humanMessage(h.action, h.page(b.urls, id))})
+	}
+	if len(f.human) > 0 {
+		auditHumanRequired(ctx, op)
 	}
 	if len(f.Graph) > MaxGraphBytes {
 		issues = append(issues, mcp.Issue{Path: "/fields/graph", Code: string(mcp.CodeLimitExceeded), Message: "a graph is at most 1 MiB"})
@@ -223,11 +259,10 @@ func (createKind) Description() string {
 }
 
 func (createKind) Fields() *jsonschema.Schema {
-	return objectSchema(map[string]*jsonschema.Schema{
-		"graph":   {Type: "object", Description: "The graph document; automation_catalog returns its JSON Schema as format."},
-		"layout":  layoutSchema(),
-		"enabled": enabledSchema(),
-	}, "graph")
+	return withHumanFields(objectSchema(map[string]*jsonschema.Schema{
+		"graph":  {Type: "object", Description: "The graph document; automation_catalog returns its JSON Schema as format."},
+		"layout": layoutSchema(),
+	}, "graph"))
 }
 
 func (k createKind) Plan(ctx context.Context, c changes.Change) (changes.Planned, error) {
@@ -239,7 +274,7 @@ func (k createKind) Plan(ctx context.Context, c changes.Change) (changes.Planned
 	if len(issues) > 0 {
 		return changes.Planned{Errors: issues}, nil
 	}
-	p := changes.Planned{Errors: k.check(ctx, OpCreate, f, "")}
+	p := changes.Planned{Errors: k.check(ctx, OpCreate, f, uuid.Nil)}
 	if len(f.Graph) <= MaxGraphBytes {
 		errs, warns, err := k.validateGraph(ctx, a, f.Graph)
 		if err != nil {
@@ -262,7 +297,7 @@ func (k createKind) Apply(ctx context.Context, c changes.Change) (changes.Applie
 		return changes.Applied{}, err
 	}
 	f, issues := decodeFields(c.Fields)
-	if len(issues) > 0 || f.enabled {
+	if len(issues) > 0 || len(f.human) > 0 {
 		return changes.Applied{}, mcp.Fail(mcp.CodeInvalidInput, mcp.RecoveryReadThenPrepare, "the change is not applicable")
 	}
 	am, v, err := k.svc.Create(joined(ctx), a, engine.CreateInput{Graph: f.Graph, Layout: f.Layout})
@@ -286,12 +321,11 @@ func (updateKind) Description() string {
 }
 
 func (updateKind) Fields() *jsonschema.Schema {
-	return objectSchema(map[string]*jsonschema.Schema{
-		"graph":   {Type: "object", Description: "The whole graph document of the new version."},
-		"layout":  layoutSchema(),
-		"note":    {Type: "string", MaxLength: jsonschema.Ptr(2000), Description: "What the version changes, shown in the version list."},
-		"enabled": enabledSchema(),
-	}, "graph")
+	return withHumanFields(objectSchema(map[string]*jsonschema.Schema{
+		"graph":  {Type: "object", Description: "The whole graph document of the new version."},
+		"layout": layoutSchema(),
+		"note":   {Type: "string", MaxLength: jsonschema.Ptr(2000), Description: "What the version changes, shown in the version list."},
+	}, "graph"))
 }
 
 func (k updateKind) Plan(ctx context.Context, c changes.Change) (changes.Planned, error) {
@@ -314,7 +348,7 @@ func (k updateKind) Plan(ctx context.Context, c changes.Change) (changes.Planned
 	if err != nil {
 		return changes.Planned{}, failure(err)
 	}
-	p := changes.Planned{Revision: strconv.Itoa(am.LatestVersion), Errors: k.check(ctx, OpUpdate, f, k.urls.Editor(id, 0))}
+	p := changes.Planned{Revision: strconv.Itoa(am.LatestVersion), Errors: k.check(ctx, OpUpdate, f, id)}
 	if len(f.Graph) <= MaxGraphBytes {
 		errs, warns, err := k.validateGraph(ctx, a, f.Graph)
 		if err != nil {
@@ -345,7 +379,7 @@ func (k updateKind) Revision(ctx context.Context, rawID string) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	am, err := k.svc.Get(ctx, a, id)
+	am, err := k.svc.Get(joined(ctx), a, id)
 	if err != nil {
 		return "", failure(err)
 	}
@@ -363,10 +397,10 @@ func (k updateKind) Apply(ctx context.Context, c changes.Change) (changes.Applie
 	}
 	f, issues := decodeFields(c.Fields)
 	baseVersion, perr := strconv.Atoi(c.ExpectedRevision)
-	if len(issues) > 0 || f.enabled || perr != nil {
+	if len(issues) > 0 || len(f.human) > 0 || perr != nil {
 		return changes.Applied{}, mcp.Fail(mcp.CodeInvalidInput, mcp.RecoveryReadThenPrepare, "the change is not applicable")
 	}
-	am, err := k.svc.Get(ctx, a, id)
+	am, err := k.svc.Get(joined(ctx), a, id)
 	if err != nil {
 		return changes.Applied{}, failure(err)
 	}
@@ -381,17 +415,24 @@ func (k updateKind) Apply(ctx context.Context, c changes.Change) (changes.Applie
 
 // ---- automation.layout ----
 
+// layoutKind moves nodes on the canvas: {id, base_revision, positions}. The layout is outside the
+// versions, so its base is the layout revision of automation_get, carried in fields rather than as
+// expected_revision; a stale base is VERSION_CONFLICT with the current revision.
 type layoutKind struct{ base }
 
 func (layoutKind) Op() string     { return OpLayout }
-func (layoutKind) Existing() bool { return true }
+func (layoutKind) Existing() bool { return false }
 func (layoutKind) Description() string {
-	return "Move nodes on the canvas: positions are merged into the layout, no version is created. expected_revision is " +
-		"layout_revision as automation_get returns it; a stale one is a conflict."
+	return "Move nodes on the canvas: positions are merged into the layout, no version is created. base_revision is " +
+		"layout_revision as automation_get returns it; a stale one is VERSION_CONFLICT: read the graph again."
 }
 
 func (layoutKind) Fields() *jsonschema.Schema {
-	return objectSchema(map[string]*jsonschema.Schema{"positions": layoutSchema(), "enabled": enabledSchema()}, "positions")
+	return withHumanFields(objectSchema(map[string]*jsonschema.Schema{
+		"id":            {Type: "string", Format: "uuid"},
+		"base_revision": {Type: "integer", Minimum: jsonschema.Ptr(1.0)},
+		"positions":     layoutSchema(),
+	}, "id", "base_revision", "positions"))
 }
 
 type layoutResult struct {
@@ -405,22 +446,26 @@ func (k layoutKind) Plan(ctx context.Context, c changes.Change) (changes.Planned
 	if err != nil {
 		return changes.Planned{}, err
 	}
-	id, issues := existingID(c)
-	if len(issues) > 0 {
-		return changes.Planned{Errors: issues}, nil
-	}
 	f, issues := decodeFields(c.Fields)
 	if len(issues) > 0 {
 		return changes.Planned{Errors: issues}, nil
 	}
+	id, err := uuid.Parse(f.ID)
+	if err != nil {
+		return changes.Planned{Errors: []mcp.Issue{{Path: "/fields/id", Code: "uuid", Message: "id must be a UUID"}}}, nil
+	}
 	am, err := k.svc.Get(ctx, a, id)
 	if errors.Is(err, engine.ErrNotFound) {
-		return changes.Planned{Errors: notFound(), Revision: c.ExpectedRevision}, nil
+		return changes.Planned{Errors: []mcp.Issue{{Path: "/fields/id", Code: string(mcp.CodeNotFound), Message: "the automation is not found"}}}, nil
 	}
 	if err != nil {
 		return changes.Planned{}, failure(err)
 	}
-	p := changes.Planned{Revision: strconv.Itoa(am.LayoutRevision), Errors: k.check(ctx, OpLayout, f, k.urls.Editor(id, 0))}
+	p := changes.Planned{Errors: k.check(ctx, OpLayout, f, id)}
+	if f.BaseRevision != nil && *f.BaseRevision != am.LayoutRevision {
+		p.Errors = append(p.Errors, mcp.Issue{Path: "/fields/base_revision", Code: "VERSION_CONFLICT",
+			Message: "the layout revision is " + strconv.Itoa(am.LayoutRevision) + "; read the graph again and prepare again"})
+	}
 	keys := make([]string, 0, len(f.Positions))
 	for key := range f.Positions {
 		keys = append(keys, key)
@@ -436,37 +481,21 @@ func (k layoutKind) Plan(ctx context.Context, c changes.Change) (changes.Planned
 	return p, nil
 }
 
-func (k layoutKind) Revision(ctx context.Context, rawID string) (string, error) {
-	a, _, err := k.o.actorOf(ctx)
-	if err != nil {
-		return "", err
-	}
-	id, err := parseID("id", rawID)
-	if err != nil {
-		return "", err
-	}
-	am, err := k.svc.Get(ctx, a, id)
-	if err != nil {
-		return "", failure(err)
-	}
-	return strconv.Itoa(am.LayoutRevision), nil
-}
+func (layoutKind) Revision(context.Context, string) (string, error) { return "", nil }
 
 func (k layoutKind) Apply(ctx context.Context, c changes.Change) (changes.Applied, error) {
 	a, _, err := k.o.actorOf(ctx)
 	if err != nil {
 		return changes.Applied{}, err
 	}
-	id, err := parseID("id", c.ID)
-	if err != nil {
-		return changes.Applied{}, err
-	}
 	f, issues := decodeFields(c.Fields)
-	baseRevision, perr := strconv.Atoi(c.ExpectedRevision)
-	if len(issues) > 0 || f.enabled || perr != nil {
+	id, perr := uuid.Parse(f.ID)
+	if len(issues) > 0 || len(f.human) > 0 || perr != nil || f.BaseRevision == nil {
 		return changes.Applied{}, mcp.Fail(mcp.CodeInvalidInput, mcp.RecoveryReadThenPrepare, "the change is not applicable")
 	}
-	rev, err := k.svc.SaveLayout(joined(ctx), a, id, engine.LayoutInput{BaseRevision: baseRevision, Positions: f.Positions})
+	// SaveLayout compares the base with the revision under the graph's lock: a save that won the race
+	// since the plan is VERSION_CONFLICT.
+	rev, err := k.svc.SaveLayout(joined(ctx), a, id, engine.LayoutInput{BaseRevision: *f.BaseRevision, Positions: f.Positions})
 	if err != nil {
 		return changes.Applied{}, failure(err)
 	}

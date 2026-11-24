@@ -325,6 +325,7 @@ var errTransient = errors.New("transient apply failure")
 func (s *Service) execute(ctx context.Context, p mcp.Principal, plan Plan, operation Operation) (Operation, error) {
 	const op serrors.Op = "changes.Service.execute"
 	var settled *Operation
+	committed := false
 	err := s.cfg.Store.InTx(ctx, func(txCtx context.Context) error {
 		locked, err := s.cfg.Store.LockOperation(txCtx, operation.ID)
 		if err != nil {
@@ -356,9 +357,16 @@ func (s *Service) execute(ctx context.Context, p mcp.Principal, plan Plan, opera
 			done.Status, done.ExternalEffects = OperationPending, EffectsPending
 		}
 		settled = &done
+		committed = true
 		return nil
 	})
 	if err == nil {
+		if committed {
+			// Each committed change is an entry of the MCP audit, with the principal and the client.
+			for _, c := range plan.Changes {
+				mcp.Audit(ctx, "changes:"+kindKey(c.Entity, c.Op), "", operation.ID)
+			}
+		}
 		return s.withRetry(*settled), nil
 	}
 	var f *mcp.Failure

@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,6 +24,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	corePerms "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
@@ -97,6 +100,38 @@ func (urls) Run(id, runID uuid.UUID) string {
 	return fmt.Sprintf("https://app.test/automations/%s?tab=runs&run=%s", id, runID)
 }
 
+func (urls) Automations() string { return "https://app.test/automations" }
+
+func (urls) Connections() string { return "https://app.test/settings/integrations" }
+
+// links are the engine's run links: the run page of urls.
+type links struct{}
+
+func (links) SubjectURL(context.Context, uuid.UUID, engine.SubjectRef) (string, error) {
+	return "", nil
+}
+
+func (links) RunURL(_, automationID, runID uuid.UUID) string { return urls{}.Run(automationID, runID) }
+
+// counted is a call node that counts its real calls; a decision node when decides.
+type counted struct {
+	specNode
+	calls *atomic.Int64
+}
+
+func (n counted) Idempotent() bool { return true }
+func (n counted) Execute(context.Context, catalog.CallInput) (catalog.CallResult, error) {
+	n.calls.Add(1)
+	return catalog.CallResult{Outcome: "done", Output: map[string]any{"label": "real"}}, nil
+}
+
+type decides struct{ counted }
+
+func (decides) DecisionKey(in catalog.CallInput) (string, bool) {
+	text, _ := in.Params["text"].(string)
+	return engine.DecisionKey("decide", text, "test-1", nil)
+}
+
 type recordingAuditor struct {
 	mu      sync.Mutex
 	entries []mcp.AuditEntry
@@ -139,8 +174,12 @@ type env struct {
 	mcp      *mcp.Engine
 	audit    *recordingAuditor
 	changes  *changes.Service
+	authz    mcp.Authorizer
 	users    map[uint]user.User
 	subjects *hosttest.Subjects
+	reg      catalog.Registry
+	decided  *atomic.Int64 // real calls of acme.decide
+	fetched  *atomic.Int64 // real calls of acme.fetch
 }
 
 func account(tenant uuid.UUID, id uint, perms ...permission.Permission) user.User {
@@ -160,7 +199,7 @@ func newEnv(t *testing.T) *env {
 		Isolation: itf.IsolationConfig{Mode: itf.IsolationCommitted},
 	})
 	scope := h.Scope(t)
-	e := &env{t: t, db: scope.Pool, tenant: scope.Tenant.ID, subjects: hosttest.NewSubjects(), audit: &recordingAuditor{}}
+	e := &env{t: t, db: scope.Pool, tenant: scope.Tenant.ID, subjects: hosttest.NewSubjects(), audit: &recordingAuditor{}, decided: &atomic.Int64{}, fetched: &atomic.Int64{}}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	all := []string{engine.PermRead, engine.PermAuthor, engine.PermEnable, engine.PermOperate, permClient}
 	e.subjects.Grant(ownerID, all...)
@@ -179,6 +218,16 @@ func newEnv(t *testing.T) *env {
 		DryRun: graph.DryRunCapture, Outcomes: []string{"approve", "reject"},
 		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}}}))
 
+	callSpec := func(typ string) graph.NodeSpec {
+		return graph.NodeSpec{Type: typ, Title: typ, Behavior: graph.BehaviorCall, DryRun: graph.DryRunExecute,
+			Params:   graph.MustSchemaParams(`{"type":"object","properties":{"text":{"type":"string"}},"additionalProperties":false}`),
+			Outcomes: []string{"done", "failed"}, FailedOutcome: "failed", Templates: []string{"text"},
+			Output: expr.Fields{{Name: "label", Field: expr.OptionalOf(expr.StringField)}}}
+	}
+	require.NoError(t, reg.RegisterNode(decides{counted{specNode{callSpec("acme.decide")}, e.decided}}))
+	require.NoError(t, reg.RegisterNode(counted{specNode{callSpec("acme.fetch")}, e.fetched}))
+	e.reg = reg
+
 	wf, err := workflow.New(workflow.Config{
 		DB: e.db, Subjects: e.subjects,
 		NativeSource: func() (map[string]workflow.NativeContract, error) { return e.rt.Natives(), nil },
@@ -187,7 +236,7 @@ func newEnv(t *testing.T) *env {
 	})
 	require.NoError(t, err)
 	t.Cleanup(wf.Shutdown)
-	rt, err := engine.NewRuntime(engine.Config{DB: e.db, Workflows: wf, Users: e.subjects, Catalog: reg, Tasks: tasks{}, Logger: logger})
+	rt, err := engine.NewRuntime(engine.Config{DB: e.db, Workflows: wf, Users: e.subjects, Catalog: reg, Tasks: tasks{}, Links: links{}, Logger: logger})
 	require.NoError(t, err)
 	e.wf, e.rt = wf, rt
 	d, err := events.NewDispatcher(events.Config{
@@ -199,7 +248,8 @@ func newEnv(t *testing.T) *env {
 	e.disp = d
 
 	e.users = map[uint]user.User{
-		ownerID:  account(e.tenant, ownerID, autoperms.AutomationsRead, autoperms.AutomationsAuthor, autoperms.AutomationsEnable, autoperms.AutomationsOperate, clientRead),
+		ownerID: account(e.tenant, ownerID, autoperms.AutomationsRead, autoperms.AutomationsAuthor, autoperms.AutomationsEnable, autoperms.AutomationsOperate, clientRead,
+			corePerms.ExtensionsRead, corePerms.ExtensionsOperate),
 		agentID:  account(e.tenant, agentID, autoperms.AutomationsRead, autoperms.AutomationsAuthor, clientRead),
 		blindID:  account(e.tenant, blindID, autoperms.AutomationsRead, autoperms.AutomationsAuthor),
 		readerID: account(e.tenant, readerID, autoperms.AutomationsRead),
@@ -211,14 +261,14 @@ func newEnv(t *testing.T) *env {
 		}
 		return u, nil
 	})
+	e.authz = authz
 	registry := mcp.NewRegistry()
-	opts := []mcpops.Option{mcpops.WithAuditor(e.audit)}
-	tools, err := mcpops.Tools(rt.Service(), rt.Authoring(), reg, urls{}, opts...)
+	tools, err := mcpops.Tools(rt.Service(), rt.Authoring(), reg, urls{})
 	require.NoError(t, err)
 	require.NoError(t, registry.Register(tools...))
 	e.changes, err = changes.NewService(changes.Config{
 		Store: changes.NewPostgresStore(e.db), Authorizer: authz,
-		Kinds:       mcpops.Kinds(rt.Service(), rt.Authoring(), urls{}, opts...),
+		Kinds:       mcpops.Kinds(rt.Service(), rt.Authoring(), urls{}),
 		ApprovalURL: func(id string) string { return "https://app.test/approvals/" + id },
 	})
 	require.NoError(t, err)
@@ -457,17 +507,26 @@ func TestAgentCreatesAndEditsGraphsThatOnlyAPersonEnables(t *testing.T) {
 	assert.Contains(t, stale.Errors[len(stale.Errors)-1].Message, "2")
 
 	// Layout: based on its own revision.
-	lp := e.prepare(agentID, map[string]any{"op": "layout", "entity": "automation", "id": res.ID, "expected_revision": g.LayoutRevision,
-		"fields": map[string]any{"positions": map[string]any{"fin": map[string]any{"x": 5, "y": 6}}}})
+	lp := e.prepare(agentID, map[string]any{"op": "layout", "entity": "automation",
+		"fields": map[string]any{"id": res.ID, "base_revision": atoi(t, g.LayoutRevision), "positions": map[string]any{"fin": map[string]any{"x": 5, "y": 6}}}})
 	o = e.apply(agentID, lp, "layout-1")
 	require.Equal(t, changes.OperationSucceeded, o.Status, "%+v", o.Error)
 	var after got
 	e.ok(agentID, mcpops.ToolGet, map[string]any{"id": res.ID}, &after)
 	assert.NotEqual(t, g.LayoutRevision, after.LayoutRevision)
 	assert.Equal(t, graph.XY{X: 5, Y: 6}, after.Layout["fin"])
-	staleLayout := e.prepare(agentID, map[string]any{"op": "layout", "entity": "automation", "id": res.ID, "expected_revision": g.LayoutRevision,
-		"fields": map[string]any{"positions": map[string]any{"fin": map[string]any{"x": 1, "y": 1}}}})
+	staleLayout := e.prepare(agentID, map[string]any{"op": "layout", "entity": "automation",
+		"fields": map[string]any{"id": res.ID, "base_revision": atoi(t, g.LayoutRevision), "positions": map[string]any{"fin": map[string]any{"x": 1, "y": 1}}}})
 	require.Equal(t, changes.StatusInvalid, staleLayout.Status)
+	require.Len(t, staleLayout.Errors, 1)
+	assert.Equal(t, "VERSION_CONFLICT", staleLayout.Errors[0].Code)
+	assert.Equal(t, "/changes/0/fields/base_revision", staleLayout.Errors[0].Path)
+	assert.Contains(t, staleLayout.Errors[0].Message, after.LayoutRevision)
+
+	// Every applied change is an entry of the MCP audit.
+	assert.Equal(t, []mcp.Code{""}, e.audit.outcomes("changes:automation.create"))
+	assert.Equal(t, []mcp.Code{""}, e.audit.outcomes("changes:automation.update"))
+	assert.Contains(t, e.audit.outcomes("changes:automation.layout"), mcp.Code(""))
 
 	// The list shows the graph, enabled on version 1 with version 2 the latest.
 	var list struct {
@@ -497,6 +556,7 @@ func TestEnablingIsHumanRequiredInPlan(t *testing.T) {
 	require.Len(t, p.Errors, 1)
 	assert.Equal(t, mcpops.IssueHumanRequired, p.Errors[0].Code)
 	assert.Equal(t, "/changes/0/fields/enabled", p.Errors[0].Path)
+	assert.Contains(t, p.Errors[0].Message, urls{}.Automations(), "the refusal names the page where a person acts")
 	assert.Equal(t, []mcp.Code{mcp.CodeApprovalRequired}, e.audit.outcomes("changes:automation.create"), "the refusal is audited")
 	assert.Equal(t, 0, e.count(`SELECT count(*) FROM automation.automations`))
 
@@ -505,9 +565,21 @@ func TestEnablingIsHumanRequiredInPlan(t *testing.T) {
 		"graph": noteGraph("Welcome", "hello"), "enabled": false}})
 	require.Equal(t, changes.StatusInvalid, p.Status)
 
+	// Managing connections and deciding tasks are a person's too.
+	p = e.prepare(agentID, map[string]any{"op": "create", "entity": "automation", "fields": map[string]any{
+		"graph": noteGraph("Welcome", "hello"), "connections": []any{map[string]any{"kind": "telegram_bot"}}, "decision": map[string]any{"outcome": "approve"}}})
+	require.Equal(t, changes.StatusInvalid, p.Status)
+	byPath := map[string]string{}
+	for _, iss := range p.Errors {
+		assert.Equal(t, mcpops.IssueHumanRequired, iss.Code, iss.Path)
+		byPath[iss.Path] = iss.Message
+	}
+	assert.Contains(t, byPath["/changes/0/fields/connections"], urls{}.Connections())
+	assert.Contains(t, byPath["/changes/0/fields/decision"], urls{}.Automations())
+
 	// Other unknown fields are invalid input of the tool.
 	e.failure(agentID, changes.ToolPrepare, map[string]any{"changes": []any{map[string]any{"op": "create", "entity": "automation",
-		"fields": map[string]any{"graph": noteGraph("Welcome", "hello"), "connections": []any{}}}}}, mcp.CodeInvalidInput)
+		"fields": map[string]any{"graph": noteGraph("Welcome", "hello"), "colour": "red"}}}}, mcp.CodeInvalidInput)
 }
 
 func TestInvalidGraphIsReportedUnderFieldsGraph(t *testing.T) {
@@ -648,44 +720,17 @@ func TestCatalogAndRunsAreProjectedForThePrincipal(t *testing.T) {
 	assert.Contains(t, string(blind.Data), "tab=runs")
 }
 
-func TestNativeGuardFindsAutomationInstancesAndTasks(t *testing.T) {
-	e := newEnv(t)
-	g := map[string]any{"name": "Approve", "triggers": []any{map[string]any{"id": "created", "event": evClient}},
-		"nodes": []any{map[string]any{"id": "appr", "type": "acme.approve", "params": map[string]any{}}, map[string]any{"id": "fin", "type": "end", "params": map[string]any{}}},
-		"edges": []any{map[string]any{"from": map[string]any{"node": "created", "outcome": "fired"}, "to": "appr"},
-			map[string]any{"from": map[string]any{"node": "appr", "outcome": "approve"}, "to": "fin"},
-			map[string]any{"from": map[string]any{"node": "appr", "outcome": "reject"}, "to": "fin"}}}
-	am, v, err := e.rt.Service().Create(context.Background(), e.human(), engine.CreateInput{Graph: mustJSON(g)})
-	require.NoError(t, err)
-	e.enable(am.ID, v.Version)
-	e.publish("c-1", client{Name: "Ann"})
-	e.until(func() bool { return e.count(`SELECT count(*) FROM extruntime.human_tasks WHERE status = 'open'`) == 1 }, "the task opens")
-
-	var instance, task, runID uuid.UUID
-	require.NoError(t, e.db.QueryRow(context.Background(), `SELECT r.instance_id, r.id FROM automation.runs r`).Scan(&instance, &runID))
-	require.NoError(t, e.db.QueryRow(context.Background(), `SELECT id FROM extruntime.human_tasks`).Scan(&task))
-	guard := mcpops.NativeGuard(e.db, urls{})
-	ctx := context.Background()
-	url, guarded, err := guard.Instance(ctx, e.tenant, instance)
-	require.NoError(t, err)
-	assert.True(t, guarded)
-	assert.Equal(t, urls{}.Run(am.ID, runID), url)
-	url, guarded, err = guard.Task(ctx, e.tenant, task)
-	require.NoError(t, err)
-	assert.True(t, guarded)
-	assert.Equal(t, urls{}.Run(am.ID, runID), url)
-	_, guarded, err = guard.Instance(ctx, uuid.New(), instance)
-	require.NoError(t, err)
-	assert.False(t, guarded, "another tenant's lookup finds nothing")
-	_, guarded, err = guard.Task(ctx, e.tenant, uuid.New())
-	require.NoError(t, err)
-	assert.False(t, guarded)
-}
-
 func mustJSON(v any) json.RawMessage {
 	b, err := json.Marshal(v)
 	if err != nil {
 		panic(err)
 	}
 	return b
+}
+
+func atoi(t *testing.T, s string) int {
+	t.Helper()
+	n, err := strconv.Atoi(s)
+	require.NoError(t, err)
+	return n
 }

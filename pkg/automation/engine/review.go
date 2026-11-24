@@ -34,7 +34,7 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage) (v
 	if len(errs) > 0 {
 		return validated{}, &ValidationError{Errors: errs}
 	}
-	connState, err := connectionsState(ctx, r.cfg.DB, a.TenantID)
+	connState, err := connectionsState(ctx, r.reader(ctx), a.TenantID)
 	if err != nil {
 		return validated{}, err
 	}

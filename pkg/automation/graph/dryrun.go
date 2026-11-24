@@ -38,6 +38,9 @@ type ExecAnswer struct {
 	Code      string
 	Message   string
 	Retryable bool // the failure may succeed later (output.error.retryable)
+	// Script declines the call: the node is answered as a captured one, from the context (a dry run that
+	// may not make this call for real).
+	Script bool
 }
 
 // Statuses of a dry run's steps with Modes on.
@@ -489,13 +492,20 @@ func (d *dryRun) walk(t *dryToken, current string) {
 			var outcome string
 			var output map[string]any
 			var st *Step
-			switch mode := d.mode(node); {
-			case mode == DryRunForbid:
+			mode := d.mode(node)
+			if mode == DryRunForbid {
 				d.stop(t, node.ID, failed(FailDryRunForbidden, "%s is a %s node, which a dry run may not run", node.ID, node.Type))
 				return
-			case mode == DryRunExecute && d.o.Modes && d.o.Execute != nil:
+			}
+			var a ExecAnswer
+			executed := false
+			if mode == DryRunExecute && d.o.Modes && d.o.Execute != nil {
+				a = d.o.Execute(node, step.Effects)
+				executed = !a.Script
+			}
+			switch {
+			case executed:
 				status = StatusExecuted
-				a := d.o.Execute(node, step.Effects)
 				if a.Code != "" {
 					fo, took := d.takeFailedWith(t, node.ID, a.Message, failedHow{retryable: a.Retryable, status: StatusExecuted}, a.Code)
 					if !took {
