@@ -546,6 +546,9 @@ type PreparedEffect struct {
 	// the ones its fresh evaluation renders (an expression on `now` renders differently the second time), so
 	// what was prepared is what is applied.
 	Effects []graph.Effect
+	// Exhausted: what the step reads kept changing while it was prepared, so no preparation fits. The step is not
+	// applied (the engine retries it later) rather than applied without the check the node asked for.
+	Exhausted bool
 }
 
 // needsPrepareError is what a step's transaction returns when an effect node wants its preparation first: the step is

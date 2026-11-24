@@ -168,8 +168,9 @@ const maxPrepareAttempts = 3
 
 // preparedFor is the preparation the effect node of this step gets: the one made for it, while the subject's
 // variables the run-as may read are what they were when it was made. A preparation that no longer fits is not
-// handed over: the step asks for a new one, outside the transaction. After maxPrepareAttempts the node gets an
-// empty preparation, and decides without one (send_to_contact queues the record unchecked for the worker).
+// handed over: the step asks for a new one, outside the transaction. After maxPrepareAttempts the preparation is
+// marked Exhausted and the step is not applied but retried later (a platform error), so a node that asked for a
+// check never acts without it.
 func (m *mover) preparedFor(tok *tokenRow, seq int) *PreparedEffect {
 	p := m.x.preparedStepFor(tok.ID, seq, tok.NodeID)
 	switch {
@@ -178,7 +179,7 @@ func (m *mover) preparedFor(tok *tokenRow, seq int) *PreparedEffect {
 	case p.varsHash == m.varsHash:
 		return &p.PreparedEffect
 	case p.attempts >= maxPrepareAttempts:
-		return &PreparedEffect{}
+		return &PreparedEffect{Exhausted: true}
 	}
 	return nil
 }
@@ -272,6 +273,9 @@ func applyOne(ctx context.Context, tx pgx.Tx, sc StepContext, node graph.Node, s
 	if prep, ok := en.(EffectPreparer); ok && sc.Prepared == nil && sc.RunID != uuid.Nil {
 		// The step is rolled back and prepared outside the transaction first (a node test prepares itself).
 		return EffectResult{}, &needsPrepareError{preparer: prep, sc: sc, node: node, effect: e}
+	}
+	if sc.Prepared != nil && sc.Prepared.Exhausted {
+		return EffectResult{}, &host.InfraError{Err: fmt.Errorf("%s: what the step reads kept changing while it was prepared; it is tried again later", node.ID)}
 	}
 	pick, picks := en.(OutcomeEffectNode)
 	if !picks {

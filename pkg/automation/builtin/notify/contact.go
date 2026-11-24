@@ -110,10 +110,10 @@ func (n *contactNode) ApplyEffectResult(ctx context.Context, tx pgx.Tx, run engi
 		if p.Err != nil {
 			return engine.EffectResult{}, p.Err
 		}
-		// The engine applies the effect it prepared. Should the preparation be for another record or channel
-		// all the same, the contact is not asked again in the transaction (a resolver that takes its own
-		// connection could wait for ever): the record is queued unchecked and the worker records a missing
-		// address at delivery.
+		// The engine applies the effect it prepared (and retries the step when no preparation fits). Should the
+		// preparation be for another record or channel all the same, the contact is not asked again in the
+		// transaction (a resolver that takes its own connection could wait for ever): the record is queued
+		// unchecked and the worker records a missing address at delivery.
 		req.CheckContacts = false
 		if prep, ok := p.Value.(*contactPrep); ok && prep.record == req.Audience.Records[0] && prep.channel == channel {
 			out["skipped"] = skippedOf(prep.resolved.Skipped)

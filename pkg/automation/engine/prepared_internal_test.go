@@ -1,13 +1,16 @@
 package engine
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 )
 
 // A step applies the effects it was prepared for only while the step is the prepared one and the subject's
@@ -55,8 +58,36 @@ func TestStalePreparationIsNotHandedToTheNode(t *testing.T) {
 	prep.attempts = maxPrepareAttempts
 	got = m.preparedFor(tok, 3)
 	require.NotNil(t, got)
-	assert.Nil(t, got.Value, "after the last attempt the node gets an empty preparation and decides without one")
-	assert.Empty(t, got.Effects)
+	assert.True(t, got.Exhausted, "after the last attempt no preparation fits")
+	assert.Nil(t, got.Value)
 
 	assert.Nil(t, m.preparedFor(tok, 4), "another step")
+}
+
+// Once the preparations are exhausted the effect is not applied, whatever the node would have done without the
+// check it asked for: the step fails as a platform error and the engine retries it later.
+func TestExhaustedPreparationRetriesTheStepInsteadOfApplyingTheEffect(t *testing.T) {
+	node := graph.Node{ID: "n", Type: "t"}
+	applied := false
+	en := &preparingEffect{applied: &applied}
+	_, err := applyOne(context.Background(), nil, StepContext{RunID: uuid.New(), Prepared: &PreparedEffect{Exhausted: true}}, node, graph.NodeSpec{}, en, graph.Effect{})
+	require.Error(t, err)
+	assert.True(t, host.IsInfrastructure(err), "a retry, not the node's failure")
+	assert.False(t, applied, "nothing was applied")
+
+	_, err = applyOne(context.Background(), nil, StepContext{RunID: uuid.New(), Prepared: &PreparedEffect{Value: "ok"}}, node, graph.NodeSpec{}, en, graph.Effect{})
+	require.NoError(t, err)
+	assert.True(t, applied)
+}
+
+// preparingEffect is an EffectNode that asks for its preparation.
+type preparingEffect struct{ applied *bool }
+
+func (p *preparingEffect) PrepareEffect(context.Context, StepContext, graph.Node, graph.Effect) (any, error) {
+	return nil, nil
+}
+
+func (p *preparingEffect) ApplyEffect(context.Context, pgx.Tx, StepContext, graph.Node, graph.Effect) (map[string]any, error) {
+	*p.applied = true
+	return nil, nil
 }
