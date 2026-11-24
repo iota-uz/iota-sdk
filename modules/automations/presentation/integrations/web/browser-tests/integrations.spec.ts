@@ -51,6 +51,35 @@ test('IN1: cards by category with status in words and an icon; states', async ({
   await expect(failure.getByRole('button', { name: 'Retry' })).toBeVisible()
 })
 
+test('a bot another service uses is connected only after the person confirms it', async ({ page }) => {
+  await open(page)
+  await page.getByTestId('connect-telegram_bot').click()
+  const form = page.getByTestId('connection-form')
+  await form.getByLabel('Name', { exact: true }).fill('Shared bot')
+  await form.locator('[data-field="bot_token"]').fill('foreign')
+  await form.getByTestId('form-save').click()
+  // The warning says what connecting does to the other service; nothing is saved yet.
+  const warning = form.getByTestId('form-warnings')
+  await expect(warning).toContainText('already used by another service')
+  await expect(warning).toContainText('will stop receiving messages')
+  await expect(form).toBeVisible()
+  expect(await callsOf(page, 'connections.create')).toHaveLength(1)
+
+  // Without the confirmation the save does not go again.
+  await form.getByTestId('form-save').click()
+  await expect(form.getByTestId('form-error')).toContainText('Confirm to connect this bot')
+  expect(await callsOf(page, 'connections.create')).toHaveLength(1)
+
+  await form.getByText('Connect anyway').click()
+  await expect(form.getByTestId('form-confirm')).toBeChecked()
+  await form.getByTestId('form-save').click()
+  await expect(form).toHaveCount(0)
+  const created = await callsOf(page, 'connections.create')
+  expect(created).toHaveLength(2)
+  expect(created[1]!.params.confirm).toEqual(['foreign_webhook'])
+  await expect(row(page, 'shared_bot')).toBeVisible()
+})
+
 test('S2: loading is a skeleton of the cards', async ({ page }) => {
   await page.goto('/?scenario=loading')
   await expect(page.getByTestId('integrations-loading')).toBeVisible()

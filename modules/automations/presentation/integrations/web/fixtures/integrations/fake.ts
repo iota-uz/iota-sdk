@@ -164,6 +164,8 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       if (c.connections.some((x) => x.name === p.name)) return { ok: false, error: 'name_taken', fields: { name: 'taken' } }
       const secret = String(p.credentials.bot_token ?? p.credentials.password ?? p.credentials.api_key ?? '')
       if (secret === 'bad') return { ok: false, error: 'test_failed', reason: 'auth' }
+      // A bot another service already uses: the person confirms before it is connected.
+      if (secret === 'foreign' && !(p.confirm ?? []).includes('foreign_webhook')) return { ok: false, error: 'confirmation_required', warnings: ['foreign_webhook'] }
       const key = p.idempotency_key
       if (key && keys.has(key)) return { ok: true, connection: keys.get(key) }
       const created = conn(c.kind, p.name, p.display_name || p.name, { id: `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`, identity: c.kind === 'telegram_bot' ? '@new_bot' : 'account@acme.uz' })
@@ -238,6 +240,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       f.connector.connections = f.connector.connections.filter((x) => x.id !== p.id)
       return { ok: true }
     },
+    'automations.connections.options': () => ({ options: [] }),
     'automations.platform.set_enabled': (p: { kind: string; enabled: boolean }) => {
       if (opts.platformFails) throw { code: 'internal', message: 'internal error' }
       const c = connectors.find((x) => x.kind === p.kind)

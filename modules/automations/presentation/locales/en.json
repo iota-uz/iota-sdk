@@ -129,7 +129,13 @@
         "InProgress": "The first attempt is still being processed. Retry in a few seconds; nothing will be saved twice.",
         "LoadLatest": "Load the latest version",
         "Reloaded": "The latest version is loaded. Check the form and save again.",
-        "RetryChanged": "The first save may have gone through with the earlier values. Close the form and edit the connection from the list."
+        "RetryChanged": "The first save may have gone through with the earlier values. Close the form and edit the connection from the list.",
+        "Warnings": {
+          "foreign_webhook": "This bot is already used by another service. After you connect it, that service will stop receiving messages.",
+          "polling_in_use": "This bot is already used by another service. After you connect it, that service will stop receiving messages."
+        },
+        "ConfirmWarning": "Connect anyway",
+        "ConfirmRequired": "Confirm to connect this bot: the other service will stop receiving its messages."
       },
       "Test": {
         "Running": "Checking…",

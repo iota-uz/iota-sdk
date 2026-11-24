@@ -129,7 +129,13 @@
         "InProgress": "Birinchi urinish hali bajarilmoqda. Bir necha soniyadan soʻng qayta urining — hech narsa ikki marta saqlanmaydi.",
         "LoadLatest": "Oxirgi versiyani yuklash",
         "Reloaded": "Oxirgi versiya yuklandi. Formani tekshirib, qayta saqlang.",
-        "RetryChanged": "Birinchi saqlash avvalgi qiymatlar bilan bajarilgan bo‘lishi mumkin. Formani yoping va ulanishni ro‘yxatdan tahrirlang."
+        "RetryChanged": "Birinchi saqlash avvalgi qiymatlar bilan bajarilgan bo‘lishi mumkin. Formani yoping va ulanishni ro‘yxatdan tahrirlang.",
+        "Warnings": {
+          "foreign_webhook": "Bu bot allaqachon boshqa xizmatda ishlatilmoqda. Ulangandan keyin u xizmat xabarlarni olmay qoʻyadi.",
+          "polling_in_use": "Bu bot allaqachon boshqa xizmatda ishlatilmoqda. Ulangandan keyin u xizmat xabarlarni olmay qoʻyadi."
+        },
+        "ConfirmWarning": "Baribir ulash",
+        "ConfirmRequired": "Ulashni tasdiqlang: boshqa xizmat bot xabarlarini olmay qoʻyadi."
       },
       "Test": {
         "Running": "Tekshiryapmiz…",

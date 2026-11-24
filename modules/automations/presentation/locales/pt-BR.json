@@ -129,7 +129,13 @@
         "InProgress": "A primeira tentativa ainda está sendo processada. Tente novamente em alguns segundos; nada será salvo duas vezes.",
         "LoadLatest": "Carregar a versão mais recente",
         "Reloaded": "A versão mais recente foi carregada. Verifique o formulário e salve novamente.",
-        "RetryChanged": "O primeiro salvamento pode ter sido concluído com os valores anteriores. Feche o formulário e edite a conexão pela lista."
+        "RetryChanged": "O primeiro salvamento pode ter sido concluído com os valores anteriores. Feche o formulário e edite a conexão pela lista.",
+        "Warnings": {
+          "foreign_webhook": "Este bot já é usado por outro serviço. Depois de conectá-lo, esse serviço deixará de receber mensagens.",
+          "polling_in_use": "Este bot já é usado por outro serviço. Depois de conectá-lo, esse serviço deixará de receber mensagens."
+        },
+        "ConfirmWarning": "Conectar mesmo assim",
+        "ConfirmRequired": "Confirme para conectar este bot: o outro serviço deixará de receber as mensagens dele."
       },
       "Test": {
         "Running": "Verificando…",

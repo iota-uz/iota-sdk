@@ -40,7 +40,7 @@ const (
 
 // chatSchema is a chat of a node: a number (a chat id) or a string, which is an expression: CEL that gives
 // the id (event.chatId) or a quoted @username.
-const chatSchema = `{"oneOf":[{"type":"integer"},{"type":"string","minLength":1,"maxLength":1000}],
+const chatSchema = `{"oneOf":[{"type":"integer"},{"type":"string","minLength":1,"maxLength":1000}],"x-options-source":"telegram.chats",
  "description":"A chat id, or an expression that gives one ({{ }} is not needed: event.chatId). A channel or a group by @username: \"@name\" in quotes."}`
 
 const durationSchema = `{"type":"string","pattern":"^[1-9][0-9]{0,5}(s|m|h|d)$","x-max-ms":2592000000,"description":"30s, 20m, 2h or 7d; at most 30 days"}`

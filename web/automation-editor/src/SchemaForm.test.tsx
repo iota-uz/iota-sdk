@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@solidjs/testing-library'
 import { createSignal } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 import type { CompletionPath } from './completion'
-import { humanize, parseDuration, SchemaForm, type SchemaFormProps } from './SchemaForm'
+import { humanize, manualText, manualValue, parseDuration, SchemaForm, sourceModeOf, type SchemaFormProps } from './SchemaForm'
 import type { AutomationGraph, JsonSchema } from './types'
 
 const graph: AutomationGraph = { name: 'g', run_as: 'owner', triggers: [], nodes: [{ id: 'n', type: 't', params: {} }], edges: [] }
@@ -120,5 +120,57 @@ describe('SchemaForm', () => {
     expect(onChange).toHaveBeenLastCalledWith({ tags: ['a', ''] })
     fireEvent.click(screen.getByRole('button', { name: 'Remove: Item 1' }))
     expect(onChange).toHaveBeenLastCalledWith({ tags: [''] })
+  })
+})
+
+describe('a field with an options source (a chat)', () => {
+  const schema: JsonSchema = {
+    type: 'object',
+    properties: { chat_id: { 'x-options-source': 'telegram.chats', oneOf: [{ type: 'integer' }, { type: 'string' }] } },
+  }
+
+  it('reads a stored value into its mode and writes the typed forms', () => {
+    expect(sourceModeOf(700)).toBe('list')
+    expect(sourceModeOf(undefined)).toBe('list')
+    expect(sourceModeOf('"@salesteam"')).toBe('manual')
+    expect(sourceModeOf('event.chatId')).toBe('expr')
+    expect(manualValue(' -1001234567890 ')).toBe(-1001234567890)
+    expect(manualValue('@salesteam')).toBe('"@salesteam"')
+    expect(manualValue('')).toBeUndefined()
+    expect(manualText('"@salesteam"')).toBe('@salesteam')
+    expect(manualText(-100)).toBe('-100')
+  })
+
+  it('offers the known chats grouped, picks one as a number', async () => {
+    const searchOptions = vi.fn(async () => [
+      { value: '700', label: 'Alice', group: 'private' },
+      { value: '-1001', label: 'Sales team (@salesteam)', group: 'group' },
+    ])
+    const { onChange, container } = mount(schema, {}, { searchOptions })
+    const field = container.querySelector('[data-param="chat_id"]')!
+    expect(screen.getByRole('radio', { name: 'From chats' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(field.querySelector('[role="combobox"], input') as HTMLElement)
+    expect(await screen.findByText('Private')).toBeInTheDocument()
+    expect(screen.getByText('Groups')).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('option', { name: 'Sales team (@salesteam)' }))
+    expect(onChange).toHaveBeenLastCalledWith({ chat_id: -1001 })
+    expect(searchOptions).toHaveBeenCalledWith('telegram.chats', '', { nodeType: 't', params: {} })
+  })
+
+  it('takes an id, a username or an expression by hand', () => {
+    const { onChange, container } = mount(schema, {}, { searchOptions: async () => [] })
+    fireEvent.click(screen.getByRole('radio', { name: 'Id or @username' }))
+    const input = container.querySelector('[data-param="chat_id"] input') as HTMLInputElement
+    fireEvent.input(input, { target: { value: '12345' } })
+    expect(onChange).toHaveBeenLastCalledWith({ chat_id: 12345 })
+    fireEvent.input(input, { target: { value: '@salesteam' } })
+    expect(onChange).toHaveBeenLastCalledWith({ chat_id: '"@salesteam"' })
+    fireEvent.click(screen.getByRole('radio', { name: 'Expression' }))
+    expect(container.querySelector('[data-param="chat_id"] textarea')).not.toBeNull()
+  })
+
+  it('without a host list says so and still takes an id', () => {
+    mount(schema, {})
+    expect(screen.getByText(/list is not available here/)).toBeInTheDocument()
   })
 })

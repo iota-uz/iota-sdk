@@ -237,3 +237,23 @@ type PlatformRequest struct {
 type OKResponse struct {
 	OK bool `json:"ok"`
 }
+
+// OptionsRequest asks a connection's connector for the choices of a node's param field (the chats of a
+// bot): Source is the field's x-options-source, Query narrows them.
+type OptionsRequest struct {
+	ConnectionID string `json:"connection_id"`
+	Source       string `json:"source"`
+	Query        string `json:"query,omitempty"`
+}
+
+// OptionView is one choice; Group is a key (private, group) the picker names.
+type OptionView struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+	Group string `json:"group,omitempty"`
+}
+
+// OptionsResponse is the choices.
+type OptionsResponse struct {
+	Options []OptionView `json:"options"`
+}

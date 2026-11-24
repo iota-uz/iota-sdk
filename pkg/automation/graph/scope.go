@@ -499,6 +499,22 @@ func paramAt(params map[string]any, path string) (any, bool) {
 	return cur, true
 }
 
+// displayPath writes a concrete path the way an editor names a field of a list item: items[1].label.
+func displayPath(path string) string {
+	var b strings.Builder
+	for i, seg := range strings.Split(path, ".") {
+		if _, err := strconv.Atoi(seg); err == nil && i > 0 {
+			b.WriteString("[" + seg + "]")
+			continue
+		}
+		if i > 0 {
+			b.WriteByte('.')
+		}
+		b.WriteString(seg)
+	}
+	return b.String()
+}
+
 // expandPaths turns a path with "[]" (each item of a list: "options[].label") into the concrete paths
 // of the params ("options.0.label", "options.1.label"); a path without it is itself. A list that is
 // not there has no items.
@@ -603,7 +619,7 @@ func nodeExpressions(c Catalog, spec NodeSpec, params map[string]any) []nodeExpr
 		for _, path := range expandPaths(params, v) {
 			if src, ok := paramAt(params, path); ok {
 				if s, ok := src.(string); ok {
-					out = append(out, nodeExpression{path: "params." + path, source: s, want: expr.TypeAny, event: "*"})
+					out = append(out, nodeExpression{path: "params." + displayPath(path), source: s, want: expr.TypeAny, event: "*"})
 				}
 			}
 		}
@@ -612,7 +628,7 @@ func nodeExpressions(c Catalog, spec NodeSpec, params map[string]any) []nodeExpr
 		for _, path := range expandPaths(params, t) {
 			if text, ok := paramAt(params, path); ok {
 				if s, ok := text.(string); ok {
-					out = append(out, nodeExpression{path: "params." + path, source: s, event: "*", template: true})
+					out = append(out, nodeExpression{path: "params." + displayPath(path), source: s, event: "*", template: true})
 				}
 			}
 		}

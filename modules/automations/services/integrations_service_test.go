@@ -64,6 +64,36 @@ type telegram struct {
 	policy       connectors.PlatformPolicy
 	auth         connectors.AuthKind // default api_key
 	nodes        []catalog.NodeType
+
+	// lifecycle (connectors.Provisioner and connectors.Advisor)
+	lmu           sync.Mutex
+	provisioned   []string // the tokens a connection was set up with, in order
+	deprovisioned []string
+	provisionErr  error
+	warnings      []connectors.Warning
+}
+
+func (c *telegram) Provision(_ context.Context, _ connectors.Connection, creds connectors.Credentials) error {
+	c.lmu.Lock()
+	defer c.lmu.Unlock()
+	if c.provisionErr != nil {
+		return c.provisionErr
+	}
+	c.provisioned = append(c.provisioned, creds["token"])
+	return nil
+}
+
+func (c *telegram) Deprovision(_ context.Context, _ connectors.Connection, creds connectors.Credentials) error {
+	c.lmu.Lock()
+	defer c.lmu.Unlock()
+	c.deprovisioned = append(c.deprovisioned, creds["token"])
+	return nil
+}
+
+func (c *telegram) Advise(context.Context, connectors.Credentials) ([]connectors.Warning, error) {
+	c.lmu.Lock()
+	defer c.lmu.Unlock()
+	return c.warnings, nil
 }
 
 func (c *telegram) Kind() catalog.ConnectorKind       { return catalog.KindTelegramBot }
@@ -1195,4 +1225,76 @@ func TestOAuthImplementationErrorsAreDropped(t *testing.T) {
 	res, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false)
 	require.NoError(t, err)
 	assert.Equal(t, connectors.StatusNeedsReauth, res.Connection.Status)
+}
+
+// ---- lifecycle: the provider's side of a connection
+
+func TestSavingProvisionsAndDeletingDeprovisions(t *testing.T) {
+	e := newEnv(t)
+	got := e.create("main")
+	assert.Equal(t, []string{goodToken}, e.tg.provisioned, "the webhook is set when the connection is saved")
+
+	// A change of the display name does not touch the provider; new credentials set it up again and
+	// release the old ones.
+	name := "Renamed"
+	_, err := e.svc.Update(e.ctx, e.actor(), services.UpdateInput{ID: got.Connection.ID, Version: got.Connection.Version, DisplayName: &name})
+	require.NoError(t, err)
+	assert.Len(t, e.tg.provisioned, 1)
+	e.tg.accept = "777:other-token"
+	cur, err := e.svc.Update(e.ctx, e.actor(), services.UpdateInput{ID: got.Connection.ID, Version: got.Connection.Version + 1, Credentials: map[string]any{"token": "777:other-token"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{goodToken, "777:other-token"}, e.tg.provisioned)
+	assert.Equal(t, []string{goodToken}, e.tg.deprovisioned, "the old credentials' webhook is removed")
+
+	// Disabling removes the webhook, enabling sets it again; deleting removes it.
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), cur.Connection.ID, true)
+	require.NoError(t, err)
+	assert.Equal(t, []string{goodToken, "777:other-token"}, e.tg.deprovisioned)
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), cur.Connection.ID, false)
+	require.NoError(t, err)
+	assert.Len(t, e.tg.provisioned, 3)
+	require.NoError(t, e.svc.Delete(e.ctx, e.actor(), cur.Connection.ID))
+	assert.Len(t, e.tg.deprovisioned, 3)
+	_, _, err = e.store.Get(e.ctx, e.tenant, cur.Connection.ID)
+	assert.ErrorIs(t, err, connectors.ErrNotFound)
+}
+
+func TestAProviderThatRefusesTheSetupFailsTheSave(t *testing.T) {
+	e := newEnv(t)
+	e.tg.provisionErr = errors.New("telegram setWebhook: status 400: Bad Request: bad webhook: " + goodToken)
+	_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "main", Credentials: map[string]any{"token": goodToken}})
+	var failed *services.TestFailedError
+	require.ErrorAs(t, err, &failed)
+	assert.Equal(t, services.ReasonConfig, failed.Reason)
+	assert.NotContains(t, err.Error(), goodToken)
+	conns, err := e.store.List(e.ctx, e.tenant, catalog.KindTelegramBot)
+	require.NoError(t, err)
+	assert.Empty(t, conns, "the connection was not saved")
+}
+
+func TestWarningsNeedAConfirmation(t *testing.T) {
+	e := newEnv(t)
+	e.tg.warnings = []connectors.Warning{{Code: "foreign_webhook"}}
+	in := services.CreateInput{Kind: catalog.KindTelegramBot, Name: "main", Credentials: map[string]any{"token": goodToken}}
+	_, err := e.svc.Create(e.ctx, e.actor(), in)
+	var need *connectors.ConfirmationRequiredError
+	require.ErrorAs(t, err, &need)
+	assert.Equal(t, []connectors.Warning{{Code: "foreign_webhook"}}, need.Warnings)
+	assert.Empty(t, e.tg.provisioned, "nothing is changed at the provider without the confirmation")
+	conns, err := e.store.List(e.ctx, e.tenant, catalog.KindTelegramBot)
+	require.NoError(t, err)
+	assert.Empty(t, conns)
+
+	in.Confirmed = []string{"something_else"}
+	_, err = e.svc.Create(e.ctx, e.actor(), in)
+	require.ErrorAs(t, err, &need)
+	in.Confirmed = []string{"foreign_webhook"}
+	got, err := e.svc.Create(e.ctx, e.actor(), in)
+	require.NoError(t, err)
+	assert.Equal(t, []string{goodToken}, e.tg.provisioned)
+
+	// New credentials on a connection need it too.
+	e.tg.accept = "777:other-token"
+	_, err = e.svc.Update(e.ctx, e.actor(), services.UpdateInput{ID: got.Connection.ID, Version: got.Connection.Version, Credentials: map[string]any{"token": "777:other-token"}})
+	require.ErrorAs(t, err, &need)
 }

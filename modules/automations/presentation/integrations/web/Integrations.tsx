@@ -517,6 +517,10 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
   const [notice, setNotice] = createSignal<string>()
   const [fieldErrors, setFieldErrors] = createSignal<Record<string, string>>({})
   const [error, setError] = createSignal<string>()
+  // Warnings the connector raised for these credentials (a bot another service uses): the save goes
+  // through only once the person confirmed them.
+  const [warnings, setWarnings] = createSignal<string[]>([])
+  const [confirmed, setConfirmed] = createSignal(false)
   const [busy, setBusy] = createSignal(false)
   const [slow, setSlow] = createSignal(false)
   let slowTimer: ReturnType<typeof setTimeout> | undefined
@@ -528,7 +532,8 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
 
   createEffect(() => { if (!nameTouched() && !editing()) setName(slugify(displayName(), connector().kind)) })
   const secretSet = (f: string) => Boolean(editing()) && !replaced().has(f)
-  const setValue = (k: string, v: string) => setValues((cur) => ({ ...cur, [k]: v }))
+  // New credentials are another bot: what was confirmed for the earlier ones does not carry over.
+  const setValue = (k: string, v: string) => { setValues((cur) => ({ ...cur, [k]: v })); setWarnings([]); setConfirmed(false) }
 
   const begin = () => { setBusy(true); setSlow(false); setError(undefined); setNotice(undefined); setRetry(false); setConflict(false); slowTimer = setTimeout(() => setSlow(true), 4000) }
   const end = () => { setBusy(false); setSlow(false); clearTimeout(slowTimer) }
@@ -541,6 +546,11 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
     if (!oauth()) Object.assign(local, missingRequired(fields(), values(), secretSet))
     setFieldErrors(local)
     if (Object.keys(local).length > 0) { focusFirstError(local); return }
+    if (warnings().length > 0 && !confirmed()) {
+      setError(t('Form.ConfirmRequired'))
+      queueMicrotask(() => formRef?.querySelector<HTMLElement>('[data-field="confirm_warnings"]')?.focus())
+      return
+    }
     begin()
     try {
       if (signIn()) {
@@ -553,12 +563,22 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
       const result = e
         ? await props.ctx.call('automations.connections.update', {
           id: e.id, version: e.version, display_name: displayName(), idempotency_key: idempotencyKey, ...(creds ? { credentials: creds } : {}),
+          ...(confirmed() ? { confirm: warnings() } : {}),
         })
         : await props.ctx.call('automations.connections.create', {
           kind: connector().kind, name: name(), display_name: displayName(), credentials: newCredentials(fields(), values()), idempotency_key: idempotencyKey,
+          ...(confirmed() ? { confirm: warnings() } : {}),
         })
       if (result.ok && result.connection) { end(); props.onSaved(result.connection, !e); return }
       end()
+      if (result.error === 'confirmation_required') {
+        // The request did nothing: ask again for the same intent, with the warnings confirmed.
+        setWarnings(result.warnings ?? [])
+        setConfirmed(false)
+        setError(undefined)
+        queueMicrotask(() => formRef?.querySelector<HTMLElement>('[data-field="confirm_warnings"]')?.focus())
+        return
+      }
       const { idempotency_key: changedRetry, ...fieldsLeft } = result.fields ?? {}
       setFieldErrors(fieldsLeft)
       if (changedRetry) {
@@ -666,6 +686,13 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
             secretSet={secretSet(f.name)} shown={shown().has(f.name)}
             onShow={(s) => setShown((cur) => { const n = new Set(cur); if (s) n.add(f.name); else n.delete(f.name); return n })}
             onReplace={(r) => setReplaced((cur) => { const n = new Set(cur); if (r) n.add(f.name); else { n.delete(f.name); setValue(f.name, '') } return n })} />}</For>
+        </Show>
+        <Show when={warnings().length > 0}>
+          <div class="flex flex-col items-start gap-2 rounded-md border border-subtle p-3" role="group" data-testid="form-warnings">
+            <For each={warnings()}>{(code) => <p role="alert" class="text-sm text-pink">{t(`Form.Warnings.${code}`)}</p>}</For>
+            <Switch checked={confirmed()} label={t('Form.ConfirmWarning')} onChange={(e) => { setConfirmed(e.currentTarget.checked); setError(undefined) }}
+              disabled={busy()} data-field="confirm_warnings" data-testid="form-confirm" />
+          </div>
         </Show>
         <Show when={error()}>
           <div class="flex flex-col items-start gap-2">

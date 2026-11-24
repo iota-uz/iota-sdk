@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 )
 
 // ChatInfo is a chat a tenant's bot received a message from.
@@ -133,6 +135,38 @@ func (c *Connector) KnownChats(ctx context.Context, tenantID, connectionID uuid.
 	sort.SliceStable(out, func(i, j int) bool { return out[i].LastSeen.After(out[j].LastSeen) })
 	if limit > 0 && len(out) > limit {
 		out = out[:limit]
+	}
+	return out, nil
+}
+
+// SourceChats is the options source of the chat of a node.
+const SourceChats = "telegram.chats"
+
+var _ connectors.OptionSource = (*Connector)(nil)
+
+// Options are the known chats of a connection for the chat picker, private chats and groups apart.
+func (c *Connector) Options(ctx context.Context, tenantID, connectionID uuid.UUID, source, query string) ([]connectors.Option, error) {
+	if source != SourceChats {
+		return nil, nil
+	}
+	chats, err := c.KnownChats(ctx, tenantID, connectionID, query, 50)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]connectors.Option, 0, len(chats))
+	for _, ci := range chats {
+		label := ci.Title
+		if label == "" {
+			label = strconv.FormatInt(ci.ID, 10)
+		}
+		if ci.Username != "" {
+			label += " (@" + ci.Username + ")"
+		}
+		group := "group"
+		if ci.Type == "private" {
+			group = "private"
+		}
+		out = append(out, connectors.Option{Value: strconv.FormatInt(ci.ID, 10), Label: label, Group: group})
 	}
 	return out, nil
 }

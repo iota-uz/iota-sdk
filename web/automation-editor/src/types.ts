@@ -93,11 +93,16 @@ export type SaveResult =
   | { errors: GraphError[]; warnings?: GraphError[] }
   | { conflict: { by: string; version: number } }
 
+/** A choice of a field that names an options source (`x-options-source` in its schema): a chat of a bot. */
+export type EditorOption = { value: string; label: string; /** A key the editor names: `private`, `group`. */ group?: string }
+
 export interface EditorApi {
   validate(graph: AutomationGraph): Promise<{ ok: boolean; errors: GraphError[]; warnings?: GraphError[] }>
   dryRun(input: { graph: AutomationGraph; subject: Subject; context?: Record<string, unknown>; events: Record<string, unknown>[] }): Promise<{ trace: TraceStep[] }>
   testNode(input: { graph: AutomationGraph; node_id: string; subject?: Subject; context?: Record<string, unknown> }): Promise<TestNodeResult>
   searchSubjects?(entity: string, query: string): Promise<{ subject: Subject; label: string; note?: string }[]>
+  /** Choices for a field with `x-options-source`; `params` are the step's params (its `connection`). */
+  searchOptions?(source: string, query: string, ctx: { nodeType: string; params: Record<string, unknown> }): Promise<EditorOption[]>
 }
 
 export type ItemState = 'passed' | 'running' | 'waiting' | 'failed' | 'skipped' | 'cancelled'

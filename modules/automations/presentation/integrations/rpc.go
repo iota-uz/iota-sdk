@@ -38,6 +38,7 @@ func (c *Controller) bindings() []solid.Binding {
 		bind(MethodSetDisabled, c.setDisabled),
 		bind(MethodDelete, c.delete),
 		bind(MethodPlatform, c.setPlatform),
+		bind(MethodOptions, c.options),
 	}
 }
 
@@ -315,6 +316,27 @@ func (c *Controller) delete(ctx context.Context, req IDRequest) (DeleteResponse,
 		return DeleteResponse{Error: ErrConnectionInUse, Usages: usageViews(inUse.Uses)}, nil
 	}
 	return DeleteResponse{}, mapErr(err)
+}
+
+// options serves the pickers of the graph editor: an author, not only an administrator, chooses a chat.
+func (c *Controller) options(ctx context.Context, req OptionsRequest) (OptionsResponse, error) {
+	sub, err := caller(ctx, manage, permissions.AutomationsAuthor.Name())
+	if err != nil {
+		return OptionsResponse{}, err
+	}
+	id, err := parseID(req.ConnectionID)
+	if err != nil {
+		return OptionsResponse{}, err
+	}
+	opts, err := c.cfg.Service.Options(ctx, actor(sub), id, req.Source, req.Query)
+	if err != nil {
+		return OptionsResponse{}, mapErr(err)
+	}
+	out := OptionsResponse{Options: make([]OptionView, 0, len(opts))}
+	for _, o := range opts {
+		out.Options = append(out.Options, OptionView{Value: o.Value, Label: o.Label, Group: o.Group})
+	}
+	return out, nil
 }
 
 func (c *Controller) setPlatform(ctx context.Context, req PlatformRequest) (OKResponse, error) {

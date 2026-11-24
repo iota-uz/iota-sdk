@@ -9,7 +9,7 @@ import { describeItem } from './names'
 import { ScheduleEditor } from './ScheduleEditor'
 import { SchemaForm } from './SchemaForm'
 import { strings } from './strings'
-import type { AutomationGraph, EditorCatalog, EditorLocale, FieldSlot, GraphError, JsonSchema } from './types'
+import type { AutomationGraph, EditorApi, EditorCatalog, EditorLocale, FieldSlot, GraphError, JsonSchema } from './types'
 import { errorTarget } from './validation'
 
 export interface NodePanelProps {
@@ -19,6 +19,7 @@ export interface NodePanelProps {
   locale: EditorLocale
   readOnly: boolean
   fieldSlot?: FieldSlot
+  searchOptions?: EditorApi['searchOptions']
   errors: GraphError[]
   focusField?: string | null
   /** `key` groups keystrokes of one field into one history step. */
@@ -128,6 +129,7 @@ export function NodePanel(props: NodePanelProps): JSX.Element {
                         nodeId={props.id}
                         graph={props.graph}
                         fieldSlot={props.fieldSlot}
+                        searchOptions={props.searchOptions}
                         expressions={s().expressions}
                         templates={s().templates}
                         completions={completions}
@@ -192,6 +194,7 @@ export function NodePanel(props: NodePanelProps): JSX.Element {
                                     nodeId={props.id}
                                     graph={props.graph}
                                     fieldSlot={props.fieldSlot}
+                        searchOptions={props.searchOptions}
                                     expressions={[]}
                                     templates={[]}
                                     completions={completions}

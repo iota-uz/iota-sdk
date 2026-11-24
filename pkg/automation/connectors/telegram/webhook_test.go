@@ -308,3 +308,21 @@ func TestKnownChatsAreRecordedFromMessages(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, int64(-1001), got[0].ID)
 }
+
+func TestChatOptionsAreGroupedPrivateAndGroups(t *testing.T) {
+	r := newRig(t)
+	g := r.bot.Update(-1001, alice, "hi")
+	g["message"].(map[string]any)["chat"] = map[string]any{"id": -1001, "type": "supergroup", "title": "Sales team", "username": "salesteam"}
+	r.tenantUpdate(g)
+	r.tenantUpdate(r.bot.Update(700, alice, "hello"))
+	opts, err := r.c.Options(context.Background(), r.tenant, r.conn.ID, telegram.SourceChats, "")
+	require.NoError(t, err)
+	require.Len(t, opts, 2)
+	assert.Equal(t, "private", opts[0].Group)
+	assert.Equal(t, "700", opts[0].Value)
+	assert.Equal(t, "group", opts[1].Group)
+	assert.Equal(t, "Sales team (@salesteam)", opts[1].Label)
+	none, err := r.c.Options(context.Background(), r.tenant, r.conn.ID, "other.source", "")
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}

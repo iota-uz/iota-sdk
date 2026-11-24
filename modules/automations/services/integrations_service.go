@@ -799,6 +799,31 @@ func (s *IntegrationsService) Delete(ctx context.Context, a Actor, id uuid.UUID)
 	return nil
 }
 
+// Options are the choices a connector offers for a param field of a node (the chats of a bot), for one of
+// the tenant's connections; none when the connector offers none.
+func (s *IntegrationsService) Options(ctx context.Context, a Actor, connectionID uuid.UUID, source, query string) ([]connectors.Option, error) {
+	cur, err := s.find(ctx, a.TenantID, connectionID)
+	if err != nil {
+		return nil, mapStoreError("automations.IntegrationsService.Options", err)
+	}
+	conn, ok := s.dir.Get(cur.Kind)
+	if !ok {
+		return nil, connectors.ErrNotFound
+	}
+	src, ok := conn.(connectors.OptionSource)
+	if !ok {
+		return []connectors.Option{}, nil
+	}
+	out, err := src.Options(ctx, a.TenantID, connectionID, source, query)
+	if err != nil {
+		return nil, serrors.Wrap("automations.IntegrationsService.Options", err)
+	}
+	if out == nil {
+		out = []connectors.Option{}
+	}
+	return out, nil
+}
+
 // sameCredentials reports whether two credential sets hold the same values.
 func sameCredentials(a, b connectors.Credentials) bool {
 	if len(a) != len(b) {

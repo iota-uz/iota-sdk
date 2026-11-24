@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 )
 
@@ -99,4 +101,19 @@ func WithPlatformProviders(creds map[catalog.ConnectorKind]PlatformCredential, l
 		}
 	}
 	return out
+}
+
+// Option is a choice offered for a node's param: the value goes into the params, the label is shown, the
+// group (a key the screen names) sorts the choices.
+type Option struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+	Group string `json:"group,omitempty"`
+}
+
+// OptionSource is an optional interface of a Connector: the choices of a param field that names the
+// source in its schema (x-options-source), for one of the tenant's connections: the chats a bot received
+// messages from. The query narrows them.
+type OptionSource interface {
+	Options(ctx context.Context, tenantID, connectionID uuid.UUID, source, query string) ([]Option, error)
 }
