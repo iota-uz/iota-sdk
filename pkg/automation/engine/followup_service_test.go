@@ -752,7 +752,15 @@ func (c *hookCatalog) ForTenant(ctx context.Context, tenant uuid.UUID, opts ...c
 // botSetup is a runtime whose catalog reads a connector store, with one working bot A.
 func botSetup(t *testing.T, e *env, p *proc) (*proc, *hookCatalog, connectors.Store, connectors.Connection) {
 	t.Helper()
-	ctx := context.Background()
+	bp, cat, store := botRuntime(t, e, p, e.db, nil, nil)
+	a, err := store.Save(context.Background(), connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "bot_a"}, connectors.Credentials{"token": "a"})
+	require.NoError(t, err)
+	return bp, cat, store, a
+}
+
+// botRuntime is a runtime whose catalog reads a connector store with platform credentials and grants.
+func botRuntime(t *testing.T, e *env, p *proc, db *pgxpool.Pool, platform connectors.PlatformCredentials, grants connectors.PlatformGrants) (*proc, *hookCatalog, connectors.Store) {
+	t.Helper()
 	avail := &storeAvailability{}
 	reg := catalog.NewRegistry(avail)
 	require.NoError(t, reg.RegisterTriggers(engine.Triggers()))
@@ -762,14 +770,12 @@ func botSetup(t *testing.T, e *env, p *proc) (*proc, *hookCatalog, connectors.St
 	require.NoError(t, reg.RegisterNode(botNode{specNode{graph.NodeSpec{Type: "acme.bot", Title: "Bot", Behavior: graph.BehaviorEffect,
 		Params: graph.MustSchemaParams(`{"type":"object","properties":{},"additionalProperties":false}`)}}}))
 	cat := &hookCatalog{Registry: reg}
-	rt := runtimeOn(t, e, p, e.db, cat)
+	rt := runtimeOn(t, e, p, db, cat)
 	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": []byte("0123456789abcdef0123456789abcdef")})
 	require.NoError(t, err)
-	store := connectors.NewStore(e.db, keys, rt.UsageIndex(), nil, nil)
+	store := connectors.NewStore(e.db, keys, rt.UsageIndex(), platform, grants)
 	avail.s = store
-	a, err := store.Save(ctx, connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "bot_a"}, connectors.Credentials{"token": "a"})
-	require.NoError(t, err)
-	return &proc{e: e, wf: p.wf, rt: rt, disp: p.disp}, cat, store, a
+	return &proc{e: e, wf: p.wf, rt: rt, disp: p.disp}, cat, store
 }
 
 // botGraph names no connection: it runs with the only working bot.
@@ -844,4 +850,122 @@ func TestEnableIsRefusedWhenAnotherCandidateConnectionAppearedAfterValidation(t 
 	require.NotEmpty(t, verr.Errors)
 	assert.Equal(t, "nodes[0].params.connection", verr.Errors[0].Path, "%v", verr.Errors)
 	assert.Equal(t, 0, e.count(`SELECT count(*) FROM automation.automations WHERE id = $1 AND enabled_version IS NOT NULL`, am.ID))
+}
+
+// optInBot is a telegram bot connector whose platform credential a tenant opts in to.
+type optInBot struct{}
+
+func (optInBot) Kind() catalog.ConnectorKind       { return catalog.KindTelegramBot }
+func (optInBot) Nodes() []catalog.NodeType         { return nil }
+func (optInBot) Triggers() []catalog.TriggerSource { return nil }
+func (optInBot) Descriptor() connectors.Descriptor {
+	return connectors.Descriptor{Kind: catalog.KindTelegramBot, Title: map[string]string{"en": "Telegram bot"}, Auth: connectors.AuthAPIKey,
+		Platform: connectors.PlatformOptIn, Credentials: json.RawMessage(`{"type":"object","properties":{"token":{"type":"string","x-secret":true}},"additionalProperties":false}`)}
+}
+func (optInBot) Test(context.Context, connectors.Credentials) (connectors.Identity, error) {
+	return connectors.Identity{Display: "bot"}, nil
+}
+
+// platformBots is a runtime (on db, nil: the test's pool) whose only bot is the platform credential,
+// granted to the tenant.
+func platformBots(t *testing.T, e *env, db ...*pgxpool.Pool) (*proc, *hookCatalog, connectors.Store, connectors.PlatformGrants) {
+	t.Helper()
+	dir := connectors.NewDirectory(nil)
+	require.NoError(t, dir.Register(optInBot{}))
+	platform := connectors.NewPlatformCredentials(dir, map[catalog.ConnectorKind]connectors.PlatformCredential{
+		catalog.KindTelegramBot: {Credentials: connectors.Credentials{"token": "platform"}, Identity: connectors.Identity{Display: "IOTA bot"}},
+	})
+	grants := connectors.NewPlatformGrants(e.db)
+	require.NoError(t, grants.SetEnabled(context.Background(), e.tenant, catalog.KindTelegramBot, true, 1))
+	pool := e.db
+	if len(db) > 0 {
+		pool = db[0]
+	}
+	bp, cat, store := botRuntime(t, e, e.proc(), pool, platform, grants)
+	return bp, cat, store, grants
+}
+
+func TestEnableIsRefusedWhenItsPlatformGrantWasRevokedAfterValidation(t *testing.T) {
+	e := newEnv(t)
+	bp, cat, store, grants := platformBots(t, e)
+	ctx := context.Background()
+	human := e.human()
+	am, v1, err := bp.rt.Service().Create(ctx, human, engine.CreateInput{Graph: json.RawMessage(botGraph("Bot"))})
+	require.NoError(t, err)
+	_, err = bp.rt.Service().SaveVersion(ctx, human, am.ID, engine.SaveInput{BaseVersion: 1, Graph: json.RawMessage(`{"name": "Plain",
+	 "triggers": [{"id": "go", "event": "automation.manual.v1"}], "nodes": [{"id": "fin", "type": "end", "params": {}}],
+	 "edges": [{"from": {"node": "go", "outcome": "fired"}, "to": "fin"}]}`)})
+	require.NoError(t, err)
+	// After the enable validated version 1 (the platform bot), and before its lock: the grant is revoked,
+	// and a tenant bot comes and goes, so the connections themselves end as they were.
+	cat.change = func(ctx context.Context) {
+		require.NoError(t, grants.SetEnabled(ctx, e.tenant, catalog.KindTelegramBot, false, 1))
+		b, err := store.Save(ctx, connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "bot_b"}, connectors.Credentials{"token": "b"})
+		require.NoError(t, err)
+		require.NoError(t, store.Delete(ctx, e.tenant, b.ID))
+	}
+	cat.at.Store(cat.calls.Load() + 2)
+	_, err = bp.rt.Service().Enable(ctx, human, am.ID, engine.EnableInput{Version: v1.Version})
+	var verr *engine.ValidationError
+	require.ErrorAs(t, err, &verr, "validated again: the graph has no working bot")
+	assert.Equal(t, engine.CodeConnectionUnavailable, verr.Errors[0].Code)
+	assert.Equal(t, 0, e.count(`SELECT count(*) FROM automation.automations WHERE id = $1 AND enabled_version IS NOT NULL`, am.ID))
+}
+
+func TestAutoEnableKeepsTheEnabledVersionWhenItsPlatformGrantWasRevoked(t *testing.T) {
+	e := newEnv(t)
+	bp, cat, _, grants := platformBots(t, e)
+	ctx := context.Background()
+	human := e.human()
+	am := e.create(bp, human, botGraph("Bot"))
+	cat.change = func(ctx context.Context) {
+		require.NoError(t, grants.SetEnabled(ctx, e.tenant, catalog.KindTelegramBot, false, 1))
+	}
+	cat.at.Store(cat.calls.Load() + 1)
+	v2, err := bp.rt.Service().SaveVersion(ctx, human, am.ID, engine.SaveInput{BaseVersion: 1, Graph: json.RawMessage(botGraph("Bot renamed"))})
+	require.NoError(t, err, "the version is saved")
+	assert.Equal(t, 2, v2.Version)
+	assert.Equal(t, 1, e.count(`SELECT count(*) FROM automation.automations WHERE id = $1 AND enabled_version = 1`, am.ID),
+		"the running version stays: the grant it was validated with is gone")
+}
+
+func TestPlatformGrantRevocationWaitsForAnEnableThatUsesIt(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	// The enable pauses right after it locked the grants of the platform credentials it uses.
+	locked, resume := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	letGo := func() { once.Do(func() { close(resume) }) }
+	tr := &lockTracer{match: "FROM automation.platform_grants WHERE tenant_id = $1 AND kind = ANY($2)", after: func() {
+		close(locked)
+		<-resume
+	}}
+	cfg := e.db.Config().Copy()
+	cfg.ConnConfig.Tracer = tr
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+	t.Cleanup(letGo)
+	bp, _, _, grants := platformBots(t, e, pool)
+	human := e.human()
+	am, v1, err := bp.rt.Service().Create(ctx, human, engine.CreateInput{Graph: json.RawMessage(botGraph("Bot"))})
+	require.NoError(t, err)
+	enabled := make(chan error, 1)
+	go func() {
+		_, err := bp.rt.Service().Enable(ctx, human, am.ID, engine.EnableInput{Version: v1.Version})
+		enabled <- err
+	}()
+	select {
+	case <-locked:
+	case err := <-enabled:
+		t.Fatalf("the enable finished without locking the grant it uses: %v", err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("the enable never locked the grant")
+	}
+	revoked := make(chan error, 1)
+	go func() { revoked <- grants.SetEnabled(ctx, e.tenant, catalog.KindTelegramBot, false, 1) }()
+	e.waitLockWait(t, "%automation.platform_grants%", tr.pid.Load(), "the revocation waits for the enable")
+	letGo()
+	require.NoError(t, <-enabled, "the enable commits with the grant it was validated with")
+	require.NoError(t, <-revoked, "the revocation follows it")
 }

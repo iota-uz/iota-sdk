@@ -210,9 +210,11 @@ func lockConnections(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, v validat
 		return nil
 	}
 	want := map[uuid.UUID]bool{}
+	platform := map[string]bool{}
 	for _, c := range uses {
-		if strings.HasPrefix(c, catalog.PlatformPrefix) {
-			continue // a platform credential has no row to delete
+		if kind, ok := strings.CutPrefix(c, catalog.PlatformPrefix); ok {
+			platform[kind] = true // its availability may be an opt_in grant, locked below
+			continue
 		}
 		id, err := uuid.Parse(c)
 		if err != nil {
@@ -236,6 +238,19 @@ func lockConnections(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, v validat
 		}
 		if len(found) != len(ids) {
 			return errConnectionGone
+		}
+	}
+	if len(platform) > 0 {
+		// The grants of the platform credentials the graph uses are held FOR SHARE as well: revoking one
+		// (PlatformGrants.SetEnabled) waits for this enable, or committed before and changed connState. A
+		// kind without a grant row is available by its policy (auto), which no tenant write changes.
+		kinds := make([]string, 0, len(platform))
+		for k := range platform {
+			kinds = append(kinds, k)
+		}
+		sort.Strings(kinds)
+		if _, err := tx.Exec(ctx, `SELECT 1 FROM automation.platform_grants WHERE tenant_id = $1 AND kind = ANY($2) ORDER BY kind FOR SHARE`, tenant, kinds); err != nil {
+			return serrors.FromDB(opService, err)
 		}
 	}
 	now, err := connectionsState(ctx, tx, tenant)

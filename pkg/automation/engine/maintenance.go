@@ -251,12 +251,16 @@ func (u usageIndex) PrepareUses(ctx context.Context, tenantID uuid.UUID) (connec
 	}, nil
 }
 
-// connectionsState is the identity, status and version of every connection of the tenant: what the
-// catalog's working connections are derived from.
+// connectionsState is what the catalog's working connections of a tenant are derived from: the
+// identity, status and version of every connection, and every grant of an opt_in platform credential
+// (its kind, whether it is enabled and when it was last set).
 func connectionsState(ctx context.Context, q querier, tenantID uuid.UUID) (string, error) {
 	var state string
-	err := q.QueryRow(ctx, `SELECT coalesce(string_agg(id::text || ':' || status || ':' || version, ',' ORDER BY id), '')
-		FROM automation.connections WHERE tenant_id = $1`, tenantID).Scan(&state)
+	err := q.QueryRow(ctx, `SELECT
+		coalesce((SELECT string_agg(id::text || ':' || status || ':' || version, ',' ORDER BY id) FROM automation.connections WHERE tenant_id = $1), '')
+		|| '|' ||
+		coalesce((SELECT string_agg(kind || ':' || enabled || ':' || enabled_at, ',' ORDER BY kind) FROM automation.platform_grants WHERE tenant_id = $1), '')`,
+		tenantID).Scan(&state)
 	return state, serrors.FromDB(opMaintain, err)
 }
 
