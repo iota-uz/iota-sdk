@@ -50,12 +50,13 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
         <Switch>
           <Match when={init.view === 'list'}><List /></Match>
           <Match when={init.view !== 'list'}>
-            <ErrorBoundary fallback={(error, reset) => {
+            <ErrorBoundary fallback={(error) => {
               console.warn('automations: the editor did not load', error)
               return (
                 <div role="alert" class="m-4 flex flex-col items-start gap-3 rounded-lg border border-subtle p-6" data-testid="editor-load-error">
                   <p>{ctx.t('Editor.LoadFailed')}</p>
-                  <Button variant="secondary" onClick={reset}>{ctx.t('Common.Retry')}</Button>
+                  {/* The browser keeps a failed module import: a retry loads the page again. */}
+                  <Button variant="secondary" onClick={() => window.location.reload()}>{ctx.t('Common.Retry')}</Button>
                 </div>
               )
             }}>

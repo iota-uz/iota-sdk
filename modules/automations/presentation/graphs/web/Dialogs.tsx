@@ -7,7 +7,7 @@ import { counted, errorText, highlight, triggerIcon, type ReviewResult } from '.
 type GraphError = { path: string; message: string; code?: string }
 
 const TOKEN_CLASS: Record<string, string> = {
-  keyword: 'text-purple font-medium', string: 'text-green', comment: 'text-300 italic', number: 'text-blue', plain: '',
+  keyword: 'text-purple font-medium', string: 'text-green', comment: 'text-200 italic', number: 'text-blue', plain: '',
 }
 
 /** Source with syntax highlighting; the text is rendered as text, never as HTML. */
