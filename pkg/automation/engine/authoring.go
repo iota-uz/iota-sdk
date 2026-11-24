@@ -59,7 +59,10 @@ const MaxDryRunEvents = 50
 type DryRunInput struct {
 	Graph   json.RawMessage
 	Subject SubjectRef
-	Context map[string]json.RawMessage // overrides of nodes.<id>.output / subject fields
+	// AutomationID is the saved automation whose memory (state) the dry run reads; the zero value: the
+	// graph is not saved, so no key is there. A dry run never writes the memory.
+	AutomationID uuid.UUID
+	Context      map[string]json.RawMessage // overrides of nodes.<id>.output / subject fields
 	// Events is the sequence fed to triggers and waits (≤ 50): an event {kind, ...payload}, {"timeout":
 	// true} for the earliest timer, or {"events": [...]} for the batch a trigger's collect merges into
 	// the run that starts (events; event is its last entry).
@@ -109,10 +112,12 @@ const (
 
 // TestNodeInput is one real execution of one node.
 type TestNodeInput struct {
-	Graph   json.RawMessage
-	NodeID  string
-	Subject *SubjectRef
-	Context map[string]json.RawMessage
+	Graph  json.RawMessage
+	NodeID string
+	// AutomationID is the saved automation whose memory (state) the node reads (see DryRunInput).
+	AutomationID uuid.UUID
+	Subject      *SubjectRef
+	Context      map[string]json.RawMessage
 }
 
 // TestNodeResult is what the node did.
@@ -237,7 +242,7 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 	}
 	sub := a.Subject
 	sub.TenantID = a.TenantID
-	gctx, err := au.r.BuildRunContext(ctx, RunContextInput{TenantID: a.TenantID, Subject: in.Subject, RunAs: sub, Now: time.Now(), Overrides: overrides})
+	gctx, err := au.r.BuildRunContext(ctx, RunContextInput{TenantID: a.TenantID, AutomationID: in.AutomationID, Subject: in.Subject, RunAs: sub, Now: time.Now(), Overrides: overrides})
 	if err != nil {
 		return DryRunResult{}, &host.InfraError{Err: err}
 	}
@@ -421,7 +426,7 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 	if raw, ok := overrides["event"].(map[string]any); ok {
 		event = raw
 	}
-	gctx, err := au.r.BuildRunContext(ctx, RunContextInput{TenantID: a.TenantID, Subject: subject, RunAs: sub, Event: event, Now: time.Now(), Overrides: overrides})
+	gctx, err := au.r.BuildRunContext(ctx, RunContextInput{TenantID: a.TenantID, AutomationID: in.AutomationID, Subject: subject, RunAs: sub, Event: event, Now: time.Now(), Overrides: overrides})
 	if err != nil {
 		return TestNodeResult{}, &host.InfraError{Err: err}
 	}

@@ -151,6 +151,9 @@ func (n *normalizer) value(f Field, v any, path []segment) (any, bool, error) {
 		}
 		return out, true, nil
 	case Map:
+		if lk, isLookup := v.(Lookup); isLookup {
+			return &lazyMap{lk: lk, path: append([]segment(nil), path...)}, true, nil
+		}
 		m, ok := toMap(v)
 		if !ok {
 			return bad("map")

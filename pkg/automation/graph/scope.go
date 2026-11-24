@@ -241,6 +241,13 @@ func scopeOf(vars expr.Fields, event, events expr.Field, nodes expr.Fields, decl
 	return expr.Scope{Vars: out}
 }
 
+// StateVar is the name of the automation's memory in expressions of a step: state.get(key) is the value of
+// a key or null, state.has(key) tells whether the key is there.
+const StateVar = "state"
+
+// StateField is `state`: a map of dyn read by key (Context.State).
+var StateField = expr.MapOf(expr.DynField)
+
 // SubjectInfoField is `subject` in every scope (unless the subject's context declares its own): what the run is about and the absolute link to its
 // record ("" when its module registers no link).
 var SubjectInfoField = expr.ObjectOf(expr.Fields{
@@ -330,6 +337,11 @@ func (x *exprs) env(owner, event string, withNodes bool, each string) (*expr.Env
 		}
 	}
 	if withNodes {
+		// state is the automation's memory between runs: read in a step, where it is the step's own, never
+		// when a trigger decides whether to start (a subject's variable of that name wins).
+		if _, declared := scope.Vars[StateVar]; !declared {
+			scope.Vars[StateVar] = StateField
+		}
 		// foreach.<id>.item and .index: read inside the foreach's body.
 		in := map[string]bool{}
 		for _, id := range strings.Split(each, ",") {

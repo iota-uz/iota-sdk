@@ -1398,7 +1398,7 @@ func (m *mover) context(ctx context.Context, tok *tokenRow) (graph.Context, erro
 	}
 	return m.x.r.BuildRunContext(ctx, RunContextInput{
 		TenantID: m.x.tenant, AutomationID: m.x.run.AutomationID, RunID: m.x.run.ID, Subject: m.x.run.Subject, RunAs: m.x.subject,
-		Event: event, Events: evs, Nodes: nodes, Foreach: each, Now: m.s.now, Vars: vars,
+		Event: event, Events: evs, Nodes: nodes, Foreach: each, Now: m.s.now, Vars: vars, StateDB: m.tx,
 	})
 }
 

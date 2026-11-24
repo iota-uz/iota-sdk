@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/automation/state"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -105,6 +106,12 @@ func (r *Runtime) Prune(ctx context.Context) (int64, error) {
 			return total, serrors.FromDB(opMaintain, err)
 		}
 		total += tag.RowsAffected()
+	}
+	// The expired keys of the automations' memory (a read never shows one, so this only frees the rows).
+	purged, err := state.Purge(ctx, r.cfg.DB)
+	total += purged
+	if err != nil {
+		return total, err
 	}
 	return total, ctx.Err()
 }
