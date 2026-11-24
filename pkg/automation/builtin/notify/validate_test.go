@@ -188,6 +188,16 @@ func TestAnExternalLinkIsRefusedWhenTheGraphIsSaved(t *testing.T) {
 		"orders/1":                               true,
 		"javascript:alert(1)":                    true,
 		"https://user@erp.example.com/x":         true,
+		"https://erp.example.com//evil.com":      true, // the path is protocol-relative
+		"/%2F%2Fevil.com":                        true, // and so is this one, once decoded
+		"/orders/%2e%2e/%5cevil":                 true,
+		"/orders/%41":                            false,
+		// every literal part after a template is checked, not only the text before the first one
+		"/orders/{{ event.amount }}/%5Cbad":                  true,
+		"/orders/{{ event.amount }}/%5cbad":                  true,
+		"/orders/{{ event.amount }}\\bad":                    true,
+		"/orders/{{ event.amount }}/a/{{ event.amount }}%5C": true,
+		"/orders/{{ event.amount }}/ok/{{ event.amount }}":   false,
 	} {
 		raw := notifyGraph("acme.order.created.v1", fmt.Sprintf(`{"recipients": {"roles": ["1"]}, "title": "Hi", "body": "Paid", "action_url": %q}`, link))
 		errs := v.errors(t, strings.ReplaceAll(raw, "event.x", "event.amount"))
@@ -260,10 +270,10 @@ func TestTheNodeOutcomesAndOutputAreDeclared(t *testing.T) {
 func TestRegisterRefusesAConfigTheNodesCannotWorkWith(t *testing.T) {
 	reg := func() catalog.Registry { return catalog.NewRegistry(nil) }
 	pool := new(pgxpool.Pool)
-	assert.ErrorContains(t, notify.Register(reg(), notify.Config{Pool: pool}), "Sender")
-	assert.ErrorContains(t, notify.Register(reg(), notify.Config{Sender: &sender{}}), "Pool")
-	assert.ErrorContains(t, notify.Register(reg(), notify.Config{Sender: &sender{}, Pool: pool, BaseURL: "erp.example.com"}), "BaseURL")
-	assert.ErrorContains(t, notify.Register(reg(), notify.Config{Sender: &sender{}, Pool: pool, BaseURL: "ftp://erp.example.com"}), "BaseURL")
+	require.ErrorContains(t, notify.Register(reg(), notify.Config{Pool: pool}), "Sender")
+	require.ErrorContains(t, notify.Register(reg(), notify.Config{Sender: &sender{}}), "Pool")
+	require.ErrorContains(t, notify.Register(reg(), notify.Config{Sender: &sender{}, Pool: pool, BaseURL: "erp.example.com"}), "BaseURL")
+	require.ErrorContains(t, notify.Register(reg(), notify.Config{Sender: &sender{}, Pool: pool, BaseURL: "ftp://erp.example.com"}), "BaseURL")
 	r := reg()
 	require.NoError(t, notify.Register(r, notify.Config{Sender: &sender{}, Pool: pool}))
 	assert.Error(t, notify.Register(r, notify.Config{Sender: &sender{}, Pool: pool}), "the nodes are registered once")

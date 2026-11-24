@@ -73,7 +73,7 @@ func TestSendToContactWithoutAnAddressOnTheChannelHasNoContact(t *testing.T) {
 	res, err := apply(t, nt, step(), contactParams("sms"))
 	require.NoError(t, err)
 	assert.Equal(t, notify.OutcomeNoContact, res.Outcome)
-	assert.Equal(t, "", res.Output["notice_id"])
+	assert.Empty(t, res.Output["notice_id"])
 	assert.Equal(t, "sms", res.Output["channel"])
 	assert.Equal(t, []any{map[string]any{"kind": "record", "ref": "crm.client/42", "reason": "no_address"}}, res.Output["skipped"])
 }
@@ -140,7 +140,8 @@ func TestSendToContactPreviewResolvesLikeASend(t *testing.T) {
 	assert.Equal(t, notify.OutcomeNoContact, res.Outcome)
 	assert.Equal(t, map[string]any{"records": []any{}}, res.Output["resolved"])
 	assert.Equal(t, []any{map[string]any{"kind": "record", "ref": "crm.client/42", "reason": "no_address"}}, res.Output["skipped"])
-	raw, _ := json.Marshal(res.Output)
+	raw, err := json.Marshal(res.Output)
+	require.NoError(t, err)
 	assert.NotContains(t, string(raw), "+998", "a contact's address stays out of the trace")
 
 	// A channel that is not available is a failure, as in a run, address or not.

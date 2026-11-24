@@ -138,7 +138,7 @@ func TestNotifyWithNobodyLeftQueuesNothing(t *testing.T) {
 	assert.Equal(t, notify.OutcomeNoRecipients, res.Outcome)
 	assert.Len(t, s.sends, 1, "the delivery layer is asked, and queues nothing for an empty audience: its receipt names no notice")
 	assert.Empty(t, s.resolves, "who was left out comes with the receipt of the send, not from a second resolution")
-	assert.Equal(t, "", res.Output["notice_id"])
+	assert.Empty(t, res.Output["notice_id"])
 	assert.Equal(t, "0", res.Output["recipients"].(json.Number).String())
 	assert.Equal(t, []any{map[string]any{"kind": "user", "ref": "7", "reason": "inactive"}}, res.Output["skipped"])
 
@@ -176,7 +176,7 @@ func TestNotifyReportsWhatTheDeliveryLayerRefuses(t *testing.T) {
 	long := run(serrors.New(serrors.Invalid, strings.Repeat("я", 1000)))
 	require.ErrorAs(t, long, &se)
 	assert.LessOrEqual(t, len(se.Message), 500)
-	assert.True(t, strings.ToValidUTF8(se.Message, "") == se.Message, "the message is cut on a character")
+	assert.Equal(t, strings.ToValidUTF8(se.Message, ""), se.Message, "the message is cut on a character")
 
 	own := &engine.StepError{Code: "custom", Message: "x"}
 	require.ErrorAs(t, run(own), &se)
