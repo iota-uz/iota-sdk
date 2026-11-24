@@ -176,6 +176,25 @@ func TestNativeIsTheOneRegistration(t *testing.T) {
 	if !ok || d.Permission() != "Clients.Update" {
 		t.Fatalf("contract %v", d)
 	}
+	// Another set's action of the same ID, and an ordinary command of it, change nothing of this set.
+	other := fake{key: "crm.client.reassign", spec: actions.ActionSpec{Label: manifest.Label{"en": "Other"}, Permission: "Other.Perm"}}
+	otherSet := native.NewSet()
+	if err := otherSet.Add(actions.MustNative(other, func(native.Deps) (actions.Action, error) { return other, nil })); err != nil {
+		t.Fatal(err)
+	}
+	nodes, err = actions.NodesOf(set)
+	if err != nil || nodes[0].(catalog.PermissionedNode).Permission() != "Clients.Update" {
+		t.Fatalf("the first set changed: %v %v", err, nodes)
+	}
+	plain := native.NewSet()
+	if err := plain.Add(native.Command("crm.client.reassign", native.Spec{Permission: "X"}, func(native.Deps) (native.CommandFunc[json.RawMessage, json.RawMessage], error) {
+		return nil, nil
+	})); err != nil {
+		t.Fatal(err)
+	}
+	if nodes, err := actions.NodesOf(plain); err != nil || len(nodes) != 0 {
+		t.Fatalf("an ordinary command is an action: %v %v", err, nodes)
+	}
 }
 
 // The action node dispatches to the action it names.

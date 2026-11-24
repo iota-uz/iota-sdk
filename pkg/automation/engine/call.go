@@ -1076,7 +1076,31 @@ func (x *callExec) command(ctx context.Context, cn catalog.CallNode, cc catalog.
 		}
 		return WaitResult{}, err
 	}
-	out, err := x.nr.CallAs(ctx, "command", 0, command, input, catalog.InvocationIDOf(req.IdempotencyKey))
+	// A recorded command is read back as it is. One that never started runs within the call's deadline
+	// and holds one of the tenant's call slots, as every call does; one that started (a crash) is resolved
+	// by the workflow from the host's record of its invocation.
+	_, seen, err := x.nr.Lookup(ctx, "command", 0)
+	if err != nil {
+		return WaitResult{}, err
+	}
+	callCtx := ctx
+	if !seen {
+		if !time.Now().Before(req.Deadline) {
+			return x.failed(cn, CodeTimeout, req.NodeID+" ran out of time before its command", false), nil
+		}
+		switch err := x.slot(ctx); {
+		case errors.Is(err, errSlotDeadline):
+			return x.failed(cn, CodeTimeout, req.NodeID+" ran out of time waiting for a call slot", false), nil
+		case err != nil:
+			return WaitResult{}, err
+		default:
+			defer x.release(ctx)
+		}
+		var cancel context.CancelFunc
+		callCtx, cancel = context.WithDeadline(ctx, req.Deadline)
+		defer cancel()
+	}
+	out, err := x.nr.CallAs(callCtx, "command", 0, command, input, catalog.InvocationIDOf(req.IdempotencyKey))
 	if err != nil {
 		if we, ok := pool.AsWireError(err); ok && (we.Kind == pool.ErrKindDomain || we.Kind == pool.ErrKindValidation) {
 			return x.failed(cn, callCode(CommandErrorCode(we.Code), conn.masker), conn.masker.Mask(we.Message), false), nil

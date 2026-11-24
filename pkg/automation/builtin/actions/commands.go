@@ -70,16 +70,18 @@ type commandOutput struct {
 // code after it, dots and all.
 const ErrorPrefix = "automation."
 
+// templates are the actions by their command definition (Native): the very contract a set holds, so a
+// set's action is never another set's command of the same ID, nor an ordinary command.
 var (
 	templatesMu sync.RWMutex
-	templates   = map[string]Action{}
+	templates   = map[native.Definition]Action{}
 )
 
-// Template is the action registered (Native) for a command ID: its key and spec.
-func Template(key string) (Action, bool) {
+// TemplateOf is the action a command definition of a set is (Native made it), if it is one.
+func TemplateOf(d native.Definition) (Action, bool) {
 	templatesMu.RLock()
 	defer templatesMu.RUnlock()
-	a, ok := templates[key]
+	a, ok := templates[d]
 	return a, ok
 }
 
@@ -133,7 +135,7 @@ func Native(template Action, build func(native.Deps) (Action, error)) (native.It
 		return nil, fmt.Errorf("automation action %s: %w", key, err)
 	}
 	templatesMu.Lock()
-	templates[key] = template
+	templates[native.Definition(def)] = template
 	templatesMu.Unlock()
 	return def, nil
 }
@@ -154,7 +156,7 @@ func NodesOf(set *native.Set) ([]catalog.NodeType, error) {
 	}
 	var list []Action
 	for _, d := range set.Contracts() {
-		if a, ok := Template(d.ID()); ok {
+		if a, ok := TemplateOf(d); ok {
 			list = append(list, a)
 		}
 	}

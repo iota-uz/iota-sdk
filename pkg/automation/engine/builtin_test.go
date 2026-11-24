@@ -57,6 +57,7 @@ const permBlock = "Users.Block"
 
 // blockAction records the users it blocked: its effect.
 type blockAction struct {
+	onRun   func(ctx context.Context)
 	inv     string
 	mu      sync.Mutex
 	blocked []string
@@ -90,7 +91,11 @@ func (a *blockAction) Run(ctx context.Context, actor spi.Subject, args json.RawM
 	}
 	a.mu.Lock()
 	a.inv = actions.InvocationID(ctx)
+	hook := a.onRun
 	a.mu.Unlock()
+	if hook != nil {
+		hook(ctx)
+	}
 	a.mu.Lock()
 	a.blocked = append(a.blocked, in.UserID)
 	a.mu.Unlock()
@@ -292,9 +297,17 @@ func TestActionRunsAsTheRunAs(t *testing.T) {
 	p := be.proc()
 	a := be.actor(be.tenant, 1, engine.OriginHuman, append(append([]string{}, allPerms...), permBlock)...)
 	be.create(p, a, actionGraph())
+	// The command runs holding one of the tenant's call slots, as every call does.
+	var slots atomic.Int32
+	be.action.onRun = func(ctx context.Context) {
+		var n int32
+		_ = be.db.QueryRow(context.WithoutCancel(ctx), `SELECT count(*) FROM automation.call_slots WHERE tenant_id = $1`, be.tenant).Scan(&n)
+		slots.Store(n)
+	}
 	be.publish(be.tenant, orderCreated, "o-1", order{Amount: 9}, 0)
 	run := onlyRun(t, be.env, p, a)
 	p.until(func() bool { return be.status(p, run.RunID) == engine.RunDone }, "the action runs")
+	assert.Equal(t, int32(1), slots.Load(), "the command held a call slot")
 	assert.Equal(t, []string{"ok:u-9"}, be.effects(run.RunID))
 	assert.Equal(t, []string{"u-9"}, be.action.blocked)
 	// The action went through wf.call: the workflow journaled the command under the call's invocation ID,
