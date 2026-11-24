@@ -597,7 +597,7 @@ func TestEskizURLPolicy(t *testing.T) {
 		_, err := f.exec()
 		require.Error(t, err, u)
 		assert.Equal(t, catalog.CallInvalidRequest, callErr(t, err).Code, u)
-		_, err = f.conn.Test(context.Background(), connectors.Credentials(f.in.Credentials))
+		_, err = f.conn.Test(context.Background(), f.in.Credentials)
 		require.Error(t, err, u)
 	}
 	// The platform credential's URL comes from the environment and is trusted.
