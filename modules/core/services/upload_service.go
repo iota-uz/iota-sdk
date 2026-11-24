@@ -154,7 +154,7 @@ func (s *UploadService) DownloadableByRoute(storedPath string) bool {
 		return false
 	}
 	private := filepath.Join(root, uploadsconfig.PrivateDirectory)
-	return !(storedPath == private || pathWithin(private, storedPath))
+	return storedPath != private && !pathWithin(private, storedPath)
 }
 
 // CreateKeeping stores an upload in the public root, or returns the tenant's existing upload of the same content
