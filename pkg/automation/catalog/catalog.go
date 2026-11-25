@@ -164,6 +164,9 @@ type CallInput struct {
 	Attempt        int            // 1: the first attempt
 	IdempotencyKey string         // stable between attempts: run:node:token:seq
 	Params         map[string]any // templates and values are already evaluated
+	// Templated are the Mixed params (graph.NodeSpec.Mixed) the step rendered as {{ }} templates, by
+	// dotted path (graph.Effect.Templated); every other Mixed param holds the value of its CEL.
+	Templated []string
 	// Context is the step's expression context (event, nodes, the subject's variables, subject, run,
 	// tenant, now) for a node type that declares graph.NodeSpec.StepContext; nil otherwise.
 	Context     map[string]any

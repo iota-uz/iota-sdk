@@ -278,3 +278,37 @@ func TestCustomHeaderReachesTheWire(t *testing.T) {
 		t.Fatalf("the server saw %q", got)
 	}
 }
+
+// A response whose header section passes the fetcher's header limit is refused as too large, over
+// HTTP/1 and HTTP/2, so a caller's budget of the headers (the http node's output) holds.
+func TestFetchHeadersOverTheLimitAreTooLarge(t *testing.T) {
+	for _, h2 := range []bool{false, true} {
+		var proto atomic.Int32
+		srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			proto.Store(int32(r.ProtoMajor))
+			n := 1
+			if r.URL.Path == "/big" {
+				n = 40
+			}
+			for i := 0; i < n; i++ {
+				w.Header().Add("X-Pad", strings.Repeat("a", 1000))
+			}
+			_, _ = w.Write([]byte("ok"))
+		}))
+		srv.EnableHTTP2 = h2
+		srv.StartTLS()
+		f := testFetcher(srv, WithMaxHeaderBytes(16<<10))
+		resp, err := f.Fetch(context.Background(), FetchRequest{URL: "https://example.com/small"})
+		if err != nil || string(resp.Body) != "ok" {
+			t.Fatalf("h2=%v: headers under the limit: %v", h2, err)
+		}
+		if want := map[bool]int32{false: 1, true: 2}[h2]; proto.Load() != want {
+			t.Fatalf("h2=%v: the request went over HTTP/%d", h2, proto.Load())
+		}
+		_, err = f.Fetch(context.Background(), FetchRequest{URL: "https://example.com/big"})
+		if !errors.Is(err, ErrResponseHeadersTooLarge) || !errors.Is(err, ErrResponseTooLarge) {
+			t.Fatalf("h2=%v: want ErrResponseHeadersTooLarge, got %v", h2, err)
+		}
+		srv.Close()
+	}
+}

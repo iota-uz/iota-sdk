@@ -390,7 +390,7 @@ func (m *mover) call(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	}
 	sc := m.stepContext(tok, seq)
 	if len(st.Effects) > 0 {
-		sc.Context = st.Effects[0].Context
+		sc.Context, sc.Templated = st.Effects[0].Context, st.Effects[0].Templated
 	}
 	if fo := m.in().FailedOutcome(node.ID); fo != "" {
 		// Connected to a node that handles the failure: an edge to ignore (or none, inside a construct)

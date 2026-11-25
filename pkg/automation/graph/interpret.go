@@ -143,6 +143,9 @@ type Effect struct {
 	// Context is the step's expression context as JSON (event, nodes, subject, run, the subject's
 	// variables, tenant, now) for a node type that declares StepContext; nil otherwise.
 	Context map[string]any `json:"context,omitempty"`
+	// Templated are the Mixed params (NodeSpec.Mixed) rendered as {{ }} templates, by ParamPath.String;
+	// every other Mixed param was evaluated as CEL. A node reads a rendered text apart from a CEL string.
+	Templated []string `json:"templated,omitempty"`
 }
 
 // WaitIntent is what a wait sleeps on: an event kind (empty: only the timeout), a filter, a timeout.
@@ -344,6 +347,9 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 		rendered = setKeys(rendered, path, j)
 	}
 	e := Effect{Node: node.Type, Params: rendered}
+	for _, p := range mixedTemplates(params, spec) {
+		e.Templated = append(e.Templated, p.String())
+	}
 	if spec.StepContext {
 		c, err := jsonOut(vars)
 		if err != nil {

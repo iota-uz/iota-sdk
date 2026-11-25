@@ -29,7 +29,8 @@ type Deps struct {
 	Engines func(ctx context.Context) (sandbox.Engine, error)
 	// Compiler compiles Code nodes (default sandbox.NewCompiler with a cache).
 	Compiler sandbox.Compiler
-	// Fetcher is the network of Code and HTTP nodes (default sandbox.NewGuardedFetcher).
+	// Fetcher is the network of Code and HTTP nodes (default http.NewFetcher: the guarded fetcher with the
+	// http node's body and header limits).
 	Fetcher sandbox.Fetcher
 	// Secrets and Connections are the tenant's secrets and connections (nil: none).
 	Secrets     access.Secrets
@@ -46,7 +47,7 @@ func Nodes(d Deps) ([]catalog.NodeType, error) {
 		d.Compiler = sandbox.NewCompiler(sandbox.WithCache(256))
 	}
 	if d.Fetcher == nil {
-		d.Fetcher = sandbox.NewGuardedFetcher(sandbox.WithMaxBody(http.MaxResponseBytes))
+		d.Fetcher = http.NewFetcher()
 	}
 	start, run := flow.New(d.Runs)
 	out := []catalog.NodeType{
