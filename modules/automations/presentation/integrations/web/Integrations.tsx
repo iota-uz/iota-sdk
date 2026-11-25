@@ -6,9 +6,9 @@ import {
 } from '@iota-uz/sdk/solid-ui'
 import { rpcContracts, type Props, type RPC } from './Integrations.solid.generated'
 import {
-  CATEGORY_KEY, NAME_RE, changedCredentials, oauthErrorText, reasonSentence, reasonText, errorCode, fieldErrorText, groupByCategory, missingRequired, newCredentials, saveErrorText, warningText,
+  CATEGORY_KEY, MASKED_VALUE, NAME_RE, secretFieldErrorText, secretFormErrors, secretMeta, secretName, secretSaveErrorText, sortSecrets, changedCredentials, oauthErrorText, reasonSentence, reasonText, errorCode, fieldErrorText, groupByCategory, missingRequired, newCredentials, saveErrorText, warningText,
   schemaFields, availablePresets, connectionPreset, knownPresets, presetOptions, slugify, translator, usageHref, usedByText,
-  type ConnectionView, type ConnectorView, type FormField, type ListResult, type Status, type Translator, type UsageView,
+  type ConnectionView, type ConnectorView, type FormField, type ListResult, type SecretView, type Status, type Translator, type UsageView,
 } from './model'
 
 type Call = <K extends keyof RPC>(method: K, params: RPC[K]['params']) => Promise<RPC[K]['result']>
@@ -236,16 +236,20 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
         </Show>
       }>
         {(list) => (
-          <Show when={list().connectors.length > 0} fallback={<EmptyState title={t('Empty.Title')} description={t('Empty.Text')} data-testid="integrations-empty" />}>
-            <For each={groupByCategory(list().connectors)}>{(group) => (
-              <section class="flex flex-col gap-3" aria-labelledby={`cat-${group.category}`}>
-                <h2 id={`cat-${group.category}`} class="text-base font-medium text-100">{t(`Categories.${CATEGORY_KEY[group.category]}`)}</h2>
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
-                  <For each={group.connectors}>{(connector) => <ConnectorCard ctx={ctx} connector={connector} />}</For>
-                </div>
-              </section>
-            )}</For>
-          </Show>
+          <>
+            {/* A secrets administrator who does not manage connections sees the secrets only. */}
+            <Show when={list().connectors.length > 0} fallback={<Show when={!list().can_manage_secrets}><EmptyState title={t('Empty.Title')} description={t('Empty.Text')} data-testid="integrations-empty" /></Show>}>
+              <For each={groupByCategory(list().connectors)}>{(group) => (
+                <section class="flex flex-col gap-3" aria-labelledby={`cat-${group.category}`}>
+                  <h2 id={`cat-${group.category}`} class="text-base font-medium text-100">{t(`Categories.${CATEGORY_KEY[group.category]}`)}</h2>
+                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                    <For each={group.connectors}>{(connector) => <ConnectorCard ctx={ctx} connector={connector} />}</For>
+                  </div>
+                </section>
+              )}</For>
+            </Show>
+            <Show when={list().can_manage_secrets}><SecretsSection ctx={ctx} /></Show>
+          </>
         )}
       </Show>
       {/* Keyed by the form session: another target (history from edit A to edit B) is a new draft with
@@ -981,5 +985,253 @@ function DeleteDialog(props: { ctx: Ctx; connector: ConnectorView; connection: C
         </ConfirmationDialog>
       </div>
     </Show>
+  )
+}
+
+type SecretFormState = { mode: 'create' } | { mode: 'edit' | 'rotate'; secret: SecretView }
+
+/**
+ * The built-in «Secret» connector: the tenant's secrets that Code and HTTP nodes read by name. A value is
+ * entered (create, rotate) and never comes back: a secret is shown by its name, description and dates,
+ * its value only as a mask.
+ */
+function SecretsSection(props: { ctx: Ctx }) {
+  const t = props.ctx.t
+  const toast = useToast()
+  const [secrets, setSecrets] = createSignal<SecretView[]>()
+  const [failed, setFailed] = createSignal(false)
+  const [form, setForm] = createSignal<SecretFormState>()
+  const [deleting, setDeleting] = createSignal<SecretView>()
+  const load = async (): Promise<SecretView[] | undefined> => {
+    setFailed(false)
+    try {
+      const list = sortSecrets((await props.ctx.call('automations.secrets.list', {})).secrets)
+      setSecrets(list)
+      return list
+    } catch (e) {
+      console.warn('automations: secrets.list failed', errorCode(e))
+      setFailed(true)
+      return undefined
+    }
+  }
+  void load()
+  const saved = (secret: SecretView, mode: SecretFormState['mode']) => {
+    setForm(undefined)
+    props.ctx.highlight(secret.id)
+    void load()
+    const key = mode === 'create' ? 'Secrets.Toast.Created' : mode === 'rotate' ? 'Secrets.Toast.Rotated' : 'Secrets.Toast.Updated'
+    toast.notify({ variant: 'success', title: t(key, { name: secret.name }) })
+  }
+  return (
+    <section class="flex flex-col gap-3" aria-labelledby="cat-secrets" data-testid="secrets-section">
+      <h2 id="cat-secrets" class="text-base font-medium text-100">{t('Secrets.Category')}</h2>
+      {/* The same grid as the connector cards: the secret card is one of them. */}
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+      <article class="flex min-w-0 flex-col gap-4 rounded-lg border border-subtle bg-surface-300 p-4" data-testid="connector-secret" aria-labelledby="connector-title-secret">
+        <div class="flex flex-wrap items-start gap-3">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-500 text-100" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="84" cy="172" r="44" /><line x1="115" y1="141" x2="208" y2="48" /><line x1="176" y1="80" x2="208" y2="112" /><line x1="148" y1="108" x2="172" y2="132" />
+            </svg>
+          </span>
+          <div class="flex min-w-0 flex-1 flex-col gap-1">
+            <h3 id="connector-title-secret" class="truncate font-medium text-100">{t('Secrets.Title')}</h3>
+            <p class="text-xs text-200">{t('Secrets.Kind')}</p>
+          </div>
+          <Button size="sm" variant={(secrets()?.length ?? 0) > 0 ? 'secondary' : 'primary'} class="min-h-11 sm:min-h-9"
+            onClick={() => setForm({ mode: 'create' })} data-testid="secret-add">{t('Secrets.Add')}</Button>
+        </div>
+        <p class="text-sm text-200">{t('Secrets.Summary')}</p>
+        <Show when={!failed()} fallback={
+          <div role="alert" class="flex flex-wrap items-center gap-3 text-sm" data-testid="secrets-load-error">
+            <span class="text-pink">{t('Secrets.LoadFailed')}</span>
+            <Button size="sm" variant="secondary" onClick={() => void load()}>{t('Retry')}</Button>
+          </div>
+        }>
+          <Show when={secrets()} fallback={<Skeleton variant="text" lines={2} />}>
+            {(list) => (
+              <Show when={list().length > 0} fallback={<p class="text-sm text-200" data-testid="no-secrets">{t('Secrets.Empty')}</p>}>
+                <ul class="flex flex-col" aria-label={t('Secrets.Category')} data-testid="secrets-list">
+                  <For each={list()}>{(secret) => (
+                    <SecretRow ctx={props.ctx} secret={secret} onEdit={() => setForm({ mode: 'edit', secret })}
+                      onRotate={() => setForm({ mode: 'rotate', secret })} onDelete={() => setDeleting(secret)} />
+                  )}</For>
+                </ul>
+              </Show>
+            )}
+          </Show>
+        </Show>
+      </article>
+      </div>
+      <Show when={form()} keyed>
+        {(f) => <SecretForm ctx={props.ctx} state={f} onClose={() => setForm(undefined)} onSaved={(secret) => saved(secret, f.mode)} reload={load} />}
+      </Show>
+      <Show when={deleting()} keyed>
+        {(secret) => <DeleteSecretDialog ctx={props.ctx} secret={secret} onClose={() => setDeleting(undefined)} onDeleted={() => {
+          setDeleting(undefined)
+          void load()
+          toast.notify({ variant: 'success', title: t('Secrets.Toast.Deleted', { name: secret.name }) })
+        }} />}
+      </Show>
+    </section>
+  )
+}
+
+function SecretRow(props: { ctx: Ctx; secret: SecretView; onEdit: () => void; onRotate: () => void; onDelete: () => void }) {
+  const t = props.ctx.t
+  const s = () => props.secret
+  const [menuOpen, setMenuOpen] = createSignal(false)
+  const pick = (fn: () => void) => () => { setMenuOpen(false); fn() }
+  return (
+    <li class={`flex items-start gap-2 border-t border-subtle py-3 first:border-t-0 first:pt-0 ${props.ctx.highlighted() === s().id ? 'rounded-md outline outline-2 outline-offset-4 outline-brand-500' : ''}`} data-testid={`secret-${s().name}`}>
+      <div class="flex min-w-0 flex-1 flex-col gap-1">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span class="break-all font-mono text-sm font-medium text-100">{s().name}</span>
+          <span class="font-mono text-sm tracking-widest text-200" role="img" aria-label={t('Secrets.Masked')} data-testid="secret-masked">{MASKED_VALUE}</span>
+        </div>
+        <Show when={s().description}><p class="text-sm text-200">{s().description}</p></Show>
+        <p class="text-xs text-200" data-testid="secret-meta">{secretMeta(t, s(), props.ctx.lang).join(' · ')}</p>
+      </div>
+      <Dropdown open={menuOpen()} onOpenChange={setMenuOpen} class={menuOpen() ? 'z-30' : undefined} label={t('Secrets.Actions', { name: s().name })} menuClass="min-w-56"
+        trigger={<span class="flex h-11 w-11 items-center justify-center rounded-md text-200 sm:h-9 sm:w-9" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><circle cx="128" cy="64" r="16" /><circle cx="128" cy="128" r="16" /><circle cx="128" cy="192" r="16" /></svg>
+        </span>}>
+        <DropdownItem onClick={pick(props.onEdit)} data-testid="secret-menu-edit">{t('Secrets.Menu.Edit')}</DropdownItem>
+        <DropdownItem onClick={pick(props.onRotate)} data-testid="secret-menu-rotate">{t('Secrets.Menu.Rotate')}</DropdownItem>
+        <DropdownItem onClick={pick(props.onDelete)} class="text-pink" data-testid="secret-menu-delete">{t('Secrets.Menu.Delete')}</DropdownItem>
+      </Dropdown>
+    </li>
+  )
+}
+
+/** Creates a secret, renames or describes one, or writes its new value. The value field is never prefilled. */
+function SecretForm(props: { ctx: Ctx; state: SecretFormState; onClose: () => void; onSaved: (s: SecretView) => void; reload: () => Promise<SecretView[] | undefined> }) {
+  const t = props.ctx.t
+  const mode = props.state.mode
+  // The version the change applies to: the one the form opened with, or the latest after a conflict.
+  const [base, setBase] = createSignal(props.state.mode === 'create' ? undefined : props.state.secret)
+  const [name, setName] = createSignal(base()?.name ?? '')
+  const [description, setDescription] = createSignal(base()?.description ?? '')
+  const [value, setValue] = createSignal('')
+  const [shown, setShown] = createSignal(false)
+  const [fieldErrors, setFieldErrors] = createSignal<Record<string, string>>({})
+  const [error, setError] = createSignal<string>()
+  const [busy, setBusy] = createSignal(false)
+  let formRef: HTMLFormElement | undefined
+  const focusFirstError = (errs: Record<string, string>) => queueMicrotask(() => {
+    const first = Object.keys(errs)[0]
+    if (first) formRef?.querySelector<HTMLElement>(`[data-field="${CSS.escape(first)}"]`)?.focus()
+  })
+  const submit = async (event: Event) => {
+    event.preventDefault()
+    if (busy()) return
+    const local = secretFormErrors(mode, name(), value())
+    setFieldErrors(local)
+    setError(undefined)
+    if (Object.keys(local).length > 0) { focusFirstError(local); return }
+    setBusy(true)
+    try {
+      const b = base()
+      const r = mode === 'create'
+        ? await props.ctx.call('automations.secrets.create', { name: name().trim(), description: description().trim(), value: value() })
+        : mode === 'rotate'
+          ? await props.ctx.call('automations.secrets.rotate', { id: b!.id, version: b!.version, value: value() })
+          : await props.ctx.call('automations.secrets.update', {
+            id: b!.id, version: b!.version,
+            ...(name().trim() !== b!.name ? { name: name().trim() } : {}),
+            ...(description().trim() !== b!.description ? { description: description().trim() } : {}),
+          })
+      setBusy(false)
+      if (r.ok && r.secret) {
+        setValue('') // the value leaves the page with the request
+        props.onSaved(r.secret)
+        return
+      }
+      setFieldErrors(r.fields ?? {})
+      setError(secretSaveErrorText(t, r))
+      if (r.error === 'version_conflict' && b) {
+        // The latest version is loaded: what the person typed stays, the next save applies it to that version.
+        const latest = (await props.reload())?.find((x) => x.id === b.id)
+        if (latest) setBase(latest)
+      }
+      if (r.fields) focusFirstError(r.fields)
+    } catch (e) {
+      setBusy(false)
+      const code = errorCode(e)
+      console.warn('automations: secret save failed', code)
+      setError(t(code === 'unavailable' ? 'Secrets.Form.Unavailable' : 'Secrets.Form.Failed'))
+    }
+  }
+  const title = () => mode === 'create' ? t('Secrets.Form.TitleNew') : t(mode === 'rotate' ? 'Secrets.Form.TitleRotate' : 'Secrets.Form.TitleEdit', { name: base()!.name })
+  const fieldError = (f: string) => (fieldErrors()[f] ? secretFieldErrorText(t, fieldErrors()[f]!) : undefined)
+  return (
+    <ViewDrawer open onOpenChange={(open) => { if (!open && !busy()) props.onClose() }} busy={busy()} title={title()} closeLabel={t('Close')} data-testid="secret-form">
+      <form ref={formRef} class="flex flex-col gap-4 p-4 md:p-6" onSubmit={(e) => void submit(e)} novalidate>
+        <Show when={mode !== 'rotate'}>
+          <Input label={t('Secrets.Form.Name')} value={name()} onInput={(e) => setName(secretName(e.currentTarget.value))}
+            description={t('Secrets.Form.NameHint')} placeholder="API_KEY" data-field="name" error={fieldError('name')} disabled={busy()} required autocomplete="off" spellcheck={false} class="font-mono" />
+          <Textarea label={t('Secrets.Form.DescriptionLabel')} value={description()} onInput={(e) => setDescription(e.currentTarget.value)} rows={3}
+            description={t('Secrets.Form.DescriptionHint')} data-field="description" error={fieldError('description')} disabled={busy()} />
+          <Show when={mode === 'edit'}><p class="text-sm text-200" data-testid="secret-rename-hint">{t('Secrets.Form.RenameHint')}</p></Show>
+        </Show>
+        <Show when={mode !== 'edit'}>
+          <Show when={mode === 'rotate'}><p class="text-sm text-200">{t('Secrets.Form.RotateHint')}</p></Show>
+          <Input label={t(mode === 'rotate' ? 'Secrets.Form.NewValue' : 'Secrets.Form.Value')} type={shown() ? 'text' : 'password'} value={value()}
+            onInput={(e) => setValue(e.currentTarget.value)} data-field="value" error={fieldError('value')}
+            disabled={busy()} required autocomplete="new-password" spellcheck={false}
+            addonRight={<button type="button" class="mx-2 min-h-11 px-2 text-sm text-200 sm:min-h-0" aria-pressed={shown()} onClick={() => setShown(!shown())}>
+              {shown() ? t('Form.Hide') : t('Form.Show')}
+            </button>} />
+          <p class="text-sm text-200" data-testid="secret-value-hint">{t('Secrets.Form.ValueHint')}</p>
+        </Show>
+        <Show when={error()}><p role="alert" class="text-sm text-pink" data-testid="secret-form-error">{error()}</p></Show>
+        <div class="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-subtle bg-surface-300 pt-4 sm:flex-row sm:justify-end">
+          <Button type="button" variant="secondary" class="min-h-11 justify-center" data-dialog-close aria-disabled={busy() || undefined}
+            onClick={() => { if (!busy()) props.onClose() }}>{t('Form.Cancel')}</Button>
+          <Button type="submit" class="min-h-11 justify-center" loading={busy()} aria-disabled={busy() || undefined} data-testid="secret-save">
+            {busy() ? t('Secrets.Form.Saving') : t(mode === 'rotate' ? 'Secrets.Form.Rotate' : 'Secrets.Form.Save')}
+          </Button>
+        </div>
+      </form>
+    </ViewDrawer>
+  )
+}
+
+function DeleteSecretDialog(props: { ctx: Ctx; secret: SecretView; onClose: () => void; onDeleted: () => void }) {
+  const t = props.ctx.t
+  const [busy, setBusy] = createSignal(false)
+  const [error, setError] = createSignal<string>()
+  let root: HTMLDivElement | undefined
+  const confirm = async () => {
+    if (busy()) return
+    setBusy(true)
+    setError(undefined)
+    try {
+      await props.ctx.call('automations.secrets.delete', { id: props.secret.id })
+      setBusy(false)
+      props.onDeleted()
+    } catch (e) {
+      setBusy(false)
+      const code = errorCode(e)
+      console.warn('automations: secret delete failed', code)
+      // Already gone (another administrator deleted it): the list is what is left.
+      if (code === 'not_found') { props.onDeleted(); return }
+      setError(t(code === 'unavailable' ? 'Secrets.Form.Unavailable' : 'Toast.Failed'))
+    }
+  }
+  return (
+    <div ref={root}>
+      <ConfirmationDialog open onOpenChange={(open) => { if (!open && !busy()) props.onClose() }} busy={busy()} danger
+        heading={t('Secrets.Delete.Title', { name: props.secret.name })}
+        text={<>
+          {t('Secrets.Delete.Text', { name: props.secret.name })}
+          <Show when={error()}><span role="alert" class="mt-2 block text-pink">{error()}</span></Show>
+        </>}
+        confirmText={t('Secrets.Delete.Confirm')} cancelText={t('Secrets.Delete.Cancel')} closeLabel={t('Close')}
+        initialFocus={() => root?.ownerDocument.querySelector<HTMLElement>('[data-testid="secret-delete-dialog"] [data-test-id="dialog-cancel-btn"]') ?? undefined}
+        onCancel={props.onClose} onConfirm={() => void confirm()} data-testid="secret-delete-dialog">
+        <DialogBusyStatus class="px-4" />
+      </ConfirmationDialog>
+    </div>
   )
 }

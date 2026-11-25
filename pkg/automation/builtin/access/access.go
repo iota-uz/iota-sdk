@@ -23,13 +23,19 @@ import (
 
 // Codes of the failures of built-in nodes (output.error.code).
 const (
-	CodeSecretMissing            = "secret_missing"
-	CodeConnectionMissing        = "connection_missing"
+	CodeSecretMissing     = "secret_missing"
+	CodeConnectionMissing = "connection_missing"
+	// CodeConnectionDisabled: an administrator disabled the connection. CodeConnectionBroken: it needs
+	// re-authorization or its last check failed.
+	CodeConnectionDisabled       = "connection_disabled"
+	CodeConnectionBroken         = "connection_broken"
 	CodeConnectionOriginMismatch = "connection_origin_mismatch"
 	CodeNetworkBlocked           = "network_blocked"
 	CodeResponseTooLarge         = "response_too_large"
 	CodeTimeout                  = "timeout"
 	CodeInvalidParams            = "invalid_params"
+	// CodePermissionDenied: the run-as subject lacks the permission of a connection operation.
+	CodePermissionDenied = "permission_denied"
 	// CodeUnavailable: a store the node reads before its call (secrets, connections) failed; nothing was
 	// sent, and the failure is retryable.
 	CodeUnavailable = catalog.CallUnavailable
@@ -99,12 +105,14 @@ func ReadSecrets(ctx context.Context, s Secrets, in catalog.CallInput, names []s
 	out := make(map[string]string, len(names))
 	for _, name := range names {
 		if s == nil {
-			return nil, &catalog.CallError{Code: CodeSecretMissing, Message: "secret " + name + " is not set"}
+			return nil, &catalog.CallError{Code: CodeSecretMissing, Message: "unknown secret " + name}
 		}
 		v, err := s.Secret(ctx, in.TenantID, in.RunAs, name)
 		switch {
 		case errors.Is(err, ErrSecretMissing):
-			return nil, &catalog.CallError{Code: CodeSecretMissing, Message: "secret " + name + " is not set"}
+			return nil, &catalog.CallError{Code: CodeSecretMissing, Message: "unknown secret " + name}
+		case errors.Is(err, ErrSecretForbidden):
+			return nil, &catalog.CallError{Code: CodeSecretForbidden, Message: "secret " + name + " is not available to the user the automation runs as"}
 		case err != nil:
 			return nil, unavailable("the secret store")
 		}
@@ -121,6 +129,25 @@ type Connection struct {
 	Access connectors.CodeAccess
 	Values []string
 	auth   func(ctx context.Context, header http.Header) error
+	// operator serves Access.Operations; info and creds are the connection's own, given to it with the call.
+	operator connectors.CodeOperator
+	info     *catalog.ConnectionInfo
+	creds    connectors.Credentials
+}
+
+// OperatorBinding is what an operator-backed connection carries besides its HTTP access.
+type OperatorBinding struct {
+	Operator connectors.CodeOperator
+	Info     catalog.ConnectionInfo
+	// Credentials are the connection's decrypted credentials; they reach only the operator.
+	Credentials connectors.Credentials
+}
+
+// WithOperator is the connection with its operations served by b.Operator.
+func (c Connection) WithOperator(b OperatorBinding) Connection {
+	info := b.Info
+	c.operator, c.info, c.creds = b.Operator, &info, b.Credentials
+	return c
 }
 
 // Authorize sets the connection's authorization on a request's headers.
@@ -186,7 +213,13 @@ func (s storeConnections) Open(ctx context.Context, tenantID uuid.UUID, name str
 		return Connection{}, fmt.Errorf("%w: %s", ErrConnectionMissing, name)
 	case err != nil:
 		return Connection{}, err
-	case cur.Status != connectors.StatusConnected || cur.Name != name:
+	case cur.Name != name:
+		return Connection{}, fmt.Errorf("%w: %s is not connected", ErrConnectionMissing, name)
+	case cur.Status == connectors.StatusDisabled:
+		return Connection{}, fmt.Errorf("%w: %s", connectors.ErrCodeConnectionDisabled, name)
+	case cur.Status == connectors.StatusNeedsReauth || cur.Status == connectors.StatusError:
+		return Connection{}, fmt.Errorf("%w: %s", connectors.ErrCodeConnectionBroken, name)
+	case cur.Status != connectors.StatusConnected:
 		return Connection{}, fmt.Errorf("%w: %s is not connected", ErrConnectionMissing, name)
 	}
 	conn, ok := s.dir.Get(cur.Kind)
@@ -201,7 +234,7 @@ func (s storeConnections) Open(ctx context.Context, tenantID uuid.UUID, name str
 		token, err := s.oauth.Token(ctx, tenantID, cur.ID)
 		switch {
 		case errors.Is(err, connectors.ErrNeedsReauth), errors.Is(err, connectors.ErrNotFound):
-			return Connection{}, fmt.Errorf("%w: %s needs to be authorized again", ErrConnectionMissing, name)
+			return Connection{}, fmt.Errorf("%w: %s needs to be authorized again", connectors.ErrCodeConnectionBroken, name)
 		case err != nil:
 			return Connection{}, err
 		}
@@ -222,10 +255,30 @@ func (s storeConnections) Open(ctx context.Context, tenantID uuid.UUID, name str
 			values = append(values, v)
 		}
 	}
-	return Connection{
-		Name: name, Kind: cur.Kind, Access: ca.CodeAccess(), Values: values,
+	access := ca.CodeAccess()
+	if r, ok := ca.(connectors.CodeBaseURLResolver); ok {
+		base, err := r.CodeBaseURL(creds)
+		if err == nil {
+			err = connectors.CheckCodeBaseURL(base)
+		}
+		if err != nil {
+			// The URL may carry a token: the error says what is wrong with the connection, never the URL.
+			return Connection{}, fmt.Errorf("%w: %s has no usable base URL", connectors.ErrCodeConnectionBroken, name)
+		}
+		access.BaseURL = base
+	}
+	out := Connection{
+		Name: name, Kind: cur.Kind, Access: access, Values: values,
 		auth: func(ctx context.Context, header http.Header) error { return ca.Authorize(ctx, creds, header) },
-	}, nil
+	}
+	if op, ok := ca.(connectors.CodeOperator); ok && len(access.Operations) > 0 {
+		out = out.WithOperator(OperatorBinding{
+			Operator:    op,
+			Info:        catalog.ConnectionInfo{ID: cur.ID.String(), Kind: cur.Kind, Name: cur.Name},
+			Credentials: creds,
+		})
+	}
+	return out, nil
 }
 
 // OpenAll opens the connections a node declares; a missing one is a CallError connection_missing.
@@ -237,6 +290,10 @@ func OpenAll(ctx context.Context, cs Connections, tenantID uuid.UUID, names []st
 		}
 		c, err := cs.Open(ctx, tenantID, name)
 		switch {
+		case errors.Is(err, connectors.ErrCodeConnectionDisabled):
+			return nil, &catalog.CallError{Code: CodeConnectionDisabled, Message: "connection " + name + " is disabled"}
+		case errors.Is(err, connectors.ErrCodeConnectionBroken):
+			return nil, &catalog.CallError{Code: CodeConnectionBroken, Message: "connection " + name + " needs to be reconnected"}
 		case errors.Is(err, ErrConnectionMissing):
 			return nil, &catalog.CallError{Code: CodeConnectionMissing, Message: "connection " + name + " is not connected or offers no code access"}
 		case err != nil:
@@ -305,14 +362,25 @@ func BlockedMessage(b *code.NetworkBlockedError) string {
 	return "network blocked: " + b.Host + " is not reachable from automations"
 }
 
-// Gateway performs the requests of env.connections through a run's opened connections and the guarded
-// fetcher.
+// Gateway performs the requests and the operations of env.connections through a run's opened connections
+// and the guarded fetcher.
 type Gateway struct {
 	Fetcher     code.Fetcher
 	Connections map[string]Connection
+	// Input is the Code node's call: operations are checked against Input.RunAs and receive it (with the
+	// connection's own info and credentials) as their call.
+	Input catalog.CallInput
 }
 
-var _ code.ConnectionCaller = (*Gateway)(nil)
+var (
+	_ code.ConnectionCaller   = (*Gateway)(nil)
+	_ code.ConnectionOperator = (*Gateway)(nil)
+)
+
+// hopByHop are headers a request through a connection never takes from the code, besides the ones the
+// sandbox refuses.
+var hopByHop = []string{"Connection", "Keep-Alive", "Proxy-Authenticate", "Proxy-Authorization", "Te", "Trailer",
+	"Transfer-Encoding", "Upgrade", "Host", "Content-Length"}
 
 // CallConnection implements code.ConnectionCaller.
 func (g *Gateway) CallConnection(ctx context.Context, req code.ConnectionRequest) (*code.FetchResponse, error) {
@@ -320,28 +388,66 @@ func (g *Gateway) CallConnection(ctx context.Context, req code.ConnectionRequest
 	if !ok {
 		return nil, &code.ConnectionRefusedError{Code: code.ReasonConnectionMissing, Message: "connection " + req.Connection + " is not open"}
 	}
-	m, ok := c.Access.Method(req.Method)
-	if !ok {
-		return nil, fmt.Errorf("connection %s has no method %s", req.Connection, req.Method)
+	var httpMethod string
+	header := http.Header{}
+	var sensitive []string
+	var authHeader http.Header
+	if req.Fetch {
+		if !c.Access.Fetch {
+			return nil, fmt.Errorf("connection %s has no fetch", req.Connection)
+		}
+		httpMethod = strings.ToUpper(req.HTTPMethod)
+		if httpMethod == "" {
+			httpMethod = http.MethodGet
+		}
+		for k, vs := range req.Header {
+			header[http.CanonicalHeaderKey(k)] = append([]string(nil), vs...)
+		}
+		for _, h := range hopByHop {
+			header.Del(h)
+		}
+	} else {
+		m, ok := c.Access.Method(req.Method)
+		if !ok {
+			return nil, fmt.Errorf("connection %s has no method %s", req.Connection, req.Method)
+		}
+		httpMethod = strings.ToUpper(m.HTTPMethod)
+		header.Set("Accept", "application/json")
+		if len(req.Body) > 0 {
+			header.Set("Content-Type", "application/json")
+		}
 	}
 	u, err := Target(c, req.Path)
 	if err != nil {
 		return nil, err
 	}
-	header := http.Header{}
-	header.Set("Accept", "application/json")
-	if len(req.Body) > 0 {
-		header.Set("Content-Type", "application/json")
+	var added []string
+	if req.Fetch {
+		// Authorize runs on its own headers and wins: whatever the code set under a name it sets is replaced.
+		authHeader = http.Header{}
+		if err := c.Authorize(ctx, authHeader); err != nil {
+			return nil, fmt.Errorf("connection %s could not authorize the request", req.Connection)
+		}
+		for k, vs := range authHeader {
+			header.Del(k)
+			header[k] = append([]string(nil), vs...)
+			sensitive = append(sensitive, k)
+		}
+		added = AddedValues(http.Header{}, authHeader)
+	} else {
+		before := header.Clone()
+		if err := c.Authorize(ctx, header); err != nil {
+			return nil, fmt.Errorf("connection %s could not authorize the request", req.Connection)
+		}
+		added = AddedValues(before, header)
 	}
-	before := header.Clone()
-	if err := c.Authorize(ctx, header); err != nil {
-		return nil, fmt.Errorf("connection %s could not authorize the request", req.Connection)
-	}
-	masker := Masker(append(c.Values, AddedValues(before, header)...)...)
+	masker := Masker(append(append([]string(nil), c.Values...), added...)...)
 	if g.Fetcher == nil {
 		return nil, &code.NetworkBlockedError{Reason: "disabled"}
 	}
-	resp, err := g.Fetcher.Fetch(ctx, code.FetchRequest{URL: u.String(), Method: strings.ToUpper(m.HTTPMethod), Header: header, Body: req.Body, SameOrigin: true})
+	resp, err := g.Fetcher.Fetch(ctx, code.FetchRequest{
+		URL: u.String(), Method: httpMethod, Header: header, Body: req.Body, SameOrigin: true, Sensitive: sensitive,
+	})
 	if err != nil {
 		var left *code.OriginError
 		var blocked *code.NetworkBlockedError
@@ -355,6 +461,44 @@ func (g *Gateway) CallConnection(ctx context.Context, req code.ConnectionRequest
 		return nil, errors.New(masker.Mask(err.Error()))
 	}
 	return RedactResponse(resp, masker), nil
+}
+
+// CallOperation implements code.ConnectionOperator: the operation must be declared by the connection, the
+// run-as subject must hold its permission, and neither its result nor its error carries the connection's
+// credentials to the code.
+func (g *Gateway) CallOperation(ctx context.Context, req code.OperationRequest) (json.RawMessage, error) {
+	c, ok := g.Connections[req.Connection]
+	if !ok {
+		return nil, &code.ConnectionRefusedError{Code: code.ReasonConnectionMissing, Message: "connection " + req.Connection + " is not open"}
+	}
+	op, ok := c.Access.Operation(req.Operation)
+	if !ok || c.operator == nil {
+		return nil, fmt.Errorf("connection %s has no operation %s", req.Connection, req.Operation)
+	}
+	if !g.Input.RunAs.Has(op.Permission) {
+		return nil, &code.ConnectionRefusedError{Code: CodePermissionDenied,
+			Message: "the user the automation runs as may not call " + req.Connection + "." + req.Operation}
+	}
+	in := g.Input
+	in.Connection = c.info
+	in.Credentials = c.creds
+	masker := Masker(c.Values...)
+	result, err := c.operator.CallCodeOperation(ctx, connectors.CodeCall{Operation: req.Operation, Args: json.RawMessage(req.Args), Input: in})
+	if err != nil {
+		var opErr *connectors.CodeOperationError
+		if errors.As(err, &opErr) {
+			return nil, &code.ConnectionRefusedError{Code: code.FailureReason(opErr.Code), Message: masker.Mask(opErr.Message), Retryable: opErr.Retryable}
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, errors.New(masker.Mask(err.Error()))
+	}
+	raw, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("connection %s: operation %s returned a value that is not JSON", req.Connection, req.Operation)
+	}
+	return masker.MaskJSON(raw), nil
 }
 
 // AddedValues are the header values Authorize set or changed (and their parts after a scheme), so a
@@ -410,3 +554,6 @@ func Masker(values ...string) code.Masker {
 	}
 	return code.NewMasker(m)
 }
+
+// HasOperator reports that the connection's operations are served (WithOperator).
+func (c Connection) HasOperator() bool { return c.operator != nil }

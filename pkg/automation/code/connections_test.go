@@ -3,6 +3,7 @@ package code
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -111,6 +112,142 @@ func TestInvalidConnectionNamesAreRefused(t *testing.T) {
 func TestDeclarationsListConnections(t *testing.T) {
 	d := DeclarationsWith(expr.Scope{}, []string{"done"}, nil, map[string][]string{"crm": {"list", "get"}})
 	for _, want := range []string{"interface CodeConnections", "readonly crm: {", "get(path: string, body?: unknown): Promise<CodeFetchResponse>;", "readonly connections: CodeConnections;"} {
+		if !strings.Contains(d, want) {
+			t.Fatalf("declarations lack %q:\n%s", want, d)
+		}
+	}
+}
+
+// fakeOps is a caller that also serves fetch and operations.
+type fakeOps struct {
+	fakeConnections
+	opCalls []OperationRequest
+}
+
+func (f *fakeOps) CallOperation(_ context.Context, req OperationRequest) (json.RawMessage, error) {
+	f.mu.Lock()
+	f.opCalls = append(f.opCalls, req)
+	f.mu.Unlock()
+	switch req.Operation {
+	case "echo":
+		return json.RawMessage(`{"args":` + string(req.Args) + `,"token":"` + connToken + `"}`), nil
+	case "refuse":
+		return nil, &ConnectionRefusedError{Code: "invalid_args", Message: "bad chat " + connToken, Retryable: true}
+	case "boom":
+		return nil, errors.New("provider said " + connToken)
+	}
+	return nil, nil
+}
+
+func TestConnectionBaseURLFetchAndOperations(t *testing.T) {
+	fo := &fakeOps{}
+	res := runCode(t, `export default async function run(ctx, env) {
+		const c = env.connections.api;
+		const r = await c.fetch("/v1/x", { method: "POST", headers: {"X-A": "1"}, body: "hi" });
+		const j = await r.json();
+		const g = await c.fetch("/y");
+		const e = await c.echo({ n: 1 });
+		const none = await c.nothing();
+		return { outcome: "done", output: { base: c.baseUrl, j, g: (await g.json()).method, e, none } };
+	}`, RunInput{
+		ConnectionSpecs:  map[string]ConnectionSpec{"api": {BaseURL: "https://api.example.com/v1", Fetch: true, Operations: []OperationSpec{{Name: "echo"}, {Name: "nothing"}}}},
+		ConnectionCaller: fo, Masked: []string{connToken},
+	})
+	if res.Err != nil {
+		t.Fatalf("run failed: %v", res.Err)
+	}
+	if strings.Contains(string(res.Output), connToken) {
+		t.Fatalf("token leaked: %s", res.Output)
+	}
+	var out struct {
+		Base string         `json:"base"`
+		J    map[string]any `json:"j"`
+		G    string         `json:"g"`
+		E    map[string]any `json:"e"`
+		None any            `json:"none"`
+	}
+	if err := json.Unmarshal(res.Output, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Base != "https://api.example.com/v1" || out.J["body"] != "hi" || out.G != "fetch" || out.None != nil {
+		t.Fatalf("output: %s", res.Output)
+	}
+	if out.E["token"] != "***" || out.E["args"].(map[string]any)["n"] != float64(1) {
+		t.Fatalf("operation result: %v", out.E)
+	}
+	if len(fo.calls) != 2 || !fo.calls[0].Fetch || fo.calls[0].HTTPMethod != "POST" || fo.calls[0].Header.Get("X-A") != "1" || fo.calls[1].HTTPMethod != "GET" {
+		t.Fatalf("fetch calls: %+v", fo.calls)
+	}
+	if len(fo.opCalls) != 2 || string(fo.opCalls[0].Args) != `{"n":1}` || string(fo.opCalls[1].Args) != "null" {
+		t.Fatalf("operation calls: %+v", fo.opCalls)
+	}
+}
+
+func TestOperationErrorsAreCodedAndMasked(t *testing.T) {
+	res := runCode(t, `export default async function run(ctx, env) {
+		let a, b;
+		try { await env.connections.api.refuse(); } catch (e) { a = { name: e.name, code: e.code, retryable: e.retryable, message: e.message }; }
+		try { await env.connections.api.boom(); } catch (e) { b = e.message; }
+		return { outcome: "done", output: { a, b } };
+	}`, RunInput{
+		ConnectionSpecs:  map[string]ConnectionSpec{"api": {Operations: []OperationSpec{{Name: "refuse"}, {Name: "boom"}}}},
+		ConnectionCaller: &fakeOps{}, Masked: []string{connToken},
+	})
+	if res.Err != nil {
+		t.Fatalf("run failed: %v", res.Err)
+	}
+	var out struct {
+		A struct {
+			Name, Code, Message string
+			Retryable           bool
+		} `json:"a"`
+		B string `json:"b"`
+	}
+	if err := json.Unmarshal(res.Output, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.A.Name != "ConnectionError" || out.A.Code != "invalid_args" || !out.A.Retryable || out.A.Message != "bad chat ***" {
+		t.Fatalf("refused: %+v", out.A)
+	}
+	if strings.Contains(out.B, connToken) || !strings.Contains(out.B, "provider said") {
+		t.Fatalf("masked error: %q", out.B)
+	}
+}
+
+func TestOperationsNeedAnOperatorAndCountAsFetches(t *testing.T) {
+	spec := map[string]ConnectionSpec{"api": {Operations: []OperationSpec{{Name: "echo"}}}}
+	res := runCode(t, `export default async function run(ctx, env) { await env.connections.api.echo(); return { outcome: "done" }; }`,
+		RunInput{ConnectionSpecs: spec, ConnectionCaller: &fakeConnections{}})
+	wantReason(t, res, ReasonConnectionMissing)
+	res = runCode(t, `export default async function run(ctx, env) {
+		await env.connections.api.echo(); await env.connections.api.echo(); await env.connections.api.echo();
+		return { outcome: "done" };
+	}`, RunInput{ConnectionSpecs: spec, ConnectionCaller: &fakeOps{}, Limits: Limits{MaxFetches: 2}})
+	if res.Err == nil || !strings.Contains(res.Err.Message, "at most 2 fetches") {
+		t.Fatalf("limit: %+v", res.Err)
+	}
+}
+
+func TestReservedAndClashingConnectionNamesAreRefused(t *testing.T) {
+	for _, spec := range []ConnectionSpec{
+		{Methods: []string{"fetch"}}, {Operations: []OperationSpec{{Name: "baseUrl"}}},
+		{Methods: []string{"get"}, Operations: []OperationSpec{{Name: "get"}}},
+	} {
+		_, err := testEngine(t).Run(context.Background(), mustCompile(t, LangJS, `export default async () => ({outcome: "done"})`),
+			RunInput{Outcomes: []string{"done"}, ConnectionSpecs: map[string]ConnectionSpec{"crm": spec}})
+		if err == nil {
+			t.Fatalf("%+v was accepted", spec)
+		}
+	}
+}
+
+func TestDeclarationsForSpecs(t *testing.T) {
+	d := DeclarationsForSpecs(expr.Scope{}, []string{"done"}, nil, map[string]ConnectionSpec{"tg": {
+		BaseURL: "https://x.example.com", Fetch: true, Methods: []string{"get"},
+		Operations: []OperationSpec{{Name: "sendMessage", Description: "Send a message", Params: "{ chat_id: string; text: string }", Result: "{ message_id: number }"}, {Name: "ping"}},
+	}})
+	for _, want := range []string{"readonly baseUrl: string;", "fetch(path: string, init?: CodeFetchInit): Promise<CodeFetchResponse>;",
+		"/** Send a message */", "sendMessage(args: { chat_id: string; text: string }): Promise<{ message_id: number }>;", "ping(): Promise<unknown>;"} {
 		if !strings.Contains(d, want) {
 			t.Fatalf("declarations lack %q:\n%s", want, d)
 		}

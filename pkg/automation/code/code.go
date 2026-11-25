@@ -105,13 +105,38 @@ type RunInput struct {
 	// of env.connections.<name> (^[a-z][A-Za-z0-9_]{0,39}$). Their calls go through ConnectionCaller, which
 	// adds the authorization: no credential reaches the code.
 	Connections map[string][]string
-	// ConnectionCaller serves env.connections. With nil every call fails with ConnectionMissing.
+	// ConnectionSpecs are connections with more than methods: a base URL, a fetch and Go operations. A name in
+	// both maps takes its spec from here.
+	ConnectionSpecs map[string]ConnectionSpec
+	// ConnectionCaller serves env.connections. It may also implement ConnectionOperator (operations).
+	// With nil every call fails with ConnectionMissing.
 	ConnectionCaller ConnectionCaller
 	// Masked are more values masked in everything that leaves the run, as secrets are, that the code never
 	// sees (the credentials of its connections).
 	Masked []string
 	// Tenant keys the per-tenant concurrency limit; runs with an empty Tenant share one key.
 	Tenant string
+}
+
+// ConnectionSpec is what code sees of one connection: env.connections.<name>.
+type ConnectionSpec struct {
+	// BaseURL is shown to the code as env.connections.<name>.baseUrl ("": no such property). It is no secret.
+	BaseURL string
+	// Methods are the HTTP methods (^[a-z][A-Za-z0-9_]{0,39}$).
+	Methods []string
+	// Fetch adds fetch(pathOrURL, init) on the connection's API.
+	Fetch bool
+	// Operations are the Go operations, served by a ConnectionOperator.
+	Operations []OperationSpec
+}
+
+// OperationSpec is one operation of a connection: its name and what the editor's declarations show.
+type OperationSpec struct {
+	Name string // ^[a-z][A-Za-z0-9_]{0,39}$
+	// Description is one line for the declarations.
+	Description string
+	// Params and Result are TypeScript types ("": no argument, unknown).
+	Params, Result string
 }
 
 // Limits bound one run. Zero values take the defaults.
@@ -291,6 +316,27 @@ type ConnectionCaller interface {
 type ConnectionRequest struct {
 	Connection, Method, Path string
 	Body                     []byte
+	// Fetch is a call of env.connections.<name>.fetch: Method is "fetch", HTTPMethod the method the code
+	// chose (GET when it chose none) and Header the headers it set (the caller's authorization replaces
+	// any of the same name).
+	Fetch      bool
+	HTTPMethod string
+	Header     http.Header
+}
+
+// ConnectionOperator performs the operations of env.connections.<name>.<operation>(args). A ConnectionCaller
+// that serves operations implements it.
+type ConnectionOperator interface {
+	// CallOperation performs one operation and returns its result as a JSON value. A refusal the code may
+	// handle is a *ConnectionRefusedError (its Code is the ConnectionError's code); any other error reaches
+	// the code as a message.
+	CallOperation(ctx context.Context, req OperationRequest) (json.RawMessage, error)
+}
+
+// OperationRequest is one operation call: Args is the code's argument as JSON ("null" when none).
+type OperationRequest struct {
+	Connection, Operation string
+	Args                  []byte
 }
 
 // ConnectionRefusedError is a call through a connection that is refused before it reaches the network.
@@ -298,6 +344,8 @@ type ConnectionRequest struct {
 type ConnectionRefusedError struct {
 	Code    FailureReason
 	Message string
+	// Retryable reports that the same call may succeed later; the code sees it as ConnectionError.retryable.
+	Retryable bool
 }
 
 func (e *ConnectionRefusedError) Error() string { return string(e.Code) + ": " + e.Message }

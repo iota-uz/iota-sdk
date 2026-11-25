@@ -238,10 +238,10 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 		return catalog.CallResult{}, err
 	}
 	var masked []string
-	methods := make(map[string][]string, len(conns))
+	specs := make(map[string]sandbox.ConnectionSpec, len(conns))
 	for name, c := range conns {
 		masked = append(masked, c.Values...)
-		methods[name] = c.Access.MethodNames()
+		specs[name] = ConnectionSpecOf(c)
 	}
 	eng, err := n.engineFor(ctx)
 	if err != nil {
@@ -266,8 +266,8 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 		run.Fetcher = n.d.Fetcher
 	}
 	if len(conns) > 0 {
-		run.Connections = methods
-		run.ConnectionCaller = &access.Gateway{Fetcher: n.d.Fetcher, Connections: conns}
+		run.ConnectionSpecs = specs
+		run.ConnectionCaller = &access.Gateway{Fetcher: n.d.Fetcher, Connections: conns, Input: in}
 	}
 	res, err := eng.Run(ctx, compiled, run)
 	if err != nil {
@@ -299,6 +299,21 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 		}
 	}
 	return catalog.CallResult{Outcome: res.Outcome, Output: map[string]any{"output": output, "logs": logs}}, nil
+}
+
+// ConnectionSpecOf is what code sees of an opened connection: its base URL (only when it has methods or a
+// fetch), methods, fetch and operations.
+func ConnectionSpecOf(c access.Connection) sandbox.ConnectionSpec {
+	spec := sandbox.ConnectionSpec{Methods: c.Access.MethodNames(), Fetch: c.Access.Fetch}
+	if len(spec.Methods) > 0 || spec.Fetch {
+		spec.BaseURL = c.Access.BaseURL
+	}
+	if c.HasOperator() {
+		for _, o := range c.Access.Operations {
+			spec.Operations = append(spec.Operations, sandbox.OperationSpec{Name: o.Name, Description: o.Description, Params: o.Params, Result: o.Result})
+		}
+	}
+	return spec
 }
 
 // failed is the failed outcome with output.error and the logs the code wrote (already masked).

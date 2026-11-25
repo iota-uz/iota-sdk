@@ -243,3 +243,65 @@ export function missingRequired(fields: readonly FormField[], values: Record<str
   }
   return out
 }
+
+export type SecretView = RPC['automations.secrets.list']['result']['secrets'][number]
+export type SecretSaveResult = RPC['automations.secrets.create']['result']
+
+/** A secret's name: upper case Latin letters, digits and _, starting with a letter (API_KEY). */
+export const SECRET_NAME_RE = /^[A-Z][A-Z0-9_]{0,63}$/
+
+/** What the field holds instead of a saved value: the value is never sent back, so nothing of it is shown. */
+export const MASKED_VALUE = '••••••'
+
+/** A name typed in any case, as the store keeps it: API key → API_KEY. */
+export function secretName(typed: string): string {
+  return typed.toUpperCase().replace(/[\s-]+/g, '_')
+}
+
+/** The localized text of a field error of the secret form. */
+export function secretFieldErrorText(t: Translator, code: string): string {
+  switch (code) {
+    case 'required': return t('Form.Required')
+    case 'secret_name': return t('Secrets.Form.NameFormat')
+    case 'taken': return t('Secrets.Form.NameTaken')
+    default: return t('Form.Invalid')
+  }
+}
+
+/** Fields of the secret form the screen refuses before a request: a value is required where one is entered. */
+export function secretFormErrors(mode: 'create' | 'edit' | 'rotate', name: string, value: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  if (mode !== 'rotate') {
+    if (name.trim() === '') out.name = 'required'
+    else if (!SECRET_NAME_RE.test(name.trim())) out.name = 'secret_name'
+  }
+  if (mode !== 'edit' && value === '') out.value = 'required'
+  return out
+}
+
+/** The phrase of a refused save of a secret; never a value. */
+export function secretSaveErrorText(t: Translator, r: SecretSaveResult): string {
+  switch (r.error) {
+    case 'name_taken': return t('Secrets.Form.NameTaken')
+    case 'version_conflict': return t('Secrets.Form.VersionConflict')
+    case 'unavailable': return t('Secrets.Form.Unavailable')
+    case 'invalid_input': return t('Form.Invalid')
+    default: return t('Secrets.Form.Failed')
+  }
+}
+
+/** The safe facts of a secret in words: created, rotated (when it was), last used. */
+export function secretMeta(t: Translator, s: SecretView, lang: string): string[] {
+  let fmt: Intl.DateTimeFormat
+  try { fmt = new Intl.DateTimeFormat(lang, { dateStyle: 'medium' }) } catch { fmt = new Intl.DateTimeFormat('en', { dateStyle: 'medium' }) }
+  const date = (iso: string) => fmt.format(new Date(iso))
+  const out = [t('Secrets.Created', { date: date(s.created_at) })]
+  if (s.rotated_at && s.rotated_at !== s.created_at) out.push(t('Secrets.Rotated', { date: date(s.rotated_at) }))
+  out.push(s.last_used_at ? t('Secrets.LastUsed', { date: date(s.last_used_at) }) : t('Secrets.NeverUsed'))
+  return out
+}
+
+/** Secrets by name, as nodes refer to them. */
+export function sortSecrets(list: readonly SecretView[]): SecretView[] {
+  return [...list].sort((a, b) => a.name.localeCompare(b.name))
+}

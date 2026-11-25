@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MSG, availablePresets, connectionPreset, knownPresets, presetOptions, changedCredentials, oauthErrorText, reasonText, errorCode, groupByCategory, missingRequired, newCredentials, saveErrorText, schemaFields, slugify, warningText,
   translator, usageHref, usedByText, type ConnectorView,
+  MASKED_VALUE, SECRET_NAME_RE, secretFieldErrorText, secretFormErrors, secretMeta, secretName, secretSaveErrorText, sortSecrets, type SecretView,
 } from './model'
 
 const messages: Record<string, string> = {
@@ -122,5 +123,57 @@ describe('sign-in presets of a connector with a form', () => {
     expect(connectionPreset(connector, { fields: { preset: 'custom' } })).toBeUndefined()
     expect(connectionPreset(connector, { fields: {} })).toBeUndefined()
     expect(connectionPreset({ kind: 'x', credential_schema: {} } as unknown as ConnectorView, { fields: { preset: 'gmail' } })).toBeUndefined()
+  })
+})
+
+describe('secrets', () => {
+  const st = translator((k) => ({
+    [MSG + 'Form.Required']: 'Fill in this field.',
+    [MSG + 'Form.Invalid']: 'Check this value.',
+    [MSG + 'Secrets.Form.NameFormat']: 'Use API_KEY.',
+    [MSG + 'Secrets.Form.NameTaken']: 'Taken.',
+    [MSG + 'Secrets.Form.VersionConflict']: 'Changed meanwhile.',
+    [MSG + 'Secrets.Form.Unavailable']: 'Store unavailable.',
+    [MSG + 'Secrets.Form.Failed']: 'Could not save.',
+    [MSG + 'Secrets.Created']: 'Created {date}',
+    [MSG + 'Secrets.Rotated']: 'Rotated {date}',
+    [MSG + 'Secrets.LastUsed']: 'Last used {date}',
+    [MSG + 'Secrets.NeverUsed']: 'Not used yet',
+  } as Record<string, string>)[k] ?? k)
+  const secret = (extra: Partial<SecretView> = {}): SecretView => ({
+    id: 's1', name: 'API_KEY', description: '', version: 1, created_at: '2026-11-02T10:00:00Z', updated_at: '2026-11-02T10:00:00Z',
+    rotated_at: '2026-11-02T10:00:00Z', last_used_at: null, ...extra,
+  })
+
+  it('accepts names as the store keeps them', () => {
+    for (const ok of ['API_KEY', 'A', 'X1_2']) expect(SECRET_NAME_RE.test(ok), ok).toBe(true)
+    for (const bad of ['api_key', '1KEY', '_KEY', 'KEY-1', 'A'.repeat(65)]) expect(SECRET_NAME_RE.test(bad), bad).toBe(false)
+    expect(secretName('api key')).toBe('API_KEY')
+    expect(secretName('crm-token')).toBe('CRM_TOKEN')
+  })
+
+  it('refuses an empty value and a bad name before a request, per mode', () => {
+    expect(secretFormErrors('create', '', '')).toEqual({ name: 'required', value: 'required' })
+    expect(secretFormErrors('create', 'api', 'x')).toEqual({ name: 'secret_name' })
+    expect(secretFormErrors('edit', 'API_KEY', '')).toEqual({})
+    expect(secretFormErrors('rotate', '', '')).toEqual({ value: 'required' })
+    expect(secretFieldErrorText(st, 'secret_name')).toBe('Use API_KEY.')
+    expect(secretFieldErrorText(st, 'taken')).toBe('Taken.')
+    expect(secretFieldErrorText(st, 'anything')).toBe('Check this value.')
+  })
+
+  it('explains a refused save without a raw code', () => {
+    expect(secretSaveErrorText(st, { ok: false, error: 'name_taken' })).toBe('Taken.')
+    expect(secretSaveErrorText(st, { ok: false, error: 'version_conflict' })).toBe('Changed meanwhile.')
+    expect(secretSaveErrorText(st, { ok: false, error: 'unavailable' })).toBe('Store unavailable.')
+    expect(secretSaveErrorText(st, { ok: false })).toBe('Could not save.')
+  })
+
+  it('tells the safe facts: created, rotated only when it was, last used', () => {
+    expect(secretMeta(st, secret(), 'en')).toEqual(['Created Nov 2, 2026', 'Not used yet'])
+    expect(secretMeta(st, secret({ rotated_at: '2026-11-10T08:00:00Z', last_used_at: '2026-11-20T09:00:00Z' }), 'en'))
+      .toEqual(['Created Nov 2, 2026', 'Rotated Nov 10, 2026', 'Last used Nov 20, 2026'])
+    expect(sortSecrets([secret({ name: 'B' }), secret({ name: 'A' })]).map((s) => s.name)).toEqual(['A', 'B'])
+    expect(MASKED_VALUE).not.toMatch(/[A-Za-z0-9]/)
   })
 })

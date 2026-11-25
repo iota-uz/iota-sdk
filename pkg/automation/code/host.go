@@ -74,7 +74,7 @@ type runState struct {
 	fetchSem chan struct{}
 	blocked  atomic.Bool
 
-	conns       map[string]map[string]bool // declared connections → methods
+	conns       map[string]connState // declared connections
 	caller      ConnectionCaller
 	connRefused atomic.Value // FailureReason of the last refused connection call
 
@@ -90,14 +90,25 @@ type runState struct {
 	nextBody    int64
 }
 
+// connState is what the host allows of one declared connection.
+type connState struct {
+	methods map[string]bool
+	ops     map[string]bool
+	fetch   bool
+}
+
 func newRunState(in RunInput, limits Limits, masker Masker, done func()) *runState {
-	conns := make(map[string]map[string]bool, len(in.Connections))
-	for name, methods := range in.Connections {
-		set := make(map[string]bool, len(methods))
-		for _, m := range methods {
-			set[m] = true
+	specs, _ := effectiveSpecs(in) // validated by Run
+	conns := make(map[string]connState, len(specs))
+	for name, spec := range specs {
+		st := connState{methods: make(map[string]bool, len(spec.Methods)), ops: make(map[string]bool, len(spec.Operations)), fetch: spec.Fetch}
+		for _, m := range spec.Methods {
+			st.methods[m] = true
 		}
-		conns[name] = set
+		for _, o := range spec.Operations {
+			st.ops[o.Name] = true
+		}
+		conns[name] = st
 	}
 	return &runState{
 		conns:    conns,
@@ -124,7 +135,8 @@ func (s *runState) router() *kafig.RPCRouter {
 		WithSync("__result", s.report).
 		WithSync("fetchStage", s.stage).
 		WithAsync("fetch", s.fetch).
-		WithAsync("connection", s.connection)
+		WithAsync("connection", s.connection).
+		WithAsync("operation", s.operation)
 }
 
 func (s *runState) reported() *reported {
@@ -257,8 +269,12 @@ type fetchReply struct {
 	Blocked    string            `json:"blocked,omitempty"`
 	Error      string            `json:"error,omitempty"`
 	// Refused and Code: a connection call refused before the network (ConnectionRefusedError).
-	Refused string `json:"refused,omitempty"`
-	Code    string `json:"code,omitempty"`
+	Refused   string `json:"refused,omitempty"`
+	Code      string `json:"code,omitempty"`
+	Retryable bool   `json:"retryable,omitempty"`
+	// Value is an operation's result (Done is set with it: a null result is a value).
+	Value json.RawMessage `json:"value,omitempty"`
+	Done  bool            `json:"done,omitempty"`
 }
 
 func replyError(msg string) (json.RawMessage, error) { return json.Marshal(fetchReply{Error: msg}) }
@@ -359,8 +375,8 @@ func (s *runState) fetch(ctx context.Context, params json.RawMessage) (json.RawM
 	})
 }
 
-// connection performs one env.connections call from its staged request: the connection and its method must
-// be declared; the caller adds the authorization and checks the origin.
+// connection performs one env.connections call from its staged request: the connection and its method (or
+// its fetch) must be declared; the caller adds the authorization and checks the origin.
 func (s *runState) connection(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
 	staged, done, ok := s.takeStaged(params)
 	if !ok {
@@ -372,23 +388,28 @@ func (s *runState) connection(ctx context.Context, params json.RawMessage) (json
 		return replyError("invalid connection call arguments")
 	}
 	var p struct {
-		Connection string  `json:"connection"`
-		Method     string  `json:"method"`
-		Path       string  `json:"path"`
-		Body       *string `json:"body"`
+		Connection string            `json:"connection"`
+		Method     string            `json:"method"`
+		Fetch      bool              `json:"fetch"`
+		HTTPMethod string            `json:"httpMethod"`
+		Headers    map[string]string `json:"headers"`
+		Path       string            `json:"path"`
+		Body       *string           `json:"body"`
 	}
 	if err := json.Unmarshal([]byte(wire), &p); err != nil {
 		return replyError("invalid connection call arguments")
 	}
 	refuse := func(code FailureReason, msg string) (json.RawMessage, error) {
 		s.connRefused.Store(code)
-		return json.Marshal(fetchReply{Refused: msg, Code: string(code)})
+		return json.Marshal(fetchReply{Refused: s.masker.Mask(msg), Code: string(code)})
 	}
-	methods, declared := s.conns[p.Connection]
+	cs, declared := s.conns[p.Connection]
 	switch {
 	case !declared:
 		return refuse(ReasonConnectionMissing, "connection "+p.Connection+" is not declared by the node")
-	case !methods[p.Method]:
+	case p.Fetch && !cs.fetch:
+		return replyError("connection " + p.Connection + " has no fetch")
+	case !p.Fetch && !cs.methods[p.Method]:
 		return replyError("connection " + p.Connection + " has no method " + p.Method)
 	case len(p.Path) > maxFetchURLBytes:
 		return replyError("the path is too long")
@@ -396,6 +417,27 @@ func (s *runState) connection(ctx context.Context, params json.RawMessage) (json
 		return replyError("the body is too large")
 	case s.caller == nil:
 		return refuse(ReasonConnectionMissing, "connections are not available to this node")
+	}
+	req := ConnectionRequest{Connection: p.Connection, Method: p.Method, Path: p.Path}
+	if p.Fetch {
+		method := strings.ToUpper(p.HTTPMethod)
+		if method == "" {
+			method = http.MethodGet
+		}
+		if !fetchMethods[method] {
+			return replyError("unsupported method " + p.HTTPMethod)
+		}
+		header, msg := parseHeaders(p.Headers)
+		if msg != "" {
+			return replyError(msg)
+		}
+		if p.Body != nil && (method == http.MethodGet || method == http.MethodHead) {
+			return replyError("a GET or HEAD request cannot have a body")
+		}
+		req.Method, req.Fetch, req.HTTPMethod, req.Header = "fetch", true, method, header
+	}
+	if p.Body != nil {
+		req.Body = []byte(*p.Body)
 	}
 	if n := s.fetches.Add(1); n > int64(s.limits.MaxFetches) {
 		return replyError(fmt.Sprintf("at most %d fetches per run", s.limits.MaxFetches))
@@ -406,10 +448,6 @@ func (s *runState) connection(ctx context.Context, params json.RawMessage) (json
 		return nil, ctx.Err()
 	}
 	defer func() { <-s.fetchSem }()
-	req := ConnectionRequest{Connection: p.Connection, Method: p.Method, Path: p.Path}
-	if p.Body != nil {
-		req.Body = []byte(*p.Body)
-	}
 	resp, err := s.caller.CallConnection(ctx, req)
 	if err != nil {
 		var refused *ConnectionRefusedError
@@ -423,7 +461,7 @@ func (s *runState) connection(ctx context.Context, params json.RawMessage) (json
 		case ctx.Err() != nil:
 			return nil, ctx.Err()
 		}
-		return replyError(err.Error())
+		return replyError(s.masker.Mask(err.Error()))
 	}
 	headers := make(map[string]string, len(resp.Header))
 	for k, vs := range resp.Header {
@@ -436,6 +474,86 @@ func (s *runState) connection(ctx context.Context, params json.RawMessage) (json
 	return json.Marshal(fetchReply{
 		Status: resp.Status, StatusText: resp.StatusText, Headers: headers, BodyID: bodyID, URL: resp.URL, Redirected: resp.Redirected,
 	})
+}
+
+// operation performs one env.connections.<name>.<operation>(args) call from its staged request. Its result
+// and its error are masked here, whatever the operator did: no credential of the run reaches the code.
+func (s *runState) operation(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
+	staged, done, ok := s.takeStaged(params)
+	if !ok {
+		return replyError("unknown operation ticket")
+	}
+	defer done()
+	var wire string
+	if err := json.Unmarshal(staged, &wire); err != nil {
+		return replyError("invalid operation call arguments")
+	}
+	var p struct {
+		Connection string  `json:"connection"`
+		Operation  string  `json:"operation"`
+		Args       *string `json:"args"`
+	}
+	if err := json.Unmarshal([]byte(wire), &p); err != nil {
+		return replyError("invalid operation call arguments")
+	}
+	refuse := func(code FailureReason, msg string, retryable bool) (json.RawMessage, error) {
+		s.connRefused.Store(code)
+		return json.Marshal(fetchReply{Refused: s.masker.Mask(msg), Code: string(code), Retryable: retryable})
+	}
+	cs, declared := s.conns[p.Connection]
+	var operator ConnectionOperator
+	if s.caller != nil {
+		operator, _ = s.caller.(ConnectionOperator)
+	}
+	switch {
+	case !declared:
+		return refuse(ReasonConnectionMissing, "connection "+p.Connection+" is not declared by the node", false)
+	case !cs.ops[p.Operation]:
+		return replyError("connection " + p.Connection + " has no operation " + p.Operation)
+	case p.Args != nil && len(*p.Args) > maxFetchBodyBytes:
+		return replyError("the arguments are too large")
+	case operator == nil:
+		return refuse(ReasonConnectionMissing, "connection operations are not available to this node", false)
+	}
+	if n := s.fetches.Add(1); n > int64(s.limits.MaxFetches) {
+		return replyError(fmt.Sprintf("at most %d fetches per run", s.limits.MaxFetches))
+	}
+	select {
+	case s.fetchSem <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	defer func() { <-s.fetchSem }()
+	args := []byte("null")
+	if p.Args != nil {
+		args = []byte(*p.Args)
+	}
+	result, err := operator.CallOperation(ctx, OperationRequest{Connection: p.Connection, Operation: p.Operation, Args: args})
+	if err != nil {
+		var refused *ConnectionRefusedError
+		var blocked *NetworkBlockedError
+		switch {
+		case errors.As(err, &refused):
+			return refuse(refused.Code, refused.Message, refused.Retryable)
+		case errors.As(err, &blocked):
+			s.blocked.Store(true)
+			return json.Marshal(fetchReply{Blocked: blocked.Error()})
+		case ctx.Err() != nil:
+			return nil, ctx.Err()
+		}
+		return replyError(s.masker.Mask(err.Error()))
+	}
+	if len(result) == 0 {
+		result = json.RawMessage("null")
+	}
+	if !json.Valid(result) {
+		return replyError("the operation returned no JSON")
+	}
+	result = s.masker.MaskJSON(result)
+	if len(result) > maxFetchBodyBytes {
+		return replyError("the operation's result is too large")
+	}
+	return json.Marshal(fetchReply{Value: result, Done: true})
 }
 
 // parseFetch validates the parameters of a fetch host call; msg explains a refusal.
@@ -471,24 +589,9 @@ func parseFetch(params json.RawMessage) (FetchRequest, string) {
 	default:
 		return req, `redirect must be "follow", "manual" or "error"`
 	}
-	if len(p.Headers) > maxFetchHeaders {
-		return req, "too many headers"
-	}
-	header := make(http.Header, len(p.Headers))
-	headerBytes := 0
-	for k, v := range p.Headers {
-		headerBytes += len(k) + len(v)
-		if headerBytes > maxFetchHeaderBytes {
-			return req, "headers are too long"
-		}
-		if !httpguts.ValidHeaderFieldName(k) || !httpguts.ValidHeaderFieldValue(v) {
-			return req, "invalid header " + k
-		}
-		lk := strings.ToLower(k)
-		if forbiddenFetchHeaders[lk] || strings.HasPrefix(lk, "proxy-") || strings.HasPrefix(lk, "sec-") {
-			return req, "header " + k + " cannot be set"
-		}
-		header.Add(k, v)
+	header, msg := parseHeaders(p.Headers)
+	if msg != "" {
+		return req, msg
 	}
 	req = FetchRequest{URL: p.URL, Method: method, Header: header, Redirect: p.Redirect}
 	if p.Body != nil {
@@ -501,4 +604,28 @@ func parseFetch(params json.RawMessage) (FetchRequest, string) {
 		req.Body = []byte(*p.Body)
 	}
 	return req, ""
+}
+
+// parseHeaders validates the headers of a request the code wrote; msg explains a refusal.
+func parseHeaders(in map[string]string) (http.Header, string) {
+	if len(in) > maxFetchHeaders {
+		return nil, "too many headers"
+	}
+	header := make(http.Header, len(in))
+	headerBytes := 0
+	for k, v := range in {
+		headerBytes += len(k) + len(v)
+		if headerBytes > maxFetchHeaderBytes {
+			return nil, "headers are too long"
+		}
+		if !httpguts.ValidHeaderFieldName(k) || !httpguts.ValidHeaderFieldValue(v) {
+			return nil, "invalid header " + k
+		}
+		lk := strings.ToLower(k)
+		if forbiddenFetchHeaders[lk] || strings.HasPrefix(lk, "proxy-") || strings.HasPrefix(lk, "sec-") {
+			return nil, "header " + k + " cannot be set"
+		}
+		header.Add(k, v)
+	}
+	return header, ""
 }

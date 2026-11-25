@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/iota-uz/iota-sdk/modules/automations/permissions"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/access"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/actions"
@@ -14,6 +15,7 @@ import (
 	sandbox "github.com/iota-uz/iota-sdk/pkg/automation/code"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/automation/secrets"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
@@ -98,7 +100,16 @@ func (l *lazySecrets) Secret(ctx context.Context, tenantID uuid.UUID, runAs spi.
 				return "", &host.InfraError{Err: err}
 			}
 		}
-		l.s = access.FromResolver(r)
+		var tenant secrets.Resolver
+		if composition.Has[secrets.Resolver](l.container) {
+			var err error
+			if tenant, err = composition.Resolve[secrets.Resolver](l.container); err != nil {
+				l.mu.Unlock()
+				return "", &host.InfraError{Err: err}
+			}
+		}
+		// The tenant's Secret connector first (for a run-as that may use secrets), then the application's.
+		l.s = access.ChainSecrets(tenant, permissions.SecretsUse.Name(), access.FromResolver(r))
 	}
 	s := l.s
 	l.mu.Unlock()

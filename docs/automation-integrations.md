@@ -113,6 +113,14 @@ go run ./cmd/iota-solid -module modules/automations/presentation/integrations -c
 Значения полей с `x-secret` не возвращаются ни в одном ответе; сообщение коннектора
 при неудачной проверке маскирует все введённые значения.
 
+Встроенный коннектор «Секрет» — раздел «Секреты» той же страницы: методы
+`automations.secrets.list|create|update|rotate|delete` (`secrets_rpc.go`) поверх
+`secrets.Manager` (`integrations.Config.Secrets`; без него раздела нет, методы отвечают
+`unavailable`). Каждый требует `Secrets.Manage`, а не `Connections.Manage`; страницу
+открывает любое из двух прав, `automations.connectors.list` сообщает `can_manage_secrets`.
+Значение секрета передаётся только в `create` и `rotate` и не возвращается ни в ответе,
+ни в ошибке: экран показывает имя, описание, даты и маску `••••••`.
+
 ## Проверки
 
 ```sh

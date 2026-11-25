@@ -51,11 +51,13 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/notify"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/httpapi"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/jev"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/mcp"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/openai"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/sms"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/automation/secrets"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
@@ -326,7 +328,7 @@ func (c *component) Build(b *composition.Builder) error {
 			}
 			registered[conn.Kind()] = true
 		}
-		// The SDK's own AI, SMS, MCP and email connectors, unless the application registered its own of the kind.
+		// The SDK's own AI, SMS, HTTP/API, MCP and email connectors, unless the application registered its own of the kind.
 		status := lazyStatus{container: container}
 		sdk := []connectors.Connector{
 			openai.New(
@@ -335,6 +337,7 @@ func (c *component) Build(b *composition.Builder) error {
 			),
 			jev.New(jev.WithPlatformConfig(&cfg.jev), jev.WithConnectionStatus(status), jev.WithProviders(lazyProviders{container: container})),
 			sms.NewEskiz(sms.WithConnectionStatus(status)), sms.NewTwilio(sms.WithConnectionStatus(status)),
+			httpapi.New(),
 		}
 		if !c.noMCP {
 			sdk = append(sdk, mcp.New())
@@ -391,6 +394,44 @@ func (c *component) Build(b *composition.Builder) error {
 		}
 		connectors.BindStore(dir, st)
 		return st, nil
+	})
+	// The built-in «Secret» connector: values behind the storage port (an application replaces the Store with
+	// an OpenBao adapter), records and resolution over it.
+	composition.ProvideDefault[secrets.Store](b, func(container *composition.Container) (secrets.Store, error) {
+		db, err := composition.Resolve[*pgxpool.Pool](container)
+		if err != nil {
+			return nil, err
+		}
+		return connectors.NewSealedSecrets(db, keys), nil
+	})
+	composition.ProvideDefault[secrets.Locator](b, func(*composition.Container) (secrets.Locator, error) {
+		return secrets.DefaultLocator(""), nil
+	})
+	composition.ProvideDefault[secrets.Manager](b, func(container *composition.Container) (secrets.Manager, error) {
+		db, err := composition.Resolve[*pgxpool.Pool](container)
+		if err != nil {
+			return nil, err
+		}
+		store, err := composition.Resolve[secrets.Store](container)
+		if err != nil {
+			return nil, err
+		}
+		locator, err := composition.Resolve[secrets.Locator](container)
+		if err != nil {
+			return nil, err
+		}
+		return secrets.NewManager(db, store, store, locator), nil
+	})
+	composition.ProvideDefault[secrets.Resolver](b, func(container *composition.Container) (secrets.Resolver, error) {
+		db, err := composition.Resolve[*pgxpool.Pool](container)
+		if err != nil {
+			return nil, err
+		}
+		store, err := composition.Resolve[secrets.Store](container)
+		if err != nil {
+			return nil, err
+		}
+		return secrets.NewResolver(db, store), nil
 	})
 	composition.Provide[connectors.ConnectionStore](b, func(container *composition.Container) (connectors.ConnectionStore, error) {
 		return composition.Resolve[connectors.Store](container)
@@ -480,10 +521,21 @@ func (c *component) Build(b *composition.Builder) error {
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
-	composition.ContributeControllersFunc(b, func(svc *services.IntegrationsService) ([]application.Controller, error) {
+	composition.ContributeControllers(b, func(container *composition.Container) ([]application.Controller, error) {
+		svc, err := composition.Resolve[*services.IntegrationsService](container)
+		if err != nil {
+			return nil, err
+		}
+		// The «Secret» connector's section of the page: shown when the composition manages secrets.
+		var secretsManager secrets.Manager
+		if composition.Has[secrets.Manager](container) {
+			if secretsManager, err = composition.Resolve[secrets.Manager](container); err != nil {
+				return nil, err
+			}
+		}
 		ctrl, err := integrations.NewController(integrations.Config{
 			Service: svc, Host: hostManifest, Assets: assets, AutomationsPath: c.automationsPath, Configured: keys != nil,
-			Origin: cfg.origin, MessageKeys: messageKeys, Logger: slog.Default(),
+			Origin: cfg.origin, MessageKeys: messageKeys, Logger: slog.Default(), Secrets: secretsManager,
 		})
 		if err != nil {
 			return nil, err
@@ -545,7 +597,9 @@ func IntegrationsSettingsPage() types.SettingsPage {
 		Href:        integrations.DefaultPath,
 		Icon:        icons.PlugsConnected(icons.Props{Size: "20"}),
 		Order:       60,
-		Permissions: []permission.Permission{permissions.ConnectionsManage},
+		// The page holds the connections and the tenant's secrets: either permission opens it.
+		Permissions: []permission.Permission{permissions.ConnectionsManage, permissions.SecretsManage},
+		Logic:       types.PermissionLogicAny,
 	}
 }
 
