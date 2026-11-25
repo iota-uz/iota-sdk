@@ -91,6 +91,11 @@ type CatalogNode struct {
 	Connector string   `json:"connector,omitempty"`
 	Requires  []string `json:"requires,omitempty"`
 	Connected bool     `json:"connected"`
+	// Idempotent is set for a call node: whether repeating the call is safe. A Test node of a call that is
+	// not idempotent is confirmed as irreversible.
+	Idempotent *bool `json:"idempotent,omitempty"`
+	// DryRun is what a dry run does with the node: execute, capture or forbid.
+	DryRun string `json:"dry_run,omitempty"`
 }
 
 // groupKey is the locale key of a palette group; groupFallback its title without one.
@@ -160,7 +165,7 @@ func optionalSchema(raw json.RawMessage) *map[string]any {
 // editorCatalog converts an author's catalog view (catalog.Registry.ForTenant with AsAuthor and the
 // user's locale) into the editor's catalog. Events that only wake waits are left out of the trigger
 // list; node types and events the view left out (no permission, no connection) are not in it.
-func editorCatalog(ctx context.Context, view catalog.View, b *graph.Behaviors) EditorCatalog {
+func editorCatalog(ctx context.Context, view catalog.View, b *graph.Behaviors, reg catalog.Registry) EditorCatalog {
 	cv := view.JSON(b)
 	out := EditorCatalog{Revision: cv.Revision, Events: []CatalogEvent{}, Nodes: []CatalogNode{}}
 	for _, e := range cv.Events {
@@ -189,7 +194,15 @@ func editorCatalog(ctx context.Context, view catalog.View, b *graph.Behaviors) E
 			Behavior: string(n.Behavior), Params: schemaMap(n.Params), Outcomes: append([]string{}, n.OutcomeRule.Fixed...),
 			OutcomeRule: OutcomeRule{Fixed: append([]string{}, n.OutcomeRule.Fixed...)},
 			Expressions: []ExpressionParam{}, Templates: append([]string{}, n.Templates...), Output: optionalSchema(n.Output),
-			Requires: n.Requires, Connected: true,
+			Requires: n.Requires, Connected: true, DryRun: string(n.DryRun),
+		}
+		if reg != nil {
+			if nt, ok := reg.Node(n.Type); ok {
+				if call, ok := nt.(catalog.CallNode); ok {
+					idem := call.Idempotent()
+					node.Idempotent = &idem
+				}
+			}
 		}
 		if n.OutcomeRule.From != nil {
 			node.OutcomeRule.From = &ParamRef{Param: n.OutcomeRule.From.Param, Field: n.OutcomeRule.From.Field}

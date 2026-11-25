@@ -330,3 +330,109 @@ func valuesAt(v any, path []string, add func(any)) {
 		}
 	}
 }
+
+// historicEvent is a run's stored event ({kind, ...payload}) as a viewer may see it, failing closed:
+//   - an event the tenant's catalog no longer has, or one the viewer may not read at all, gives nothing;
+//   - only the fields the viewer's view of the event declares are kept (a key the schema lost, or never
+//     had, is dropped: no rule is left to check it by);
+//   - a sensitive field the run recorded is dropped unless its rule still exists and the viewer passes it.
+func (p *projector) historicEvent(ctx context.Context, input json.RawMessage, refs []sensitiveRef, viewer *spi.Subject) (json.RawMessage, error) {
+	ev, err := decodeMap(input)
+	if err != nil || ev == nil {
+		return nil, nil //nolint:nilerr // an input that is not an event object has no event to show
+	}
+	kind, _ := ev["kind"].(string)
+	if kind == "" {
+		return nil, nil
+	}
+	known, err := p.known(ctx, kind)
+	if err != nil || !known {
+		return nil, err
+	}
+	if _, err := p.hiddenPaths(ctx, kind, viewer); err != nil {
+		return nil, err
+	}
+	if p.blind[kind+"|"+rightsKey(viewer)] {
+		return nil, nil
+	}
+	seen, ok := p.views[rightsKey(viewer)].Catalog.Events[kind]
+	if !ok {
+		return nil, nil
+	}
+	payload := map[string]any{}
+	for k, v := range ev {
+		if k != "kind" {
+			payload[k] = v
+		}
+	}
+	payload = keepDeclared(payload, seen.Payload)
+	for _, ref := range refs {
+		if ref.Event != kind {
+			continue
+		}
+		ok, err := p.readable(ctx, []sensitiveRef{ref}, viewer)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			removePath(payload, strings.Split(ref.Path, "."))
+		}
+	}
+	payload["kind"] = kind
+	return json.Marshal(payload)
+}
+
+// keepDeclared is the part of a decoded object the schema declares, recursively; an object keeps no key
+// it does not declare (even an open one: what it would keep is unchecked).
+func keepDeclared(v map[string]any, fs expr.Fields) map[string]any {
+	out := make(map[string]any, len(v))
+	for k, x := range v {
+		f, ok := fs.Get(k)
+		if !ok {
+			continue
+		}
+		out[k] = keepField(x, f)
+	}
+	return out
+}
+
+// keepField is a value as its field declares it. A value stored under another type (the field's type
+// changed since) is dropped when it would carry data the declaration does not check: an object or a
+// list where the field is a scalar, a scalar where it is a container. Only dyn keeps any value.
+func keepField(x any, f expr.Field) any {
+	f = f.Unwrap()
+	switch f.Kind {
+	case expr.Dyn:
+		return x
+	case expr.Object:
+		if m, ok := x.(map[string]any); ok {
+			return keepDeclared(m, f.Props)
+		}
+		return nil
+	case expr.List:
+		l, ok := x.([]any)
+		if !ok || f.Elem == nil {
+			return nil
+		}
+		out := make([]any, len(l))
+		for i, e := range l {
+			out[i] = keepField(e, *f.Elem)
+		}
+		return out
+	case expr.Map:
+		m, ok := x.(map[string]any)
+		if !ok || f.Elem == nil {
+			return nil
+		}
+		out := make(map[string]any, len(m))
+		for k, e := range m {
+			out[k] = keepField(e, *f.Elem)
+		}
+		return out
+	}
+	switch x.(type) {
+	case map[string]any, []any:
+		return nil
+	}
+	return x
+}

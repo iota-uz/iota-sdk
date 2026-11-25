@@ -131,7 +131,16 @@
         "InProgress": "The first attempt is still being processed. Retry in a few seconds; nothing will be saved twice.",
         "LoadLatest": "Load the latest version",
         "Reloaded": "The latest version is loaded. Check the form and save again.",
-        "RetryChanged": "The first save may have gone through with the earlier values. Close the form and edit the connection from the list."
+        "RetryChanged": "The first save may have gone through with the earlier values. Close the form and edit the connection from the list.",
+        "Preset": {
+          "custom": "Any server (login and password)",
+          "gmail": "Gmail (sign in with Google)",
+          "m365": "Microsoft 365 (sign in with Microsoft)"
+        },
+        "PresetProvider": {
+          "gmail": "Google",
+          "m365": "Microsoft"
+        }
       },
       "Test": {
         "Running": "Checking…",
@@ -417,9 +426,9 @@
         "Waiting": "Waiting"
       },
       "Runs": {
-        "Empty": "No runs yet.",
-        "NoSteps": "No steps yet.",
-        "Steps": "Steps of the run"
+        "NotFound": "Run not found",
+        "NotFoundText": "It was deleted, or it belongs to another workspace.",
+        "Opening": "Opening the run…"
       },
       "Status": {
         "Disabled": "Off",

@@ -3,7 +3,9 @@ package automations
 import (
 	"context"
 	"log/slog"
+	"net/url"
 	"sort"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -31,6 +33,44 @@ func WithEngineConfig(tune func(*engine.Config)) Option {
 			c.engineTune = append(c.engineTune, tune)
 		}
 	}
+}
+
+// WithSubjectLink gives the page of a subject entity's record (its key → a path or an absolute URL): the
+// run view's «Open <subject>» and a run context's subject.url. core.user links to /users/<id> unless
+// replaced.
+func WithSubjectLink(entity string, resolve engine.SubjectURLResolver) Option {
+	return func(c *component) {
+		if entity == "" || resolve == nil {
+			return
+		}
+		if c.subjectLinks == nil {
+			c.subjectLinks = map[string]engine.SubjectURLResolver{}
+		}
+		c.subjectLinks[entity] = resolve
+	}
+}
+
+// newLinks is the link registry of runs and subjects under origin (an empty origin keeps links relative).
+func (c *component) newLinks(origin string) (*engine.LinkRegistry, error) {
+	path := c.automationsPath
+	if path == "" {
+		path = "/automations"
+	}
+	links := engine.NewLinks(origin, strings.TrimRight(path, "/")+"/%s/runs/%s")
+	resolvers := map[string]engine.SubjectURLResolver{
+		"core.user": func(_ context.Context, _ uuid.UUID, key string) (string, error) {
+			return "/users/" + url.PathEscape(key), nil
+		},
+	}
+	for entity, r := range c.subjectLinks {
+		resolvers[entity] = r
+	}
+	for entity, r := range resolvers {
+		if err := links.Register(entity, r); err != nil {
+			return nil, err
+		}
+	}
+	return links, nil
 }
 
 // WithoutEngine leaves the automation engine out: no runs execute in this process and the automations
@@ -102,6 +142,9 @@ func (c *component) buildEngine(b *composition.Builder) {
 		}
 		// The store's usage index is the engine's: the credentials are resolved when a call first opens one.
 		cfg := defaultEngineConfig(db, wf, users, reg, lazyCredentials{container: container})
+		if c.links != nil {
+			cfg.Links = c.links
+		}
 		for _, tune := range c.engineTune {
 			tune(&cfg)
 		}

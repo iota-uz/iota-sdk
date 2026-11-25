@@ -131,7 +131,16 @@
         "InProgress": "A primeira tentativa ainda está sendo processada. Tente novamente em alguns segundos; nada será salvo duas vezes.",
         "LoadLatest": "Carregar a versão mais recente",
         "Reloaded": "A versão mais recente foi carregada. Verifique o formulário e salve novamente.",
-        "RetryChanged": "O primeiro salvamento pode ter sido concluído com os valores anteriores. Feche o formulário e edite a conexão pela lista."
+        "RetryChanged": "O primeiro salvamento pode ter sido concluído com os valores anteriores. Feche o formulário e edite a conexão pela lista.",
+        "Preset": {
+          "custom": "Qualquer servidor (login e senha)",
+          "gmail": "Gmail (entrar com o Google)",
+          "m365": "Microsoft 365 (entrar com a Microsoft)"
+        },
+        "PresetProvider": {
+          "gmail": "Google",
+          "m365": "Microsoft"
+        }
       },
       "Test": {
         "Running": "Verificando…",
@@ -417,9 +426,9 @@
         "Waiting": "Aguardando"
       },
       "Runs": {
-        "Empty": "Nenhuma execução ainda.",
-        "NoSteps": "Nenhuma etapa ainda.",
-        "Steps": "Etapas da execução"
+        "NotFound": "Execução não encontrada",
+        "NotFoundText": "Ela foi excluída ou pertence a outro espaço de trabalho.",
+        "Opening": "Abrindo a execução…"
       },
       "Status": {
         "Disabled": "Desativada",

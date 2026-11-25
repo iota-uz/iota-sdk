@@ -76,8 +76,13 @@ type Descriptor struct {
 	// returned to a client.
 	Credentials json.RawMessage
 	OAuth2      *OAuth2Config // for Auth == oauth2
-	Platform    PlatformPolicy
-	Inbound     bool // the connector receives (a webhook or polling)
+	// OAuth2Presets are the providers an Auth == custom connector may also sign in with (preset name →
+	// the provider's OAuth2Config): the connection's "preset" credential names the one it uses, and
+	// OAuth2.Token refreshes its tokens by that provider's config. A connector that has both a form
+	// and a sign-in (an email box) declares them here.
+	OAuth2Presets map[string]OAuth2Config
+	Platform      PlatformPolicy
+	Inbound       bool // the connector receives (a webhook or polling)
 }
 
 // Credentials are the decrypted fields of a connection.
@@ -264,6 +269,14 @@ type OAuth2Config struct {
 	// ClientCredential is the name of the platform credential holding client_id and client_secret;
 	// empty: the connector's kind.
 	ClientCredential string
+	// AuthParams are extra query parameters of the authorization URL (Google's prompt=consent, which makes
+	// every sign-in come back with a refresh token).
+	AuthParams map[string]string
+	// IDTokenIssuers are the values of "iss" an OpenID Connect identity token of this provider may carry; a "*"
+	// stands for one path segment (Microsoft's issuer has the directory's id in it). A connector that reads
+	// who signed in from the identity token (OAuth2Finisher) needs it: a token with another issuer, or none, is
+	// not read.
+	IDTokenIssuers []string
 }
 
 // OAuth2Grant is an exchanged authorization: the connector kind of the state, who the token belongs
@@ -272,6 +285,39 @@ type OAuth2Grant struct {
 	Kind        catalog.ConnectorKind
 	Identity    Identity
 	Credentials Credentials
+	// Companions are the grants of other kinds the same sign-in brings (OAuth2Finisher): one login of an
+	// email provider is a connection to send and a connection to receive. The caller saves each as it
+	// saves the grant itself.
+	Companions []OAuth2Grant
+}
+
+// OAuth2Finisher is an optional interface of a Connector: it shapes the grant a sign-in produced before
+// anything is saved — the credentials it keeps beside the tokens (the mailbox address the token is for)
+// and the grants of other kinds the sign-in also creates. The grant it returns replaces the one given.
+type OAuth2Finisher interface {
+	FinishGrant(g OAuth2Grant) (OAuth2Grant, error)
+}
+
+// GroupItem is one connection of a sign-in that makes several.
+type GroupItem struct {
+	Connection  Connection
+	Credentials Credentials
+}
+
+// GroupSaver is an optional interface of a Store: it saves the connections of one sign-in in one
+// transaction (all or none). The first item holds the token set; each later one gets OAuth2TokenFrom set
+// to the first's id, so one refresh serves them all. A successful call returns one connection per item, in
+// the order of items (so the first is the primary); a custom store must keep that order. The built-in store
+// implements it.
+type GroupSaver interface {
+	SaveGroup(ctx context.Context, items []GroupItem) ([]Connection, error)
+}
+
+// PresetOAuth2 is an optional interface of OAuth2: Begin for a preset of a connector's OAuth2Presets.
+// The built-in OAuth2 implements it; the state it returns carries the preset, so Exchange and Complete
+// use the provider's config and put "preset" into the credentials.
+type PresetOAuth2 interface {
+	BeginPreset(ctx context.Context, tenantID uuid.UUID, kind catalog.ConnectorKind, preset, redirectURL string) (authURL string, state string, err error)
 }
 
 // OAuth2 authorizes connections and keeps their tokens fresh.

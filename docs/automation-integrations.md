@@ -5,6 +5,9 @@
 (`/settings/integrations`): администратор тенанта подключает аккаунты к
 коннекторам приложения, проверяет их, видит статус и где подключение используется.
 
+Коннектор почты (SMTP, IMAP, вход через Google и Microsoft 365) описан в
+[automation-email.md](automation-email.md).
+
 ## Подключение в приложении
 
 Модуль входит в `modules.Components()` без опций. Приложение, которое регистрирует
@@ -43,6 +46,12 @@ components = append(components, automations.NewComponent(
 | `AUTOMATION_CONNECTIONS_KEYS` | Ключи шифрования `id:key[,id:key…]` (32 байта, base64 или hex). Без них подключения не сохраняются, страница показывает предупреждение. |
 | `AUTOMATION_CONNECTIONS_ACTIVE` | Активный ключ при ротации. |
 | `AUTOMATION_PLATFORM_CREDENTIALS` | JSON `{"<kind или имя OAuth-клиента>": {"<поле>": "<значение>"}}`: ключи платформы и `client_id`/`client_secret` OAuth2-клиентов. |
+| `AUTOMATION_OPENAI_APIKEY` | Платформенный ключ OpenAI для ноды `ai.llm`: ключ задан — коннектор `openai` предлагается тенантам (только после включения администратором тенанта). Это не ключ BiChat (`BICHAT_OPENAI_*`): расход автоматизаций учитывается отдельно. |
+| `AUTOMATION_OPENAI_BASEURL` | OpenAI-совместимый endpoint платформенного ключа (только https); по умолчанию `https://api.openai.com/v1`. |
+| `AUTOMATION_OPENAI_DEFAULTMODEL` | Точный id модели, который записывается в версию графа, если в ноде `ai.llm` модель не указана (по умолчанию снапшот `gpt-4o-mini-2024-07-18`). |
+| `AUTOMATION_JEV_APIKEY` | Платформенный ключ классификатора `ai.jev`. |
+| `AUTOMATION_JEV_PROVIDER` | Чей это ключ: `openrouter` (по умолчанию) или `openai`. |
+| `AUTOMATION_JEV_DEFAULTMODEL` | Точный id модели по умолчанию для `ai.jev`; по умолчанию `typesafe/jev-1.14` для `openrouter` и `gpt-4o-mini-2024-07-18` для `openai`. |
 | `ESKIZ_EMAIL`, `ESKIZ_PASSWORD`, `ESKIZ_URL`, `ESKIZ_FROM` | Платформенный аккаунт Eskiz (`url` по умолчанию `https://notify.eskiz.uz`, `from` — sender id). Включается наличием `ESKIZ_EMAIL` и `ESKIZ_PASSWORD`. |
 | `TWILIO_ACCOUNTSID`, `TWILIO_AUTHTOKEN`, `TWILIO_PHONENUMBER` | Платформенный аккаунт Twilio для автоматизаций; включается наличием всех трёх. Запись `eskiz`/`twilio` в `AUTOMATION_PLATFORM_CREDENTIALS` приоритетнее. |
 | `AUTOMATIONS_ASSETS_DIR` | Разработка: каталог свежесобранного бандла экрана вместо встроенного. |
@@ -157,6 +166,65 @@ Identity показывается только с явным происхожд�
 работающего бинарника, когда отдаёт файл, и кладёт её в URL
 (`/assets/automations/<версия>/…`). Кандидат релиза, который только проставляет новую
 версию в Go и client-host, отдаёт тот же закоммиченный бандл без пересборки.
+
+## AI-ноды: `ai.llm` и `ai.jev`
+
+Коннектор `openai` (`pkg/automation/connectors/openai`) даёт ноду **LLM** (`ai.llm`), коннектор `jev`
+(`pkg/automation/connectors/jev`) — ноду **Jev** (`ai.jev`). Обе работают на ключе тенанта или на платформенном
+ключе (`Platform = opt_in`: тенант видит ноды без своего подключения только после того, как администратор включил
+платформенный ключ; расход каждого вызова пишется на тенанта — `token_in` и `token_out` в
+`automation.connector_usage`, у платформенного ключа `connection_id = platform:<kind>`).
+
+Обе ноды идемпотентны (`Idempotent() = true`, `DryRun: execute`): вызов не имеет внешних эффектов, при неизвестном
+исходе движок повторяет его (повтор оплачивается и учитывается). 429 и 5xx повторяет движок в пределах `timeout`
+ноды, после `Retry-After` провайдера, если он есть. Ошибки — `CallError`: `invalid_request` (пустой prompt после
+рендера, `input` не map, превышен контекст, ответ вне схемы или вне choices — без повторного запроса), `rejected`
+(отказ или модерация), `unauthorized`, `rate_limited`, `unavailable`.
+
+Модель задаётся точным id. Алиасы (`latest`, `*-latest`, `~…`, `openrouter/auto`) и «плавающие» id OpenAI без даты
+(`gpt-4o`, `gpt-4o-mini`, `o3`) не сохраняются: OpenAI закрепляет модель датированным снапшотом
+(`gpt-4o-mini-2024-07-18`). Смена модели — это новая версия графа. Пустая модель при сохранении заменяется на `defaultmodel` коннектора (`catalog.CompletedNode`), так что
+смена env не меняет модель уже сохранённой версии.
+
+### `ai.llm`
+
+| Параметр | |
+| --- | --- |
+| `model` | Точный id; пусто — `defaultmodel` на сохранении. |
+| `system`, `prompt` | Шаблоны; `prompt` не пустой после рендера. |
+| `format` | `text` (по умолчанию) или `json`. |
+| `schema` | JSON Schema ответа, обязательна при `format: json`, проверяется при сохранении (подмножество `output_schema`: object, array, string/enum, integer, number, boolean). Провайдеру уходит строгий режим structured output; ответ всё равно проверяется по схеме у нас. |
+| `max_tokens` | 1..32000, по умолчанию 2000. |
+| `temperature` | 0..2, необязательно. |
+| `timeout_ms` | Срок вызова в миллисекундах, повторы включены: 1000..300000, по умолчанию 60000. Движок читает его как дедлайн вызова. |
+| `images` | Список id загрузок (до 8 файлов по 5 МБ) или CEL-выражение такого списка. Только для модели с vision, иначе ошибка сохранения `model_no_vision`. |
+
+Исходы: `done`, `failed`. Выход: `text` (для `text`), `json` (для `json`, тип выводится из `schema`), `model`, `usage`
+(`input_tokens`, `output_tokens`, `cost_usd` или `null`), `latency_ms`.
+
+Файлы для `images` читает `openai.ImageSource`; модуль `automations` подключает загрузки core (чужие загрузки не
+находятся). Vision определяется по проверенному списку моделей (точные id и их снапшоты; `gpt-4o-mini-transcribe`, `gpt-4o-audio-preview` и т. п. в нём нет). Приложение с метаданными возможностей своего endpoint заменяет проверку через `openai.WithVision`.
+
+### `ai.jev`
+
+| Параметр | |
+| --- | --- |
+| `model` | Точный id модели провайдера подключения: для `openrouter` закреплённая версия TypeSafe Jev (`typesafe/jev-1.14`), для `openai` датированный снапшот чат-модели. Если модель не указана, при сохранении записывается умолчание провайдера выбранного подключения; модель другого провайдера не сохраняется (`model_provider_mismatch`). |
+| `timeout_ms` | Как у `ai.llm`. |
+| `input` | CEL: map с данными для решения. Значения любых типов — строка, число, bool, список, map; ключи сериализуются отсортированными. |
+| `prompt` | Шаблон инструкции; по умолчанию — инструкция с правилом «при сомнении выбирай безопасный вариант». |
+| `choices` | 2..100 вариантов `{value, description}`; `value` — `^[a-z][a-z0-9_]{0,39}$`, уникален, становится исходом; `low_confidence` и `failed` запрещены. |
+| `min_confidence` | 0..1, по умолчанию 0.6. |
+
+Исходы: по одному на каждый `choice`, `low_confidence` (уверенность ниже `min_confidence`; выбранное значение всё
+равно в `output.choice`) и `failed`. Выход: `choice` (enum значений `choices`), `confidence`, `probabilities` (по всем
+вариантам, сумма 1), `provider`, `model`, `usage`, `latency_ms`. Провайдер решения — поле подключения `provider`:
+`openrouter` или `openai`. Для `openrouter` нода вызывает Decisions API OpenRouter (`POST /api/alpha/decisions`, TypeSafe Jev): типизированный выбор, вероятности и собственная уверенность провайдера — по ней и маршрутизируется исход; ответ без вероятностей или без уверенности (или с null/строкой вместо числа) — `invalid_request`. Для `openai` — чат-модель со строгим structured output (`choice` и `probabilities`; уверенность — вероятность выбранного варианта). Вероятности проверяются: по всем вариантам, каждая в [0, 1], сумма 1; ответ вне этого — `invalid_request` без повторного запроса.
+
+### Кеш решений
+
+Ключ решения включает отрендеренный prompt, input, модель, параметры модели, эндпоинт и подключение. Dry run в режиме `cached` берёт решение
+из `automation.decision_cache` и не вызывает провайдера; смена prompt, input, модели или параметров — промах кеша.
 
 ## SMS: Eskiz и Twilio
 

@@ -1,7 +1,7 @@
-import { For, Match, Show, Switch, createMemo, createSignal, onCleanup, onMount, type JSX } from 'solid-js'
+import { Match, Show, Switch, createMemo, createSignal, onCleanup, onMount, type JSX } from 'solid-js'
 import {
   Editor, EditorSkeleton,
-  type AutomationGraph, type AutomationLayout, type EditorApi, type EditorCatalog, type FieldSlot, type SaveResult, type VersionEntry,
+  type AutomationGraph, type AutomationLayout, type EditorApi, type EditorCatalog, type FieldSlot, type RunsView, type SaveResult, type VersionEntry,
 } from '@iota-uz/sdk/automation-editor'
 import { Button, CopyButton, Dialog, Select } from '@iota-uz/sdk/solid-ui'
 import type { RPC } from './Automations.solid.generated'
@@ -9,14 +9,12 @@ import { useApp } from './context'
 import { DeleteDialog, DisableDialog, ReviewDialog } from './Dialogs'
 import { Icon } from './Icon'
 import {
-  absoluteTime, editorLocale, emptyGraph, errorText, graphPath, relativeTime, runIcon, runStatusKey, runTone,
+  editorLocale, emptyGraph, errorCode, errorText, graphPath, readRunsView, runDataOf, runSummaryOf, writeRunsView,
   type ConnectionOptions, type GetResult, type ManualTrigger,
 } from './model'
 import { RunDialog } from './RunDialog'
 
 type CatalogResult = RPC['automations.catalog']['result']
-type RunsResult = RPC['automations.runs']['result']
-type RunData = RPC['automations.run']['result']
 
 /** What the page holds of the graph besides the editor's own draft. */
 interface Info {
@@ -33,8 +31,6 @@ interface Info {
   manual: ManualTrigger[]
 }
 
-const TONE: Record<string, string> = { ok: 'text-green', bad: 'text-red-600', warn: 'text-yellow', muted: 'text-300' }
-
 /** The editor page: /automations/new and /automations/{id} (AL3–AL9). */
 export default function EditorPage(): JSX.Element {
   const app = useApp()
@@ -48,7 +44,10 @@ export default function EditorPage(): JSX.Element {
   const [info, setInfo] = createSignal<Info>()
   const [can, setCan] = createSignal(app.props.can)
   const [tab, setTab] = createSignal<'edit' | 'runs'>(app.props.run || search.get('tab') === 'runs' ? 'runs' : 'edit')
-  const [selected, setSelected] = createSignal<string | null>(search.get('node'))
+  // The Runs tab's state lives in the URL (D1, RV2): /automations/{id}/runs/{run}?node=&state=&subject=.
+  const initialRuns = readRunsView(window.location.pathname, window.location.search)
+  const [runsView, setRunsView] = createSignal<RunsView>(app.props.run ? { ...initialRuns, run: app.props.run, node: search.get('node') } : initialRuns)
+  const [selected, setSelected] = createSignal<string | null>(tab() === 'runs' ? null : search.get('node'))
   const [remoteLayout, setRemoteLayout] = createSignal<{ positions: AutomationLayout } | null>(null)
   const [dialog, setDialog] = createSignal<'review' | 'disable' | 'delete' | 'run' | null>(null)
   const [phone, setPhone] = createSignal(false)
@@ -127,8 +126,11 @@ export default function EditorPage(): JSX.Element {
   onMount(() => {
     const onPop = () => {
       const q = new URLSearchParams(window.location.search)
-      setTab(q.get('tab') === 'runs' ? 'runs' : 'edit')
-      setSelected(q.get('node'))
+      const view = readRunsView(window.location.pathname, window.location.search)
+      const runs = Boolean(view.run) || q.get('tab') === 'runs'
+      setTab(runs ? 'runs' : 'edit')
+      setRunsView(view)
+      setSelected(runs ? null : q.get('node'))
       const wanted = Number(q.get('version') ?? '0') || 0
       const back = shownHref
       shownHref = window.location.href
@@ -298,12 +300,53 @@ export default function EditorPage(): JSX.Element {
   }
   const api: EditorApi = {
     validate: (graph) => app.call('automations.validate', { graph }),
-    dryRun: (input) => app.call('automations.dry_run', { graph: input.graph, subject: input.subject, events: input.events as never, ...(input.context ? { context: input.context as never } : {}) }) as never,
+    dryRun: (input) => app.call('automations.dry_run', {
+      graph: input.graph, subject: input.subject, events: input.events as never,
+      ...(input.context ? { context: input.context as never } : {}), ...(input.decisions ? { decisions: input.decisions } : {}),
+    }) as never,
     testNode: async (input) => {
-      const res = await app.call('automations.test_node', { graph: input.graph, node_id: input.node_id, ...(input.subject ? { subject: input.subject } : {}), ...(input.context ? { context: input.context as never } : {}) })
+      const res = await app.call('automations.test_node', {
+        graph: input.graph, node_id: input.node_id, ...(input.subject ? { subject: input.subject } : {}),
+        ...(input.context ? { context: input.context as never } : {}), ...(input.idempotency_key ? { idempotency_key: input.idempotency_key } : {}),
+      })
       return { outcome: res.outcome, ...(res.output !== undefined ? { output: res.output } : {}), ...(res.logs ? { logs: res.logs } : {}), ...(res.duration_ms ? { duration_ms: res.duration_ms } : {}), ...(res.error ? { error: res.error } : {}) }
     },
     searchSubjects: (entity, query) => app.call('automations.search_subjects', { entity, query }),
+    runs: async (input) => {
+      const page = await app.call('automations.runs', {
+        automation_id: input.automation_id, ...(input.version ? { version: input.version } : {}), ...(input.state && input.state.length > 0 ? { state: input.state } : {}),
+        ...(input.subject ? { subject: input.subject } : {}), ...(input.node ? { node: input.node } : {}), ...(input.cursor ? { cursor: input.cursor } : {}), ...(input.limit ? { limit: input.limit } : {}),
+      })
+      return { items: page.items.map(runSummaryOf), next_cursor: page.next_cursor }
+    },
+    run: async (runId, opts) => {
+      try {
+        const data = await app.call('automations.run', { run_id: runId, ...(opts?.nodes && opts.nodes.length > 0 ? { nodes: opts.nodes } : {}) })
+        // A run of another graph is not this page's (RV6: one id opens its own graph's tab).
+        if (info() && data.run.automation_id !== info()!.id) {
+          window.location.replace(graphPath(app.props.basePath, data.run.automation_id, { run: runId, ...(runsView().node ? { node: runsView().node! } : {}) }))
+          return await new Promise<never>(() => undefined)
+        }
+        return runDataOf(data)
+      } catch (e) {
+        if (errorCode(e) === 'not_found') throw Object.assign(new Error('run not found'), { code: 'not_found' })
+        throw e
+      }
+    },
+    version: async (version) => {
+      const g = await app.call('automations.get', { id: info()!.id, version })
+      return { graph: g.graph as AutomationGraph, layout: g.automation.layout }
+    },
+    cancelRun: async (runId) => {
+      const res = await app.call('automations.run_cancel', { run_id: runId })
+      if (!res.ok) throw Object.assign(new Error(res.error ?? 'refused'), { code: res.error ?? 'refused' })
+    },
+    retryRun: async (input) => {
+      await app.call('automations.run_retry', { run_id: input.run_id, wait_id: input.wait_id ?? '' })
+    },
+    resolveRun: async (input) => {
+      await app.call('automations.run_resolve', { run_id: input.run_id, wait_id: input.wait_id ?? '', outcome: input.outcome })
+    },
   }
 
   // A node's connection: the tenant's working connections of the node's connector kinds.
@@ -348,7 +391,32 @@ export default function EditorPage(): JSX.Element {
 
   const changeTab = (next: 'edit' | 'runs') => {
     setTab(next)
-    setURL((url) => { if (next === 'runs') url.searchParams.set('tab', 'runs'); else url.searchParams.delete('tab') }, true)
+    const i = info()
+    if (!i) return
+    // Edit drops the run from the path; Runs returns to the run and filters it showed.
+    const href = next === 'runs'
+      ? writeRunsView(app.props.basePath, i.id, runsView(), window.location.href)
+      : (() => {
+        const url = new URL(graphPath(app.props.basePath, i.id), window.location.origin)
+        const v = new URLSearchParams(window.location.search).get('version')
+        if (v) url.searchParams.set('version', v)
+        if (selected()) url.searchParams.set('node', selected()!)
+        return url.pathname + url.search
+      })()
+    if (href !== window.location.pathname + window.location.search) {
+      window.history.pushState({}, '', href)
+      shownHref = window.location.href
+    }
+  }
+  const changeRunsView = (view: RunsView, push: boolean) => {
+    setRunsView(view)
+    const i = info()
+    if (!i) return
+    const href = writeRunsView(app.props.basePath, i.id, view, window.location.href)
+    if (href === window.location.pathname + window.location.search) return
+    if (push) window.history.pushState({}, '', href)
+    else window.history.replaceState({}, '', href)
+    shownHref = window.location.href
   }
   const select = (id: string | null) => {
     setSelected(id)
@@ -371,7 +439,8 @@ export default function EditorPage(): JSX.Element {
   const banner = () => {
     const i = info()
     const parts: JSX.Element[] = []
-    if (phone()) {
+    // The Runs tab works on a phone (a read-only outline): the «open on a computer» note is the editor's.
+    if (phone() && tab() === 'edit') {
       parts.push(
         <span class="flex flex-wrap items-center gap-2" data-testid="phone-banner">
           <span>{t('Editor.DesktopOnly')}</span>
@@ -436,7 +505,12 @@ export default function EditorPage(): JSX.Element {
                   {...(info() && can().enable ? { toggleEnabled: () => setDialog(info()!.enabled ? 'disable' : 'review') } : {})}
                   {...(data().readOnly ? { readOnly: data().readOnly! } : {})}
                   fieldSlot={fieldSlot}
-                  {...(info() ? { tab: tab(), onTab: changeTab, runsBody: <Runs id={info()!.id} run={app.props.run ?? ''} /> } : {})}
+                  {...(info() ? {
+                    tab: tab(), onTab: changeTab, automationId: info()!.id, runsView: runsView(), onRunsView: changeRunsView,
+                    ...(can().operate && info()!.enabled && manual().length > 0 ? { onStartRun: () => setDialog('run') } : {}),
+                  } : {})}
+                  can={{ author: can().author, operate: can().operate }}
+                  connectionName={(id) => Object.values(data().connections).flat().find((c) => c.id === id)?.name}
                   crumb={crumb}
                   actions={actions()}
                   banner={banner()}
@@ -476,62 +550,6 @@ export default function EditorPage(): JSX.Element {
       </Show>
       <Show when={dialog() === 'run' && info()}>
         <RunDialog id={info()!.id} triggers={manual()} subjects={(loaded()?.catalog as { subjects?: string[] } | undefined)?.subjects ?? []} onClose={() => setDialog(null)} />
-      </Show>
-    </div>
-  )
-}
-
-/** The runs of the graph (the Runs tab's list; the run view on the canvas is #1347's). */
-function Runs(props: { id: string; run: string }): JSX.Element {
-  const app = useApp()
-  const t = app.t
-  const [data, setData] = createSignal<RunsResult>()
-  const [error, setError] = createSignal<string>()
-  const [open, setOpen] = createSignal<RunData>()
-  const load = async () => {
-    setError(undefined)
-    try { setData(await app.call('automations.runs', { automation_id: props.id })) } catch (e) { setError(errorText(t, e, t('Actions.LoadRuns'))) }
-  }
-  const show = async (run: string) => {
-    try { setOpen(await app.call('automations.run', { run_id: run })) } catch (e) { app.toast.notify({ variant: 'error', title: errorText(t, e, t('Actions.LoadRuns')) }) }
-  }
-  onMount(() => { void load(); if (props.run) void show(props.run) })
-  return (
-    <div class="flex flex-col gap-3 p-4" data-testid="runs">
-      <Switch>
-        <Match when={error()}>
-          <div role="alert" class="flex items-center gap-2"><span>{error()}</span><Button variant="secondary" size="sm" onClick={() => void load()}>{t('Common.Retry')}</Button></div>
-        </Match>
-        <Match when={!data()}><p role="status" class="text-300">{t('Common.Loading')}</p></Match>
-        <Match when={data()!.items.length === 0}><p class="text-300" data-testid="runs-empty">{t('Runs.Empty')}</p></Match>
-        <Match when={data()}>
-          <ul class="flex flex-col divide-y divide-subtle rounded-lg border border-subtle bg-surface-600">
-            <For each={data()!.items}>
-              {(r) => (
-                <li>
-                  <button type="button" class="flex w-full flex-wrap items-center gap-3 px-4 py-2 text-left text-sm hover:bg-surface-400" classList={{ 'bg-brand/5': open()?.run.run_id === r.run_id }} onClick={() => void show(r.run_id)} data-testid="run-row">
-                    <span class={`flex items-center gap-1.5 ${TONE[runTone(r.status)]}`}><Icon name={runIcon(r.status)} />{t(runStatusKey(r.status))}</span>
-                    <span class="text-300">v{r.version}</span>
-                    <time class="tabular-nums text-300" datetime={r.created_at} title={absoluteTime(r.created_at, app.lang)}>{relativeTime(r.created_at, app.now(), app.lang)}</time>
-                    <Show when={r.error}><span class="truncate text-red-600">{r.error!.message}</span></Show>
-                  </button>
-                </li>
-              )}
-            </For>
-          </ul>
-        </Match>
-      </Switch>
-      <Show when={open()}>
-        {(d) => (
-          <section class="flex flex-col gap-2 rounded-lg border border-subtle p-4 text-sm" aria-label={t('Runs.Steps')} data-testid="run-steps">
-            <h3 class="font-medium">{t('Runs.Steps')}</h3>
-            <Show when={d().steps.length > 0} fallback={<p class="text-300">{t('Runs.NoSteps')}</p>}>
-              <ol class="flex flex-col gap-1">
-                <For each={d().steps}>{(s) => <li class="flex flex-wrap gap-2"><span class="font-mono">{s.node_id}</span><span class="text-300">{s.outcome ?? ''}</span><Show when={s.error}><span class="text-red-600">{s.error!.message}</span></Show></li>}</For>
-              </ol>
-            </Show>
-          </section>
-        )}
       </Show>
     </div>
   )

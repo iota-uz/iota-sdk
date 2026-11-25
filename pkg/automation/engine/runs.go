@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -46,6 +47,14 @@ func (s *service) ListRuns(ctx context.Context, a Actor, f RunFilter) (Page[RunS
 		sub := normSubject(*f.Subject)
 		args = append(args, sub.Entity, sub.Key)
 		where = append(where, fmt.Sprintf("r.subject_entity = $%d AND r.subject_key = $%d", len(args)-1, len(args)))
+	}
+	if f.Node != "" {
+		args = append(args, f.Node)
+		where = append(where, fmt.Sprintf("EXISTS (SELECT 1 FROM automation.steps s WHERE s.tenant_id = r.tenant_id AND s.run_id = r.id AND s.node_id = $%d)", len(args)))
+	}
+	if f.SubjectKeyPrefix != "" {
+		args = append(args, likePrefix(f.SubjectKeyPrefix))
+		where = append(where, fmt.Sprintf(`r.subject_key ILIKE $%d ESCAPE '\'`, len(args)))
 	}
 	if f.Since != nil {
 		args = append(args, *f.Since)
@@ -153,11 +162,24 @@ func redactReason(reason string) string {
 }
 
 // maxDetailSteps bounds the steps GetRun returns (the latest ones).
-const maxDetailSteps = 1000
+var maxDetailSteps = 1000
 
-func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDetail, error) {
+// maxStepsOfVisits bounds the visits of one node StepsOf looks through for one the viewer may read.
+const maxStepsOfVisits = 200
+
+func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID, opts ...RunDetailOption) (RunDetail, error) {
 	if err := s.authorize(a, PermRead); err != nil {
 		return RunDetail{}, err
+	}
+	var o runDetailOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	if len(o.nodes) > MaxStepsOfNodes {
+		return RunDetail{}, fmt.Errorf("%w: at most %d nodes", ErrInvalidInput, MaxStepsOfNodes)
+	}
+	if o.nodes == nil {
+		o.nodes = []string{}
 	}
 	// One snapshot: the status, the tokens, the waits and the steps describe the same moment.
 	tx, err := s.r.cfg.DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
@@ -192,49 +214,66 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 		return RunDetail{}, err
 	}
 	for _, w := range waits {
-		wv := WaitView{TokenID: w.TokenID, WaitID: w.WaitID, Kind: w.Kind, TimeoutAt: w.TimeoutAt, Status: w.Status}
+		wv := WaitView{TokenID: w.TokenID, NodeID: w.NodeID, WaitID: w.WaitID, Kind: w.Kind, TimeoutAt: w.TimeoutAt, Status: w.Status}
 		if w.EventKind != nil {
 			wv.EventKind = *w.EventKind
 		}
 		d.Waits = append(d.Waits, wv)
 	}
-	rows, err := tx.Query(ctx, `
-		SELECT token_id, seq, node_id, attempt, input, output, coalesce(outcome, ''), error, sensitive, started_at, ended_at, warnings FROM (
-			SELECT * FROM automation.steps WHERE tenant_id = $1 AND run_id = $2 ORDER BY started_at DESC, seq DESC LIMIT $3) x
-		ORDER BY started_at, seq`, a.TenantID, run.ID, maxDetailSteps)
-	if err != nil {
-		return RunDetail{}, serrors.FromDB(opService, err)
-	}
 	type stepRow struct {
 		sv   StepView
 		sens []sensitiveRef
 	}
-	var steps []stepRow
-	for rows.Next() {
-		var st stepRow
-		sv := &st.sv
-		var in, out, errj, sens, warns []byte
-		var ended *time.Time
-		if err := rows.Scan(&sv.TokenID, &sv.Seq, &sv.NodeID, &sv.Attempt, &in, &out, &sv.Outcome, &errj, &sens, &sv.StartedAt, &ended, &warns); err != nil {
-			rows.Close()
-			return RunDetail{}, serrors.FromDB(opService, err)
+	scan := func(sql string, args ...any) ([]stepRow, error) {
+		rows, err := tx.Query(ctx, sql, args...)
+		if err != nil {
+			return nil, serrors.FromDB(opService, err)
 		}
-		if len(warns) > 0 {
-			_ = json.Unmarshal(warns, &sv.Warnings)
-		}
-		sv.Input, sv.Output, sv.EndedAt = in, out, ended
-		if len(errj) > 0 {
-			var e StepError
-			if json.Unmarshal(errj, &e) == nil {
-				sv.Error = &e
+		defer rows.Close()
+		var out []stepRow
+		for rows.Next() {
+			var st stepRow
+			sv := &st.sv
+			var in, outj, errj, sens, warns, logs []byte
+			var ended *time.Time
+			if err := rows.Scan(&sv.TokenID, &sv.Seq, &sv.NodeID, &sv.Attempt, &in, &outj, &sv.Outcome, &errj, &sens, &sv.StartedAt, &ended, &warns, &logs); err != nil {
+				return nil, serrors.FromDB(opService, err)
 			}
+			if len(warns) > 0 {
+				_ = json.Unmarshal(warns, &sv.Warnings)
+			}
+			if len(logs) > 0 {
+				_ = json.Unmarshal(logs, &sv.Logs)
+			}
+			sv.Input, sv.Output, sv.EndedAt = in, outj, ended
+			if len(errj) > 0 {
+				var e StepError
+				if json.Unmarshal(errj, &e) == nil {
+					sv.Error = &e
+				}
+			}
+			st.sens = decodeRefs(sens)
+			out = append(out, st)
 		}
-		st.sens = decodeRefs(sens)
-		steps = append(steps, st)
+		return out, serrors.FromDB(opService, rows.Err())
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return RunDetail{}, serrors.FromDB(opService, err)
+	const stepCols = `token_id, seq, node_id, attempt, input, output, coalesce(outcome, ''), error, sensitive, started_at, ended_at, warnings, logs`
+	steps, err := scan(`SELECT `+stepCols+` FROM (
+			SELECT * FROM automation.steps WHERE tenant_id = $1 AND run_id = $2 ORDER BY started_at DESC, seq DESC LIMIT $3) x
+		ORDER BY started_at, seq`, a.TenantID, run.ID, maxDetailSteps)
+	if err != nil {
+		return RunDetail{}, err
+	}
+	// The visits of each node StepsOf names, latest first wherever they are in the run: the latest one the
+	// viewer may read is added below (a later visit the viewer may not read does not hide an earlier one).
+	var visits []stepRow
+	if len(o.nodes) > 0 {
+		if visits, err = scan(`SELECT `+stepCols+` FROM (
+				SELECT *, row_number() OVER (PARTITION BY node_id ORDER BY started_at DESC, seq DESC) AS visit
+				FROM automation.steps WHERE tenant_id = $1 AND run_id = $2 AND node_id = ANY($3)) x
+			WHERE visit <= $4 ORDER BY node_id, started_at DESC, seq DESC`, a.TenantID, run.ID, o.nodes, maxStepsOfVisits); err != nil {
+			return RunDetail{}, err
+		}
 	}
 	// The snapshot is complete: its connection goes back to the pool before anything is projected (the
 	// projector reads the catalog, which may query the database).
@@ -244,21 +283,68 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 	proj := s.r.projector(a.TenantID)
 	viewer := a.Subject
 	viewer.TenantID = a.TenantID
-	for _, st := range steps {
+	if d.Event, err = proj.historicEvent(ctx, run.Input, run.Sensitive, &viewer); err != nil {
+		return RunDetail{}, err
+	}
+	// A step that ran after the run read a sensitive field the viewer may not read can carry it in any
+	// form (rendered, transformed by CEL or a node): its data is left out.
+	project := func(st stepRow) (StepView, error) {
 		sv := st.sv
-		// A step that ran after the run read a sensitive field the viewer may not read can carry it in
-		// any form (rendered, transformed by CEL or a node): its data is left out.
 		ok, err := proj.readable(ctx, st.sens, &viewer)
 		if err != nil {
-			return RunDetail{}, err
+			return StepView{}, err
 		}
 		if !ok {
-			sv.Hidden, sv.Input, sv.Output = true, nil, nil
+			sv.Hidden, sv.Input, sv.Output, sv.Logs = true, nil, nil, nil
 			if sv.Error != nil {
 				sv.Error = &StepError{Code: sv.Error.Code, Message: Hidden, Path: sv.Error.Path}
 			}
 		}
+		return sv, nil
+	}
+	type stepKey struct {
+		token uuid.UUID
+		seq   int
+	}
+	have := map[stepKey]bool{}
+	for _, st := range steps {
+		sv, err := project(st)
+		if err != nil {
+			return RunDetail{}, err
+		}
+		have[stepKey{sv.TokenID, sv.Seq}] = true
 		d.Steps = append(d.Steps, sv)
+	}
+	// Per named node: its latest visit the viewer may read, else its latest visit (hidden).
+	chosen := map[string]StepView{}
+	readable := map[string]bool{}
+	for _, st := range visits {
+		if readable[st.sv.NodeID] {
+			continue
+		}
+		sv, err := project(st)
+		if err != nil {
+			return RunDetail{}, err
+		}
+		if _, seen := chosen[sv.NodeID]; !seen || !sv.Hidden {
+			chosen[sv.NodeID] = sv
+			readable[sv.NodeID] = !sv.Hidden
+		}
+	}
+	added := false
+	for _, sv := range chosen {
+		if !have[stepKey{sv.TokenID, sv.Seq}] {
+			d.Steps = append(d.Steps, sv)
+			added = true
+		}
+	}
+	if added {
+		sort.SliceStable(d.Steps, func(i, j int) bool {
+			if !d.Steps[i].StartedAt.Equal(d.Steps[j].StartedAt) {
+				return d.Steps[i].StartedAt.Before(d.Steps[j].StartedAt)
+			}
+			return d.Steps[i].Seq < d.Steps[j].Seq
+		})
 	}
 	if d.RunSummary, err = redactSummary(ctx, proj, &viewer, d.RunSummary, run.Sensitive); err != nil {
 		return RunDetail{}, err
@@ -267,4 +353,10 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDeta
 		d.CurrentNodes = []string{}
 	}
 	return d, nil
+}
+
+// likePrefix is a LIKE pattern matching strings that start with s, its wildcards escaped.
+func likePrefix(s string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return r.Replace(s) + "%"
 }
