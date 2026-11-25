@@ -80,6 +80,7 @@ type telegram struct {
 	kind    catalog.ConnectorKind
 	auth    connectors.AuthKind
 	oauth   *connectors.OAuth2Config
+	schema  json.RawMessage // nil: the default credentials schema
 }
 
 func (c *telegram) Kind() catalog.ConnectorKind {
@@ -97,8 +98,15 @@ func (c *telegram) Descriptor() connectors.Descriptor {
 	}
 	return connectors.Descriptor{
 		Kind: c.Kind(), Title: map[string]string{"en": "Telegram bot"}, Auth: auth, OAuth2: c.oauth, Platform: c.policy,
-		Credentials: json.RawMessage(`{"type":"object","properties":{"token":{"type":"string","x-secret":true},"username":{"type":"string"},"access_token":{"type":"string","x-secret":true}},"additionalProperties":false}`),
+		Credentials: c.credentialsSchema(),
 	}
+}
+
+func (c *telegram) credentialsSchema() json.RawMessage {
+	if c.schema != nil {
+		return c.schema
+	}
+	return json.RawMessage(`{"type":"object","properties":{"token":{"type":"string","x-secret":true},"username":{"type":"string"},"access_token":{"type":"string","x-secret":true}},"additionalProperties":false}`)
 }
 func (c *telegram) Test(_ context.Context, creds connectors.Credentials) (connectors.Identity, error) {
 	c.tested.Add(1)

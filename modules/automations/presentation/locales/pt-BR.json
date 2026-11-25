@@ -39,6 +39,18 @@
       "ConnectionsManage": {
         "Label": "Gerenciar integrações",
         "_Description": "Conectar, verificar, desativar e excluir as contas da organização em serviços externos"
+      },
+      "SecretsManage": {
+        "Label": "Gerenciar segredos",
+        "_Description": "Criar, renomear, rotacionar e excluir os segredos da organização (os valores nunca são exibidos)"
+      },
+      "ConnectionsUse": {
+        "Label": "Usar conexões",
+        "_Description": "Permitir que as automações executadas por este usuário chamem as conexões da organização a partir dos nós Code e HTTP"
+      },
+      "SecretsUse": {
+        "Label": "Usar segredos",
+        "_Description": "Permitir que as automações executadas por este usuário leiam os segredos da organização"
       }
     }
   },
@@ -240,6 +252,60 @@
         "unknown": {
           "Text": "o serviço recusou a conexão",
           "Fix": "Verifique os valores; se repetir, abra a resposta do serviço abaixo."
+        }
+      },
+      "Secrets": {
+        "Category": "Segredos",
+        "Title": "Segredo",
+        "Kind": "Integrado",
+        "Summary": "Valores como chaves de API que os nós Code e HTTP leem pelo nome. Um valor salvo nunca é mostrado novamente.",
+        "Empty": "Ainda não há segredos. Adicione um e leia-o em um nó Code ou HTTP pelo nome.",
+        "Add": "Adicionar segredo",
+        "LoadFailed": "Não foi possível carregar os segredos.",
+        "Masked": "Valor oculto",
+        "Created": "Criado em {date}",
+        "Rotated": "Rotacionado em {date}",
+        "LastUsed": "Usado pela última vez em {date}",
+        "NeverUsed": "Ainda não usado",
+        "Actions": "Ações de {name}",
+        "Menu": {
+          "Edit": "Renomear ou descrever",
+          "Rotate": "Rotacionar valor",
+          "Delete": "Excluir"
+        },
+        "Form": {
+          "TitleNew": "Adicionar segredo",
+          "TitleEdit": "Editar {name}",
+          "TitleRotate": "Rotacionar {name}",
+          "Name": "Nome",
+          "NameHint": "Letras latinas maiúsculas, dígitos e _, começando com uma letra, por exemplo API_KEY. Os nós leem o segredo por este nome.",
+          "DescriptionLabel": "Descrição",
+          "DescriptionHint": "Para que serve o segredo e onde foi emitido.",
+          "Value": "Valor",
+          "ValueHint": "Armazenado criptografado. Depois de salvo, nunca é mostrado novamente.",
+          "NewValue": "Novo valor",
+          "RotateHint": "O novo valor substitui o atual para todos os nós a partir da próxima execução. O valor atual não é mostrado.",
+          "RenameHint": "Os nós que leem o segredo pelo nome atual deixarão de encontrá-lo após a renomeação.",
+          "NameFormat": "Use letras latinas maiúsculas, dígitos e _, começando com uma letra (até 64).",
+          "NameTaken": "Já existe um segredo com este nome.",
+          "Save": "Salvar",
+          "Saving": "Salvando…",
+          "Rotate": "Salvar novo valor",
+          "VersionConflict": "Alguém alterou este segredo nesse meio-tempo. A versão mais recente foi carregada: verifique o formulário e salve novamente.",
+          "Unavailable": "O armazenamento de segredos está indisponível. Tente novamente em um minuto.",
+          "Failed": "Não foi possível salvar. Tente novamente em um minuto."
+        },
+        "Delete": {
+          "Title": "Excluir {name}?",
+          "Text": "Os nós Code e HTTP que leem {name} falharão com «unknown secret» até que um segredo com este nome seja adicionado novamente — a menos que a aplicação forneça um segredo com o mesmo nome, que eles passarão a usar. O valor não pode ser restaurado.",
+          "Confirm": "Excluir segredo",
+          "Cancel": "Cancelar"
+        },
+        "Toast": {
+          "Created": "{name} foi salvo. O valor não será mostrado novamente.",
+          "Updated": "{name} foi salvo",
+          "Rotated": "{name} tem um novo valor",
+          "Deleted": "{name} foi excluído"
         }
       }
     },

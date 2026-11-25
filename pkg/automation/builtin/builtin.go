@@ -35,6 +35,9 @@ type Deps struct {
 	// Secrets and Connections are the tenant's secrets and connections (nil: none).
 	Secrets     access.Secrets
 	Connections access.Connections
+	// ConnectionUse is the permission a run-as subject needs to use connections from Code and HTTP nodes
+	// ("": none).
+	ConnectionUse string
 	// Runs starts the runs of start_automation and run_automation (the engine; resolved on first use).
 	Runs flow.Starter
 	// Actions are the SDK actions to register with the nodes.
@@ -52,8 +55,8 @@ func Nodes(d Deps) ([]catalog.NodeType, error) {
 	start, run := flow.New(d.Runs)
 	out := []catalog.NodeType{
 		set.New(), setstate.New(),
-		code.New(code.Deps{Engine: d.Engine, Engines: d.Engines, Compiler: d.Compiler, Fetcher: d.Fetcher, Secrets: d.Secrets, Connections: d.Connections}),
-		http.New(http.Deps{Fetcher: d.Fetcher, Secrets: d.Secrets, Connections: d.Connections}),
+		code.New(code.Deps{Engine: d.Engine, Engines: d.Engines, Compiler: d.Compiler, Fetcher: d.Fetcher, Secrets: d.Secrets, Connections: d.Connections, ConnectionUse: d.ConnectionUse}),
+		http.New(http.Deps{Fetcher: d.Fetcher, Secrets: d.Secrets, Connections: d.Connections, ConnectionUse: d.ConnectionUse}),
 		start, run, actions.Front(),
 	}
 	acts, err := actions.Nodes(d.Actions...)

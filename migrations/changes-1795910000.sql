@@ -1,24 +1,57 @@
--- The memory of an automation between its runs (#1390): key-value pairs per automation and tenant that
--- the set_state node writes and the CEL variable state reads (state.get(key), state.has(key)). A key with
--- expires_at is no longer seen once it passes and a background sweep removes it.
+-- The tenant secrets of automations (the built-in «Secret» connector, #1418). A record keeps the name and
+-- the reference to the value plus safe metadata; the value lives behind the storage port
+-- (pkg/automation/secrets): secret_values is the sealed adapter's table (AES-256-GCM, the key ring of the
+-- connections), an OpenBao KV v2 adapter (#1382) replaces it without touching the records.
+-- Values are versioned (KV v2): a rotation adds a version and the record publishes it by value_version, so
+-- a rotation that fails between the two writes leaves readers on the published version. A record is staged
+-- (value_version 0: the name is reserved, nothing reads it) before its first value is written, so recovery
+-- tells a published secret from an orphan by its row. A deleted record is a tombstone (deleted_at) until its
+-- value is gone and no write claimed before it can still land, so a failed or raced delete of the value is
+-- retried. No transaction is held open while a value is written: the value store may share the records' pool.
 -- +migrate Up
-CREATE TABLE automation.state (
-    tenant_id uuid NOT NULL,
-    automation_id uuid NOT NULL,
-    key text NOT NULL CHECK (char_length(key) BETWEEN 1 AND 200),
-    value jsonb NOT NULL,
-    expires_at timestamp with time zone,
-    updated_at timestamp with time zone NOT NULL DEFAULT now(),
-    -- The run whose step wrote the value; null for an edit by a person or an agent.
-    updated_by_run uuid,
-    PRIMARY KEY (tenant_id, automation_id, key),
-    FOREIGN KEY (tenant_id, automation_id) REFERENCES automation.automations (tenant_id, id) ON DELETE CASCADE
+CREATE TABLE automation.secret_values (
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    path text NOT NULL,
+    version integer NOT NULL CHECK (version >= 1),
+    key_id text NOT NULL,
+    nonce bytea NOT NULL,
+    ciphertext bytea NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    PRIMARY KEY (tenant_id, path, version)
 );
 
--- The sweep of expired keys.
-CREATE INDEX state_expires_idx ON automation.state (expires_at)
-WHERE
-    expires_at IS NOT NULL;
+CREATE INDEX secret_values_key_idx ON automation.secret_values (key_id);
+
+CREATE TABLE automation.secrets (
+    id uuid PRIMARY KEY,
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    name text NOT NULL CHECK (name ~ '^[A-Z][A-Z0-9_]{0,63}$'),
+    description text NOT NULL DEFAULT '',
+    ref_path text NOT NULL,
+    version integer NOT NULL DEFAULT 1,
+    value_version integer NOT NULL DEFAULT 0 CHECK (value_version >= 0),
+    created_by bigint NOT NULL DEFAULT 0,
+    created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone NOT NULL DEFAULT now(),
+    rotated_at timestamp with time zone NOT NULL DEFAULT now(),
+    last_used_at timestamp with time zone,
+    deleted_at timestamp with time zone,
+    -- The last claim of a value write (a create or a rotation, set before the value store is called): a
+    -- tombstone is kept, and its value deleted again, until the claim is older than the write window, so a
+    -- write that lands after a delete is still found and removed.
+    value_write_at timestamp with time zone
+);
+
+-- A name is unique among the live secrets of a tenant; tombstones keep theirs until purged.
+CREATE UNIQUE INDEX secrets_tenant_name_idx ON automation.secrets (tenant_id, name) WHERE deleted_at IS NULL;
+
+-- A value's path belongs to one secret for good (the manager puts the secret's id in it): the sweep, which
+-- removes values no record names, can never take a later secret's value at a reused path.
+CREATE UNIQUE INDEX secrets_tenant_ref_path_idx ON automation.secrets (tenant_id, ref_path);
+
+CREATE INDEX secrets_deleted_idx ON automation.secrets (tenant_id) WHERE deleted_at IS NOT NULL;
 
 -- +migrate Down
-DROP TABLE IF EXISTS automation.state;
+DROP TABLE IF EXISTS automation.secrets;
+
+DROP TABLE IF EXISTS automation.secret_values;

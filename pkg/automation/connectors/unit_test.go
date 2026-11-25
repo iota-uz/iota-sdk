@@ -3,6 +3,7 @@ package connectors_test
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
@@ -273,4 +274,25 @@ func TestDirectoryRefusesPresetsOnAConnectionAuthorizer(t *testing.T) {
 	err := connectors.NewDirectory(nil).Register(presetAuthorizer{})
 	require.ErrorIs(t, err, connectors.ErrInvalid)
 	require.ErrorContains(t, err, "ConnectionAuthorizer", "refused for this reason, not for an invalid descriptor")
+}
+
+// x-authorization-only fails closed: a non-boolean value withholds the field and the directory refuses the
+// schema; only an explicit false serves it.
+func TestAuthorizationOnlyFailsClosed(t *testing.T) {
+	d := connectors.Descriptor{Credentials: json.RawMessage(`{"type":"object","properties":{
+		"token":{"type":"string","x-secret":true,"x-authorization-only":true},
+		"password":{"type":"string","x-secret":true,"x-authorization-only":"false"},
+		"pin":{"type":"string","x-secret":true,"x-authorization-only":false},
+		"otp":{"type":"string","x-secret":true,"x-authorization-only":null},
+		"key":{"type":"string","x-secret":true}}}`)}
+	assert.Equal(t, map[string]bool{"token": true, "password": true, "otp": true}, connectors.AuthorizationOnlyFields(d))
+
+	bad := telegramConnector(t)
+	bad.kind, bad.nodes, bad.sources = "api", nil, nil
+	bad.schema = d.Credentials
+	require.ErrorIs(t, connectors.NewDirectory(nil).Register(bad), connectors.ErrInvalid)
+	bad.schema = json.RawMessage(`{"type":"object","properties":{"token":{"type":"string","x-secret":true,"x-authorization-only":null}}}`)
+	require.ErrorIs(t, connectors.NewDirectory(nil).Register(bad), connectors.ErrInvalid, "null is not a boolean")
+	bad.schema = json.RawMessage(`{"type":"object","properties":{"token":{"type":"string","x-secret":true,"x-authorization-only":true}}}`)
+	require.NoError(t, connectors.NewDirectory(nil).Register(bad))
 }
