@@ -68,6 +68,8 @@ type manager struct {
 	// it, so values that fail to delete never keep the ones behind them waiting.
 	mu      sync.Mutex
 	sweptTo map[string]string
+	// rootTurn is, per tenant, which root the next purge sweeps first.
+	rootTurn map[uuid.UUID]int
 }
 
 // NewManager administers secrets: the records in automation.secrets and the values through writer. meta
@@ -480,13 +482,23 @@ func (m *manager) purge(ctx context.Context, tenantID uuid.UUID) {
 		m.removeValue(batch, tenantID, l.id, l.path)
 	}
 	cancel()
-	sweep, cancelSweep := cleanupContext(ctx)
-	defer cancelSweep()
-	for _, root := range m.roots(tenantID) {
-		if sweep.Err() != nil {
-			return
-		}
-		m.sweep(sweep, tenantID, root)
+	// Each root gets a deadline of its own, and the root a purge starts with rotates: a root whose deletes
+	// keep timing out never keeps the others (a former root after a prefix change) from being swept.
+	roots := m.roots(tenantID)
+	if len(roots) == 0 {
+		return
+	}
+	m.mu.Lock()
+	first := m.rootTurn[tenantID] % len(roots)
+	if m.rootTurn == nil {
+		m.rootTurn = map[uuid.UUID]int{}
+	}
+	m.rootTurn[tenantID] = first + 1
+	m.mu.Unlock()
+	for i := range roots {
+		sweep, cancelSweep := cleanupContext(ctx)
+		m.sweep(sweep, tenantID, roots[(first+i)%len(roots)])
+		cancelSweep()
 	}
 }
 

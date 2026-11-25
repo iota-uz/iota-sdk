@@ -994,3 +994,28 @@ func TestAFormerRootIsStillSwept(t *testing.T) {
 	assert.Equal(t, "new", got)
 	assert.NotEqual(t, old.Ref.Path, fresh.Ref.Path)
 }
+
+// A current root whose deletes keep timing out never starves a former root: each root has a deadline of its
+// own and the purges take turns at which root goes first.
+func TestASlowCurrentRootNeverStarvesAFormerRoot(t *testing.T) {
+	restore := secrets.SetCleanupTimeout(300 * time.Millisecond)
+	defer restore()
+	e := newEnv(t)
+	current := secrets.DefaultLocator("v2/").Root(e.tenant).Path
+	former := secrets.DefaultLocator("test/").Root(e.tenant).Path
+	stuck, late := current+"stuck", former+"late"
+	for _, p := range []string{stuck, late} {
+		_, err := e.store.Put(e.ctx, secrets.Ref{TenantID: e.tenant, Path: p}, map[string]string{secrets.ValueKey: "orphan"})
+		require.NoError(t, err)
+	}
+	trap := pathTrap{Writer: e.store, hang: map[string]bool{stuck: true}}
+	m := secrets.NewManager(e.db, trap, e.store, movedLocator{Locator: secrets.DefaultLocator("v2/")})
+	for range 2 {
+		_, err := m.List(e.ctx, e.tenant)
+		require.NoError(t, err)
+	}
+	_, err := e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: late})
+	require.ErrorIs(t, err, secrets.ErrNotFound, "the former root's orphan is swept despite the hanging current root")
+	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: stuck})
+	require.NoError(t, err, "the hanging one waits")
+}
