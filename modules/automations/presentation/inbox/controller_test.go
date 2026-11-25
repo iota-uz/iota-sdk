@@ -109,7 +109,7 @@ func TestDecideRefusesAnUnconfirmedDangerOutcome(t *testing.T) {
 	post := func(form url.Values) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(http.MethodPost, "/automations/tasks/"+in.view.ID.String()+"/decide", strings.NewReader(form.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		r.Header.Set("HX-Request", "true")
+		r.Header.Set("Hx-Request", "true")
 		r = mux.SetURLVars(r, map[string]string{"id": in.view.ID.String()})
 		w := httptest.NewRecorder()
 		c.decide(w, r)
@@ -140,7 +140,7 @@ func TestDecideRefusesANonFiniteNumber(t *testing.T) {
 	form := url.Values{"outcome": {"approve"}, "field.amount": {"NaN"}}
 	r := httptest.NewRequest(http.MethodPost, "/automations/tasks/"+v.ID.String()+"/decide", strings.NewReader(form.Encode()))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	r.Header.Set("HX-Request", "true")
+	r.Header.Set("Hx-Request", "true")
 	r = mux.SetURLVars(r, map[string]string{"id": v.ID.String()})
 	w := httptest.NewRecorder()
 	c.decide(w, r)

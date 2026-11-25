@@ -92,7 +92,7 @@ func TestHumanizeUppercasesTheFirstRune(t *testing.T) {
 	assert.Equal(t, "Сумма платежа", humanize("сумма_платежа"))
 	assert.Equal(t, "Due date", humanize("due-date"))
 	assert.Equal(t, "Ünit", humanize("ünit"))
-	assert.Equal(t, "", humanize(""))
+	assert.Empty(t, humanize(""))
 }
 
 // A number goes back as typed: no float rounding, an integer beyond int64, a decimal comma.
@@ -176,11 +176,12 @@ func TestSchemaWithoutPropertiesGetsADocumentControl(t *testing.T) {
 		require.Len(t, fields, 1, schema)
 		assert.Equal(t, KindDocument, fields[0].Kind, schema)
 
-		raw, kept, err := fieldsFromForm(fields, url.Values{"fields": {` {"reason":"late"} `}})
+		typed := ` {"reason":"late"} ` // as typed, spaces included
+		raw, kept, err := fieldsFromForm(fields, url.Values{"fields": {typed}})
 		require.NoError(t, err, schema)
 		assert.JSONEq(t, `{"reason":"late"}`, string(raw))
 		require.NoError(t, graph.ValidateJSON(json.RawMessage(schema), raw), schema)
-		assert.Equal(t, ` {"reason":"late"} `, kept[0].Value)
+		assert.Equal(t, typed, kept[0].Value, "the control keeps the text as typed")
 
 		_, kept, err = fieldsFromForm(fields, url.Values{"fields": {`{"reason":`}})
 		require.Error(t, err, "a document that is not JSON is refused")
