@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"net"
+	"strconv"
 	"testing"
 	"time"
 
@@ -159,12 +160,9 @@ func seededCursor(t *testing.T, f *fx, c connectors.Connection) json.RawMessage 
 	return all["poll"].Cursor
 }
 
-// A mailbox that does not answer has a time of its own before a send: the send is not held for long, nothing is
-// seeded for that mailbox, and the message goes out.
-func TestASilentMailboxDoesNotHoldTheSend(t *testing.T) {
-	old := baselineTimeout
-	baselineTimeout = 300 * time.Millisecond
-	t.Cleanup(func() { baselineTimeout = old })
+// silentServer accepts connections and never answers.
+func silentServer(t *testing.T) string {
+	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ln.Close() })
@@ -174,26 +172,59 @@ func TestASilentMailboxDoesNotHoldTheSend(t *testing.T) {
 			if err != nil {
 				return
 			}
-			t.Cleanup(func() { _ = c.Close() }) // accepted and never answered
+			t.Cleanup(func() { _ = c.Close() })
 		}
 	}()
-	f := newFx(t, emailtest.ModeTLS)
-	silent := f.connection(KindIMAP)
-	silent.Identity = connectors.Identity{} // the address is unknown: it is baselined before the send
-	creds := f.imapCreds()
-	creds["port"] = port(ln.Addr().String())
-	creds["username"] = "silent"
-	f.conns.add(silent, creds)
+	return ln.Addr().String()
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	start := time.Now()
-	res, err := (&sendNode{f.smtp.hub}).Execute(ctx, f.sendInput(params(nil), f.smtpCreds()))
-	require.NoError(t, err)
-	assert.Equal(t, "sent", res.Outcome)
-	assert.Less(t, time.Since(start), 10*time.Second, "the silent mailbox took its own time, not the send's")
-	assert.False(t, hasCursor(f, silent))
-	assert.Len(t, f.srv.Sent(), 1)
+// addSilent adds n mailboxes of unknown address on a server that never answers.
+func addSilent(t *testing.T, f *fx, n int) []connectors.Connection {
+	t.Helper()
+	addr := silentServer(t)
+	var out []connectors.Connection
+	for i := 0; i < n; i++ {
+		c := f.connection(KindIMAP)
+		c.Identity = connectors.Identity{} // the address is unknown: it is baselined before the send
+		creds := f.imapCreds()
+		creds["port"] = port(addr)
+		creds["username"] = "silent" + strconv.Itoa(i)
+		f.conns.add(c, creds)
+		out = append(out, c)
+	}
+	return out
+}
+
+// Mailboxes that do not answer share one budget before a send, at most half of the time the send has left:
+// however many of them there are, the send is not held for long, keeps time to deliver, and goes out.
+func TestSilentMailboxesDoNotHoldTheSend(t *testing.T) {
+	for name, tc := range map[string]struct {
+		budget, deadline time.Duration
+		silent           int
+	}{
+		"several silent mailboxes share the budget":     {budget: 500 * time.Millisecond, deadline: 30 * time.Second, silent: 4},
+		"a short send deadline keeps half for delivery": {budget: 10 * time.Second, deadline: 3 * time.Second, silent: 3},
+	} {
+		t.Run(name, func(t *testing.T) {
+			old := baselineTimeout
+			baselineTimeout = tc.budget
+			t.Cleanup(func() { baselineTimeout = old })
+			f := newFx(t, emailtest.ModeTLS)
+			silent := addSilent(t, f, tc.silent)
+
+			ctx, cancel := context.WithTimeout(context.Background(), tc.deadline)
+			defer cancel()
+			start := time.Now()
+			res, err := (&sendNode{f.smtp.hub}).Execute(ctx, f.sendInput(params(nil), f.smtpCreds()))
+			require.NoError(t, err)
+			assert.Equal(t, "sent", res.Outcome)
+			assert.Less(t, time.Since(start), min(tc.budget, tc.deadline/2)+2*time.Second, "the silent mailboxes took one budget in all")
+			for _, c := range silent {
+				assert.False(t, hasCursor(f, c))
+			}
+			assert.Len(t, f.srv.Sent(), 1)
+		})
+	}
 }
 
 // The mailbox of the sender's address is where the reply comes: its baseline takes the send's time, not the short

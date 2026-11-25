@@ -364,6 +364,11 @@ func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, addresses ...
 		h.log().Warn("email: the mailboxes of a sender could not be listed", "error", err.Error())
 		return
 	}
+	// The mailboxes whose address is unknown share one budget: baselineTimeout in all, and never more than half
+	// of the time the send has left, so delivery keeps its time however many of them do not answer.
+	// Deadlines are wall-clock time, not the connector's clock.
+	speculative, cancel := context.WithTimeout(ctx, speculativeBudget(ctx, time.Now()))
+	defer cancel()
 	for _, c := range list {
 		if c.Status != connectors.StatusConnected || (knownAddress(c.Identity) && !anyFold(c.Identity.External, addresses)) {
 			continue
@@ -381,12 +386,14 @@ func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, addresses ...
 		// address is unknown is seeded only in case the reply comes to it: it has a time of its own, so one that
 		// does not answer neither holds every send of the tenant nor takes the send's time (a server that does
 		// not answer within it cannot be polled for the reply either; the poller baselines it when it answers).
-		bctx, cancel := ctx, context.CancelFunc(func() {})
+		bctx := ctx
 		if !knownAddress(c.Identity) {
-			bctx, cancel = context.WithTimeout(ctx, baselineTimeout)
+			if speculative.Err() != nil {
+				continue // the budget is spent: the poller baselines the mailbox itself
+			}
+			bctx = speculative
 		}
 		cur, err := h.baseline(bctx, conn, creds)
-		cancel()
 		if err != nil {
 			h.log().Warn("email: a mailbox could not be baselined before a send", "connection_id", c.ID.String())
 			continue
@@ -397,9 +404,19 @@ func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, addresses ...
 	}
 }
 
-// baselineTimeout bounds the baseline, before a send, of one mailbox whose address is unknown (a variable for
-// tests).
+// baselineTimeout bounds the baselines, before a send, of all the mailboxes whose address is unknown together (a
+// variable for tests).
 var baselineTimeout = 10 * time.Second
+
+// speculativeBudget is the time the baselines of unknown-address mailboxes may take before a send: baselineTimeout,
+// cut to half of what is left of the send's deadline.
+func speculativeBudget(ctx context.Context, now time.Time) time.Duration {
+	budget := baselineTimeout
+	if deadline, ok := ctx.Deadline(); ok {
+		budget = min(budget, deadline.Sub(now)/2)
+	}
+	return max(budget, 0)
+}
 
 var _ engine.Baseliner = (*imapConnector)(nil)
 
