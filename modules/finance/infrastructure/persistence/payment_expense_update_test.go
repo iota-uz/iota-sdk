@@ -195,3 +195,24 @@ func TestGormExpenseRepository_UpdateAndDelete_OtherTenantUntouched(t *testing.T
 	require.Equal(t, "before", stored.Comment())
 	require.Equal(t, foreign.UpdatedAt(), stored.UpdatedAt())
 }
+
+func TestGormPaymentRepository_RejectsCategoryOfOtherTenant(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	require.NoError(t, corepersistence.NewCurrencyRepository().Create(f.Ctx, currency.USD))
+	repo := persistence.NewPaymentRepository()
+
+	own := newTestPaymentCategory(t, f.Ctx, "Own")
+	foreignCategory := newTestPaymentCategory(t, otherTenantCtx(t, f), "Foreign")
+	created := newTestPayment(t, f.Ctx, own)
+
+	_, err := repo.Update(f.Ctx, created.UpdateCategory(foreignCategory))
+	require.ErrorIs(t, err, persistence.ErrPaymentCategoryNotFound)
+
+	stored, err := repo.GetByID(f.Ctx, created.ID())
+	require.NoError(t, err)
+	require.Equal(t, own.ID(), stored.Category().ID())
+
+	_, err = repo.Create(f.Ctx, created.UpdateCategory(foreignCategory))
+	require.ErrorIs(t, err, persistence.ErrPaymentCategoryNotFound)
+}
