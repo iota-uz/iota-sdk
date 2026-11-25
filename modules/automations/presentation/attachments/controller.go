@@ -1,4 +1,5 @@
-// Package attachments serves the attachments of incoming email to the users of the tenant they belong to.
+// Package attachments serves the files connectors received (the attachments of incoming email, the files of
+// messages to a Telegram bot) to the users of the tenant they belong to.
 package attachments
 
 import (
@@ -79,7 +80,7 @@ var activeTypes = map[string]bool{
 func (c *Controller) Download(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	// A file is for the users who may read automations of the tenant the file belongs to; a file of
-	// another tenant, or one that is not an email attachment, looks like one that is not there.
+	// another tenant, or one that is not a received file, looks like one that is not there.
 	tenantID, mayRead := c.access(ctx)
 	if !mayRead {
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
@@ -138,5 +139,5 @@ func (c *Controller) Download(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, body)
 }
 
-// inNamespace reports whether a stored path may be served (see services.EmailAttachmentServable).
-func inNamespace(stored string) bool { return services.EmailAttachmentServable(stored) }
+// inNamespace reports whether a stored path may be served (see services.AttachmentServable).
+func inNamespace(stored string) bool { return services.AttachmentServable(stored) }

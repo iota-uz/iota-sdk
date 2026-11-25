@@ -13,3 +13,6 @@ func DefaultEngineUsage(db *pgxpool.Pool) catalog.UsageRecorder {
 
 // StartPlatformConnectors is the start hook of the platform credentials of the connectors.
 var StartPlatformConnectors = startPlatformConnectors
+
+// RenewPlatformConnectors is one renewal of the platform reservations' leases.
+var RenewPlatformConnectors = renewPlatformConnectors

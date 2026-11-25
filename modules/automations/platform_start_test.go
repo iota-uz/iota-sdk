@@ -3,9 +3,12 @@ package automations_test
 import (
 	"bytes"
 	"context"
+	stderrors "errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -145,4 +148,155 @@ func TestAPlatformCredentialIsStartedOnlyWithItsReservation(t *testing.T) {
 	require.NoError(t, automations.StartPlatformConnectors(ctx, offlineDir, connectors.NewPlatformCredentials(offlineDir, creds), nil, fmt.Errorf("no database"), log.warn))
 	assert.Empty(t, offline.startedWith(), "the reservation cannot be made: no webhook that could replace a tenant's")
 	assert.NotEmpty(t, log.logs)
+}
+
+// tenantTakes tells whether a tenant's connection could take the account now: nil when it is free.
+func tenantTakes(t *testing.T, db *pgxpool.Pool, tenant uuid.UUID, account string) error {
+	t.Helper()
+	ctx := context.Background()
+	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": bytes.Repeat([]byte{7}, 32)})
+	if err != nil {
+		return err
+	}
+	store := connectors.NewStore(db, keys, nil, nil, nil)
+	name := "taker_" + strings.ReplaceAll(uuid.NewString(), "-", "")[:12]
+	conn, err := store.Save(ctx, connectors.Connection{TenantID: tenant, Kind: catalog.KindTelegramBot, Name: name, DisplayName: "Taker"}, connectors.Credentials{"token": account})
+	if err != nil {
+		return err
+	}
+	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		return connectors.ReserveIdentity(ctx, tx, catalog.KindTelegramBot, account, conn.ID)
+	})
+}
+
+func expireLease(t *testing.T, db *pgxpool.Pool, account string) {
+	t.Helper()
+	_, err := db.Exec(context.Background(), `UPDATE automation.exclusive_identities SET lease_until = now() - interval '1 second' WHERE platform AND external = $1`, account)
+	require.NoError(t, err)
+}
+
+// A rolling update that changes the platform bot: the new instances start with the new bot while the old ones still
+// serve the previous one. The previous bot stays reserved while an old instance renews it — no tenant can connect it
+// and set its webhook under them, and an old instance that starts again meanwhile does not release the new bot —
+// and it is released once its lease ran out (the last old instance stopped).
+func TestARollingUpdateKeepsThePreviousPlatformBotReservedWhileItRuns(t *testing.T) {
+	db, tenant, _, _, _ := startEnv(t)
+	ctx := context.Background()
+	instance := func(token string) (*bot, connectors.Directory, connectors.PlatformCredentials) {
+		b := &bot{}
+		dir := directory{list: []connectors.Connector{b}}
+		return b, dir, connectors.NewPlatformCredentials(dir, map[catalog.ConnectorKind]connectors.PlatformCredential{
+			catalog.KindTelegramBot: {Credentials: connectors.Credentials{"token": token}}})
+	}
+	log := &logged{}
+	oldBot, oldDir, oldPlatform := instance("old")
+	require.NoError(t, automations.StartPlatformConnectors(ctx, oldDir, oldPlatform, db, nil, log.warn))
+	assert.Equal(t, []string{"old"}, oldBot.startedWith())
+
+	newBot, newDir, newPlatform := instance("new")
+	require.NoError(t, automations.StartPlatformConnectors(ctx, newDir, newPlatform, db, nil, log.warn))
+	assert.Equal(t, []string{"new"}, newBot.startedWith())
+	require.ErrorIs(t, tenantTakes(t, db, tenant, "acct-old"), connectors.ErrIdentityTaken, "an old instance still serves the previous bot")
+	require.ErrorIs(t, tenantTakes(t, db, tenant, "acct-new"), connectors.ErrIdentityTaken)
+
+	// An old instance that starts again during the update keeps both reservations.
+	againBot, againDir, againPlatform := instance("old")
+	require.NoError(t, automations.StartPlatformConnectors(ctx, againDir, againPlatform, db, nil, log.warn))
+	assert.Equal(t, []string{"old"}, againBot.startedWith())
+	require.ErrorIs(t, tenantTakes(t, db, tenant, "acct-new"), connectors.ErrIdentityTaken, "the new bot is not released by an old start")
+
+	// The old instances renew while they run; the renewal of the new ones does not release a live lease.
+	automations.RenewPlatformConnectors(ctx, oldDir, oldPlatform, db, log.warn)
+	automations.RenewPlatformConnectors(ctx, newDir, newPlatform, db, log.warn)
+	require.ErrorIs(t, tenantTakes(t, db, tenant, "acct-old"), connectors.ErrIdentityTaken)
+
+	// The last old instance stopped: its lease runs out, and the next renewal of a new instance releases it.
+	expireLease(t, db, "acct-old")
+	automations.RenewPlatformConnectors(ctx, newDir, newPlatform, db, log.warn)
+	var left int
+	require.NoError(t, db.QueryRow(ctx, `SELECT count(*) FROM automation.exclusive_identities WHERE platform AND external = 'acct-old'`).Scan(&left))
+	assert.Zero(t, left, "the previous bot is released")
+	require.NoError(t, tenantTakes(t, db, tenant, "acct-old"), "and a tenant may connect it")
+	require.ErrorIs(t, tenantTakes(t, db, tenant, "acct-new"), connectors.ErrIdentityTaken, "the new bot stays the platform's")
+	_, _, has := newPlatform.Platform(catalog.KindTelegramBot)
+	assert.True(t, has)
+}
+
+// An expired lease is taken by a tenant's save directly, and an instance whose account a tenant took meanwhile
+// withdraws the credential at its next renewal.
+func TestAnExpiredPlatformLeaseIsFreeAndItsInstanceWithdraws(t *testing.T) {
+	db, tenant, _, dir, creds := startEnv(t)
+	ctx := context.Background()
+	platform := connectors.NewPlatformCredentials(dir, creds)
+	log := &logged{}
+	require.NoError(t, automations.StartPlatformConnectors(ctx, dir, platform, db, nil, log.warn))
+	expireLease(t, db, "acct-platform")
+	require.NoError(t, tenantTakes(t, db, tenant, "acct-platform"), "a lease nobody renewed holds nothing")
+	automations.RenewPlatformConnectors(ctx, dir, platform, db, log.warn)
+	_, _, has := platform.Platform(catalog.KindTelegramBot)
+	assert.False(t, has, "the account is a tenant's now: the credential is withdrawn")
+}
+
+// gatedBot holds its platform start until released, and counts the starts that run at once.
+type gatedBot struct {
+	bot
+	entered chan struct{}
+	release chan struct{}
+	mu      sync.Mutex
+	running int
+	most    int
+}
+
+func (g *gatedBot) StartPlatform(ctx context.Context, c connectors.Credentials) error {
+	g.mu.Lock()
+	g.running++
+	if g.running > g.most {
+		g.most = g.running
+	}
+	g.mu.Unlock()
+	g.entered <- struct{}{}
+	<-g.release
+	g.mu.Lock()
+	g.running--
+	g.mu.Unlock()
+	return g.bot.StartPlatform(ctx, c)
+}
+
+// Two instances that start with the same platform bot at once (a rolling update) set its webhook one after the
+// other: the start runs under the account's lock, which a tenant's save of the account takes too.
+func TestPlatformStartsOfOneBotDoNotOverlap(t *testing.T) {
+	db, tenant, _, _, creds := startEnv(t)
+	ctx := context.Background()
+	g := &gatedBot{entered: make(chan struct{}, 2), release: make(chan struct{})}
+	dir := directory{list: []connectors.Connector{g}}
+	errs := make(chan error, 3)
+	for range 2 {
+		go func() {
+			errs <- automations.StartPlatformConnectors(ctx, dir, connectors.NewPlatformCredentials(dir, creds), db, nil, (&logged{}).warn)
+		}()
+	}
+	<-g.entered // the first start sets the webhook up
+	go func() { errs <- tenantTakes(t, db, tenant, "acct-platform") }()
+	select {
+	case <-g.entered:
+		t.Fatal("a second start set the webhook while the first one did")
+	case err := <-errs:
+		t.Fatalf("a call finished while the first start held the account: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	g.release <- struct{}{}
+	<-g.entered
+	g.release <- struct{}{}
+	var taken error
+	for range 3 {
+		err := <-errs
+		if stderrors.Is(err, connectors.ErrIdentityTaken) {
+			taken = err
+			continue
+		}
+		require.NoError(t, err)
+	}
+	require.ErrorIs(t, taken, connectors.ErrIdentityTaken, "the tenant's save waited and found the account the platform's")
+	assert.Equal(t, 1, g.most, "the starts never overlapped")
+	assert.Equal(t, []string{"platform", "platform"}, g.startedWith())
 }
