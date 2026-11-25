@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -917,6 +918,45 @@ func TestTasks_AuthorizeTask(t *testing.T) {
 	require.NoError(t, err)
 	_, err = s.eng.AuthorizeTask(ctx, s.env.subject(97), task.ID)
 	require.ErrorIs(t, err, workflow.ErrTaskClosed, "past the final deadline")
+}
+
+// lingeringSubjects delays LoadSubject while delay is set: a rights lookup
+// that takes its time.
+type lingeringSubjects struct {
+	*hosttest.Subjects
+	delay atomic.Int64
+}
+
+func (s *lingeringSubjects) LoadSubject(ctx context.Context, tenant uuid.UUID, user int64, kind spi.SubjectKind) (spi.Subject, error) {
+	if d := time.Duration(s.delay.Load()); d > 0 {
+		time.Sleep(d)
+	}
+	return s.Subjects.LoadSubject(ctx, tenant, user, kind)
+}
+
+// A final deadline that passes while AuthorizeTask looks the actor's rights
+// up is judged after the lookup: the answer is ErrTaskClosed.
+func TestTasks_AuthorizeTaskJudgesTheDeadlineAfterTheRightsLookup(t *testing.T) {
+	env := newNativeEnv(t)
+	subjects := &lingeringSubjects{Subjects: env.subjects}
+	eng := env.engine(map[string]workflow.NativeContract{
+		"test.review": {Runner: taskFlow(workflow.TaskSpec{Assignees: []workflow.TaskAssignee{userAssignee(99)}, Timeout: time.Hour})},
+	}, func(c *workflow.Config) { c.Subjects = subjects })
+	ctx := context.Background()
+	id := env.start(eng, "test.review", "late-auth", `{}`)
+	env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusWaiting }, "the task is open")
+	h, err := eng.Get(ctx, env.tenant, id)
+	require.NoError(t, err)
+	require.Len(t, h.Tasks, 1)
+	task := h.Tasks[0]
+
+	_, err = eng.AuthorizeTask(ctx, env.subject(99), task.ID)
+	require.NoError(t, err)
+	_, err = env.db.Exec(ctx, `UPDATE extruntime.human_tasks SET due_at = clock_timestamp() + interval '300 milliseconds' WHERE id = $1`, task.ID)
+	require.NoError(t, err)
+	subjects.delay.Store(int64(700 * time.Millisecond))
+	_, err = eng.AuthorizeTask(ctx, env.subject(99), task.ID)
+	require.ErrorIs(t, err, workflow.ErrTaskClosed, "the deadline passed during the rights lookup")
 }
 
 // The run records the due time an escalation step replaced.

@@ -465,6 +465,13 @@ func (s *Service) Decide(ctx context.Context, id uuid.UUID, in DecideInput) erro
 			fctx, cancel = context.WithDeadline(ctx, *deadline)
 			defer cancel()
 		}
+		if fctx.Err() != nil {
+			// The deadline passed while the action was authorized: it never starts.
+			if ctx.Err() != nil {
+				return serrors.Wrap(op, ctx.Err())
+			}
+			return serrors.Wrap(op, ErrTaskClosed)
+		}
 		fd, err := form.Decide(fctx, v, a.user, in.Form)
 		if err != nil {
 			return serrors.Wrap(op, err)

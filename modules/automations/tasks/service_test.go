@@ -36,6 +36,8 @@ type fakeSubstrate struct {
 	// revoked: the actor's current rights no longer cover the task (AuthorizeTask refuses).
 	revoked    atomic.Bool
 	authorized atomic.Int32
+	// answered changes the task AuthorizeTask returns (the world moves on after it judged).
+	answered func(workflow.Task) workflow.Task
 }
 
 // AuthorizeTask judges the task as it is now, as the substrate does under its lock.
@@ -50,6 +52,9 @@ func (f *fakeSubstrate) AuthorizeTask(_ context.Context, _ spi.Subject, id uuid.
 		}
 		if f.revoked.Load() {
 			return workflow.Task{}, workflow.ErrForbidden
+		}
+		if f.answered != nil {
+			t = f.answered(t)
 		}
 		return t, nil
 	}
@@ -452,6 +457,27 @@ func TestDecideStopsWhenTheDeadlinePassesDuringTheViewLookup(t *testing.T) {
 	svc := newSvc(t, Config{Tasks: sub, SubjectNames: names, Store: fakeStore{params: strings.Replace(buttons, "%s", formSchema, 1)}, Forms: NewForms(preparedForm{f})})
 	require.ErrorIs(t, svc.Decide(userCtx(), task.ID, DecideInput{Form: json.RawMessage(`{}`)}), ErrTaskClosed)
 	assert.Equal(t, int32(2), lookups.Load(), "the escalation landed during the last view lookup")
+	assert.Zero(t, f.acted.Load(), "the form did not act")
+	assert.Zero(t, sub.decided.Load())
+}
+
+// A final deadline that passes across the authorization's return (allowed, but expired by the time the
+// action would start) stops the action: the form is never called with a context already done.
+func TestDecideDoesNotStartTheActionPastTheDeadline(t *testing.T) {
+	t.Parallel()
+	due := time.Now().Add(time.Hour).UTC()
+	task := openTask(userAssignee(me))
+	task.DueAt = &due
+	sub := &fakeSubstrate{tasks: []workflow.Task{task}}
+	sub.answered = func(t workflow.Task) workflow.Task {
+		past := time.Now().Add(-time.Millisecond).UTC()
+		t.DueAt = &past
+		return t
+	}
+	f := &testForm{outcome: "approve", fields: `{"amount":1}`}
+	svc := newSvc(t, Config{Tasks: sub, Store: fakeStore{params: strings.Replace(buttons, "%s", formSchema, 1)}, Forms: NewForms(preparedForm{f})})
+	require.ErrorIs(t, svc.Decide(userCtx(), task.ID, DecideInput{Form: json.RawMessage(`{}`)}), ErrTaskClosed)
+	assert.Equal(t, int32(1), sub.authorized.Load())
 	assert.Zero(t, f.acted.Load(), "the form did not act")
 	assert.Zero(t, sub.decided.Load())
 }

@@ -1113,8 +1113,10 @@ func (e *Engine) currentSubject(ctx context.Context, actor spi.Subject) (spi.Sub
 // the actor may decide the task now: it is open and not past its final
 // deadline by the database clock, the actor has not decided it, and their
 // current rights (the SubjectLoader asked again; a blocked user is refused)
-// cover them. It waits for a run that is escalating or closing the task to
-// commit, so it judges the task after that transition. It records nothing
+// cover them; the deadline is judged again after the rights lookup. It
+// waits for a run that is escalating or closing the task to commit, so it
+// judges the task after that transition. The deadline can still pass after
+// it returns: the caller does not start its effect past it. It records nothing
 // and returns the task as read under the lock, or the error DecideTask
 // would return. A caller that performs an external effect before
 // DecideTask (a task form's action) asks it right before the effect.
@@ -1122,8 +1124,19 @@ func (e *Engine) AuthorizeTask(ctx context.Context, actor spi.Subject, taskID uu
 	var t Task
 	err := e.inTx(ctx, func(tx pgx.Tx) error {
 		var err error
-		t, _, err = e.authorizeLocked(ctx, tx, actor, taskID, "decide")
-		return err
+		if t, _, err = e.authorizeLocked(ctx, tx, actor, taskID, "decide"); err != nil {
+			return err
+		}
+		// The rights lookup takes time: the final deadline is judged again,
+		// after it and still under the lock, as the answer's last word.
+		var late bool
+		if err := tx.QueryRow(ctx, `SELECT `+pastFinalDeadline+` FROM extruntime.human_tasks t WHERE t.id = $1`, taskID).Scan(&late); err != nil {
+			return serrors.FromDB(opManage, err)
+		}
+		if late {
+			return serrors.Wrap(opManage, fmt.Errorf("%w: task %s passed its deadline while it was authorized", ErrTaskClosed, taskID))
+		}
+		return nil
 	})
 	if err != nil {
 		return Task{}, err
