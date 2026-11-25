@@ -346,3 +346,36 @@ func TestThePlatformLeaseCountsFromTheEndOfTheStart(t *testing.T) {
 	require.NoError(t, db.QueryRow(ctx, `SELECT extract(epoch FROM lease_until - clock_timestamp()) FROM automation.exclusive_identities WHERE platform AND external = 'acct-platform'`).Scan(&left))
 	assert.Greater(t, left, connectors.PlatformLease.Seconds()-2, "the full lease is left after a 3 s start")
 }
+
+// probeBot looks, while it sets its webhook up, at what another database session sees and at its own deadline.
+type probeBot struct {
+	bot
+	db       *pgxpool.Pool
+	seen     int
+	deadline time.Duration
+}
+
+func (p *probeBot) StartPlatform(ctx context.Context, c connectors.Credentials) error {
+	if d, ok := ctx.Deadline(); ok {
+		p.deadline = time.Until(d)
+	}
+	if err := p.db.QueryRow(ctx, `SELECT count(*) FROM automation.exclusive_identities WHERE platform AND external = 'acct-platform'`).Scan(&p.seen); err != nil {
+		return err
+	}
+	return p.bot.StartPlatform(ctx, c)
+}
+
+// The reservation is committed before the provider is set up: if the session that runs the setup ends during the
+// call, the account stays reserved for the lease, and the setup is bounded well inside it, so a late setWebhook
+// cannot replace the webhook of a tenant that took the account after it.
+func TestThePlatformReservationIsCommittedBeforeTheWebhookIsSet(t *testing.T) {
+	db, _, _, _, creds := startEnv(t) //nolint:dogsled // the test brings its own bot
+	ctx := context.Background()
+	p := &probeBot{db: db}
+	dir := directory{list: []connectors.Connector{p}}
+	require.NoError(t, automations.StartPlatformConnectors(ctx, dir, connectors.NewPlatformCredentials(dir, creds), db, nil, (&logged{}).warn))
+	assert.Equal(t, 1, p.seen, "another session sees the reservation while the webhook is set")
+	assert.Positive(t, p.deadline)
+	assert.LessOrEqual(t, p.deadline, connectors.PlatformStartTimeout)
+	assert.Less(t, connectors.PlatformStartTimeout, connectors.PlatformLease)
+}

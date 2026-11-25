@@ -64,10 +64,20 @@ func ReservePlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog
 	return StartPlatformIdentity(ctx, db, kind, external, nil)
 }
 
-// StartPlatformIdentity is ReservePlatformIdentity that runs start (setting up the provider: a webhook) while the
-// account's lock is held, after the reservation: two instances that start with the same credential set it up one
-// after the other, and a tenant's save of the account (which takes the same lock) waits for it and then finds the
-// account reserved. The reservation is kept when start fails; its failure is a *PlatformStartError.
+// PlatformStartTimeout bounds the provider setup StartPlatformIdentity runs (setWebhook). It is shorter than the
+// lease, so a request the provider receives late still lands while the committed reservation holds the account.
+const PlatformStartTimeout = PlatformLease / 2
+
+// StartPlatformIdentity is ReservePlatformIdentity followed by start (setting up the provider: a webhook).
+//
+// The reservation is committed before start runs, so it does not depend on the database session that runs start: if
+// that session ends during the provider call (its advisory lock and transaction go with it), the committed reservation
+// still holds the account for the lease, and a tenant's save of the account is refused until then. start runs under
+// the account's lock in a second transaction (two instances that start with the same credential set it up one after
+// the other, a tenant's save waits) with a deadline of PlatformStartTimeout, shorter than the lease: a request the
+// provider takes late has landed before the reservation can run out, so a delayed platform setWebhook never replaces
+// the webhook of a tenant that took the account after it. The reservation is kept when start fails; its failure is a
+// *PlatformStartError.
 func StartPlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind, external string, start func(ctx context.Context) error) error {
 	if external == "" {
 		if start == nil {
@@ -78,9 +88,8 @@ func StartPlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.C
 		}
 		return nil
 	}
-	var startErr error
-	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, identityLockKey(kind, external)); err != nil {
+	if err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		if err := lockIdentity(ctx, tx, kind, external); err != nil {
 			return err
 		}
 		if err := releaseExpiredPlatform(ctx, tx, kind, external); err != nil {
@@ -91,24 +100,36 @@ func StartPlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.C
 		case err != nil:
 			return err
 		case holder.held && holder.platform:
-			if err := renewLease(ctx, tx, kind, external); err != nil {
-				return err
-			}
+			return renewLease(ctx, tx, kind, external)
 		case holder.held:
 			return ErrIdentityTaken
-		default:
-			if _, err := tx.Exec(ctx, `INSERT INTO automation.exclusive_identities (kind, external, platform, lease_until) VALUES ($1, $2, TRUE, clock_timestamp() + $3::interval)`,
-				string(kind), external, leaseInterval()); err != nil {
-				return err
-			}
 		}
-		if start == nil {
-			return nil
+		_, err = tx.Exec(ctx, `INSERT INTO automation.exclusive_identities (kind, external, platform, lease_until) VALUES ($1, $2, TRUE, clock_timestamp() + $3::interval)`,
+			string(kind), external, leaseInterval())
+		return err
+	}); err != nil {
+		return err
+	}
+	if start == nil {
+		return nil
+	}
+	var startErr error
+	err := pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		if err := lockIdentity(ctx, tx, kind, external); err != nil {
+			return err
 		}
-		// The reservation is committed whatever start does: the credential is the platform's either way. The lease
-		// counts from the moment start returned, not from the transaction's start (the lock wait and the call to the
-		// provider would shorten it otherwise).
-		startErr = start(ctx)
+		// The reservation committed above, read again under the lock: nothing is set up without it.
+		holder, err := holderOf(ctx, tx, kind, external)
+		if err != nil {
+			return err
+		}
+		if !holder.held || !holder.platform {
+			return errLeaseLost
+		}
+		startCtx, cancel := context.WithTimeout(ctx, PlatformStartTimeout)
+		startErr = start(startCtx)
+		cancel()
+		// The lease counts from the moment start returned (the lock wait and the provider call would shorten it).
 		return renewLease(ctx, tx, kind, external)
 	})
 	if err != nil {
@@ -118,6 +139,11 @@ func StartPlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.C
 		return &PlatformStartError{Err: startErr}
 	}
 	return nil
+}
+
+func lockIdentity(ctx context.Context, tx pgx.Tx, kind catalog.ConnectorKind, external string) error {
+	_, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, identityLockKey(kind, external))
+	return err
 }
 
 // PrunePlatformIdentities releases the platform reservations of a kind whose lease ran out: no instance runs with
