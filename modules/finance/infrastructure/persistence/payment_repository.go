@@ -50,9 +50,9 @@ const (
 		updated_at
 	)
 	VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
-	paymentUpdateQuery        = `UPDATE payments SET counterparty_id = $1, updated_at = $2 WHERE id = $3`
+	paymentUpdateQuery        = `UPDATE payments SET counterparty_id = $1, payment_category_id = $2, updated_at = $3 WHERE id = $4 AND tenant_id = $5`
 	paymentDeleteRelatedQuery = `DELETE FROM transactions WHERE id = $1 AND tenant_id = $2`
-	paymentDeleteQuery        = `DELETE FROM payments WHERE id = $1`
+	paymentDeleteQuery        = `DELETE FROM payments WHERE id = $1 AND tenant_id = $2`
 
 	// Attachment queries
 	paymentAttachmentsQuery = `SELECT upload_id FROM payment_attachments WHERE payment_id = $1`
@@ -235,14 +235,24 @@ func (g *GormPaymentRepository) Update(ctx context.Context, data payment.Payment
 	data = data.UpdateTenantID(tenantID)
 
 	dbPayment, dbTransaction := ToDBPayment(data)
-	if err := g.execQuery(
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tag, err := tx.Exec(
 		ctx,
 		paymentUpdateQuery,
 		dbPayment.CounterpartyID,
+		dbPayment.PaymentCategoryID,
 		dbPayment.UpdatedAt,
 		dbPayment.ID,
-	); err != nil {
-		return nil, err
+		tenantID,
+	)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to update payment")
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, ErrPaymentNotFound
 	}
 	if err := g.execQuery(
 		ctx,
@@ -272,7 +282,7 @@ func (g *GormPaymentRepository) Delete(ctx context.Context, id uuid.UUID) error 
 	if err != nil {
 		return err
 	}
-	if err := g.execQuery(ctx, paymentDeleteQuery, id); err != nil {
+	if err := g.execQuery(ctx, paymentDeleteQuery, id, tenantID); err != nil {
 		return err
 	}
 	return g.execQuery(ctx, paymentDeleteRelatedQuery, entity.TransactionID(), tenantID)

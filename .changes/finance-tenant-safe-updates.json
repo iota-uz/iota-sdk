@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Finance: payment updates now save the payment category (including clearing it), expense updates bump updated_at, and payment and expense updates and deletes are scoped to the current tenant."}
