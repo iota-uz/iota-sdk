@@ -67,8 +67,12 @@ func TestRunAutomationNestsOnAConversationDownToTheCascadeLimit(t *testing.T) {
 	}
 	require.Equal(t, []string{"bad:" + engine.CodeDepthExceeded}, codes, "the deepest run stops at the cascade limit, not on a busy conversation")
 	assert.Len(t, ae.runs(p, a, engine.RunFilter{AutomationID: &loop.ID, Limit: 100}), depth, "depths 1..limit run")
-	p.until(func() bool {
+	// The chain unwinds level by level: as slow as it nested (the race detector slows it down).
+	unwound := false
+	for deadline = time.Now().Add(3 * time.Minute); !unwound && time.Now().Before(deadline); {
+		p.pass()
 		pr := ae.runs(p, a, engine.RunFilter{AutomationID: &parent.ID})
-		return len(pr) == 1 && len(ae.effects(pr[0].RunID)) == 1
-	}, "the chain unwinds to the inbound run")
+		unwound = len(pr) == 1 && len(ae.effects(pr[0].RunID)) == 1
+	}
+	assert.True(t, unwound, "the chain unwinds to the inbound run")
 }
