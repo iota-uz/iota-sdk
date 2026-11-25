@@ -134,12 +134,26 @@ modules/{module}/
 
 ## SDK release workflow
 
-Every PR adds `.changes/<name>.json` with `bump` (`none`, `patch`, `minor`, or
-`major`) and a non-empty `summary`. Existing declarations are append-only.
-Do not push version tags manually. PRs run service-free checks; a consumer request
-runs full CI on an immutable candidate before publication. Use
-`sdk-tools sdk use <SDK-PR>` for preview and `sdkctl promote`
-to wait for a verified release and update local production dependencies. See [docs/sdk-releases.md](docs/sdk-releases.md).
+Every SDK PR adds `.changes/<name>.json` with `bump` set to `patch`, `minor`, or
+`major` and a non-empty `summary`. Existing declarations are append-only. When
+the only pending declarations are `none`, the release fails with
+`no releasable changes`.
+
+For SDK work needed by a Plot consumer card, create an issue in
+`iota-uz/iota-sdk`, enqueue it with `auto_merge: true`, and wait for
+`until issue_done`. The Plot GitHub App merges the SDK card's PR once CI, QA,
+and code review pass. Let Plot handle the merge automatically.
+
+Then wait with `until release_contains {repository: "iota-uz/iota-sdk", pr}`
+using the merged SDK PR number. If no `vX.Y.Z` tag contains the PR, Plot
+dispatches `release.yml` once with `sdk_pr` set to that number. A failed release
+escalates when the waiting card's deadline expires. Manual dispatch is also
+available. Do not push version tags manually.
+
+PRs run service-free checks, and the release runs full CI on an immutable
+candidate before publication. Use `sdk-tools sdk use <SDK-PR>` for preview and
+`sdkctl promote` to join an active release or reuse a ready release and update
+local production dependencies. See [docs/sdk-releases.md](docs/sdk-releases.md).
 
 ## Quality commands
 
