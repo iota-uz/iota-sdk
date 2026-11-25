@@ -430,8 +430,8 @@ func TestARetiredPlatformAccountIsNeverForgotten(t *testing.T) {
 	db, tenant, _, _, _ := startEnv(t) //nolint:dogsled // no instance runs here
 	ctx := context.Background()
 	for _, account := range []string{"acct-platform", "acct-free"} {
-		_, err := db.Exec(ctx, `INSERT INTO automation.retired_platform_identities (kind, external, retired_at) VALUES ($1, $2, now() - interval '30 days')`,
-			string(catalog.KindTelegramBot), account)
+		_, err := db.Exec(ctx, `INSERT INTO automation.retired_platform_identities (kind, external, stray_key, retired_at) VALUES ($1, $2, $3, now() - interval '30 days')`,
+			string(catalog.KindTelegramBot), account, connectors.StrayKeyOf("secret-of-"+account))
 		require.NoError(t, err)
 	}
 	require.NoError(t, connectors.PrunePlatformIdentities(ctx, db, catalog.KindTelegramBot))
@@ -439,8 +439,14 @@ func TestARetiredPlatformAccountIsNeverForgotten(t *testing.T) {
 	require.NoError(t, db.QueryRow(ctx, `SELECT count(*) FROM automation.retired_platform_identities`).Scan(&left))
 	assert.Equal(t, 2, left, "neither the unheld nor the held one is pruned")
 	held := holdAccount(t, db, tenant) // a tenant takes acct-platform a month after it retired
-	holders, err := connectors.RetiredPlatformHolders(ctx, db, catalog.KindTelegramBot)
+	holder, found, err := connectors.RetiredPlatformHolder(ctx, db, catalog.KindTelegramBot, connectors.StrayKeyOf("secret-of-acct-platform"))
 	require.NoError(t, err)
-	require.Len(t, holders, 1)
-	assert.Equal(t, held, holders[0].ConnectionID)
+	require.True(t, found, "found by the stray key of its platform secret")
+	assert.Equal(t, held, holder.ConnectionID)
+	_, found, err = connectors.RetiredPlatformHolder(ctx, db, catalog.KindTelegramBot, connectors.StrayKeyOf("secret-of-acct-free"))
+	require.NoError(t, err)
+	assert.False(t, found, "an account nobody holds has no holder")
+	_, found, err = connectors.RetiredPlatformHolder(ctx, db, catalog.KindTelegramBot, connectors.StrayKeyOf("another secret"))
+	require.NoError(t, err)
+	assert.False(t, found)
 }

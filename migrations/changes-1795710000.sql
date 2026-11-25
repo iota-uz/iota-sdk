@@ -6,7 +6,9 @@
 -- the previous release, which does not renew) holds for ten minutes from its write. Connection rows ignore it.
 -- +migrate Up
 ALTER TABLE automation.exclusive_identities
-    ADD COLUMN lease_until timestamp with time zone NOT NULL DEFAULT now() + interval '10 minutes';
+    ADD COLUMN lease_until timestamp with time zone NOT NULL DEFAULT now() + interval '10 minutes',
+    -- the key a stray platform-route request of the account is found by: a hash of its platform webhook secret
+    ADD COLUMN stray_key text;
 
 -- A platform reservation whose lease is live is never deleted, whatever deletes it: an instance of the previous
 -- release (which, at its start, deletes the platform's reservations of every other account, and all of them when it
@@ -37,17 +39,21 @@ CREATE TRIGGER exclusive_identities_keep_live_platform_leases
 CREATE TABLE automation.retired_platform_identities (
     kind text NOT NULL,
     external text NOT NULL,
+    stray_key text,
     retired_at timestamp with time zone NOT NULL DEFAULT now(),
     PRIMARY KEY (kind, external)
 );
+
+CREATE INDEX retired_platform_identities_stray_key_idx ON automation.retired_platform_identities (kind, stray_key);
 
 -- +migrate StatementBegin
 CREATE FUNCTION automation.retire_platform_identity() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
     IF OLD.platform THEN
-        INSERT INTO automation.retired_platform_identities (kind, external) VALUES (OLD.kind, OLD.external)
-        ON CONFLICT (kind, external) DO UPDATE SET retired_at = now();
+        INSERT INTO automation.retired_platform_identities (kind, external, stray_key) VALUES (OLD.kind, OLD.external, OLD.stray_key)
+        ON CONFLICT (kind, external) DO UPDATE
+            SET retired_at = now(), stray_key = coalesce(EXCLUDED.stray_key, automation.retired_platform_identities.stray_key);
     END IF;
     RETURN OLD;
 END;
@@ -65,4 +71,5 @@ DROP TABLE IF EXISTS automation.retired_platform_identities;
 DROP TRIGGER IF EXISTS exclusive_identities_keep_live_platform_leases ON automation.exclusive_identities;
 DROP FUNCTION IF EXISTS automation.keep_live_platform_leases();
 ALTER TABLE automation.exclusive_identities
+    DROP COLUMN IF EXISTS stray_key,
     DROP COLUMN IF EXISTS lease_until;

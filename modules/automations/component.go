@@ -895,7 +895,11 @@ func startPlatformConnectors(ctx context.Context, dir connectors.Directory, plat
 		if isStarter {
 			start = func(ctx context.Context) error { return starter.StartPlatform(ctx, creds) }
 		}
-		err := connectors.StartPlatformIdentity(ctx, db, conn.Kind(), ex.ExternalID(creds), start)
+		strayKey := ""
+		if k, ok := conn.(connectors.PlatformStrayKeyer); ok {
+			strayKey = k.PlatformStrayKey(creds)
+		}
+		err := connectors.StartPlatformIdentity(ctx, db, conn.Kind(), ex.ExternalID(creds), strayKey, start)
 		switch {
 		case connectors.IsPlatformStartError(err):
 			// The application starts without it: the platform credential works for sending.

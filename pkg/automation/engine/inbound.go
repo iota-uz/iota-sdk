@@ -476,7 +476,11 @@ func (h *inboundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // and returns the step that does it, which touches no database: the handler runs it under the account's lock, once the
 // connection is found unchanged (same version). The request is then answered 503, so the provider delivers it again,
 // to the connection.
+//
+// StrayKey is the stray key of the request (connectors.StrayKeyOf its secret header; "" without one): the account is
+// found by it, by an index, before any credentials are read.
 type PlatformStrayReceiver interface {
+	StrayKey(r *http.Request) string
 	VerifyStray(r *http.Request, body []byte, c connectors.Connection, creds connectors.Credentials) bool
 	Reclaim(ctx context.Context, c connectors.Connection, creds connectors.Credentials) (func(ctx context.Context) error, error)
 }
@@ -502,17 +506,23 @@ func (h *inboundHandler) stray(w http.ResponseWriter, r *http.Request, body []by
 		notFound(w)
 		return
 	}
+	key := sr.StrayKey(r)
+	if key == "" {
+		notFound(w)
+		return
+	}
 	ctx := r.Context()
-	holders, err := connectors.RetiredPlatformHolders(ctx, h.cfg.DB, kind)
+	hd, held, err := connectors.RetiredPlatformHolder(ctx, h.cfg.DB, kind, key)
 	if err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
-	for _, hd := range holders {
-		conn, creds, err := h.cfg.Connections.Get(ctx, hd.TenantID, hd.ConnectionID)
-		if err != nil || conn.Status != connectors.StatusConnected || !sr.VerifyStray(r, body, conn, creds) {
-			continue
-		}
+	if !held {
+		notFound(w)
+		return
+	}
+	conn, creds, err := h.cfg.Connections.Get(ctx, hd.TenantID, hd.ConnectionID)
+	if err == nil && conn.Status == connectors.StatusConnected && sr.VerifyStray(r, body, conn, creds) {
 		// What the step needs is read first, outside the lock: the lock holds a database connection, and a pool of
 		// one would have none left for the read.
 		step, err := sr.Reclaim(ctx, conn, creds)

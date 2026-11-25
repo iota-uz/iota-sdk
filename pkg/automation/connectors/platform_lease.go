@@ -2,6 +2,8 @@ package connectors
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -62,7 +64,24 @@ func releaseExpiredPlatform(ctx context.Context, tx pgx.Tx, kind catalog.Connect
 // the kind are released only when their lease ran out (PrunePlatformIdentities): an instance that still runs with
 // another account (a rolling update) keeps it.
 func ReservePlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind, external string) error {
-	return StartPlatformIdentity(ctx, db, kind, external, nil)
+	return StartPlatformIdentity(ctx, db, kind, external, "", nil)
+}
+
+// PlatformStrayKeyer is an optional interface of an ExclusiveIdentity connector whose platform webhook carries a
+// secret: PlatformStrayKey is StrayKeyOf that secret for the credentials. It is kept with the platform's reservation
+// and, once the account retires, with its retirement record, so a stray request on the platform route (its secret
+// header) finds the one account it can belong to by an index, before any credentials are read.
+type PlatformStrayKeyer interface {
+	PlatformStrayKey(creds Credentials) string
+}
+
+// StrayKeyOf is the stray key of a platform webhook secret: a hash of it, safe to keep and index.
+func StrayKeyOf(secret string) string {
+	if secret == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte("iota-sdk.automation.platform-stray:" + secret))
+	return hex.EncodeToString(sum[:])
 }
 
 // PlatformStartTimeout bounds the provider setup StartPlatformIdentity runs (setWebhook). It is shorter than the
@@ -83,7 +102,9 @@ const PlatformStartTimeout = PlatformLease / 2
 // not run out under a request of its own; a stray webhook that lands anyway is pointed back to the tenant's connection
 // by the platform route (the released account is retired, RetiredPlatformHolders, engine.PlatformStrayReceiver). The reservation is kept when start fails; its failure (and a setup that was
 // not attempted) is a *PlatformStartError.
-func StartPlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind, external string, start func(ctx context.Context) error) error {
+//
+// strayKey (PlatformStrayKeyer) is kept with the reservation; "" leaves the one kept as it is.
+func StartPlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind, external, strayKey string, start func(ctx context.Context) error) error {
 	if external == "" {
 		if start == nil {
 			return nil
@@ -105,12 +126,19 @@ func StartPlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.C
 		case err != nil:
 			return err
 		case holder.held && holder.platform:
-			return renewLease(ctx, tx, kind, external)
+			if err := renewLease(ctx, tx, kind, external); err != nil {
+				return err
+			}
+			if strayKey == "" {
+				return nil
+			}
+			_, err = tx.Exec(ctx, `UPDATE automation.exclusive_identities SET stray_key = $3 WHERE platform AND kind = $1 AND external = $2`, string(kind), external, strayKey)
+			return err
 		case holder.held:
 			return ErrIdentityTaken
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO automation.exclusive_identities (kind, external, platform, lease_until) VALUES ($1, $2, TRUE, clock_timestamp() + $3::interval)`,
-			string(kind), external, leaseInterval())
+		_, err = tx.Exec(ctx, `INSERT INTO automation.exclusive_identities (kind, external, platform, lease_until, stray_key) VALUES ($1, $2, TRUE, clock_timestamp() + $3::interval, NULLIF($4, ''))`,
+			string(kind), external, leaseInterval(), strayKey)
 		return err
 	}); err != nil {
 		return err
@@ -205,29 +233,27 @@ type RetiredHolder struct {
 	External     string
 }
 
-// RetiredPlatformHolders are the tenants' connections of a kind that hold an account which was once the platform's:
-// the only accounts a stray update on the platform route can belong to (a platform setWebhook applied late, after the
-// account changed hands), however long ago that was. There are as many as platform accounts were ever replaced and
-// then connected by a tenant, so all of them are returned.
-func RetiredPlatformHolders(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind) ([]RetiredHolder, error) {
-	rows, err := db.Query(ctx, `SELECT c.tenant_id, c.id, e.external FROM automation.exclusive_identities e
-		JOIN automation.retired_platform_identities r ON r.kind = e.kind AND r.external = e.external
+// RetiredPlatformHolder is the tenant's connection that holds the account which was once the platform's and whose
+// platform webhook secret has the stray key (StrayKeyOf): the one account a stray request on the platform route can
+// belong to (a platform setWebhook applied late, after the account changed hands), found by an index whatever the
+// number of retired accounts. found is false when no such account is held by a connection.
+func RetiredPlatformHolder(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind, strayKey string) (RetiredHolder, bool, error) {
+	if strayKey == "" {
+		return RetiredHolder{}, false, nil
+	}
+	var holder RetiredHolder
+	err := db.QueryRow(ctx, `SELECT c.tenant_id, c.id, e.external FROM automation.retired_platform_identities r
+		JOIN automation.exclusive_identities e ON e.kind = r.kind AND e.external = r.external AND NOT e.platform
 		JOIN automation.connections c ON c.id = e.connection_id
-		WHERE e.kind = $1 AND NOT e.platform
-		ORDER BY r.retired_at DESC`, string(kind))
+		WHERE r.kind = $1 AND r.stray_key = $2
+		LIMIT 1`, string(kind), strayKey).Scan(&holder.TenantID, &holder.ConnectionID, &holder.External)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return RetiredHolder{}, false, nil
+	}
 	if err != nil {
-		return nil, err
+		return RetiredHolder{}, false, err
 	}
-	defer rows.Close()
-	var out []RetiredHolder
-	for rows.Next() {
-		var h RetiredHolder
-		if err := rows.Scan(&h.TenantID, &h.ConnectionID, &h.External); err != nil {
-			return nil, err
-		}
-		out = append(out, h)
-	}
-	return out, rows.Err()
+	return holder, true, nil
 }
 
 // IsPlatformStartError reports whether err is the failure of a platform start rather than of its reservation.

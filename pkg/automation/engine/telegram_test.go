@@ -646,7 +646,8 @@ func TestTelegramStrayPlatformWebhookIsPointedBackToItsConnection(t *testing.T) 
 	account := te.tg.ExternalID(connectors.Credentials{"token": tgToken})
 	// The tenant's bot was the platform's: its reservation's lease ran out and the prune released it (recorded as
 	// retired). Days pass with nobody holding it, prunes keep running, and only then a tenant's connection takes it.
-	require.NoError(t, connectors.ReservePlatformIdentity(ctx, te.db, telegram.Kind, account))
+	creds := connectors.Credentials{"token": tgToken}
+	require.NoError(t, connectors.StartPlatformIdentity(ctx, te.db, telegram.Kind, account, te.tg.PlatformStrayKey(creds), nil))
 	_, err := te.db.Exec(ctx, `UPDATE automation.exclusive_identities SET lease_until = now() - interval '1 second' WHERE platform AND external = $1`, account)
 	require.NoError(t, err)
 	require.NoError(t, connectors.PrunePlatformIdentities(ctx, te.db, telegram.Kind))
@@ -706,8 +707,13 @@ func TestTelegramStrayPlatformWebhookIsPointedBackToItsConnection(t *testing.T) 
 	stat := single.Stat()
 	assert.Equal(t, int32(1), stat.MaxConns(), "all of it on one connection")
 
-	// Another bot's request with a made-up secret on the platform route is not taken for a stray.
+	// On the platform route a request without the secret header is refused at once, and another bot's with a made-up
+	// secret matches no account.
 	stranger := te.api.Bot("444444:DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", "stranger_bot")
+	stranger.SetWebhook(platformRoute, "")
+	d, err = stranger.Redeliver(stranger.Update(700, tgAlice, "no header"))
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, d.Status)
 	stranger.SetWebhook(platformRoute, "not-the-secret-not-the-secret-12")
 	d, err = stranger.Redeliver(stranger.Update(700, tgAlice, "hi"))
 	require.NoError(t, err)

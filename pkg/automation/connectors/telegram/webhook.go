@@ -80,6 +80,21 @@ func (c *Connector) Verify(r *http.Request, _ []byte, conn connectors.Connection
 
 var _ engine.PlatformStrayReceiver = (*Connector)(nil)
 
+// StrayKey is the stray key of a request on the platform route: the hash of its secret header.
+func (c *Connector) StrayKey(r *http.Request) string {
+	return connectors.StrayKeyOf(r.Header.Get(SecretHeader))
+}
+
+// PlatformStrayKey is the stray key of the platform webhook the credentials' bot is set with.
+func (c *Connector) PlatformStrayKey(creds connectors.Credentials) string {
+	if creds["token"] == "" {
+		return ""
+	}
+	return connectors.StrayKeyOf(WebhookSecret(creds["token"], catalog.PlatformConnectionID(Kind)))
+}
+
+var _ connectors.PlatformStrayKeyer = (*Connector)(nil)
+
 // VerifyStray tells whether a request on the platform route carries the platform webhook secret of the connection's
 // bot: the bot was the platform's, and a platform setWebhook applied late pointed it back there.
 func (c *Connector) VerifyStray(r *http.Request, _ []byte, conn connectors.Connection, creds connectors.Credentials) bool {
