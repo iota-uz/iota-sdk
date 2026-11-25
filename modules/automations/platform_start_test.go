@@ -120,15 +120,40 @@ func TestAPlatformCredentialOfAHeldAccountIsWithdrawn(t *testing.T) {
 	assert.NotEmpty(t, log.logs)
 }
 
-// A credential that cannot be withdrawn is not left usable next to the account a tenant holds: the start fails.
+// A credential of an exclusive account that cannot be withdrawn is never started: its reservation is a lease, and
+// once a tenant's connection took the account it could not stop being served. Free or held, the start fails.
 func TestAPlatformCredentialThatCannotBeWithdrawnStopsTheStart(t *testing.T) {
 	db, tenant, b, dir, creds := startEnv(t)
 	ctx := context.Background()
-	holdAccount(t, db, tenant)
 	platform := pinned{connectors.NewPlatformCredentials(dir, creds)}
 	err := automations.StartPlatformConnectors(ctx, dir, platform, db, nil, (&logged{}).warn)
-	require.ErrorIs(t, err, connectors.ErrIdentityTaken)
+	require.ErrorIs(t, err, automations.ErrPlatformNotWithdrawable, "a free account too")
+	holdAccount(t, db, tenant)
+	err = automations.StartPlatformConnectors(ctx, dir, platform, db, nil, (&logged{}).warn)
+	require.ErrorIs(t, err, automations.ErrPlatformNotWithdrawable)
 	assert.Empty(t, b.startedWith())
+}
+
+// A reservation that cannot be checked (the database fails) is no reason to withdraw the credential: no webhook is
+// set, the credential keeps sending, and the renewal reserves it once the database answers.
+func TestATransientReservationFailureKeepsTheCredential(t *testing.T) {
+	db, _, b, dir, creds := startEnv(t)
+	ctx := context.Background()
+	broken, err := pgxpool.New(ctx, db.Config().ConnString())
+	require.NoError(t, err)
+	broken.Close()
+	platform := connectors.NewPlatformCredentials(dir, creds)
+	log := &logged{}
+	require.NoError(t, automations.StartPlatformConnectors(ctx, dir, platform, broken, nil, log.warn))
+	assert.Empty(t, b.startedWith(), "no webhook without the reservation")
+	_, _, has := platform.Platform(catalog.KindTelegramBot)
+	assert.True(t, has, "the credential still sends")
+	assert.NotEmpty(t, log.logs)
+
+	automations.RenewPlatformConnectors(ctx, dir, platform, db, log.warn)
+	var held int
+	require.NoError(t, db.QueryRow(ctx, `SELECT count(*) FROM automation.exclusive_identities WHERE platform AND external = 'acct-platform'`).Scan(&held))
+	assert.Equal(t, 1, held, "the renewal reserves it once the database answers")
 }
 
 // A free account is reserved for the platform and its webhook is set; with no database to check the reservation the
@@ -299,4 +324,25 @@ func TestPlatformStartsOfOneBotDoNotOverlap(t *testing.T) {
 	require.ErrorIs(t, taken, connectors.ErrIdentityTaken, "the tenant's save waited and found the account the platform's")
 	assert.Equal(t, 1, g.most, "the starts never overlapped")
 	assert.Equal(t, []string{"platform", "platform"}, g.startedWith())
+}
+
+// slowBot takes its time to set its webhook up.
+type slowBot struct{ bot }
+
+func (s *slowBot) StartPlatform(ctx context.Context, c connectors.Credentials) error {
+	time.Sleep(3 * time.Second)
+	return s.bot.StartPlatform(ctx, c)
+}
+
+// The lease counts from the moment the provider's setup returned, not from the start of the reservation's
+// transaction: a slow setWebhook does not shorten it.
+func TestThePlatformLeaseCountsFromTheEndOfTheStart(t *testing.T) {
+	db, _, _, _, creds := startEnv(t) //nolint:dogsled // the test brings its own slow bot
+	ctx := context.Background()
+	slow := &slowBot{}
+	dir := directory{list: []connectors.Connector{slow}}
+	require.NoError(t, automations.StartPlatformConnectors(ctx, dir, connectors.NewPlatformCredentials(dir, creds), db, nil, (&logged{}).warn))
+	var left float64
+	require.NoError(t, db.QueryRow(ctx, `SELECT extract(epoch FROM lease_until - clock_timestamp()) FROM automation.exclusive_identities WHERE platform AND external = 'acct-platform'`).Scan(&left))
+	assert.Greater(t, left, connectors.PlatformLease.Seconds()-2, "the full lease is left after a 3 s start")
 }

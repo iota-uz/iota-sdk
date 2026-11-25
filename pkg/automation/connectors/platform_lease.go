@@ -30,6 +30,23 @@ func (e *PlatformStartError) Unwrap() error { return e.Err }
 
 func leaseInterval() string { return fmt.Sprintf("%d milliseconds", PlatformLease.Milliseconds()) }
 
+// renewLease sets the platform reservation's lease from the database's current time (clock_timestamp: now() is the
+// transaction's start). A reservation that is not there is an error: nothing may be set up without it.
+func renewLease(ctx context.Context, tx pgx.Tx, kind catalog.ConnectorKind, external string) error {
+	tag, err := tx.Exec(ctx, `UPDATE automation.exclusive_identities SET lease_until = clock_timestamp() + $3::interval WHERE platform AND kind = $1 AND external = $2`,
+		string(kind), external, leaseInterval())
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return errLeaseLost
+	}
+	return nil
+}
+
+// errLeaseLost is a platform reservation that disappeared while it was renewed.
+var errLeaseLost = errors.New("automation connections: the platform reservation was released while it was renewed")
+
 // releaseExpiredPlatform releases the platform reservation of an account whose lease ran out, in the caller's
 // transaction that holds the account's lock.
 func releaseExpiredPlatform(ctx context.Context, tx pgx.Tx, kind catalog.ConnectorKind, external string) error {
@@ -74,23 +91,25 @@ func StartPlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.C
 		case err != nil:
 			return err
 		case holder.held && holder.platform:
-			if _, err := tx.Exec(ctx, `UPDATE automation.exclusive_identities SET lease_until = now() + $3::interval WHERE platform AND kind = $1 AND external = $2`,
-				string(kind), external, leaseInterval()); err != nil {
+			if err := renewLease(ctx, tx, kind, external); err != nil {
 				return err
 			}
 		case holder.held:
 			return ErrIdentityTaken
 		default:
-			if _, err := tx.Exec(ctx, `INSERT INTO automation.exclusive_identities (kind, external, platform, lease_until) VALUES ($1, $2, TRUE, now() + $3::interval)`,
+			if _, err := tx.Exec(ctx, `INSERT INTO automation.exclusive_identities (kind, external, platform, lease_until) VALUES ($1, $2, TRUE, clock_timestamp() + $3::interval)`,
 				string(kind), external, leaseInterval()); err != nil {
 				return err
 			}
 		}
-		if start != nil {
-			// The reservation is committed whatever start does: the credential is the platform's either way.
-			startErr = start(ctx)
+		if start == nil {
+			return nil
 		}
-		return nil
+		// The reservation is committed whatever start does: the credential is the platform's either way. The lease
+		// counts from the moment start returned, not from the transaction's start (the lock wait and the call to the
+		// provider would shorten it otherwise).
+		startErr = start(ctx)
+		return renewLease(ctx, tx, kind, external)
 	})
 	if err != nil {
 		return err

@@ -113,8 +113,10 @@ func (u PrivateAttachments) Save(ctx context.Context, tenantID uuid.UUID, name s
 	// public would own it, and a private upload under it is refused. The attachments have a slug of their
 	// own, of the tenant and the content, so no public upload can stand in their way (and one attachment
 	// received twice is one upload).
-	sum := sha256.Sum256(append([]byte(tenantID.String()+"\x00"), data...))
-	slug := u.slug + hex.EncodeToString(sum[:20])
+	h := sha256.New()
+	_, _ = h.Write([]byte(tenantID.String() + "\x00"))
+	_, _ = h.Write(data)
+	slug := u.slug + hex.EncodeToString(h.Sum(nil)[:20])
 	created, err := u.svc.CreatePrivate(ctx, &upload.CreateDTO{File: bytes.NewReader(data), Name: name, Size: len(data), Slug: slug}, dir)
 	if err != nil {
 		// A tenant has one upload per content: the same file the tenant uploaded itself (in public), or received

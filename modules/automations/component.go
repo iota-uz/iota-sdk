@@ -844,7 +844,7 @@ func withConnectorCredentials(creds map[catalog.ConnectorKind]connectors.Platfor
 
 // startPlatformConnectors sets up the platform credential of every connector that has one: the account it names
 // is reserved against the tenants' connections (a credential whose account a tenant's connection holds is
-// withdrawn, and the application does not start when it cannot be withdrawn), and a connector that sets its
+// withdrawn; one that cannot be withdrawn stops the start, ErrPlatformNotWithdrawable), and a connector that sets its
 // credential up (a webhook) does it only with the reservation in place, under the account's lock: two instances
 // that start together (a rolling update) set the webhook one after the other, and a tenant's save of the account
 // waits. dbErr is the failure to reach the database: no reservation can be made or checked then, so no webhook is
@@ -874,6 +874,12 @@ func startPlatformConnectors(ctx context.Context, dir connectors.Directory, plat
 			}
 			continue
 		}
+		if _, ok := platform.(connectors.PlatformWithdrawer); !ok {
+			// The reservation of an exclusive account is a lease: once it ran out (the database was unreachable
+			// longer than the lease) a tenant's connection may take the account, and the credential must then stop
+			// being served. A set that cannot withdraw it cannot honour that: the application does not start with it.
+			return fmt.Errorf("automations: the platform credential of %s: %w", conn.Kind(), ErrPlatformNotWithdrawable)
+		}
 		if dbErr != nil {
 			if isStarter {
 				// Without the reservation the webhook could replace one a tenant's connection holds: the
@@ -894,13 +900,15 @@ func startPlatformConnectors(ctx context.Context, dir connectors.Directory, plat
 		case connectors.IsPlatformStartError(err):
 			// The application starts without it: the platform credential works for sending.
 			warn(conn.Kind(), "automations: the platform credential of %s was not set up: %v", err)
-		case err != nil:
-			if !withdrawPlatform(platform, conn.Kind()) {
-				// A credential that cannot be withdrawn would be served next to the account of a tenant that
-				// holds it: the application does not start with it.
-				return fmt.Errorf("automations: the platform credential of %s cannot be used and cannot be withdrawn: %w", conn.Kind(), err)
-			}
+		case errors.Is(err, connectors.ErrIdentityTaken):
+			// A tenant's connection holds the account: the credential is served to nobody.
+			withdrawPlatform(platform, conn.Kind())
 			warn(conn.Kind(), "automations: the platform credential of %s is withdrawn: %v", err)
+			continue
+		case err != nil:
+			// The reservation could not be checked (the database failed): no webhook is set, and the credential keeps
+			// sending; the renewal reserves it once the database answers.
+			warn(conn.Kind(), "automations: the platform credential of %s was not set up: %v", err)
 			continue
 		}
 		// Accounts a previous platform credential held are released once no instance runs with them.
@@ -910,6 +918,11 @@ func startPlatformConnectors(ctx context.Context, dir connectors.Directory, plat
 	}
 	return nil
 }
+
+// ErrPlatformNotWithdrawable is a platform credential of an exclusive account (a Telegram bot) in a
+// connectors.PlatformCredentials that is not a connectors.PlatformWithdrawer: its reservation is a lease, and a
+// credential whose account a tenant takes after the lease ran out must stop being served.
+var ErrPlatformNotWithdrawable = errors.New("a platform credential of an exclusive account needs a PlatformCredentials that can withdraw it")
 
 // withdrawPlatform takes the platform credential of a kind out of service; false when the set cannot withdraw.
 func withdrawPlatform(platform connectors.PlatformCredentials, kind catalog.ConnectorKind) bool {
@@ -934,11 +947,10 @@ func renewPlatformConnectors(ctx context.Context, dir connectors.Directory, plat
 			err := connectors.ReservePlatformIdentity(ctx, db, conn.Kind(), ex.ExternalID(creds))
 			switch {
 			case errors.Is(err, connectors.ErrIdentityTaken):
-				if withdrawPlatform(platform, conn.Kind()) {
-					warn(conn.Kind(), "automations: the platform credential of %s is withdrawn: %v", err)
-				} else {
-					warn(conn.Kind(), "automations: the platform credential of %s is held by a connection and cannot be withdrawn: %v", err)
-				}
+				// The start refuses a set that cannot withdraw (ErrPlatformNotWithdrawable), so the credential
+				// stops being served here.
+				withdrawPlatform(platform, conn.Kind())
+				warn(conn.Kind(), "automations: the platform credential of %s is withdrawn: %v", err)
 			case err != nil:
 				warn(conn.Kind(), "automations: the platform reservation of %s was not renewed: %v", err)
 			}

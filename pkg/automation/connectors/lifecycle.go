@@ -244,7 +244,9 @@ func holderOf(ctx context.Context, q interface {
 		holder   *uuid.UUID
 		platform bool
 	)
-	err := q.QueryRow(ctx, `SELECT connection_id, platform FROM automation.exclusive_identities WHERE kind = $1 AND external = $2`, string(kind), external).Scan(&holder, &platform)
+	// The row is locked until the caller's transaction ends: a concurrent prune of an expired platform lease waits,
+	// then re-checks the lease the caller renewed.
+	err := q.QueryRow(ctx, `SELECT connection_id, platform FROM automation.exclusive_identities WHERE kind = $1 AND external = $2 FOR UPDATE`, string(kind), external).Scan(&holder, &platform)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return identityHolder{}, nil
 	}
