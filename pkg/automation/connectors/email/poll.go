@@ -376,7 +376,11 @@ func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, addresses ...
 		if err != nil {
 			continue
 		}
-		cur, err := h.baseline(ctx, conn, creds)
+		// Each mailbox has a time of its own: one that does not answer neither holds the send for long nor takes
+		// the time the send itself has.
+		bctx, cancel := context.WithTimeout(ctx, baselineTimeout)
+		cur, err := h.baseline(bctx, conn, creds)
+		cancel()
 		if err != nil {
 			h.log().Warn("email: a mailbox could not be baselined before a send", "connection_id", c.ID.String())
 			continue
@@ -386,6 +390,9 @@ func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, addresses ...
 		}
 	}
 }
+
+// baselineTimeout bounds the baseline of one mailbox before a send (a variable for tests).
+var baselineTimeout = 10 * time.Second
 
 var _ engine.Baseliner = (*imapConnector)(nil)
 

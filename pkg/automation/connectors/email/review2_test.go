@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"net"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +44,9 @@ func TestCorrectlyWrappedAttachmentWithinTheDecodedLimitIsStored(t *testing.T) {
 	}
 }
 
-// unknownEncoding is a message whose attachment is in a transfer encoding the reader does not know (x-uuencode).
+// unknownEncoding is a message whose attachments are in a transfer encoding the reader does not know
+// (x-uuencode), once with a charset it does not know either, between readable ones — one of them base64 with an
+// unknown charset, which is still decoded.
 func unknownEncoding() []byte {
 	var b bytes.Buffer
 	b.WriteString("From: Ann <ann@example.org>\r\nTo: " + mailbox + "\r\nSubject: Uu\r\nMessage-ID: <uu@x>\r\nMIME-Version: 1.0\r\n")
@@ -50,7 +54,11 @@ func unknownEncoding() []byte {
 	b.WriteString("--MIX\r\nContent-Type: application/pdf; name=\"uu.pdf\"\r\nContent-Disposition: attachment; filename=\"uu.pdf\"\r\nContent-Transfer-Encoding: x-uuencode\r\n\r\n")
 	b.WriteString("begin 644 uu.pdf\r\n#86)C\r\n`\r\nend\r\n")
 	b.WriteString("--MIX\r\nContent-Type: text/csv; name=\"ok.csv\"\r\nContent-Disposition: attachment; filename=\"ok.csv\"\r\nContent-Transfer-Encoding: base64\r\n\r\n")
-	b.WriteString(base64.StdEncoding.EncodeToString([]byte("a,b\r\n")) + "\r\n--MIX--\r\n")
+	b.WriteString(base64.StdEncoding.EncodeToString([]byte("a,b\r\n")) + "\r\n")
+	b.WriteString("--MIX\r\nContent-Type: text/csv; charset=x-unknown; name=\"uu.csv\"\r\nContent-Disposition: attachment; filename=\"uu.csv\"\r\nContent-Transfer-Encoding: x-uuencode\r\n\r\n")
+	b.WriteString("begin 644 uu.csv\r\n#86)C\r\n`\r\nend\r\n")
+	b.WriteString("--MIX\r\nContent-Type: text/csv; charset=x-unknown; name=\"odd.csv\"\r\nContent-Disposition: attachment; filename=\"odd.csv\"\r\nContent-Transfer-Encoding: base64\r\n\r\n")
+	b.WriteString(base64.StdEncoding.EncodeToString([]byte("c,d\r\n")) + "\r\n--MIX--\r\n")
 	return b.Bytes()
 }
 
@@ -60,11 +68,15 @@ func TestAttachmentInAnUnsupportedTransferEncodingIsUnreadable(t *testing.T) {
 	t.Run("parsed whole", func(t *testing.T) {
 		m, err := parseMessage(unknownEncoding())
 		require.NoError(t, err)
-		require.Len(t, m.attachment, 2)
+		require.Len(t, m.attachment, 4)
 		assert.Equal(t, AttachmentUnreadable, m.attachment[0].reason)
 		assert.Nil(t, m.attachment[0].data, "the encoded bytes are not kept as the file")
 		assert.Empty(t, m.attachment[1].reason)
 		assert.Equal(t, "a,b\r\n", string(m.attachment[1].data))
+		assert.Equal(t, AttachmentUnreadable, m.attachment[2].reason, "an unknown charset does not hide the unknown encoding")
+		assert.Nil(t, m.attachment[2].data)
+		assert.Empty(t, m.attachment[3].reason, "a supported encoding with an unknown charset is decoded")
+		assert.Equal(t, "c,d\r\n", string(m.attachment[3].data))
 		assert.Equal(t, "body", m.text)
 	})
 	for name, raw := range map[string]int64{"oversized message": 256, "whole message": defaultMaxRaw} {
@@ -79,12 +91,15 @@ func TestAttachmentInAnUnsupportedTransferEncodingIsUnreadable(t *testing.T) {
 			evs, _ := f.pollOnce(t, conn, creds, cur)
 			require.Len(t, evs, 1, "the message is published")
 			atts := payloadOf(t, evs[0])["attachments"].([]any)
-			require.Len(t, atts, 2)
-			uu := atts[0].(map[string]any)
-			assert.Equal(t, AttachmentUnreadable, uu["error"])
-			assert.Empty(t, uu["url"], "no stored file stands for it")
+			require.Len(t, atts, 4)
+			for _, i := range []int{0, 2} {
+				uu := atts[i].(map[string]any)
+				assert.Equal(t, AttachmentUnreadable, uu["error"], uu["filename"])
+				assert.Empty(t, uu["url"], "no stored file stands for it")
+			}
 			assert.Nil(t, atts[1].(map[string]any)["error"])
-			assert.Len(t, f.uploads.files, 1, "only the readable attachment is stored")
+			assert.Nil(t, atts[3].(map[string]any)["error"])
+			assert.Len(t, f.uploads.files, 2, "only the readable attachments are stored")
 		})
 	}
 }
@@ -142,4 +157,41 @@ func seededCursor(t *testing.T, f *fx, c connectors.Connection) json.RawMessage 
 	require.NoError(t, json.Unmarshal(f.conns.inbound[c.ID], &all))
 	require.NotEmpty(t, all["poll"].Cursor)
 	return all["poll"].Cursor
+}
+
+// A mailbox that does not answer has a time of its own before a send: the send is not held for long, nothing is
+// seeded for that mailbox, and the message goes out.
+func TestASilentMailboxDoesNotHoldTheSend(t *testing.T) {
+	old := baselineTimeout
+	baselineTimeout = 300 * time.Millisecond
+	t.Cleanup(func() { baselineTimeout = old })
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ln.Close() })
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			t.Cleanup(func() { _ = c.Close() }) // accepted and never answered
+		}
+	}()
+	f := newFx(t, emailtest.ModeTLS)
+	silent := f.connection(KindIMAP)
+	silent.Identity = connectors.Identity{} // the address is unknown: it is baselined before the send
+	creds := f.imapCreds()
+	creds["port"] = port(ln.Addr().String())
+	creds["username"] = "silent"
+	f.conns.add(silent, creds)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	start := time.Now()
+	res, err := (&sendNode{f.smtp.hub}).Execute(ctx, f.sendInput(params(nil), f.smtpCreds()))
+	require.NoError(t, err)
+	assert.Equal(t, "sent", res.Outcome)
+	assert.Less(t, time.Since(start), 10*time.Second, "the silent mailbox took its own time, not the send's")
+	assert.False(t, hasCursor(f, silent))
+	assert.Len(t, f.srv.Sent(), 1)
 }

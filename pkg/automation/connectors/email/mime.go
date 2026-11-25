@@ -251,7 +251,18 @@ func (w *partWalker) entity(e *message.Entity, perr error, depth int) {
 			w.entity(p, err, depth+1)
 		}
 	}
-	w.leaf(e.Header, e.Body, message.IsUnknownEncoding(perr))
+	// The declared encoding is checked as well: when the charset is unknown too, perr is the charset's error and
+	// does not tell that the body is still transfer-encoded.
+	w.leaf(e.Header, e.Body, message.IsUnknownEncoding(perr) || !knownTransferEncoding(e.Header.Get("Content-Transfer-Encoding")))
+}
+
+// knownTransferEncoding reports whether the reader decodes a Content-Transfer-Encoding (RFC 2045 §6.1).
+func knownTransferEncoding(enc string) bool {
+	switch strings.ToLower(strings.TrimSpace(enc)) {
+	case "", "7bit", "8bit", "binary", "base64", "quoted-printable":
+		return true
+	}
+	return false
 }
 
 func (w *partWalker) leaf(hdr message.Header, body io.Reader, undecoded bool) {
@@ -660,8 +671,10 @@ func decodeLiteral(lit io.Reader, sp *imap.BodyStructureSinglePart, wire int64) 
 	if capped.over {
 		return decodedPart{err: errPartTooLarge}
 	}
-	if rerr == nil {
-		rerr = derr // an encoding the library does not know: the bytes are not decoded
+	if rerr == nil && (message.IsUnknownEncoding(derr) || !knownTransferEncoding(sp.Encoding)) {
+		// An encoding the library does not know: the bytes are not decoded. An unknown charset alone leaves the
+		// transfer encoding decoded, and the bytes are the part's (an attachment is not converted anyway).
+		rerr = errUndecoded
 	}
 	return decodedPart{data: data, err: rerr}
 }
@@ -691,6 +704,9 @@ func (c *cappedReader) Read(p []byte) (int, error) {
 	c.left -= int64(n)
 	return n, err
 }
+
+// errUndecoded: a part is in a transfer encoding the reader does not decode.
+var errUndecoded = errors.New("email: the part's transfer encoding is not supported")
 
 // errPartTooLarge: a part came larger than its structure said.
 var errPartTooLarge = errors.New("email: the part is larger than it said")
