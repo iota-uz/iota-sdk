@@ -20,7 +20,7 @@ const contactParamsSchema = `{
   "type": "object",
   "properties": {
     "record": {"type": "string", "minLength": 1, "maxLength": 2000, "description": "CEL: {entity, key}; the subject of the run by default"},
-    "channel": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,29}$"},
+    "channel": {"type": "string", "pattern": "^[a-z][a-z0-9_]{1,31}$"},
     "subject": {"type": "string", "maxLength": 1000},
     "body": {"type": "string", "minLength": 1, "maxLength": 10000}
   },

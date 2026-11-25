@@ -48,6 +48,7 @@
   },
   "Account": {
       "Notifications": {
+        "Retry": "Qayta urinish",
         "Title": "Bildirishnomalar",
         "Intro": "Bildirishnomalar qayerga kelishini tanlang.",
         "Channels": "Bildirishnoma kanallari",
@@ -69,6 +70,7 @@
         "UnlinkConfirm": "Uzish",
         "SendTest": "Sinov bildirishnomasini yuborish",
         "Errors": {
+          "Load": "Bildirishnoma sozlamalarini yuklab bo‘lmadi.",
           "Toggle": "Sozlamani saqlab bo‘lmadi. Bir daqiqadan so‘ng qayta urinib ko‘ring.",
           "Unavailable": "Hozir ulash mumkin emas: administrator botni sozlamagan.",
           "Unlink": "Uzib bo‘lmadi. Bir daqiqadan so‘ng qayta urinib ko‘ring."
@@ -1822,6 +1824,7 @@
   },
   "NotificationSettings": {
       "Connection": {
+        "Choose": "Botni tanlang",
         "Title": "{{.Channel}} boti",
         "Hint": "{{.Channel}}ga bildirishnomalarni shu bot yuboradi, xodimlar o‘z akkauntlarini unga ulaydi.",
         "None": "Hozircha {{.Channel}} boti yo‘q: uni sahifada ulang:",

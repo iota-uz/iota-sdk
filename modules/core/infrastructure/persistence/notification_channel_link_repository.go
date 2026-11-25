@@ -224,7 +224,7 @@ func (r *NotificationLinkTokenRepository) Use(ctx context.Context, hash string, 
 		return false, serrors.Wrap(op, err)
 	}
 	tag, err := db.Exec(ctx, `UPDATE core.notification_channel_link_tokens SET used_at=$2,used_update_key=$3,used_address=$4,used_display=$5
-		WHERE token_hash=$1 AND used_at IS NULL AND expires_at>$2`, hash, at, updateKey, address, truncateRunes(display, 200))
+		WHERE token_hash=$1 AND used_at IS NULL AND expires_at>$2 AND expires_at>clock_timestamp()`, hash, at, updateKey, address, truncateRunes(display, 200))
 	if err != nil {
 		return false, serrors.Wrap(op, err)
 	}

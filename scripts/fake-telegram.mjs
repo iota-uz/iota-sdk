@@ -14,7 +14,14 @@ import http from 'node:http';
 
 export function startFakeTelegram(port = 0) {
 	const state = { webhook: { url: '', secret: '' }, sent: [], blocked: new Set(), updateId: 1000, messageId: 1 };
-	const server = http.createServer(async (req, res) => {
+	const server = http.createServer((req, res) => {
+		handle(req, res).catch((err) => {
+			// An application that went away (the webhook does not answer) must not stop the fake.
+			if (!res.headersSent) res.writeHead(502, { 'content-type': 'application/json' });
+			res.end(JSON.stringify({ error: String(err && err.message ? err.message : err) }));
+		});
+	});
+	async function handle(req, res) {
 		const url = new URL(req.url, 'http://fake');
 		const body = await readBody(req);
 		const reply = (code, payload) => {
@@ -83,7 +90,7 @@ export function startFakeTelegram(port = 0) {
 			default:
 				return reply(200, { ok: true, result: true });
 		}
-	});
+	}
 	return new Promise((resolve) => {
 		server.listen(port, '127.0.0.1', () => resolve({ server, port: server.address().port, state }));
 	});

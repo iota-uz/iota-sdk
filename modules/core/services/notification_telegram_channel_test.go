@@ -296,3 +296,52 @@ func TestNotificationChannelCheck_AcceptsNewChannelsAndRefusesMalformed(t *testi
 	_, err = tf.f.Pool.Exec(tf.committed, `INSERT INTO core.notification_channel_preferences(tenant_id,user_id,channel) VALUES($1,$2,'Telegram')`, tf.f.TenantID(), int(tf.userID))
 	require.Error(t, err)
 }
+
+func TestTelegramChannel_QueuedDeliveryIsNotSentThroughAnotherBot(t *testing.T) {
+	tf := setupTelegram(t)
+	require.NoError(t, tf.router.SaveRule(tf.f.Ctx, notifications.Rule{EventKey: notifications.TestEventKey, Enabled: true, UserIDs: []uint{tf.userID},
+		Channels: []notifications.Channel{notifications.ChannelInApp, notifications.ChannelTelegram}}))
+	tf.commit(t)
+	tenantBot := uuid.NewString()
+	tf.connectors.set(tenantBot, platformBot)
+	token, _ := tf.start(t, tf.user)
+	_, err := tf.links.CompleteLinkUpdate(tf.webhook(), platformBot, token, "777", "@ada", "5:1")
+	require.NoError(t, err)
+
+	// The first attempt fails and the delivery waits for a retry with the platform bot's chat.
+	tf.telegram.setErr(fmt.Errorf("provider unavailable"))
+	eventID := uuid.NewString()
+	_, err = tf.dispatch.Enqueue(tf.committed, notifications.Event{Key: notifications.TestEventKey, ID: eventID, TenantID: tf.f.TenantID()})
+	require.NoError(t, err)
+	tf.run(t)
+	_, err = tf.channels.Process(tf.committed)
+	require.NoError(t, err)
+	require.Equal(t, notifications.DeliveryPending, tf.statuses(t, eventID)[notifications.ChannelTelegram].Status)
+
+	// The tenant switches to its own bot: the queued delivery is not sent to the old chat through it.
+	_, err = tf.conns.Set(tf.committed, notifications.ChannelTelegram, tenantBot)
+	require.NoError(t, err)
+	tf.telegram.setErr(nil)
+	_, err = tf.f.Pool.Exec(tf.committed, `UPDATE core.notification_deliveries SET available_at=NOW() WHERE tenant_id=$1 AND channel='telegram'`, tf.f.TenantID())
+	require.NoError(t, err)
+	_, err = tf.channels.Process(tf.committed)
+	require.NoError(t, err)
+	got := tf.statuses(t, eventID)[notifications.ChannelTelegram]
+	require.Equal(t, notifications.DeliveryNoAddress, got.Status)
+	require.Zero(t, tf.telegram.count())
+}
+
+func TestNotificationChannels_SetChannelEnabledKeepsOtherChoices(t *testing.T) {
+	tf := setupTelegram(t)
+	tf.commit(t)
+	require.NoError(t, tf.channels.SetChannelEnabled(tf.committed, tf.userID, notifications.ChannelEmail, false))
+	require.NoError(t, tf.channels.SetChannelEnabled(tf.committed, tf.userID, notifications.ChannelTelegram, false))
+	disabled, err := tf.channels.Disabled(tf.committed, []uint{tf.userID})
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []notifications.Channel{notifications.ChannelEmail, notifications.ChannelTelegram}, disabled[tf.userID])
+	require.NoError(t, tf.channels.SetChannelEnabled(tf.committed, tf.userID, notifications.ChannelEmail, true))
+	disabled, err = tf.channels.Disabled(tf.committed, []uint{tf.userID})
+	require.NoError(t, err)
+	assert.Equal(t, []notifications.Channel{notifications.ChannelTelegram}, disabled[tf.userID])
+	require.Error(t, tf.channels.SetChannelEnabled(tf.committed, tf.userID, "whatsapp", true))
+}

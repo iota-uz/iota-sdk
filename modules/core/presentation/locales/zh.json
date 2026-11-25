@@ -48,6 +48,7 @@
   },
   "Account": {
       "Notifications": {
+        "Retry": "重试",
         "Title": "通知",
         "Intro": "选择接收通知的方式。",
         "Channels": "通知渠道",
@@ -69,6 +70,7 @@
         "UnlinkConfirm": "断开",
         "SendTest": "发送测试通知",
         "Errors": {
+          "Load": "无法加载通知设置。",
           "Toggle": "无法保存设置。请一分钟后重试。",
           "Unavailable": "目前无法连接：管理员尚未配置机器人。",
           "Unlink": "无法断开。请一分钟后重试。"
@@ -1826,6 +1828,7 @@
   },
   "NotificationSettings": {
       "Connection": {
+        "Choose": "选择机器人",
         "Title": "{{.Channel}} 机器人",
         "Hint": "{{.Channel}} 通知由此机器人发送，员工将账户连接到它。",
         "None": "尚无 {{.Channel}} 机器人：请在此页面连接：",

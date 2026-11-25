@@ -59,8 +59,11 @@ func (e *RetryAfterError) Error() string {
 }
 
 // Send sends msg with the bot of creds. A refusal of the chat or of the message is a
-// *catalog.CallError (rejected, invalid_request, unauthorized); 429 is a *RetryAfterError; anything else
-// (a cut connection, a 5xx) is an error whose outcome is unknown: the message may have been sent.
+// *catalog.CallError (rejected, invalid_request, unauthorized); 429 is a *RetryAfterError. Anything else
+// is a plain error: a 5xx answer or a connection that was never made, which NotSent reports and the
+// notification channel repeats (the delivery policy of #1349), or a timeout or a cut connection after the
+// request went out, whose outcome is unknown: the message may have been sent. A graph node treats every
+// plain error as unknown.
 func (c *Connector) Send(ctx context.Context, _ catalog.ConnectionInfo, creds catalog.Credentials, msg Message) (MessageRef, error) {
 	token := creds["token"]
 	if token == "" {
@@ -77,10 +80,11 @@ func (c *Connector) Send(ctx context.Context, _ catalog.ConnectionInfo, creds ca
 
 var _ Client = (*Connector)(nil)
 
-// NotSent reports whether an error of Send says the message was not sent, so sending it again cannot
-// duplicate it: the Bot API answered with a server error (5xx), or the connection to it was never made. Any
-// other error that is neither a *catalog.CallError nor a *RetryAfterError leaves the outcome unknown (a
-// timeout or a cut connection after the request went out).
+// NotSent reports whether an error of Send is one the notification channel repeats: the Bot API answered
+// with a server error (5xx: Telegram reports the request failed; it does not promise that nothing was
+// delivered, and the channel accepts that rare duplicate by its delivery policy), or the connection to it was
+// never made (nothing reached Telegram). Any other error that is neither a *catalog.CallError nor a
+// *RetryAfterError leaves the outcome unknown (a timeout or a cut connection after the request went out).
 func NotSent(err error) bool {
 	var api *apiError
 	if errors.As(err, &api) {

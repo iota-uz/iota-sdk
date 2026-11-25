@@ -148,7 +148,7 @@ func (c *AccountNotificationsController) Index(w http.ResponseWriter, r *http.Re
 }
 
 // Toggle turns one channel on or off for the current person.
-func (c *AccountNotificationsController) Toggle(w http.ResponseWriter, r *http.Request, channels *services.NotificationChannelService) {
+func (c *AccountNotificationsController) Toggle(w http.ResponseWriter, r *http.Request, channels *services.NotificationChannelService, links *services.NotificationChannelLinkService) {
 	u, err := composables.UseUser(r.Context())
 	if err != nil || u == nil {
 		RenderForbidden(w, r)
@@ -168,7 +168,8 @@ func (c *AccountNotificationsController) Toggle(w http.ResponseWriter, r *http.R
 		http.Error(w, "Unable to save", http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	// The section follows the switch: the test action shows only for a channel that is on.
+	c.renderSection(w, r, channels, links, nil)
 }
 
 // Start issues a link and sends the browser (a new tab, or the app on a

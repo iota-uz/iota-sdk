@@ -33,7 +33,7 @@ const notifyParamsSchema = `{
     "title": {"type": "string", "minLength": 1, "maxLength": 1000},
     "body": {"type": "string", "minLength": 1, "maxLength": 10000},
     "action_url": {"type": "string", "maxLength": 2000},
-    "channels": {"type": "array", "maxItems": 10, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,29}$"}},
+    "channels": {"type": "array", "maxItems": 10, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]{1,31}$"}},
     "level": {"enum": ["info", "warning", "critical"], "default": "info"}
   },
   "required": ["recipients", "title", "body"],

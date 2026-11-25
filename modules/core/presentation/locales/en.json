@@ -48,6 +48,7 @@
   },
   "Account": {
       "Notifications": {
+        "Retry": "Retry",
         "Title": "Notifications",
         "Intro": "Choose where you receive notifications.",
         "Channels": "Notification channels",
@@ -69,6 +70,7 @@
         "UnlinkConfirm": "Disconnect",
         "SendTest": "Send a test notification",
         "Errors": {
+          "Load": "Could not load the notification settings.",
           "Toggle": "Could not save the setting. Try again in a minute.",
           "Unavailable": "Connecting is not available now: the administrator has not set up the bot.",
           "Unlink": "Could not disconnect. Try again in a minute."
@@ -1823,6 +1825,7 @@
   },
   "NotificationSettings": {
       "Connection": {
+        "Choose": "Choose a bot",
         "Title": "{{.Channel}} bot",
         "Hint": "Notifications to {{.Channel}} are sent by this bot; people connect their accounts to it.",
         "None": "There is no {{.Channel}} bot yet: connect one on the",

@@ -91,6 +91,7 @@ func channelConnections(r *http.Request, labels map[notifications.Channel]string
 	out := make([]settings.ChannelConnection, 0, len(options))
 	for _, o := range options {
 		view := settings.ChannelConnection{Channel: o.Spec.Channel, Label: labels[o.Spec.Channel], Linked: o.Spec.Address == notifications.AddressLinked}
+		view.Effective = o.Effective
 		if o.EffectiveOK {
 			view.Current = o.Effective
 		}
@@ -589,12 +590,30 @@ func (c *NotificationSettingsController) SaveConnection(w http.ResponseWriter, r
 			http.Error(w, "Unable to save the connection", http.StatusInternalServerError)
 			return
 		}
-		c.render(w, r, s, "ConnectionInvalid", 0)
+		c.renderConnection(w, r, s, channel, "ConnectionInvalid")
 		return
 	}
 	message := "ConnectionSaved"
 	if removed {
 		message = "ConnectionSavedLinksRemoved"
 	}
-	c.render(w, r, s, message, 0)
+	c.renderConnection(w, r, s, channel, message)
+}
+
+// renderConnection answers a save with the channel's picker alone, so unsaved rule edits on the page stay.
+func (c *NotificationSettingsController) renderConnection(w http.ResponseWriter, r *http.Request, s *services.NotificationRoutingService, channel notifications.Channel, message string) {
+	list, err := channelConnections(r, channelLabels(r, s.ChannelRegistry()))
+	if err != nil {
+		composables.UseLogger(r.Context()).WithError(err).Error("failed to load notification channel connections")
+		http.Error(w, "Unable to load notification channels", http.StatusInternalServerError)
+		return
+	}
+	for _, conn := range list {
+		if conn.Channel == channel {
+			conn.MessageKey = message
+			templ.Handler(settings.ChannelConnectionForm(conn, composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) == nil)).ServeHTTP(w, r)
+			return
+		}
+	}
+	http.Error(w, "Unknown channel", http.StatusNotFound)
 }

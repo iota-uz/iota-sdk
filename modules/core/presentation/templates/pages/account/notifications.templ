@@ -67,6 +67,20 @@ func linkURL(channel, action string) string {
 	return NotificationsPath + "/links/" + channel + "/" + action
 }
 
+func pollID(channel string) string { return "link-poll-" + channel }
+
+// startWatch reads the link state after the start form opened the provider in
+// another tab: until the new link shows up as waiting (or linked), it asks
+// again a few times, so a slow start request does not leave the section on
+// «not connected».
+func startWatch(channel string) string {
+	return "(() => { const url = '" + linkURL(channel, "status") + "'; let n = 0; " +
+		"const tick = () => htmx.ajax('GET', url, {target: '#" + NotificationsSectionID + "', swap: 'outerHTML'}).finally(() => { " +
+		"const el = document.querySelector('[data-testid=link-" + channel + "]'); " +
+		"if ((!el || el.dataset.state === 'none' || el.dataset.state === 'expired' || el.dataset.state === 'gone') && ++n < 8) setTimeout(tick, 1500) }); " +
+		"setTimeout(tick, 1000) })()"
+}
+
 func secondsLeft(t time.Time) int {
 	left := int(time.Until(t).Seconds())
 	if left < 0 {
@@ -95,14 +109,24 @@ templ NotificationsPlaceholder() {
 		id={ NotificationsSectionID }
 		class="px-4 pb-4 md:px-6 md:pb-6"
 		hx-get={ NotificationsPath }
-		hx-trigger="load"
+		hx-trigger="load, retry"
 		hx-swap="outerHTML"
 		aria-busy="true"
+		x-data="{ failed: false }"
+		x-on:htmx:before-request="failed = false; $el.setAttribute('aria-busy', 'true')"
+		x-on:htmx:response-error="failed = true; $el.setAttribute('aria-busy', 'false')"
+		x-on:htmx:send-error="failed = true; $el.setAttribute('aria-busy', 'false')"
 	>
 		@card.Card(card.Props{Class: "flex flex-col gap-3"}) {
 			<h2 class="text-lg font-semibold text-100">{ pageCtx.T("Account.Notifications.Title") }</h2>
+			<div x-show="failed" x-cloak role="alert" class="flex flex-wrap items-center gap-3 text-sm text-red-600">
+				<span>{ pageCtx.T("Account.Notifications.Errors.Load") }</span>
+				@button.Secondary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "button", "@click": "htmx.trigger($root, 'retry')"}}) {
+					{ pageCtx.T("Account.Notifications.Retry") }
+				}
+			</div>
 			for range 3 {
-				<div class="flex min-h-11 items-center justify-between gap-3">
+				<div x-show="!failed" class="flex min-h-11 items-center justify-between gap-3">
 					<div class="h-4 w-40 animate-pulse rounded bg-surface-200"></div>
 					<div class="h-6 w-11 animate-pulse rounded-full bg-surface-200"></div>
 				</div>
@@ -171,8 +195,10 @@ templ notificationChannelRow(c NotificationChannel) {
 				"hx-post":                  NotificationsPath + "/channels/" + c.Channel,
 				"hx-trigger":               "change",
 				"hx-vals":                  "js:{enabled: event.target.checked}",
-				"hx-swap":                  "none",
-				"hx-sync":                  "this:replace",
+				// The answer is the section: the test action follows the switch.
+				"hx-target":                "#" + NotificationsSectionID,
+				"hx-swap":                  "outerHTML",
+				"hx-sync":                  "#" + NotificationsSectionID + ":queue last",
 				"x-on:htmx:before-request": "failed = false",
 				"x-on:htmx:response-error": "$el.checked = !$el.checked; failed = true",
 				"x-on:htmx:send-error":     "$el.checked = !$el.checked; failed = true",
@@ -200,7 +226,7 @@ templ notificationLink(l NotificationLink, c NotificationChannel) {
 						<span
 							class="tabular-nums text-200"
 							x-data={ "{ left: " + strconv.Itoa(secondsLeft(l.ExpiresAt)) + " }" }
-							x-init="const t = setInterval(() => { left = Math.max(0, left - 1); if (left === 0) { clearInterval(t); htmx.trigger(document.querySelector('[data-poll]'), 'expired') } }, 1000)"
+							x-init={ "const t = setInterval(() => { if (!$el.isConnected) { clearInterval(t); return } left = Math.max(0, left - 1); if (left === 0) { clearInterval(t); const poll = document.getElementById('" + pollID(l.Channel) + "'); if (poll) htmx.trigger(poll, 'expired') } }, 1000)" }
 						>
 							{ pageCtx.T("Account.Notifications.ExpiresIn") }
 							<span x-text="String(Math.floor(left / 60)).padStart(2, '0') + ':' + String(left % 60).padStart(2, '0')"></span>
@@ -223,6 +249,7 @@ templ notificationLink(l NotificationLink, c NotificationChannel) {
 		if l.State == LinkPending {
 			<!-- Polls the link while it waits; a 204 keeps the section, a change replaces it. -->
 			<div
+				id={ pollID(l.Channel) }
 				data-poll
 				hx-get={ linkURL(l.Channel, "status") + "?pending=1" }
 				hx-trigger="every 3s, expired, visibilitychange[document.visibilityState === 'visible'] from:document"
@@ -280,7 +307,9 @@ templ notificationLink(l NotificationLink, c NotificationChannel) {
 				hx-post={ linkURL(l.Channel, "unlink") }
 				hx-target={ "#" + NotificationsSectionID }
 				hx-swap="outerHTML"
-			></form>
+			>
+				@composables.CSRFTokenField()
+			</form>
 		}
 	</div>
 }
@@ -293,8 +322,9 @@ templ linkStartForm(l NotificationLink, label string, primary bool) {
 		action={ templ.SafeURL(linkURL(l.Channel, "start")) }
 		target="_blank"
 		rel="noopener"
-		@submit={ "setTimeout(() => htmx.ajax('GET', '" + linkURL(l.Channel, "status") + "', {target: '#" + NotificationsSectionID + "', swap: 'outerHTML'}), 1200)" }
+		@submit={ startWatch(l.Channel) }
 	>
+		@composables.CSRFTokenField()
 		if primary {
 			@button.Primary(button.Props{Class: "min-h-11 w-full justify-center sm:w-auto", Icon: icons.TelegramLogo(icons.Props{Size: "18"}), Attrs: templ.Attributes{"type": "submit", "data-testid": "link-start-" + l.Channel}}) {
 				{ label }
@@ -351,8 +381,10 @@ templ TestResult(r NotificationTestResult) {
 				data-testid={ "test-status-" + r.Channel }
 				data-status="sending"
 				hx-get={ NotificationsPath + "/test/" + r.Channel + "/" + r.EventID + "?polls=" + strconv.Itoa(r.Polls+1) }
-				hx-trigger="load delay:1s"
+				hx-trigger="load delay:1s, retry delay:2s"
 				hx-swap="outerHTML"
+				hx-on::response-error="this.dataset.failures = (+this.dataset.failures || 0) + 1; if (this.dataset.failures < 6) htmx.trigger(this, 'retry')"
+				hx-on::send-error="this.dataset.failures = (+this.dataset.failures || 0) + 1; if (this.dataset.failures < 6) htmx.trigger(this, 'retry')"
 			>
 				if r.Polls >= 4 {
 					{ pageCtx.T("Account.Notifications.Test.StillWaiting", args) }

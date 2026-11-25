@@ -48,6 +48,7 @@
   },
   "Account": {
       "Notifications": {
+        "Retry": "Tentar novamente",
         "Title": "Notificações",
         "Intro": "Escolha onde receber as notificações.",
         "Channels": "Canais de notificação",
@@ -69,6 +70,7 @@
         "UnlinkConfirm": "Desconectar",
         "SendTest": "Enviar notificação de teste",
         "Errors": {
+          "Load": "Não foi possível carregar as configurações de notificação.",
           "Toggle": "Não foi possível salvar. Tente novamente em um minuto.",
           "Unavailable": "A conexão não está disponível: o administrador não configurou o bot.",
           "Unlink": "Não foi possível desconectar. Tente novamente em um minuto."
@@ -1827,6 +1829,7 @@
   },
   "NotificationSettings": {
       "Connection": {
+        "Choose": "Escolha um bot",
         "Title": "Bot do {{.Channel}}",
         "Hint": "As notificações para o {{.Channel}} são enviadas por este bot; as pessoas conectam suas contas a ele.",
         "None": "Ainda não há bot do {{.Channel}}: conecte um na página",

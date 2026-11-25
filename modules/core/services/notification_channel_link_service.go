@@ -175,16 +175,27 @@ func (s *NotificationChannelConnectionService) Set(ctx context.Context, channel 
 	if u, err := composables.UseUser(ctx); err == nil && u != nil {
 		by = u.ID()
 	}
-	previous, _, err := s.Connection(ctx, tenant, spec)
-	if err != nil {
-		return false, serrors.Wrap(op, err)
-	}
 	next := connectionID
 	if next == "" {
 		next = notifications.PlatformConnectionPrefix + spec.ConnectorKind
 	}
 	removed := false
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
+		// Concurrent saves of the channel take turns, so each compares with the choice the one before stored.
+		tx, err := composables.UseTx(txCtx)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(txCtx, `SELECT pg_advisory_xact_lock(hashtextextended('core.notification_channel_connections:' || $1::text || ':' || $2, 0))`, tenant.String(), string(channel)); err != nil {
+			return err
+		}
+		previous, chosen, err := s.repo.Get(txCtx, tenant, channel)
+		if err != nil {
+			return err
+		}
+		if !chosen {
+			previous = notifications.PlatformConnectionPrefix + spec.ConnectorKind
+		}
 		if err := s.repo.Set(txCtx, tenant, channel, connectionID, by); err != nil {
 			return err
 		}
@@ -344,7 +355,8 @@ func (s *NotificationChannelLinkService) CompleteLinkUpdate(ctx context.Context,
 		return notifications.LinkCompletion{}, notifications.ErrLinkTokenInvalid
 	}
 	err = composables.InTx(tctx, func(txCtx context.Context) error {
-		used, err := s.tokens.Use(txCtx, hash, updateKey, address, display, now)
+		// Expiry is checked again when the token is spent: the connection lookup above may have taken time.
+		used, err := s.tokens.Use(txCtx, hash, updateKey, address, display, s.now())
 		if err != nil {
 			return err
 		}
@@ -354,6 +366,13 @@ func (s *NotificationChannelLinkService) CompleteLinkUpdate(ctx context.Context,
 		return s.links.Save(txCtx, notifications.ChannelLink{TenantID: t.TenantID, UserID: t.UserID, Channel: t.Channel, ConnectionID: connectionID, Address: address, Display: display, LinkedAt: now})
 	})
 	if errors.Is(err, notifications.ErrLinkTokenInvalid) {
+		// A concurrent delivery of the same update may have spent the token first: it gets that result.
+		if updateKey != "" {
+			if spent, ferr := s.tokens.Find(ctx, hash); ferr == nil && spent.UsedAt != nil && spent.UsedUpdateKey == updateKey && spent.ConnectionID == connectionID {
+				done.Replayed, done.Display = true, spent.UsedDisplay
+				return done, nil
+			}
+		}
 		return notifications.LinkCompletion{}, err
 	}
 	if err != nil {

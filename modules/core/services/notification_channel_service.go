@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -185,15 +186,35 @@ func (s *NotificationChannelService) SetChannelEnabled(ctx context.Context, user
 	if err := s.Validate(ctx, []notifications.Channel{channel}); err != nil {
 		return serrors.Wrap(op, err)
 	}
-	current, err := s.prefs.Disabled(ctx, []uint{userID})
+	// Read and write under the user's lock: two switches flipped at once both land.
+	return serrors.Wrap(op, composables.InTx(ctx, func(txCtx context.Context) error {
+		if err := lockPreferences(txCtx, userID); err != nil {
+			return err
+		}
+		current, err := s.prefs.Disabled(txCtx, []uint{userID})
+		if err != nil {
+			return err
+		}
+		disabled := slices.DeleteFunc(slices.Clone(current[userID]), func(c notifications.Channel) bool { return c == channel })
+		if !enabled {
+			disabled = append(disabled, channel)
+		}
+		return s.prefs.SetDisabled(txCtx, userID, disabled)
+	}))
+}
+
+// lockPreferences serializes the channel choices of one user of the tenant in ctx until the transaction ends.
+func lockPreferences(ctx context.Context, userID uint) error {
+	tenant, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return serrors.Wrap(op, err)
+		return err
 	}
-	disabled := slices.DeleteFunc(slices.Clone(current[userID]), func(c notifications.Channel) bool { return c == channel })
-	if !enabled {
-		disabled = append(disabled, channel)
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
 	}
-	return s.prefs.SetDisabled(ctx, userID, disabled)
+	_, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('core.notification_channel_preferences:' || $1::text || ':' || $2::text, 0))`, tenant.String(), strconv.FormatUint(uint64(userID), 10))
+	return err
 }
 
 // Record persists deliveries in the caller's transaction.
@@ -339,6 +360,36 @@ func (s *NotificationChannelService) connected(ctx context.Context, spec notific
 	return ok, err
 }
 
+// stillLinked reports whether the address of a queued delivery on a linked channel is still the user's link
+// through the connection the channel sends through now: a delivery queued before the user unlinked, or before
+// the tenant changed the bot, is not sent through a bot the user never linked with.
+func (s *NotificationChannelService) stillLinked(ctx context.Context, spec notifications.ChannelSpec, d notifications.Delivery) (bool, error) {
+	if spec.Address != notifications.AddressLinked || d.RecipientKind != notifications.RecipientUser {
+		return true, nil
+	}
+	if s.links == nil {
+		return false, nil
+	}
+	link, err := s.links.Get(ctx, d.UserID, d.Channel)
+	if errors.Is(err, notifications.ErrNoAddress) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if link.Address != d.TargetAddress {
+		return false, nil
+	}
+	if spec.ConnectorKind == "" || s.conns == nil {
+		return true, nil
+	}
+	current, ok, err := s.conns.Connection(ctx, d.TenantID, spec)
+	if err != nil {
+		return false, err
+	}
+	return ok && current == link.ConnectionID, nil
+}
+
 func (s *NotificationChannelService) send(ctx context.Context, d notifications.Delivery, notices map[uuid.UUID]notifications.Notice) notifications.AttemptResult {
 	spec, adapter, ok := s.registry.Lookup(d.Channel)
 	if !ok || adapter == nil {
@@ -349,6 +400,12 @@ func (s *NotificationChannelService) send(ctx context.Context, d notifications.D
 		return s.failedAttempt(d, notifications.ErrorCodeProviderFailure)
 	case !connected:
 		return notConfigured
+	}
+	switch linked, err := s.stillLinked(ctx, spec, d); {
+	case err != nil:
+		return s.failedAttempt(d, notifications.ErrorCodeProviderFailure)
+	case !linked:
+		return notifications.AttemptResult{Outcome: notifications.AttemptPermanent, Status: notifications.DeliveryNoAddress, ErrorCode: notifications.ErrorCodeNoAddress}
 	}
 	notice, err := s.notice(ctx, d.NoticeID, notices)
 	if err != nil {
