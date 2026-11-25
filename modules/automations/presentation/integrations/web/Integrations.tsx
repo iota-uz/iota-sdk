@@ -364,14 +364,48 @@ function ConnectorCard(props: { ctx: Ctx; connector: ConnectorView }) {
         </Show>
       </div>
       <Show when={props.ctx.canManage() && props.ctx.configured}>
-        <div class="mt-auto">
-          <Button variant={c().connections.length > 0 ? 'secondary' : 'primary'} size="sm" class="min-h-11 sm:min-h-9"
-            onClick={() => props.ctx.openForm({ mode: 'create', connector: c() })} data-testid={`connect-${c().kind}`}>
-            {c().connections.length > 0 ? t('ConnectAnother') : t('Connect')}
-          </Button>
+        <div class="mt-auto flex flex-col gap-2">
+          <div class="flex flex-wrap gap-2">
+            <Button variant={c().connections.length > 0 ? 'secondary' : 'primary'} size="sm" class="min-h-11 sm:min-h-9"
+              onClick={() => props.ctx.openForm({ mode: 'create', connector: c() })} data-testid={`connect-${c().kind}`}>
+              {c().connections.length > 0 ? t('ConnectAnother') : t('Connect')}
+            </Button>
+            <For each={availablePresets(c())}>{(preset) => <PresetSignIn ctx={props.ctx} connector={c()} preset={preset} />}</For>
+          </div>
         </div>
       </Show>
     </article>
+  )
+}
+
+/**
+ * A provider's sign-in straight from the card of a connector that has a form and a sign-in (an email box):
+ * «Sign in with Google», «Sign in with Microsoft 365». It names no connection: the server signs the same
+ * account in again or names a new pair itself, and the provider sends the browser back to the page.
+ */
+function PresetSignIn(props: { ctx: Ctx; connector: ConnectorView; preset: string }) {
+  const t = props.ctx.t
+  const toast = useToast()
+  const [busy, setBusy] = createSignal(false)
+  const provider = () => t(`Form.PresetProvider.${props.preset}`)
+  const start = async () => {
+    if (busy()) return
+    setBusy(true)
+    try {
+      const r = await props.ctx.call('automations.connections.oauth_start', { kind: props.connector.kind, name: '', preset: props.preset })
+      window.location.assign(r.authorize_url)
+    } catch (e) {
+      setBusy(false)
+      const code = errorCode(e)
+      console.warn('automations: oauth_start failed', code)
+      toast.notify({ variant: 'error', title: code === 'unavailable' ? t('OAuth.unavailable') : t('Toast.Failed') })
+    }
+  }
+  return (
+    <Button variant="secondary" size="sm" class="min-h-11 sm:min-h-9" loading={busy()} aria-disabled={busy() || undefined}
+      onClick={() => void start()} data-testid={`signin-${props.connector.kind}-${props.preset}`}>
+      {busy() ? t('Form.Redirecting', { connector: provider() }) : t('Form.SignInWith', { connector: provider() })}
+    </Button>
   )
 }
 
