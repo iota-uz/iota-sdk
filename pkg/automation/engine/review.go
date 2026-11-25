@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 )
@@ -57,10 +59,12 @@ func (r *Runtime) validate(ctx context.Context, a Actor, raw json.RawMessage, mo
 	if err != nil {
 		return validated{}, err
 	}
+	g, prepared := r.completeParams(ctx, a.TenantID, view, g)
 	opts := r.graphOptions()
 	connections := catalog.ConnectionRule(view)
 	opts.Rules = func(g graph.Graph) []graph.GraphError {
 		out := append(connections(g), r.executorRule(view, g)...)
+		out = append(out, prepared...)
 		out = append(out, scheduleRule(view, g)...)
 		out = append(out, collectRule(view, g)...)
 		out = append(out, r.nodeRule(ctx, view, g)...)
@@ -183,6 +187,56 @@ func sameJSON(a, b any) bool {
 	x, err1 := json.Marshal(a)
 	y, err2 := json.Marshal(b)
 	return err1 == nil && err2 == nil && string(x) == string(y)
+}
+
+// completeParams lets each node type that implements catalog.CompletedNode pin the values it fixes at
+// save time (an AI node's default instruction), and each that implements catalog.ConnectionNode pin and
+// check what depends on its connection (the default model of its provider); the graph it returns is a copy,
+// and the errors are the issues the nodes found.
+func (r *Runtime) completeParams(ctx context.Context, tenant uuid.UUID, view catalog.View, g graph.Graph) (graph.Graph, []graph.GraphError) {
+	out := g
+	out.Nodes = append([]graph.Node(nil), g.Nodes...)
+	var errs []graph.GraphError
+	for i, n := range g.Nodes {
+		nt, ok := r.cfg.Catalog.Node(n.Type)
+		if !ok {
+			continue
+		}
+		params := n.Params
+		if cn, ok := nt.(catalog.CompletedNode); ok {
+			params = cn.CompleteParams(params)
+		}
+		if cn, ok := nt.(catalog.ConnectionNode); ok {
+			if ref, _, ok := nodeConnection(view, nt, params); ok {
+				var issues []graph.Issue
+				params, issues = cn.PrepareParams(ctx, tenant, ref, params)
+				for _, issue := range issues {
+					code := issue.Code
+					if code == "" {
+						code = graph.CodeParams
+					}
+					path := fmt.Sprintf("nodes[%d].params", i)
+					for _, p := range issue.Path {
+						path += fmt.Sprintf(".%v", p)
+					}
+					errs = append(errs, graph.GraphError{Path: path, Code: code, Message: issue.Message})
+				}
+			}
+		}
+		out.Nodes[i].Params = params
+	}
+	return out, errs
+}
+
+// nodeConnection is the connection a node of the graph resolves to for the tenant now, as it does at run
+// time; ok is false for a node that needs none or finds none.
+func nodeConnection(view catalog.View, nt catalog.NodeType, params map[string]any) (catalog.ConnectionRef, catalog.ConnectorKind, bool) {
+	kinds := nt.Requires()
+	if len(kinds) == 0 {
+		return catalog.ConnectionRef{}, "", false
+	}
+	ref, kind, err := catalog.ResolveConnection(view.Connections, kinds, params[catalog.ConnectionParam])
+	return ref, kind, err == nil
 }
 
 // connectionErrors reports a node type or an event the tenant's catalog lacks for want of a connection

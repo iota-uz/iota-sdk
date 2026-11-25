@@ -119,6 +119,9 @@ func app(t *testing.T, perms ...permission.Permission) (*itf.Suite, *composition
 	if _, ok := reg.Node("acme.code"); !ok {
 		require.NoError(t, reg.RegisterNode(codeNode{}))
 	}
+	if _, ok := reg.Node("acme.decide"); !ok {
+		require.NoError(t, reg.RegisterNode(decideNode{}))
+	}
 	return mountAll(t, s), container
 }
 

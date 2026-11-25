@@ -81,10 +81,16 @@ type View struct {
 	Unavailable map[string]string
 	// NodeRequires and EventRequires are the connector kinds each node type and event of the catalog
 	// works with (any one of them).
-	NodeRequires  map[string][]ConnectorKind
-	EventRequires map[string][]ConnectorKind
+	NodeRequires map[string][]ConnectorKind
+	// UnavailableRequires are the connector kinds of the node types in Unavailable for want of a
+	// connection: what they work with does not depend on whether the tenant has it now.
+	UnavailableRequires map[string][]ConnectorKind
+	EventRequires       map[string][]ConnectorKind
 	// Connections are the tenant's working connections by kind, preferred first.
 	Connections map[ConnectorKind][]ConnectionRef
+	// PlatformWithheld are the kinds the application offers by platform credential that this tenant cannot
+	// use now: a node of such a kind that is unavailable is unavailable for want of the platform key.
+	PlatformWithheld map[ConnectorKind]bool
 }
 
 // JSON is the view for the editor and the API: graph.View with NodeView.Requires filled.
@@ -343,18 +349,28 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 			}
 		}
 	}
+	var withheld map[ConnectorKind]bool
+	if po, ok := r.avail.(PlatformOffers); ok {
+		w, err := po.PlatformWithheld(ctx, tenantID)
+		if err != nil {
+			return View{}, serrors.Wrap(op, err)
+		}
+		withheld = w
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	v := View{
+		PlatformWithheld: withheld,
 		Catalog: graph.Catalog{
 			Events: map[string]graph.EventSpec{}, Nodes: map[string]graph.NodeSpec{},
 			Subjects: map[string]graph.SubjectSpec{}, MixedSubject: r.mixed,
 		},
-		Unavailable:   map[string]string{},
-		NodeRequires:  map[string][]ConnectorKind{},
-		EventRequires: map[string][]ConnectorKind{},
-		Connections:   connected,
+		Unavailable:         map[string]string{},
+		NodeRequires:        map[string][]ConnectorKind{},
+		UnavailableRequires: map[string][]ConnectorKind{},
+		EventRequires:       map[string][]ConnectorKind{},
+		Connections:         connected,
 	}
 	reason := func(requires []ConnectorKind, permission string) string {
 		if o.author != nil && !o.author.Has(permission) {
@@ -421,6 +437,9 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 		}
 		if why := reason(e.requires, perm); why != "" {
 			v.Unavailable[typ] = why
+			if why == ReasonConnectionUnavailable {
+				v.UnavailableRequires[typ] = append([]ConnectorKind(nil), e.requires...)
+			}
 			continue
 		}
 		spec := e.node.Spec()

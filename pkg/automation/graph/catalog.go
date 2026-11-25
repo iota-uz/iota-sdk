@@ -118,11 +118,14 @@ type NodeSpec struct {
 	MaxOutputBytes int
 	// Mixed are params that are CEL or a template: a string with {{ is a template rendered as Templates
 	// are, any other a CEL expression evaluated as Values are (an HTTP body: cel|tpl).
-	Mixed      []string
-	Answer     *AnswerSpec // call: which output field gives the outcome, and a confidence floor
-	Wait       *WaitSpec
-	Output     expr.Fields // what the node puts in nodes.<id>.output
-	OutputFrom *ParamRef   // the output is declared by a JSON Schema in this param (e.g. output_schema)
+	Mixed  []string
+	Answer *AnswerSpec // call: which output field gives the outcome, and a confidence floor
+	Wait   *WaitSpec
+	Output expr.Fields // what the node puts in nodes.<id>.output
+	// OutputFrom: the output is declared by a JSON Schema in this param (e.g. output_schema). With Field
+	// set, only that output field takes its type from the schema and the rest is Output (an LLM node's
+	// `json` from its `schema`).
+	OutputFrom *ParamRef
 	// OutputKeys: the output is an object with a dyn field per key of this object param (a set node's
 	// values).
 	OutputKeys *ParamRef

@@ -49,7 +49,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/notify"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/jev"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/mcp"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/openai"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/sms"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
@@ -60,6 +62,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/eskizconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/extruntimeconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/jevconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/openaiconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twilioconfig"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
@@ -141,6 +145,10 @@ func (c *component) LocaleFS() []*embed.FS { return []*embed.FS{&localeFiles} }
 // host bundle and the OAuth2 redirect, the extension runtime's UI and the HTTP origin.
 type settingsCfg struct {
 	automation automationconfig.Config
+	// openai and jev are the platform keys of the AI connectors the environment configures
+	// (automation.openai.*, automation.jev.*).
+	openai openaiconfig.Config
+	jev    jevconfig.Config
 	// sms are the platform credentials of the SMS connectors the environment configures.
 	sms      map[catalog.ConnectorKind]connectors.PlatformCredential
 	hostPath string
@@ -159,6 +167,16 @@ func (c *component) readConfig(b *composition.Builder) (settingsCfg, error) {
 		return out, err
 	}
 	out.automation = *a
+	openaiCfg, err := config.Register[openaiconfig.Config](reg)
+	if err != nil {
+		return out, err
+	}
+	out.openai = *openaiCfg
+	jevCfg, err := config.Register[jevconfig.Config](reg)
+	if err != nil {
+		return out, err
+	}
+	out.jev = *jevCfg
 	eskizCfg, err := config.Register[eskizconfig.Config](reg)
 	if err != nil {
 		return out, err
@@ -200,9 +218,15 @@ func (c *component) Build(b *composition.Builder) error {
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
-	for kind, cred := range cfg.sms {
-		if _, set := platformCreds[kind]; !set { // an explicit platform.credentials entry wins
-			platformCreds[kind] = cred
+	// The platform keys of the AI and SMS connectors come from their own settings; an explicit
+	// platform.credentials entry of the kind wins.
+	for _, creds := range []map[catalog.ConnectorKind]connectors.PlatformCredential{
+		openai.PlatformCredentials(&cfg.openai), jev.PlatformCredentials(&cfg.jev), cfg.sms,
+	} {
+		for kind, cred := range creds {
+			if _, set := platformCreds[kind]; !set {
+				platformCreds[kind] = cred
+			}
 		}
 	}
 	hostManifest := c.host
@@ -266,9 +290,16 @@ func (c *component) Build(b *composition.Builder) error {
 			}
 			registered[conn.Kind()] = true
 		}
-		// The SDK's own connectors, unless the application registered its own of the kind.
+		// The SDK's own AI and SMS connectors, unless the application registered its own of the kind.
 		status := lazyStatus{container: container}
-		sdk := []connectors.Connector{sms.NewEskiz(sms.WithConnectionStatus(status)), sms.NewTwilio(sms.WithConnectionStatus(status))}
+		sdk := []connectors.Connector{
+			openai.New(
+				openai.WithDefaultModel(cfg.openai.DefaultModel), openai.WithConnectionStatus(status),
+				openai.WithImages(services.UploadImages{Uploads: func() (services.UploadReader, error) { return resolveUploads(container) }}),
+			),
+			jev.New(jev.WithPlatformConfig(&cfg.jev), jev.WithConnectionStatus(status), jev.WithProviders(lazyProviders{container: container})),
+			sms.NewEskiz(sms.WithConnectionStatus(status)), sms.NewTwilio(sms.WithConnectionStatus(status)),
+		}
 		if !c.noMCP {
 			sdk = append(sdk, mcp.New())
 		}
@@ -490,6 +521,65 @@ func (l lazyAvailability) Connected(ctx context.Context, tenantID uuid.UUID) (ma
 		return nil, err
 	}
 	return st.Connected(ctx, tenantID)
+}
+
+// PlatformWithheld forwards catalog.PlatformOffers of the store: without it the registry never learns that a
+// tenant's platform key was switched off, and a node that left its connection out would end with
+// connection_unavailable instead of unavailable.
+func (l lazyAvailability) PlatformWithheld(ctx context.Context, tenantID uuid.UUID) (map[catalog.ConnectorKind]bool, error) {
+	st, err := composition.Resolve[connectors.Store](l.container)
+	if err != nil {
+		return nil, err
+	}
+	if po, ok := st.(catalog.PlatformOffers); ok {
+		return po.PlatformWithheld(ctx, tenantID)
+	}
+	return map[catalog.ConnectorKind]bool{}, nil // a store that does not offer platform keys withholds none
+}
+
+// lazyProviders tells the provider of a Jev connection (its provider credential field), resolving the
+// stores when it is first needed: the platform credential's from the configuration, a tenant connection's
+// from its credentials.
+type lazyProviders struct{ container *composition.Container }
+
+func (l lazyProviders) Provider(ctx context.Context, tenantID uuid.UUID, connectionID string) (string, error) {
+	if kind, ok := strings.CutPrefix(connectionID, catalog.PlatformPrefix); ok {
+		platform, err := composition.Resolve[connectors.PlatformCredentials](l.container)
+		if err != nil {
+			return "", err
+		}
+		creds, _, ok := platform.Platform(catalog.ConnectorKind(kind))
+		if !ok {
+			return "", connectors.ErrNotFound
+		}
+		return creds["provider"], nil
+	}
+	id, err := uuid.Parse(connectionID)
+	if err != nil {
+		return "", connectors.ErrNotFound
+	}
+	st, err := composition.Resolve[connectors.Store](l.container)
+	if err != nil {
+		return "", err
+	}
+	_, creds, err := st.Get(ctx, tenantID, id)
+	if err != nil {
+		return "", err
+	}
+	return creds["provider"], nil
+}
+
+// resolveUploads is the uploads service of the core module, when the application has it: the files an
+// LLM node's images are read from.
+func resolveUploads(container *composition.Container) (services.UploadReader, error) {
+	if !composition.Has[*coreservices.UploadService](container) {
+		return nil, errors.New("automations: the uploads service is not available")
+	}
+	svc, err := composition.Resolve[*coreservices.UploadService](container)
+	if err != nil {
+		return nil, err
+	}
+	return coreUploads{svc: svc}, nil
 }
 
 // lazyStatus marks connections needs_reauth through the store, which is built after the directory.
