@@ -429,7 +429,7 @@ func (c *component) Build(b *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		return secrets.NewManager(db, store, store, locator), nil
+		return secrets.NewManager(db, store, locator), nil
 	})
 	composition.ProvideDefault[secrets.Resolver](b, func(container *composition.Container) (secrets.Resolver, error) {
 		db, err := composition.Resolve[*pgxpool.Pool](container)

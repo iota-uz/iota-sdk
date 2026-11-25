@@ -16,7 +16,8 @@
 //   - values are versioned like KV v2: a Put adds the next version and keeps the earlier ones until Prune;
 //   - a Read returns one version whole (the one the Ref names, or the latest): never fields of two versions;
 //   - a Put is visible to the next Read of any process (no cache outlives a rotation);
-//   - a Ref of another tenant is refused (ErrForbidden), whatever its path;
+//   - tenants are isolated: a Ref without a tenant is ErrForbidden; a path that exists only under another
+//     tenant is ErrNotFound for this one (never revealing that it exists elsewhere);
 //   - an outage is ErrUnavailable: a caller never falls back to the environment or a stale value;
 //   - errors never carry a value.
 package secrets
@@ -40,11 +41,11 @@ type Ref struct {
 	TenantID uuid.UUID
 	Path     string
 	Version  int
-	// NotAfter fences a Put (zero: none): the adapter must not commit a version after this instant. It
-	// refuses to start a write past it (ErrUnavailable), and bounds the write so it cannot commit later (a
-	// server-side condition, a request deadline that ends before it). The records claim a write before
-	// calling Put and give the store until NotAfter to land it, so a deleted secret's tombstone is retired
-	// only when no claimed write can still create its value.
+	// NotAfter is a Put's admission deadline (zero: none): the adapter does not admit a write after it
+	// (ErrUnavailable, nothing written) and checks it as late as it can (the sealed adapter in the inserting
+	// statement). It is not a commit fence: a write admitted before it may still commit later (a statement
+	// the database holds, a request a client deadline cannot recall). It narrows the race with a delete; what
+	// guarantees that a late write is removed is the records' sweep of the store's listing (Writer.List).
 	NotAfter time.Time
 }
 

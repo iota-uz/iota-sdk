@@ -40,7 +40,7 @@ func newEnv(t *testing.T) *env {
 	require.NoError(t, err)
 	st := connectors.NewSealedSecrets(scope.Pool, keys)
 	return &env{t: t, ctx: context.Background(), db: scope.Pool, tenant: scope.Tenant.ID, store: st,
-		mgr: secrets.NewManager(scope.Pool, st, st, secrets.DefaultLocator("test/")), res: secrets.NewResolver(scope.Pool, st)}
+		mgr: secrets.NewManager(scope.Pool, st, secrets.DefaultLocator("test/")), res: secrets.NewResolver(scope.Pool, st)}
 }
 
 func (e *env) newTenant() uuid.UUID {
@@ -261,7 +261,7 @@ func TestARotationThatFailsAfterTheValueKeepsThePublishedVersion(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(e.ctx)
-	broken := secrets.NewManager(e.db, cancelAfterPut{Writer: e.store, cancel: cancel}, e.store, secrets.DefaultLocator("test/"))
+	broken := secrets.NewManager(e.db, cancelAfterPut{Writer: e.store, cancel: cancel}, secrets.DefaultLocator("test/"))
 	_, err = broken.Rotate(ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "v2"})
 	require.Error(t, err, "the rotation is reported as failed")
 
@@ -278,7 +278,8 @@ func TestARotationThatFailsAfterTheValueKeepsThePublishedVersion(t *testing.T) {
 	assert.Equal(t, s.Version, list[0].Version)
 	assert.Equal(t, 1, list[0].ValueVersion)
 
-	// A retry publishes a new version and prunes the ones before it.
+	// A retry publishes version 3. Version 1, the one published before it (readers may still hold it), is
+	// kept; the next rotation prunes everything below version 3, the unpublished version 2 with version 1.
 	rotated, err := e.mgr.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "v3"})
 	require.NoError(t, err)
 	assert.Equal(t, 3, rotated.ValueVersion)
@@ -286,14 +287,20 @@ func TestARotationThatFailsAfterTheValueKeepsThePublishedVersion(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "v3", got)
 	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: s.Ref.Path, Version: 1})
-	require.ErrorIs(t, err, secrets.ErrNotFound, "earlier versions are pruned once a later one is published")
+	require.NoError(t, err, "the previously published version survives the rotation")
+	_, err = e.mgr.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: rotated.Version, Value: "v4"})
+	require.NoError(t, err)
+	for _, v := range []int{1, 2} {
+		_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: s.Ref.Path, Version: v})
+		require.ErrorIs(t, err, secrets.ErrNotFound, "version %d is pruned after the next successful rotation", v)
+	}
 }
 
 func TestACreateThatFailsAfterTheValueLeavesNothing(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	ctx, cancel := context.WithCancel(e.ctx)
-	broken := secrets.NewManager(e.db, cancelAfterPut{Writer: e.store, cancel: cancel}, e.store, secrets.DefaultLocator("test/"))
+	broken := secrets.NewManager(e.db, cancelAfterPut{Writer: e.store, cancel: cancel}, secrets.DefaultLocator("test/"))
 	_, err := broken.Create(ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
 	require.Error(t, err)
 	_, err = e.res.Resolve(e.ctx, e.tenant, "API_KEY")
@@ -309,7 +316,7 @@ func TestADeleteWhoseValueCannotBeRemovedIsRetried(t *testing.T) {
 	s, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
 	require.NoError(t, err)
 
-	down := secrets.NewManager(e.db, failingDelete{Writer: e.store}, e.store, secrets.DefaultLocator("test/"))
+	down := secrets.NewManager(e.db, failingDelete{Writer: e.store}, secrets.DefaultLocator("test/"))
 	require.NoError(t, down.Delete(e.ctx, e.tenant, s.ID))
 	// The name is gone at once, never live without its value; the value waits for the store.
 	_, err = e.res.Resolve(e.ctx, e.tenant, "API_KEY")
@@ -441,7 +448,7 @@ func TestMutationsCompleteOnAPoolOfOneConnection(t *testing.T) {
 	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": bytes.Repeat([]byte{1}, 32)})
 	require.NoError(t, err)
 	st := connectors.NewSealedSecrets(one, keys)
-	mgr := secrets.NewManager(one, st, st, secrets.DefaultLocator("test/"))
+	mgr := secrets.NewManager(one, st, secrets.DefaultLocator("test/"))
 	res := secrets.NewResolver(one, st)
 
 	ctx, cancel := context.WithTimeout(e.ctx, 20*time.Second)
@@ -543,7 +550,7 @@ func TestOverlappingRotationsPublishTheWinnersValue(t *testing.T) {
 	a := secrets.NewManager(e.db, overlapping{Writer: e.store, during: func() {
 		_, err := e.mgr.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "from-b"})
 		require.NoError(t, err)
-	}}, e.store, secrets.DefaultLocator("test/"))
+	}}, secrets.DefaultLocator("test/"))
 	_, err = a.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "from-a"})
 	require.ErrorIs(t, err, secrets.ErrVersionConflict, "the rotation that lost reports it")
 	got, err := e.res.Resolve(e.ctx, e.tenant, "API_KEY")
@@ -559,7 +566,7 @@ func TestALateRotationAfterADeleteLeavesNoValue(t *testing.T) {
 	s, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
 	require.NoError(t, err)
 	late := secrets.NewManager(e.db, deleteFirst{Writer: e.store, del: func() { require.NoError(t, e.mgr.Delete(e.ctx, e.tenant, s.ID)) }},
-		e.store, secrets.DefaultLocator("test/"))
+		secrets.DefaultLocator("test/"))
 	_, err = late.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "v2"})
 	require.ErrorIs(t, err, secrets.ErrNotFound)
 	values := func() int {
@@ -612,7 +619,7 @@ func TestAGivenUpCreateKeepsItsReferenceAcrossAStoreOutage(t *testing.T) {
 	down := true
 	ctx, cancel := context.WithCancel(e.ctx)
 	w := flakyStore{Writer: cancelAfterPut{Writer: e.store, cancel: cancel}, down: &down}
-	m := secrets.NewManager(e.db, w, e.store, secrets.DefaultLocator("test/"))
+	m := secrets.NewManager(e.db, w, secrets.DefaultLocator("test/"))
 	_, err := m.Create(ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
 	require.Error(t, err)
 
@@ -647,13 +654,16 @@ func TestAGivenUpCreateKeepsItsReferenceAcrossAStoreOutage(t *testing.T) {
 func TestTheSealedStoreRefusesAWritePastItsFence(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
-	past := secrets.Ref{TenantID: e.tenant, Path: "p/fenced", NotAfter: time.Now().Add(-time.Second)}
+	// The fences are set by the database's clock, which the adapter compares them with.
+	var dbNow time.Time
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT clock_timestamp()`).Scan(&dbNow))
+	past := secrets.Ref{TenantID: e.tenant, Path: "p/fenced", NotAfter: dbNow.Add(-time.Minute)}
 	_, err := e.store.Put(e.ctx, past, map[string]string{secrets.ValueKey: "late"})
 	require.ErrorIs(t, err, secrets.ErrUnavailable)
 	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: "p/fenced"})
 	require.ErrorIs(t, err, secrets.ErrNotFound, "nothing was written")
 
-	future := secrets.Ref{TenantID: e.tenant, Path: "p/fenced", NotAfter: time.Now().Add(time.Minute)}
+	future := secrets.Ref{TenantID: e.tenant, Path: "p/fenced", NotAfter: dbNow.Add(10 * time.Minute)}
 	md, err := e.store.Put(e.ctx, future, map[string]string{secrets.ValueKey: "in time"})
 	require.NoError(t, err)
 	assert.Equal(t, 1, md.Version)
@@ -694,7 +704,7 @@ func TestATombstoneOutlivesEveryWriteClaimedBeforeItsRetirement(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	var fences []time.Time
-	m := secrets.NewManager(e.db, fenceSpy{Writer: e.store, fences: &fences}, e.store, secrets.DefaultLocator("test/"))
+	m := secrets.NewManager(e.db, fenceSpy{Writer: e.store, fences: &fences}, secrets.DefaultLocator("test/"))
 	s, err := m.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
 	require.NoError(t, err)
 	_, err = m.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "v2"})
@@ -712,7 +722,7 @@ func TestATombstoneOutlivesEveryWriteClaimedBeforeItsRetirement(t *testing.T) {
 		_, err := e.db.Exec(e.ctx, `UPDATE automation.secrets SET value_write_at = value_write_at - make_interval(secs => $2) WHERE id = $1`,
 			s.ID, 2*window.Seconds())
 		require.NoError(t, err)
-	}}, e.store, secrets.DefaultLocator("test/"))
+	}}, secrets.DefaultLocator("test/"))
 	require.NoError(t, stalled.Delete(e.ctx, e.tenant, s.ID))
 	var tombs int
 	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secrets WHERE id = $1 AND deleted_at IS NOT NULL`, s.ID).Scan(&tombs))
@@ -761,7 +771,7 @@ func TestCleanupIsBoundedAcrossTheBatch(t *testing.T) {
 		require.NoError(t, err)
 	}
 	calls := 0
-	m := secrets.NewManager(e.db, blockingDelete{Writer: e.store, calls: &calls}, e.store, secrets.DefaultLocator("test/"))
+	m := secrets.NewManager(e.db, blockingDelete{Writer: e.store, calls: &calls}, secrets.DefaultLocator("test/"))
 	started := time.Now()
 	_, err := m.List(e.ctx, e.tenant)
 	require.NoError(t, err)
@@ -846,7 +856,7 @@ func TestTheSweepKeepsAStagedCreatesValue(t *testing.T) {
 		require.NoError(t, err)
 		_, err = e.store.Put(e.ctx, ref, map[string]string{secrets.ValueKey: "in flight"})
 		require.NoError(t, err)
-	}}, e.store, loc)
+	}}, loc)
 	_, err := m.List(e.ctx, e.tenant)
 	require.NoError(t, err)
 	require.True(t, staged)
@@ -897,7 +907,7 @@ func TestFailingCleanupNeverStarvesHealthyOrphans(t *testing.T) {
 	good1, good2 := put("b1"), put("b2")
 
 	trap := pathTrap{Writer: e.store, fail: map[string]bool{bad1: true, bad2: true}, hang: map[string]bool{s.Ref.Path: true}}
-	m := secrets.NewManager(e.db, trap, e.store, loc)
+	m := secrets.NewManager(e.db, trap, loc)
 	exists := func(path string) bool {
 		var n int
 		require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`, e.tenant, path).Scan(&n))
@@ -939,11 +949,12 @@ func TestALocatorMustGiveEachSecretItsOwnPathUnderTheRoot(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
 	for name, loc := range map[string]secrets.Locator{
-		"reused":  fixedLocator{Locator: secrets.DefaultLocator("test/")},
-		"outside": outsideLocator{Locator: secrets.DefaultLocator("test/")},
-		"no root": emptyRootLocator{Locator: secrets.DefaultLocator("test/")},
+		"reused":       fixedLocator{Locator: secrets.DefaultLocator("test/")},
+		"outside":      outsideLocator{Locator: secrets.DefaultLocator("test/")},
+		"no root":      emptyRootLocator{Locator: secrets.DefaultLocator("test/")},
+		"foreign root": foreignRootLocator{Locator: secrets.DefaultLocator("test/")},
 	} {
-		m := secrets.NewManager(e.db, e.store, e.store, loc)
+		m := secrets.NewManager(e.db, e.store, loc)
 		_, err := m.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v"})
 		require.ErrorIs(t, err, secrets.ErrInvalid, name)
 	}
@@ -974,7 +985,7 @@ func TestAFormerRootIsStillSwept(t *testing.T) {
 	_, err = e.db.Exec(e.ctx, `DELETE FROM automation.secrets WHERE id = $1`, gone.ID) // the tombstone retired
 	require.NoError(t, err)
 
-	moved := secrets.NewManager(e.db, e.store, e.store, movedLocator{Locator: secrets.DefaultLocator("v2/")})
+	moved := secrets.NewManager(e.db, e.store, movedLocator{Locator: secrets.DefaultLocator("v2/")})
 	fresh, err := moved.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "NEW", Value: "new"})
 	require.NoError(t, err, "a path under the new root passes")
 	assert.Contains(t, fresh.Ref.Path, "v2/tenants/")
@@ -1009,7 +1020,7 @@ func TestASlowCurrentRootNeverStarvesAFormerRoot(t *testing.T) {
 		require.NoError(t, err)
 	}
 	trap := pathTrap{Writer: e.store, hang: map[string]bool{stuck: true}}
-	m := secrets.NewManager(e.db, trap, e.store, movedLocator{Locator: secrets.DefaultLocator("v2/")})
+	m := secrets.NewManager(e.db, trap, movedLocator{Locator: secrets.DefaultLocator("v2/")})
 	for range 2 {
 		_, err := m.List(e.ctx, e.tenant)
 		require.NoError(t, err)
@@ -1018,4 +1029,28 @@ func TestASlowCurrentRootNeverStarvesAFormerRoot(t *testing.T) {
 	require.ErrorIs(t, err, secrets.ErrNotFound, "the former root's orphan is swept despite the hanging current root")
 	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: stuck})
 	require.NoError(t, err, "the hanging one waits")
+}
+
+// A repeated delete of a secret whose first delete could not remove the value still retries the cleanup,
+// and keeps answering ErrNotFound.
+func TestARepeatedDeleteRetriesTheCleanup(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	s, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
+	require.NoError(t, err)
+	down := secrets.NewManager(e.db, failingDelete{Writer: e.store}, secrets.DefaultLocator("test/"))
+	require.NoError(t, down.Delete(e.ctx, e.tenant, s.ID))
+	_, err = e.store.Read(e.ctx, s.Ref)
+	require.NoError(t, err, "the store was down: the value is still there")
+
+	require.ErrorIs(t, e.mgr.Delete(e.ctx, e.tenant, s.ID), secrets.ErrNotFound)
+	_, err = e.store.Read(e.ctx, s.Ref)
+	require.ErrorIs(t, err, secrets.ErrNotFound, "the repeated delete removed the pending value")
+}
+
+// foreignRootLocator's root belongs to another tenant: the sweep would skip it.
+type foreignRootLocator struct{ secrets.Locator }
+
+func (f foreignRootLocator) Root(uuid.UUID) secrets.Ref {
+	return f.Locator.Root(uuid.Nil)
 }

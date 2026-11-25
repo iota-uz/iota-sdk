@@ -61,7 +61,6 @@ func isUnique(err error) bool {
 type manager struct {
 	db      *pgxpool.Pool
 	writer  Writer
-	meta    MetadataReader
 	locator Locator
 
 	// sweptTo is, per tenant and root, the last unreferenced path a sweep tried: the next sweep starts after
@@ -72,14 +71,14 @@ type manager struct {
 	rootTurn map[uuid.UUID]int
 }
 
-// NewManager administers secrets: the records in automation.secrets and the values through writer. meta
-// (may be nil) is consulted to reconcile a record's value version; locator forms the reference of a new
-// secret's value (nil: DefaultLocator("")).
-func NewManager(db *pgxpool.Pool, writer Writer, meta MetadataReader, locator Locator) Manager {
+// NewManager administers secrets: the records in automation.secrets and the values through writer (the
+// records alone say which version is published; no metadata of the store is consulted). locator forms the
+// reference of a new secret's value (nil: DefaultLocator("")).
+func NewManager(db *pgxpool.Pool, writer Writer, locator Locator) Manager {
 	if locator == nil {
 		locator = DefaultLocator("")
 	}
-	return &manager{db: db, writer: writer, meta: meta, locator: locator}
+	return &manager{db: db, writer: writer, locator: locator}
 }
 
 func validateValue(v string) error {
@@ -207,7 +206,7 @@ func (m *manager) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 	// A value's path is the secret's own for its whole life: under the tenant's root (the sweep lists it)
 	// and carrying the new secret's id, so a path never names two secrets and a sweep that removes an
 	// unreferenced path can never remove a later secret's value. The records enforce it too (a unique index).
-	if root := m.locator.Root(tenantID); root.Path == "" || !strings.HasPrefix(ref.Path, root.Path) || !strings.Contains(strings.TrimPrefix(ref.Path, root.Path), id.String()) {
+	if root := m.locator.Root(tenantID); root.Path == "" || root.TenantID != tenantID || !strings.HasPrefix(ref.Path, root.Path) || !strings.Contains(strings.TrimPrefix(ref.Path, root.Path), id.String()) {
 		return Secret{}, fmt.Errorf("%w: the locator's path of a secret must lie under the tenant's root and carry the secret's id", ErrInvalid)
 	}
 	ref.Version = 0
@@ -369,10 +368,13 @@ func (m *manager) Rotate(ctx context.Context, tenantID uuid.UUID, in RotateInput
 			return Secret{}, unavailable(err)
 		}
 	}
-	if out.ValueVersion > 1 {
+	// Prune below the version published before this rotation (cur's), never below the new one minus one: an
+	// interrupted rotation may have left an unpublished version between them, and the version readers may
+	// still hold is cur's.
+	if cur.ValueVersion > 1 {
 		prune, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 		defer cancel()
-		_ = m.writer.Prune(prune, ref, out.ValueVersion-1)
+		_ = m.writer.Prune(prune, ref, cur.ValueVersion)
 	}
 	return out, nil
 }
@@ -390,6 +392,8 @@ func (m *manager) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 		WHERE tenant_id = $1 AND id = $2 AND `+live+` RETURNING ref_path`, tenantID, id).Scan(&path)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
+		// A repeated delete (the first one's value removal failed) still retries what is pending.
+		m.purge(ctx, tenantID)
 		return ErrNotFound
 	case err != nil:
 		return unavailable(err)
@@ -482,8 +486,9 @@ func (m *manager) purge(ctx context.Context, tenantID uuid.UUID) {
 		m.removeValue(batch, tenantID, l.id, l.path)
 	}
 	cancel()
-	// Each root gets a deadline of its own, and the root a purge starts with rotates: a root whose deletes
-	// keep timing out never keeps the others (a former root after a prefix change) from being swept.
+	// One deadline for the whole sweep, whatever the number of roots, and the root it starts with rotates
+	// from purge to purge: a root whose deletes keep timing out uses up one purge's sweep at most, and the
+	// next purge starts with the next root (a former root after a prefix change is never starved).
 	roots := m.roots(tenantID)
 	if len(roots) == 0 {
 		return
@@ -495,10 +500,13 @@ func (m *manager) purge(ctx context.Context, tenantID uuid.UUID) {
 	}
 	m.rootTurn[tenantID] = first + 1
 	m.mu.Unlock()
+	sweep, cancelSweep := cleanupContext(ctx)
+	defer cancelSweep()
 	for i := range roots {
-		sweep, cancelSweep := cleanupContext(ctx)
+		if sweep.Err() != nil {
+			return
+		}
 		m.sweep(sweep, tenantID, roots[(first+i)%len(roots)])
-		cancelSweep()
 	}
 }
 
