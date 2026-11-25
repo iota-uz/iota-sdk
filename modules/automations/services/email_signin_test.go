@@ -51,9 +51,11 @@ func TestEmailSignInWithGoogleSavesBothConnectionsOnOneCallback(t *testing.T) {
 	mail.AcceptToken(signInMailbox, "access-1")
 	var issuer atomic.Value // the issuer of the ID token the provider gives
 	issuer.Store("https://accounts.google.com")
+	var address atomic.Value // the mailbox the ID token is for
+	address.Store(signInMailbox)
 	var err error
 	idToken := func() string {
-		claims, err := json.Marshal(map[string]any{"iss": issuer.Load(), "email": signInMailbox, "aud": "cid", "exp": time.Now().Add(time.Hour).Unix()})
+		claims, err := json.Marshal(map[string]any{"iss": issuer.Load(), "email": address.Load(), "aud": "cid", "exp": time.Now().Add(time.Hour).Unix()})
 		require.NoError(t, err)
 		return base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`)) + "." + base64.RawURLEncoding.EncodeToString(claims) + "."
 	}
@@ -206,4 +208,35 @@ func TestEmailSignInWithGoogleSavesBothConnectionsOnOneCallback(t *testing.T) {
 	_, still, err := store.Get(ctx, actor.TenantID, smtps[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, email.PresetGmail, still[connectors.OAuth2Preset], "the pair is still Gmail's")
+
+	// The page's «Sign in with Google» on a card names no connection: the same account signs its pair in again,
+	// another account makes a pair of its own under free names — never a collision with the first.
+	issuer.Store("https://accounts.google.com")
+	fromCard := func() connectors.Connection {
+		authURL, err := svc.OAuthStartPreset(ctx, actor, email.KindIMAP, email.PresetGmail, "", "", uuid.Nil, "https://app.test/cb")
+		require.NoError(t, err)
+		u, err := url.Parse(authURL)
+		require.NoError(t, err)
+		saved, _, err := svc.OAuthComplete(ctx, actor, u.Query().Get("state"), "code")
+		require.NoError(t, err)
+		return saved
+	}
+	again := fromCard()
+	assert.Equal(t, imaps[0].ID, again.ID, "the same account's receiving connection is signed in again")
+	imaps, _ = store.List(ctx, actor.TenantID, email.KindIMAP)
+	assert.Len(t, imaps, 1)
+
+	const second = "second@example.com"
+	mail.AddAccount(emailtest.Account{User: second, Password: "pw"})
+	mail.AcceptToken(second, "access-1")
+	address.Store(second)
+	other := fromCard()
+	assert.NotEqual(t, imaps[0].ID, other.ID)
+	assert.Equal(t, second, other.Identity.Display)
+	smtps, _ = store.List(ctx, actor.TenantID, email.KindSMTP)
+	imaps, _ = store.List(ctx, actor.TenantID, email.KindIMAP)
+	require.Len(t, smtps, 2, "a pair of its own")
+	require.Len(t, imaps, 2)
+	assert.NotEqual(t, imaps[0].Name, imaps[1].Name)
+	assert.NotEqual(t, smtps[0].Name, smtps[1].Name)
 }

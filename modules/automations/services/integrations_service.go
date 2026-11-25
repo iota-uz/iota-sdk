@@ -1040,6 +1040,16 @@ func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state,
 		}
 		// The settings the grant does not own (the folder of a mailbox) stay as they were.
 		primary = connectors.GroupItem{Connection: cur, Credentials: connectors.KeepSettings(grant.Credentials, old)}
+	} else if pending.Name == "" && len(grant.Companions) > 0 {
+		// A sign-in that names no connection (the page's «Sign in with Google» on a card): the connection of
+		// the same account made by a sign-in with the same provider is signed in again, else a new one takes
+		// the first free name of the kind — a second mailbox never collides with the first.
+		if primary, err = connectors.PlanGrant(ctx, s.store, secret, a.TenantID, grant, a.UserID); err != nil {
+			return connectors.Connection{}, pending, mapStoreError(op, err)
+		}
+		if d := pending.DisplayName; d != "" && primary.Connection.ID == uuid.Nil {
+			primary.Connection.DisplayName = d
+		}
 	} else {
 		name := pending.Name
 		if name == "" {

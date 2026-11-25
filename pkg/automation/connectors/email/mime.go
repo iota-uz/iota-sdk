@@ -204,80 +204,104 @@ var errNotMail = errors.New("email: the message cannot be read")
 
 // parseMessage reads a message. HTML is turned into text and dropped; attachments are read into memory up
 // to MaxAttachment each (their size is counted past it) and never opened. A message whose body cannot be
-// read still gives its headers.
+// read still gives its headers. A part in a transfer encoding the reader does not know is not taken for
+// decoded content: an attachment is unreadable, a text is skipped, and the parts after it are read as usual.
 func parseMessage(raw []byte) (received, error) {
-	r, err := gomail.CreateReader(bytes.NewReader(raw))
-	if err != nil && r == nil {
+	e, err := message.Read(bytes.NewReader(raw))
+	if e == nil {
 		return received{}, errNotMail
 	}
-	defer func() { _ = r.Close() }()
-	m := headersOf(r.Header)
-	var plain, htmlText string
-	var sawPlain, sawHTML bool
-	for {
-		p, err := r.NextPart()
-		if err != nil && p == nil {
-			break // io.EOF, or a part that cannot be read: what was read stands
-		}
-		var hdr message.Header
-		switch h := p.Header.(type) {
-		case *gomail.InlineHeader:
-			hdr = h.Header
-		case *gomail.AttachmentHeader:
-			hdr = h.Header
-		}
-		typ, _, _ := hdr.ContentType()
-		typ = strings.ToLower(typ)
-		disp, params, _ := hdr.ContentDisposition()
-		name := params["filename"]
-		if name == "" {
-			_, ctParams, _ := hdr.ContentType()
-			name = ctParams["name"]
-		}
-		textual := typ == "text/plain" || typ == "text/html"
-		switch {
-		case textual && disp != "attachment" && name == "":
-			b, _ := io.ReadAll(io.LimitReader(p.Body, 4<<20))
-			switch {
-			case typ == "text/plain" && !sawPlain:
-				plain, sawPlain = string(b), true
-			case typ == "text/html":
-				m.hasHTML = true
-				if !sawHTML {
-					htmlText, sawHTML = htmlToText(string(b)), true
-				}
-			}
-		default:
-			if typ == "" {
-				typ = "application/octet-stream"
-			}
-			a := part{filename: name, contentType: typ}
-			data, rerr := io.ReadAll(io.LimitReader(p.Body, MaxAttachment+1))
-			a.size = int64(len(data))
-			switch {
-			case a.size > MaxAttachment:
-				n, _ := io.Copy(io.Discard, p.Body)
-				a.size += n
-			case rerr != nil:
-				// A part that decodes to some bytes and then fails is damaged: the bytes are not stored (they
-				// would be published as if they were the whole file), and the part says why.
-				a.reason = AttachmentUnreadable
-			default:
-				a.data = data
-			}
-			m.attachment = append(m.attachment, a)
-		}
-	}
+	w := &partWalker{m: headersOf(gomail.Header{Header: e.Header})}
+	w.entity(e, err, 0)
+	m := w.m
 	switch {
-	case sawPlain && strings.TrimSpace(plain) != "":
-		m.text = plain
-	case sawHTML:
-		m.text = htmlText
+	case w.sawPlain && strings.TrimSpace(w.plain) != "":
+		m.text = w.plain
+	case w.sawHTML:
+		m.text = w.htmlText
 	default:
-		m.text = plain
+		m.text = w.plain
 	}
 	m.text = clip(normalizeText(m.text), MaxText)
 	return m, nil
+}
+
+// maxPartDepth is how deep multipart entities are read; parts nested deeper are left out.
+const maxPartDepth = 16
+
+// partWalker reads the parts of a message in order, depth first.
+type partWalker struct {
+	m                 received
+	plain, htmlText   string
+	sawPlain, sawHTML bool
+}
+
+// entity reads one entity; perr is what creating it reported (an unknown charset or transfer encoding: the
+// entity is readable, its body is not decoded).
+func (w *partWalker) entity(e *message.Entity, perr error, depth int) {
+	if mr := e.MultipartReader(); mr != nil {
+		if depth >= maxPartDepth {
+			return
+		}
+		for {
+			p, err := mr.NextPart()
+			if p == nil {
+				return // io.EOF, or a part that cannot be read: what was read stands
+			}
+			w.entity(p, err, depth+1)
+		}
+	}
+	w.leaf(e.Header, e.Body, message.IsUnknownEncoding(perr))
+}
+
+func (w *partWalker) leaf(hdr message.Header, body io.Reader, undecoded bool) {
+	typ, _, _ := hdr.ContentType()
+	typ = strings.ToLower(typ)
+	disp, params, _ := hdr.ContentDisposition()
+	name := params["filename"]
+	if name == "" {
+		_, ctParams, _ := hdr.ContentType()
+		name = ctParams["name"]
+	}
+	textual := typ == "text/plain" || typ == "text/html"
+	if textual && disp != "attachment" && name == "" {
+		if undecoded {
+			return // still encoded: not the text of the message
+		}
+		b, _ := io.ReadAll(io.LimitReader(body, 4<<20))
+		switch {
+		case typ == "text/plain" && !w.sawPlain:
+			w.plain, w.sawPlain = string(b), true
+		case typ == "text/html":
+			w.m.hasHTML = true
+			if !w.sawHTML {
+				w.htmlText, w.sawHTML = htmlToText(string(b)), true
+			}
+		}
+		return
+	}
+	if typ == "" {
+		typ = "application/octet-stream"
+	}
+	a := part{filename: name, contentType: typ}
+	data, rerr := io.ReadAll(io.LimitReader(body, MaxAttachment+1))
+	a.size = int64(len(data))
+	switch {
+	case undecoded:
+		// The bytes are the transfer-encoded octets, not the file: stored, they would be published as it.
+		_, _ = io.Copy(io.Discard, body)
+		a.size, a.reason = 0, AttachmentUnreadable
+	case a.size > MaxAttachment:
+		n, _ := io.Copy(io.Discard, body)
+		a.size += n
+	case rerr != nil:
+		// A part that decodes to some bytes and then fails is damaged: the bytes are not stored (they
+		// would be published as if they were the whole file), and the part says why.
+		a.reason = AttachmentUnreadable
+	default:
+		a.data = data
+	}
+	w.m.attachment = append(w.m.attachment, a)
 }
 
 // headerOnly is the message of a header block alone (a message too large to read whole).

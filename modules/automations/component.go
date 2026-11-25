@@ -64,7 +64,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/jevconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/openaiconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/smtpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twilioconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/native"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -133,6 +135,7 @@ type component struct {
 	noEngine        bool
 	noBackground    bool
 	noMCP           bool
+	noEmail         bool
 }
 
 func (c *component) Descriptor() composition.Descriptor {
@@ -150,7 +153,11 @@ type settingsCfg struct {
 	openai openaiconfig.Config
 	jev    jevconfig.Config
 	// sms are the platform credentials of the SMS connectors the environment configures.
-	sms      map[catalog.ConnectorKind]connectors.PlatformCredential
+	sms map[catalog.ConnectorKind]connectors.PlatformCredential
+	// smtp is the application's own SMTP (SMTP_*): the platform credential of the email connector's smtp kind.
+	smtp smtpconfig.Config
+	// uploads is where the email connector keeps the attachments of incoming messages (its private namespace).
+	uploads  uploadsconfig.Config
 	hostPath string
 	origin   string
 }
@@ -186,6 +193,16 @@ func (c *component) readConfig(b *composition.Builder) (settingsCfg, error) {
 		return out, err
 	}
 	out.sms = sms.PlatformCredentials(eskizCfg, twilioCfg)
+	smtpCfg, err := config.Register[smtpconfig.Config](reg)
+	if err != nil {
+		return out, err
+	}
+	out.smtp = *smtpCfg
+	uploadsCfg, err := config.Register[uploadsconfig.Config](reg)
+	if err != nil {
+		return out, err
+	}
+	out.uploads = *uploadsCfg
 	ext, err := config.Register[extruntimeconfig.Config](reg)
 	if err != nil {
 		return out, err
@@ -290,7 +307,7 @@ func (c *component) Build(b *composition.Builder) error {
 			}
 			registered[conn.Kind()] = true
 		}
-		// The SDK's own AI and SMS connectors, unless the application registered its own of the kind.
+		// The SDK's own AI, SMS, MCP and email connectors, unless the application registered its own of the kind.
 		status := lazyStatus{container: container}
 		sdk := []connectors.Connector{
 			openai.New(
@@ -302,6 +319,9 @@ func (c *component) Build(b *composition.Builder) error {
 		}
 		if !c.noMCP {
 			sdk = append(sdk, mcp.New())
+		}
+		if !c.noEmail {
+			sdk = append(sdk, emailConnectors(container, cfg.smtp, cfg.uploads)...)
 		}
 		for _, conn := range sdk {
 			if registered[conn.Kind()] {

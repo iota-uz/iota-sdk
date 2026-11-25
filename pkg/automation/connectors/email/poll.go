@@ -349,10 +349,12 @@ func (h *hub) baseline(ctx context.Context, conn connectors.Connection, creds co
 }
 
 // seedBaselines gives the mailboxes a reply to a message will come to (the addresses are the sender's and the
-// Reply-To's) a cursor before the
-// message is sent: the connections to receive of the sender's address that have none yet. The first poll
-// of a mailbox starts at its end, so one made after the reply arrived would jump over it. A failure is
-// logged and does not stop the send: the poller baselines the mailbox itself.
+// Reply-To's) a cursor before the message is sent: the connections to receive of those addresses that have
+// none yet, and those whose address is not known (an IMAP login that is not an address: the reply may come
+// to it). The first poll of a mailbox starts at its end, so one made after the reply arrived would jump over
+// it; a cursor set now is the one that poll would set, so seeding a mailbox the reply does not come to costs
+// one connection and changes nothing. A failure is logged and does not stop the send: the poller baselines
+// the mailbox itself.
 func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, addresses ...string) {
 	if h.cfg.Connections == nil {
 		return
@@ -363,7 +365,7 @@ func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, addresses ...
 		return
 	}
 	for _, c := range list {
-		if c.Status != connectors.StatusConnected || !anyFold(c.Identity.External, addresses) {
+		if c.Status != connectors.StatusConnected || (knownAddress(c.Identity) && !anyFold(c.Identity.External, addresses)) {
 			continue
 		}
 		has, err := engine.HasCursor(ctx, h.cfg.Connections, tenant, c.ID)
@@ -386,6 +388,11 @@ func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, addresses ...
 }
 
 var _ engine.Baseliner = (*imapConnector)(nil)
+
+// knownAddress reports whether a connection's identity is the address of its mailbox.
+func knownAddress(id connectors.Identity) bool {
+	return id.Kind == connectors.IdentityEmail && id.External != ""
+}
 
 func anyFold(s string, list []string) bool {
 	for _, x := range list {
