@@ -3,8 +3,11 @@
 -- (pkg/automation/secrets): secret_values is the sealed adapter's table (AES-256-GCM, the key ring of the
 -- connections), an OpenBao KV v2 adapter (#1382) replaces it without touching the records.
 -- Values are versioned (KV v2): a rotation adds a version and the record publishes it by value_version, so
--- a rotation that fails between the two writes leaves readers on the published version. A deleted record is
--- a tombstone (deleted_at) until its value is gone, so a failed delete of the value is retried.
+-- a rotation that fails between the two writes leaves readers on the published version. A record is staged
+-- (value_version 0: the name is reserved, nothing reads it) before its first value is written, so recovery
+-- tells a published secret from an orphan by its row. A deleted record is a tombstone (deleted_at) until its
+-- value is gone, so a failed delete of the value is retried. No transaction is held open while a value is
+-- written: the value store may share the records' pool.
 -- +migrate Up
 CREATE TABLE automation.secret_values (
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
@@ -26,7 +29,7 @@ CREATE TABLE automation.secrets (
     description text NOT NULL DEFAULT '',
     ref_path text NOT NULL,
     version integer NOT NULL DEFAULT 1,
-    value_version integer NOT NULL DEFAULT 1,
+    value_version integer NOT NULL DEFAULT 0 CHECK (value_version >= 0),
     created_by bigint NOT NULL DEFAULT 0,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),

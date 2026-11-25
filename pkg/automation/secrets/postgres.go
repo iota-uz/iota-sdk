@@ -25,13 +25,13 @@ const (
 )
 
 const secretColumns = `id, tenant_id, name, description, ref_path, version, value_version, created_by,
-	created_at, updated_at, rotated_at, last_used_at`
+	created_at, updated_at, rotated_at, last_used_at, deleted_at`
 
 func scanSecret(row pgx.Row) (Secret, error) {
 	var s Secret
 	var path string
 	if err := row.Scan(&s.ID, &s.TenantID, &s.Name, &s.Description, &path, &s.Version, &s.ValueVersion, &s.CreatedBy,
-		&s.CreatedAt, &s.UpdatedAt, &s.RotatedAt, &s.LastUsedAt); err != nil {
+		&s.CreatedAt, &s.UpdatedAt, &s.RotatedAt, &s.LastUsedAt, &s.DeletedAt); err != nil {
 		return Secret{}, err
 	}
 	s.Ref = Ref{TenantID: s.TenantID, Path: path}
@@ -97,7 +97,38 @@ func validateName(n string) error {
 }
 
 // live is the condition of a record that is not a tombstone.
-const live = `deleted_at IS NULL`
+// The protocol between the records and the value store never holds a transaction (or a pooled connection)
+// open while a value is written: the store may take its connections from the records' pool (the sealed
+// adapter does), and one with a single connection would wait on itself. Every step is a statement of its
+// own, and the records' state tells after any failure what is published:
+//
+//   - staged: value_version 0. The name is reserved and nothing reads it; its value may or may not exist.
+//   - published: value_version N > 0. Readers read version N of the value.
+//   - tombstone: deleted_at set. The name is free; the value is being removed.
+//
+// A step whose outcome is unknown (a lost COMMIT reply) is settled by reading the record again before
+// anything is undone: a value is removed only while no published record names it.
+
+const (
+	// live is the condition of a record readers and the page see: published, not a tombstone.
+	live = `deleted_at IS NULL AND value_version > 0`
+	// stagedFor is how long a staged record may wait for its value before purge removes it.
+	stagedFor = 10 * time.Minute
+	// readAttempts bounds how often Resolve follows a rotation that moved past the version it looked up.
+	readAttempts = 3
+	// cleanupTimeout bounds the best-effort steps that run after the caller's context is done.
+	cleanupTimeout = 5 * time.Second
+)
+
+// publishHook runs after a record's publishing statement (tests: a COMMIT whose reply is lost).
+var publishHook func() error
+
+func afterPublish(err error) error {
+	if err == nil && publishHook != nil {
+		return publishHook()
+	}
+	return err
+}
 
 func (m *manager) List(ctx context.Context, tenantID uuid.UUID) ([]Secret, error) {
 	if tenantID == uuid.Nil {
@@ -107,15 +138,16 @@ func (m *manager) List(ctx context.Context, tenantID uuid.UUID) ([]Secret, error
 	if err != nil {
 		return nil, unavailable(err)
 	}
-	defer rows.Close()
 	out := []Secret{}
 	for rows.Next() {
 		s, err := scanSecret(rows)
 		if err != nil {
+			rows.Close()
 			return nil, unavailable(err)
 		}
 		out = append(out, s)
 	}
+	rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, unavailable(err)
 	}
@@ -123,6 +155,9 @@ func (m *manager) List(ctx context.Context, tenantID uuid.UUID) ([]Secret, error
 	return out, nil
 }
 
+// Create stages the record (the name is reserved), writes the value, then publishes the record with the
+// value's version. A failure is settled by the record: published is a success; staged is undone (record,
+// then value); a missing record means the value is an orphan and is removed.
 func (m *manager) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput) (Secret, error) {
 	if tenantID == uuid.Nil {
 		return Secret{}, ErrForbidden
@@ -137,42 +172,63 @@ func (m *manager) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 	if err := validateValue(in.Value); err != nil {
 		return Secret{}, err
 	}
+	m.purge(ctx, tenantID)
 	id := uuid.New()
 	ref := m.locator.Locate(tenantID, id)
 	if ref.TenantID != tenantID {
 		return Secret{}, ErrForbidden
 	}
 	ref.Version = 0
-	// The record is inserted in a transaction that also writes the value and commits only after it: the
-	// name is published with its value or not at all. A value written for a record that then fails to
-	// commit is removed (and is unreachable anyway: no record names it).
-	var out Secret
-	err := pgx.BeginFunc(ctx, m.db, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `INSERT INTO automation.secrets (id, tenant_id, name, description, ref_path, value_version, created_by)
-			VALUES ($1, $2, $3, $4, $5, 1, $6)`, id, tenantID, in.Name, in.Description, ref.Path, in.CreatedBy); err != nil {
-			if isUnique(err) {
-				return ErrNameTaken
-			}
-			return unavailable(err)
+	if _, err := m.db.Exec(ctx, `INSERT INTO automation.secrets (id, tenant_id, name, description, ref_path, value_version, created_by)
+		VALUES ($1, $2, $3, $4, $5, 0, $6)`, id, tenantID, in.Name, in.Description, ref.Path, in.CreatedBy); err != nil {
+		if isUnique(err) {
+			return Secret{}, ErrNameTaken
 		}
-		md, err := m.writer.Put(ctx, ref, map[string]string{ValueKey: in.Value})
-		if err != nil {
-			return unavailable(err)
-		}
-		out, err = scanSecret(tx.QueryRow(ctx, `UPDATE automation.secrets SET value_version = $3 WHERE tenant_id = $1 AND id = $2 RETURNING `+secretColumns,
-			tenantID, id, md.Version))
-		return unavailable(err)
-	})
-	if err != nil {
-		if !errors.Is(err, ErrNameTaken) {
-			cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-			defer cancel()
-			_ = m.writer.Delete(cleanup, ref)
-		}
-		return Secret{}, err
+		// A lost reply may hide a staged row: purge removes it once it is stale.
+		return Secret{}, unavailable(err)
 	}
-	m.purge(ctx, tenantID)
-	return out, nil
+	md, err := m.writer.Put(ctx, ref, map[string]string{ValueKey: in.Value})
+	if err != nil {
+		m.settleCreate(ctx, tenantID, id, ref)
+		return Secret{}, unavailable(err)
+	}
+	s, err := scanSecret(m.db.QueryRow(ctx, `UPDATE automation.secrets SET value_version = $3
+		WHERE tenant_id = $1 AND id = $2 AND value_version = 0 AND deleted_at IS NULL RETURNING `+secretColumns, tenantID, id, md.Version))
+	if err = afterPublish(err); err != nil {
+		if published, ok := m.settleCreate(ctx, tenantID, id, ref); ok {
+			return published, nil
+		}
+		return Secret{}, unavailable(err)
+	}
+	return s, nil
+}
+
+// settleCreate reads the record of a create that failed after it was staged: published (returned, ok) is a
+// success whatever the error said; staged is undone; gone leaves an orphan value to remove. When the record
+// cannot be read nothing is undone: purge settles it later from the row.
+func (m *manager) settleCreate(ctx context.Context, tenantID, id uuid.UUID, ref Ref) (Secret, bool) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+	defer cancel()
+	s, err := scanSecret(m.db.QueryRow(ctx, `SELECT `+secretColumns+` FROM automation.secrets WHERE tenant_id = $1 AND id = $2`, tenantID, id))
+	switch {
+	case err == nil && s.ValueVersion > 0 && s.DeletedAt == nil:
+		return s, true
+	case err == nil && s.ValueVersion == 0:
+		m.dropStaged(ctx, tenantID, id, ref)
+	case errors.Is(err, pgx.ErrNoRows):
+		_ = m.writer.Delete(ctx, ref) // no record names it: the path is this secret's own
+	}
+	return Secret{}, false
+}
+
+// dropStaged removes a staged record and then its value; the record goes first, so a value is never removed
+// while a row could still publish it.
+func (m *manager) dropStaged(ctx context.Context, tenantID, id uuid.UUID, ref Ref) {
+	tag, err := m.db.Exec(ctx, `DELETE FROM automation.secrets WHERE tenant_id = $1 AND id = $2 AND value_version = 0`, tenantID, id)
+	if err != nil || tag.RowsAffected() == 0 {
+		return
+	}
+	_ = m.writer.Delete(ctx, ref)
 }
 
 func (m *manager) Update(ctx context.Context, tenantID uuid.UUID, in UpdateInput) (Secret, error) {
@@ -221,10 +277,14 @@ func (m *manager) missOrConflict(ctx context.Context, tenantID, id uuid.UUID) er
 	return ErrVersionConflict
 }
 
-// Rotate writes the new value as the next version, then publishes it by committing the record that names
-// it (value_version), under the record's lock. Readers resolve the version the record names: a rotation
-// that fails after the value was written leaves them, and the record, on the version before. Once
-// published, the earlier versions are pruned (best effort: a failed prune only keeps old versions longer).
+// Rotate writes the new value as the next version, then publishes it with one statement that also checks
+// the record's version (optimistic: two rotations of one secret never both publish). Readers resolve the
+// version the record names: a rotation that fails after the value was written leaves them, and the record,
+// on the version before; the unpublished version is pruned by a later rotation. A failure of the publishing
+// statement is settled by reading the record: if it names the new version, the rotation happened.
+//
+// Once published, the versions before the previous one are pruned: the previous one stays for the readers
+// that looked the record up just before the rotation (Resolve also follows a rotation it raced with).
 func (m *manager) Rotate(ctx context.Context, tenantID uuid.UUID, in RotateInput) (Secret, error) {
 	if tenantID == uuid.Nil {
 		return Secret{}, ErrForbidden
@@ -232,40 +292,49 @@ func (m *manager) Rotate(ctx context.Context, tenantID uuid.UUID, in RotateInput
 	if err := validateValue(in.Value); err != nil {
 		return Secret{}, err
 	}
-	var out Secret
-	err := pgx.BeginFunc(ctx, m.db, func(tx pgx.Tx) error {
-		cur, err := scanSecret(tx.QueryRow(ctx, `SELECT `+secretColumns+` FROM automation.secrets WHERE tenant_id = $1 AND id = $2 AND `+live+` FOR UPDATE`, tenantID, in.ID))
-		switch {
-		case errors.Is(err, pgx.ErrNoRows):
-			return ErrNotFound
-		case err != nil:
-			return unavailable(err)
-		case cur.Version != in.Version:
-			return ErrVersionConflict
-		}
-		md, err := m.writer.Put(ctx, Ref{TenantID: tenantID, Path: cur.Ref.Path}, map[string]string{ValueKey: in.Value})
-		if err != nil {
-			return unavailable(err)
-		}
-		out, err = scanSecret(tx.QueryRow(ctx, `UPDATE automation.secrets
-			SET value_version = $3, rotated_at = now(), version = version + 1, updated_at = now()
-			WHERE tenant_id = $1 AND id = $2 RETURNING `+secretColumns, tenantID, in.ID, md.Version))
-		return unavailable(err)
-	})
-	if err != nil {
-		return Secret{}, err
-	}
-	prune, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	defer cancel()
-	_ = m.writer.Prune(prune, Ref{TenantID: tenantID, Path: out.Ref.Path}, out.ValueVersion)
 	m.purge(ctx, tenantID)
+	cur, err := scanSecret(m.db.QueryRow(ctx, `SELECT `+secretColumns+` FROM automation.secrets WHERE tenant_id = $1 AND id = $2 AND `+live, tenantID, in.ID))
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return Secret{}, ErrNotFound
+	case err != nil:
+		return Secret{}, unavailable(err)
+	case cur.Version != in.Version:
+		return Secret{}, ErrVersionConflict
+	}
+	ref := Ref{TenantID: tenantID, Path: cur.Ref.Path}
+	md, err := m.writer.Put(ctx, ref, map[string]string{ValueKey: in.Value})
+	if err != nil {
+		return Secret{}, unavailable(err)
+	}
+	out, err := scanSecret(m.db.QueryRow(ctx, `UPDATE automation.secrets
+		SET value_version = $4, rotated_at = now(), version = version + 1, updated_at = now()
+		WHERE tenant_id = $1 AND id = $2 AND version = $3 AND `+live+` RETURNING `+secretColumns, tenantID, in.ID, in.Version, md.Version))
+	if err = afterPublish(err); err != nil {
+		settle, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+		defer cancel()
+		now, rerr := scanSecret(m.db.QueryRow(settle, `SELECT `+secretColumns+` FROM automation.secrets WHERE tenant_id = $1 AND id = $2`, tenantID, in.ID))
+		switch {
+		case rerr == nil && now.ValueVersion == md.Version && now.DeletedAt == nil:
+			out = now // published: the error was the reply's
+		case errors.Is(err, pgx.ErrNoRows):
+			return Secret{}, m.missOrConflict(settle, tenantID, in.ID)
+		default:
+			return Secret{}, unavailable(err)
+		}
+	}
+	if out.ValueVersion > 1 {
+		prune, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+		defer cancel()
+		_ = m.writer.Prune(prune, ref, out.ValueVersion-1)
+	}
 	return out, nil
 }
 
-// Delete makes the record a tombstone first (committed: the name resolves no more and is free again), then
-// removes the value and the tombstone. When the store fails the tombstone stays and the value is removed by
-// a later call of the manager for the tenant (purge): the secret is never live without its value, nor its
-// value kept without a record to find it by.
+// Delete makes the record a tombstone first (one statement: the name resolves no more and is free again),
+// then removes the value and the tombstone. When the store fails the tombstone stays and the value is
+// removed by a later call of the manager for the tenant (purge): the secret is never live without its value,
+// nor its value kept without a record to find it by.
 func (m *manager) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	if tenantID == uuid.Nil {
 		return ErrForbidden
@@ -286,7 +355,7 @@ func (m *manager) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 
 // removeValue deletes a tombstone's value and then the tombstone; a failure leaves both for purge.
 func (m *manager) removeValue(ctx context.Context, tenantID, id uuid.UUID, path string) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
 	if err := m.writer.Delete(ctx, Ref{TenantID: tenantID, Path: path}); err != nil {
 		return
@@ -294,30 +363,40 @@ func (m *manager) removeValue(ctx context.Context, tenantID, id uuid.UUID, path 
 	_, _ = m.db.Exec(ctx, `DELETE FROM automation.secrets WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NOT NULL`, tenantID, id)
 }
 
-// purgeBatch is how many tombstones one call of the manager retries.
+// purgeBatch is how many records one call of the manager settles.
 const purgeBatch = 20
 
-// purge retries removing the values of the tenant's tombstones (a delete whose store call failed).
+// purge settles the tenant's records a failure left behind: tombstones whose value is still there, and
+// staged records older than stagedFor (a create that never published). Rows are read first and the
+// connection released before the value store is called.
 func (m *manager) purge(ctx context.Context, tenantID uuid.UUID) {
-	rows, err := m.db.Query(ctx, `SELECT id, ref_path FROM automation.secrets WHERE tenant_id = $1 AND deleted_at IS NOT NULL ORDER BY deleted_at LIMIT $2`,
-		tenantID, purgeBatch)
+	type left struct {
+		id     uuid.UUID
+		path   string
+		staged bool
+	}
+	rows, err := m.db.Query(ctx, `SELECT id, ref_path, deleted_at IS NULL FROM automation.secrets
+		WHERE tenant_id = $1 AND (deleted_at IS NOT NULL OR (value_version = 0 AND created_at < now() - make_interval(secs => $2)))
+		ORDER BY updated_at LIMIT $3`, tenantID, stagedFor.Seconds(), purgeBatch)
 	if err != nil {
 		return
 	}
-	type tomb struct {
-		id   uuid.UUID
-		path string
-	}
-	var tombs []tomb
+	var found []left
 	for rows.Next() {
-		var t tomb
-		if rows.Scan(&t.id, &t.path) == nil {
-			tombs = append(tombs, t)
+		var l left
+		if rows.Scan(&l.id, &l.path, &l.staged) == nil {
+			found = append(found, l)
 		}
 	}
 	rows.Close()
-	for _, t := range tombs {
-		m.removeValue(ctx, tenantID, t.id, t.path)
+	for _, l := range found {
+		if l.staged {
+			cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+			m.dropStaged(cleanup, tenantID, l.id, Ref{TenantID: tenantID, Path: l.path})
+			cancel()
+			continue
+		}
+		m.removeValue(ctx, tenantID, l.id, l.path)
 	}
 }
 
@@ -354,6 +433,27 @@ func (r *resolver) Has(ctx context.Context, tenantID uuid.UUID, name string) (bo
 	return true, nil
 }
 
+// published is what a record says a reader reads.
+type published struct {
+	id       uuid.UUID
+	path     string
+	version  int
+	lastUsed *time.Time
+}
+
+func (r *resolver) lookup(ctx context.Context, tenantID uuid.UUID, name string) (published, error) {
+	var p published
+	err := r.db.QueryRow(ctx, `SELECT id, ref_path, value_version, last_used_at FROM automation.secrets WHERE tenant_id = $1 AND name = $2 AND `+live,
+		tenantID, name).Scan(&p.id, &p.path, &p.version, &p.lastUsed)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return p, ErrNotFound
+	case err != nil:
+		return p, unavailable(err)
+	}
+	return p, nil
+}
+
 func (r *resolver) Resolve(ctx context.Context, tenantID uuid.UUID, name string) (string, error) {
 	if tenantID == uuid.Nil {
 		return "", ErrForbidden
@@ -364,37 +464,40 @@ func (r *resolver) Resolve(ctx context.Context, tenantID uuid.UUID, name string)
 	if r.db == nil || r.reader == nil {
 		return "", fmt.Errorf("%w: not configured", ErrUnavailable)
 	}
-	var (
-		id       uuid.UUID
-		path     string
-		version  int
-		lastUsed *time.Time
-	)
-	err := r.db.QueryRow(ctx, `SELECT id, ref_path, value_version, last_used_at FROM automation.secrets WHERE tenant_id = $1 AND name = $2 AND `+live,
-		tenantID, name).Scan(&id, &path, &version, &lastUsed)
-	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		return "", ErrNotFound
-	case err != nil:
-		return "", unavailable(err)
+	p, err := r.lookup(ctx, tenantID, name)
+	if err != nil {
+		return "", err
 	}
-	// The version the record publishes, never simply the latest: a rotation not yet published is not read.
-	v, err := r.reader.Read(ctx, Ref{TenantID: tenantID, Path: path, Version: version})
-	switch {
-	case errors.Is(err, ErrNotFound):
-		// The record is there and its value is not: a broken store, not an unknown name.
-		return "", fmt.Errorf("%w: the value of the secret is missing", ErrUnavailable)
-	case err != nil:
-		return "", unavailable(err)
+	for attempt := 1; ; attempt++ {
+		// The version the record publishes, never simply the latest: a rotation not yet published is not read.
+		v, err := r.reader.Read(ctx, Ref{TenantID: tenantID, Path: p.path, Version: p.version})
+		if errors.Is(err, ErrNotFound) && attempt < readAttempts {
+			// A rotation may have published a later version and pruned this one between the two reads:
+			// follow the record. An unchanged record means the value is gone: a broken store.
+			next, lerr := r.lookup(ctx, tenantID, name)
+			switch {
+			case lerr != nil:
+				return "", lerr
+			case next.id == p.id && next.version != p.version, next.id != p.id:
+				p = next
+				continue
+			}
+		}
+		switch {
+		case errors.Is(err, ErrNotFound):
+			return "", fmt.Errorf("%w: the value of the secret is missing", ErrUnavailable)
+		case err != nil:
+			return "", unavailable(err)
+		}
+		value := v.Data[ValueKey]
+		if value == "" {
+			return "", fmt.Errorf("%w: the value of the secret is empty", ErrUnavailable)
+		}
+		if p.lastUsed == nil || time.Since(*p.lastUsed) > lastUsedEvery {
+			r.touch(ctx, tenantID, p.id)
+		}
+		return value, nil
 	}
-	value := v.Data[ValueKey]
-	if value == "" {
-		return "", fmt.Errorf("%w: the value of the secret is empty", ErrUnavailable)
-	}
-	if lastUsed == nil || time.Since(*lastUsed) > lastUsedEvery {
-		r.touch(ctx, tenantID, id)
-	}
-	return value, nil
 }
 
 // touch records the use, throttled in SQL too (replicas); a failure is ignored.

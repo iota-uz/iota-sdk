@@ -123,6 +123,9 @@ type Secret struct {
 	UpdatedAt    time.Time
 	RotatedAt    time.Time // the last write of the value (CreatedAt for a secret never rotated)
 	LastUsedAt   *time.Time
+	// DeletedAt is set on a tombstone (a deleted secret whose value is being removed); a Manager never
+	// returns one.
+	DeletedAt *time.Time
 }
 
 var nameRe = regexp.MustCompile(`^[A-Z][A-Z0-9_]{0,63}$`)

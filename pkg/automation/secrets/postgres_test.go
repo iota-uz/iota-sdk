@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -337,4 +338,145 @@ func TestADeleteWhoseValueCannotBeRemovedIsRetried(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "v2", got)
 	assert.NotEqual(t, s.ID, again.ID)
+}
+
+// rotatingReader rotates the secret twice before its first read of a published version: the version the
+// resolver looked up is pruned between its lookup and its read, as a rotation racing a reader does.
+type rotatingReader struct {
+	secrets.Reader
+	once   *bool
+	rotate func()
+}
+
+func (r rotatingReader) Read(ctx context.Context, ref secrets.Ref) (secrets.Value, error) {
+	if !*r.once && ref.Version > 0 {
+		*r.once = true
+		r.rotate()
+	}
+	return r.Reader.Read(ctx, ref)
+}
+
+func TestAReaderFollowsARotationThatPrunedItsVersion(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	s, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
+	require.NoError(t, err)
+	done := false
+	res := secrets.NewResolver(e.db, rotatingReader{Reader: e.store, once: &done, rotate: func() {
+		r1, err := e.mgr.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "v2"})
+		require.NoError(t, err)
+		_, err = e.mgr.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: r1.Version, Value: "v3"})
+		require.NoError(t, err)
+	}})
+	got, err := res.Resolve(e.ctx, e.tenant, "API_KEY")
+	require.NoError(t, err, "a live secret on a healthy store resolves")
+	assert.Equal(t, "v3", got)
+	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: s.Ref.Path, Version: 1})
+	assert.ErrorIs(t, err, secrets.ErrNotFound, "version 1 was pruned under the reader")
+
+	// The published version missing while the record stays as it is: a broken store, a controlled error.
+	_, err = e.db.Exec(e.ctx, `DELETE FROM automation.secret_values WHERE tenant_id = $1`, e.tenant)
+	require.NoError(t, err)
+	_, err = e.res.Resolve(e.ctx, e.tenant, "API_KEY")
+	assert.ErrorIs(t, err, secrets.ErrUnavailable)
+}
+
+// The previous version stays readable after a rotation, for a reader that looked the record up before it.
+func TestARotationKeepsThePreviousVersion(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	s, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
+	require.NoError(t, err)
+	r, err := e.mgr.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "v2"})
+	require.NoError(t, err)
+	v, err := e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: s.Ref.Path, Version: 1})
+	require.NoError(t, err)
+	assert.Equal(t, "v1", v.Data[secrets.ValueKey])
+	_, err = e.mgr.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: r.Version, Value: "v3"})
+	require.NoError(t, err)
+	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: s.Ref.Path, Version: 1})
+	assert.ErrorIs(t, err, secrets.ErrNotFound)
+	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: s.Ref.Path, Version: 2})
+	assert.NoError(t, err)
+}
+
+// A COMMIT whose reply is lost after the record was published: the manager settles it from the record and
+// never removes the published value.
+func TestALostPublishReplyKeepsThePublishedValue(t *testing.T) {
+	e := newEnv(t)
+	restore := secrets.SetPublishHook(errors.New("connection reset while reading the COMMIT reply"))
+	s, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
+	require.NoError(t, err, "the record is published: the create happened")
+	assert.Equal(t, 1, s.ValueVersion)
+	got, err := e.res.Resolve(e.ctx, e.tenant, "API_KEY")
+	require.NoError(t, err)
+	assert.Equal(t, "v1", got)
+
+	r, err := e.mgr.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "v2"})
+	require.NoError(t, err, "the rotation is published: it happened")
+	assert.Equal(t, 2, r.ValueVersion)
+	restore()
+	got, err = e.res.Resolve(e.ctx, e.tenant, "API_KEY")
+	require.NoError(t, err)
+	assert.Equal(t, "v2", got)
+}
+
+// With a pool of one connection (the store and the records share it) every mutation completes: no step
+// holds a connection while the value store waits for one.
+func TestMutationsCompleteOnAPoolOfOneConnection(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	cfg := e.db.Config().Copy()
+	cfg.MaxConns, cfg.MinConns = 1, 0
+	one, err := pgxpool.NewWithConfig(e.ctx, cfg)
+	require.NoError(t, err)
+	t.Cleanup(one.Close)
+	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": bytes.Repeat([]byte{1}, 32)})
+	require.NoError(t, err)
+	st := connectors.NewSealedSecrets(one, keys)
+	mgr := secrets.NewManager(one, st, st, secrets.DefaultLocator("test/"))
+	res := secrets.NewResolver(one, st)
+
+	ctx, cancel := context.WithTimeout(e.ctx, 20*time.Second)
+	defer cancel()
+	s, err := mgr.Create(ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
+	require.NoError(t, err)
+	r, err := mgr.Rotate(ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "v2"})
+	require.NoError(t, err)
+	got, err := res.Resolve(ctx, e.tenant, "API_KEY")
+	require.NoError(t, err)
+	assert.Equal(t, "v2", got)
+	_, err = mgr.Update(ctx, e.tenant, secrets.UpdateInput{ID: s.ID, Version: r.Version, Name: ptr("CRM_KEY")})
+	require.NoError(t, err)
+	require.NoError(t, mgr.Delete(ctx, e.tenant, s.ID))
+	_, err = mgr.List(ctx, e.tenant)
+	require.NoError(t, err)
+}
+
+func ptr[T any](v T) *T { return &v }
+
+// A staged record that never published (a create that died after its value was written) is removed with its
+// value once it is stale; until then its name is reserved and nothing reads it.
+func TestAStaleStagedRecordIsPurged(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	id := uuid.New()
+	path := "test/tenants/" + e.tenant.String() + "/automation/secrets/" + id.String()
+	_, err := e.db.Exec(e.ctx, `INSERT INTO automation.secrets (id, tenant_id, name, ref_path, value_version, created_at, updated_at)
+		VALUES ($1, $2, 'API_KEY', $3, 0, now() - interval '1 hour', now() - interval '1 hour')`, id, e.tenant, path)
+	require.NoError(t, err)
+	_, err = e.store.Put(e.ctx, secrets.Ref{TenantID: e.tenant, Path: path}, map[string]string{secrets.ValueKey: "orphan"})
+	require.NoError(t, err)
+
+	has, err := e.res.Has(e.ctx, e.tenant, "API_KEY")
+	require.NoError(t, err)
+	assert.False(t, has, "a staged record is not readable")
+	_, err = e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "fresh"})
+	require.NoError(t, err, "the stale staged record is purged first, freeing its name")
+	var n int
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`, e.tenant, path).Scan(&n))
+	assert.Zero(t, n)
+	got, err := e.res.Resolve(e.ctx, e.tenant, "API_KEY")
+	require.NoError(t, err)
+	assert.Equal(t, "fresh", got)
 }
