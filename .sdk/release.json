@@ -1,0 +1,78 @@
+{
+  "changes": [
+    {
+      "bump": "minor",
+      "summary": "Add the AI connectors of automation graphs: pkg/automation/connectors/openai (kind openai, node ai.llm: text or JSON checked against a JSON Schema, images for models with vision) and pkg/automation/connectors/jev (kind jev, node ai.jev: a classifier with an outcome per choice, low_confidence and failed; provider openrouter or openai). Both run on a tenant's key or on the platform key (automation.openai.* and automation.jev.* in the new stdconfig packages openaiconfig and jevconfig; opt_in per tenant), are idempotent, record every provider answer as token_in/token_out usage, write the model into the version when a graph is saved (exact ids only: aliases such as latest and rolling OpenAI ids without a date are refused) and cache decisions of dry runs. catalog.CompletedNode and catalog.ConnectionNode lets a node type complete and check its params on save knowing the connection it resolves to (View.UnavailableRequires keeps a node working with its connector kind when the tenant lost the connection), catalog.CallError gets RetryAfter, the engine reads timeout_ms as a call deadline, catalog.View gets PlatformWithheld, engine.TestNodeResult gets Request (also in the test_node RPC, and the dry_run RPC takes decisions scripted|cached|live), graph.Issue gets an optional Code, graph.NodeSpec.OutputFrom.Field types one output field from a schema param, engine.Config gets an optional Connectors directory so only x-secret credential fields are masked, a call that names a switched-off platform key ends with unavailable, and the decision cache of dry runs now stores the output of a decision."
+    },
+    {
+      "bump": "patch",
+      "summary": "Add regression tests for ai.jev: malformed Decisions metadata and malformed Chat Completions choices keep the token usage and are not retried (#1429)."
+    },
+    {
+      "bump": "minor",
+      "summary": "Automation built-in nodes: set (CEL values), code (sandboxed TS/JS with declared secrets, env.fetch and env.connections through a connector's CodeAccessor, compiled on save, its step context kept out of the call's instance input), http (guarded HTTPS with secret or connection auth bound to a static host, same-origin redirects for connections, success expression, body template), start_automation and run_automation (another graph's enabled version through its «Called by an automation» or manual trigger, Automations.Operate, cascade depth, cancelled with the parent), and the action node with the SDK action registry (actions.Contribute, native command contracts called through wf.call with the call's InvocationID): core.user.block/unblock, core.group.add_user/remove_user and crm.chat.send_message; tenant secrets CONNECTION__FIELD from connections; graph map params (\"*\" paths), Dispatch, OutputKeys, StepContext and wait outcomes; engine NodeValidator, EffectWaitKeyer, WakeResolver, StartFromStep and Config.Commands."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add the MCP connector pkg/automation/connectors/mcp (Streamable HTTP over https on the official Go SDK, bearer or OAuth 2.1 with discovery, PKCE S256, Dynamic Client Registration and refresh under the row lock, SSRF guard on every hop) and its mcp_tool node, whose tool schema is pinned in the graph version on save with a warning when the server changes it; registered by the automations module by default (WithoutMCP opts out). graph: * segments in Templates/Values/Expressions paths, NodeSpec.ReadOnlyParam and OutputSchemas, ExprTypes, GraphError.Fix. catalog.PreparingNode lets a node check and fill its params on save; engine.Authoring.Validate returns warnings and Version.Warnings carries them. connectors: Store gains CredentialLocker and Sealer; ConnectionAuthorizer, StoreBinder, ErrClientRequired, IdentityServer and x-internal credential fields; a call whose connection needs a new sign-in fails as unauthorized. Editor: a validation issue with a fix offers it (update a pinned schema), warnings badge their card and come from a passed save (canvas chunk budget 52 KB); integrations: per-connection OAuth sign-in. Adds automations.mcp_tools RPC and mcptest, a fake MCP server."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add pkg/automation/mcpops: MCP operations of automations for agents (automation_catalog, automation_list, automation_get, automation_runs, automation_run_get, automation_validate, automation_dry_run as read-only tools; automation.create/update/layout as guarded changes; HUMAN_REQUIRED for enabling, deciding tasks and managing connections). workflow.NativeContract.HumanOnly marks native contracts (automation.run, automation.call) whose instances and tasks the extruntime MCP workflow actions refuse with HUMAN_REQUIRED by default (after the action's own RBAC check), and whose payloads ext_workflow_get/ext_workflow_list leave out. Engine: DryRunInput.MaxCalls/RealCalls (ErrLimitExceeded), engine.WithTx (writes and reads in the caller's transaction; Disable/Delete in it leave the cancellation to Maintain), Get/GetVersion admit Automations.Author. graph.ExecAnswer.Script, mcp.Audit, changes.Applied.Result returned in the receipt item while the caller passes the kind policy; every applied change is an audit event stored with the receipt (mcp.operation_audit) and delivered idempotently (changes.Config.Auditor, mcp.AuditorFrom, AuditEntry.Item)."
+    },
+    {
+      "bump": "minor",
+      "summary": "Automation graphs: built-in nodes notify (users, groups, roles and trigger-event participants, channels, level) and send_to_contact (phone or email of a record) in pkg/automation/builtin/notify, both effects that queue the notice with notifications.AudienceSender.SendTx in the step transaction under the automations.notify.v1 definition, registered by the automations module together with the nodes; the engine gains effect nodes that pick an outcome (OutcomeEffectNode), dry-run previews (EffectPreviewer, DryRunOptions.Preview), preparation outside the step transaction (EffectPreparer, StepContext.Prepared), node graph rules (GraphChecker), StepContext.NodeID/Trigger/StepKey; notifications.AudienceReceipt.Skipped; AudienceRequest.CheckContacts with TxSafeContactResolver/ContactChecker (package resolvers answer without an invocation record: host.RunRequest.Unrecorded); the catalog view lists the participants of each event and the editor shows the participants field only where the trigger events offer them."
+    },
+    {
+      "bump": "minor",
+      "summary": "Automation runs are found by their subject's name: engine.RunFilter gains SubjectQuery (a key prefix, or the subjects the host's engine.SubjectSearcher finds with the viewer's rights, at most 50 per entity), and automations.runs subject search uses it. The automation editor's canvas chunk drops d3-color for a stub that never matches a color (src/xy/d3-color.ts; xyflow only tweens the zoom): 52.0 → 47.7 KB gzip under the 52 KB budget, and scripts/check-chunk.mjs fails if d3-color comes back."
+    },
+    {
+      "bump": "minor",
+      "summary": "Automation editor: the Runs tab (subject search, state chips, ↑ ↓), the run on the graph of its version with runOverlay (passed / failed / running / waiting / skipped, taken edges, attempt and item badges, failed-branch notes), 2 s polling of live runs, the node drawer (input, output, filtered logs), Cancel / Retry / Resolve for operators, and the Dry run (decision modes, captured effects, failed trigger condition) and Test node (confirmed irreversible effects, missing secrets) panels. EditorApi gains runs, run, version, cancelRun, retryRun, resolveRun and dryRun decisions; EditorProps gains automationId, can, runsView/onRunsView, subjectHref, onStartRun, connectionName. The graphs RPC adds automations.runs subject search, automations.dry_run decisions, catalog node idempotent/dry_run, the node of a wait, subject_url (graphs.Config.Links) and the /automations/runs/{run} link. Run steps keep what call nodes log (engine.Log, masked; migration adds automation.steps.logs); dry runs report each failed trigger's condition, cached decisions (status cached) and live_calls; node tests take an idempotency key claimed in automation.node_tests (a repeat on any process gets the stored answer; one without an answer — or past the day its answer is kept — is refused as outcome_unknown, never run again; the call key is test:\u003ckey\u003e); automations.run returns the run's event projected for the viewer, failing closed (an event or field no rule can check is left out); automations.runs filters by node and automations.run takes nodes (StepsOf: the latest step of each named node the viewer may read, beyond the detail's bound); a stored field whose type changed carries no old nested data; the automations module registers subject links (core.user → /users/\u003cid\u003e, WithSubjectLink) for subject_url and run contexts."
+    },
+    {
+      "bump": "minor",
+      "summary": "Add the SMS connectors of automation graphs, pkg/automation/connectors/sms: eskiz and twilio with the nodes eskiz.send_sms and twilio.send_sms (not idempotent: a send of unknown outcome ends as failed with outcome_unknown and is never repeated; only 429/408 are repeated after Retry-After), usage accounting in unit sms, platform credentials (opt_in) from the environment, and HTTP fakes in sms/smstest. New stdconfig/eskizconfig (ESKIZ_URL, ESKIZ_EMAIL, ESKIZ_PASSWORD, ESKIZ_FROM) registered in the stdconfig bundle; the automations module registers both connectors. pkg/eskiz.NewService accepts ServiceOption WithRoundTripper, and its token refresher no longer repeats a login the provider refused with a 4xx."
+    },
+    {
+      "bump": "minor",
+      "summary": "Automation: коннектор telegram_bot (pkg/automation/connectors/telegram) — ноды telegram.send (тема форума, вложения, url-кнопки), telegram.ask (кнопки, нажатая — outcome) и telegram.read; триггер telegram.message_received.v1 (команды ignore/only/include, фильтры чатов) на собственном боте тенанта; бот платформы (APP_TELEGRAMBOTTOKEN) для send/ask, /start через StartHandler; webhook с секретом, вложения в хранилище загрузок, список известных чатов, подтверждение чужого webhook; telegramtest — in-memory Bot API; движок: шаблоны в элементах списка (items[].field), ParamAnswerer, PublishedAnswerer, ErrWebhookRetry; connectors: Provisioner/Advisor/OptionSource/PlatformProvider."
+    },
+    {
+      "bump": "minor",
+      "summary": "Automations section: the module runs the automation engine when the extension core is composed (natives, consumer, schedules, maintenance and inbound poller, usage index for Integrations) and serves /automations (list with status, triggers, last run and attention) and the graph editor of @iota-uz/sdk/automation-editor over an RPC layer on engine.Service/Authoring/Operations; enabling goes through a human review of Code nodes with the code digest; layouts carry a revision (SaveLayoutAt, VERSION_CONFLICT); connector webhooks at /automations/hooks without a session; engine.Service gains Overviews, CountLive, SaveLayoutAt and Authoring.Validate; the editor gains EditorProps.remoteLayout."
+    },
+    {
+      "bump": "minor",
+      "summary": "The automations module registers the email connectors (smtp, imap) itself: SMTP_* as the platform credential, the module's OAuth2 helper, connection store and uploads, and the subject_contains matching hook in the engine's defaults; automations.WithoutEmail leaves them out. The integrations page signs an email box in with Google or Microsoft 365 straight from the connector card; a sign-in that names no connection signs the same account in again or names a new pair after the first free name. Email: an attachment in a transfer encoding the reader does not know is unreadable and no longer stops the parts after it from being read; email.send also seeds the cursor of mailboxes whose IMAP login is not an address, so the first reply to them is kept."
+    },
+    {
+      "bump": "minor",
+      "summary": "Email connector for automation graphs (pkg/automation/connectors/email): kinds smtp and imap; email.send, email.wait_reply and email.label nodes; the email.received.v1 trigger polled over IMAP (UIDVALIDITY cursor, dedup by Message-ID, attachments stored in uploads, skip_replies and skip_auto); a reply is found by its References and In-Reply-To headers; login and password for any server, OAuth2 sign-in with SASL XOAUTH2 for Gmail and Microsoft 365 (one sign-in makes both connections); the application's SMTP_* as a platform credential; a fake SMTP/IMAP server in emailtest. connectors gain OAuth2Presets, OAuth2Finisher and PresetOAuth2; engine.InboundPoller also polls the connections of an enabled graph's wait nodes; graph templates and values may name list items (items[].field). IntegrationsService.OAuthStartPreset saves the sign-in's connections together; the SMTP_* credential is wired into the module's platform credentials; attachments are private and served by /automations/attachments/{id}; engine.Baseliner keeps the cursor of an idle mailbox."
+    },
+    {
+      "bump": "patch",
+      "summary": "Automation engine lint after the AI-node and run-view merges: TestNodeResult declares its JSON names (unchanged, the Go field names stored in automation.node_tests), keepField lists the scalar kinds, and a call output that is not JSON is marked as the step's recorded failure."
+    },
+    {
+      "bump": "patch",
+      "summary": "Business history: list core/UploadService.CreateKeeping with the other file-storage methods that need no business event."
+    },
+    {
+      "bump": "patch",
+      "summary": "Fix the pkg/extruntime/e2e suite after the automation engine was wired in: the ITF harness applies its migration policy before the composition start hooks run, and automation action commands declare their domain errors in the native set so the extension kit resolves them."
+    },
+    {
+      "bump": "patch",
+      "summary": "Rename pkg/automation/catalog/nul.go to nulbytes.go: the Go module proxy refuses a zip with a Windows-reserved file name, so v0.55.0 of the Go module could not be downloaded. A test now checks every tracked path with the proxy's rule."
+    },
+    {
+      "bump": "none",
+      "summary": "Release tooling: `sdk controller abandon` retires a partially published version whose Go module cannot be downloaded; the next release takes a version above it. No change to the SDK module."
+    }
+  ],
+  "source": "a5cb22aeab88ebbfcc550f8eb94a16a3eb966435",
+  "version": "0.55.1"
+}
