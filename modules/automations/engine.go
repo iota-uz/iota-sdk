@@ -2,6 +2,7 @@ package automations
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sort"
 
@@ -44,6 +45,10 @@ func WithoutEngine() Option {
 func WithoutBackground() Option {
 	return func(c *component) { c.noBackground = true }
 }
+
+// errNoEngine: the module's engine is on, but no extension core provides what it runs on (the workflow
+// engine, the subject loader, the database).
+var errNoEngine = errors.New("the automation engine does not run in this composition: no workflow engine, subject loader or database")
 
 // engineHolder is the composition's engine; rt is nil when the composition cannot run one (the module's
 // engine is turned off, or no extension core provides the workflow engine and the subject loader).
@@ -107,6 +112,17 @@ func (c *component) buildEngine(b *composition.Builder) {
 			return nil, err
 		}
 		return &engineHolder{rt: rt}, nil
+	})
+	// start_automation and run_automation start the runs of other graphs through the engine (builtins.go).
+	composition.Provide[engine.RunStarter](b, func(container *composition.Container) (engine.RunStarter, error) {
+		rt, err := c.runtime(container)
+		if err != nil {
+			return nil, err
+		}
+		if rt == nil {
+			return nil, errNoEngine
+		}
+		return rt, nil
 	})
 	wiring.ContributeNativeWorkflows(b, func(container *composition.Container) (map[string]workflow.NativeContract, error) {
 		rt, err := c.runtime(container)
