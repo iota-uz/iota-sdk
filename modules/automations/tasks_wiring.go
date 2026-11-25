@@ -243,7 +243,8 @@ func (l *lazyReader) CanRead(ctx context.Context, tenantID uuid.UUID, u user.Use
 		return false, l.err
 	}
 	if l.svc == nil {
-		return true, nil
+		// No inbox (no engine runtime): nobody can open the task, so no delivery may name it.
+		return false, nil
 	}
 	return l.svc.CanRead(ctx, tenantID, u, taskID)
 }
