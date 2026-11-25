@@ -425,9 +425,9 @@
         "Waiting": "Waiting"
       },
       "Runs": {
-        "Empty": "No runs yet.",
-        "NoSteps": "No steps yet.",
-        "Steps": "Steps of the run"
+        "NotFound": "Run not found",
+        "NotFoundText": "It was deleted, or it belongs to another workspace.",
+        "Opening": "Opening the run…"
       },
       "Status": {
         "Disabled": "Off",

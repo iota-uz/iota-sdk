@@ -13,6 +13,9 @@ const (
 	ViewList   View = "list"
 	ViewNew    View = "new"
 	ViewEditor View = "editor"
+	// ViewRun is a link that knows only a run's id (/automations/runs/{run}): the screen finds the run's
+	// graph and opens its Runs tab there, or says the run is not found.
+	ViewRun View = "run"
 )
 
 // Props are the initial props of the screen.
@@ -481,9 +484,11 @@ type TraceStep struct {
 	Output  json.RawMessage   `json:"output,omitempty"`
 }
 
-// DryRunResponse is the trace of a dry run.
+// DryRunResponse is the trace of a dry run and the number of calls it made to providers (a decision
+// taken from the cache is a step with status cached, not a call).
 type DryRunResponse struct {
-	Trace []TraceStep `json:"trace"`
+	Trace     []TraceStep `json:"trace"`
+	LiveCalls int         `json:"live_calls"`
 }
 
 // TestNodeRequest is automations.test_node.
@@ -492,6 +497,9 @@ type TestNodeRequest struct {
 	NodeID  string                     `json:"node_id"`
 	Subject *Subject                   `json:"subject,omitempty"`
 	Context map[string]json.RawMessage `json:"context,omitempty"`
+	// IdempotencyKey names the test the author confirmed: a retry with it gets the first answer and makes
+	// no second call (F3).
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }
 
 // TestNodeError is why a tested node failed.
@@ -531,8 +539,12 @@ type RunsRequest struct {
 	AutomationID string     `json:"automation_id"`
 	Version      int        `json:"version,omitempty"`
 	State        []RunState `json:"state,omitempty"`
-	Cursor       string     `json:"cursor,omitempty"`
-	Limit        int        `json:"limit,omitempty"`
+	// Subject narrows the runs to subjects whose key starts with it (case-insensitive).
+	Subject string `json:"subject,omitempty"`
+	// Node narrows the runs to those that took a step on the node (a Test node's example).
+	Node   string `json:"node,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+	Limit  int    `json:"limit,omitempty"`
 }
 
 // StepError is why a step or a run failed.
@@ -545,19 +557,21 @@ type StepError struct {
 
 // RunSummary is a run in a list (RunSummary of #1347).
 type RunSummary struct {
-	RunID        string     `json:"run_id"`
-	AutomationID string     `json:"automation_id"`
-	Version      int        `json:"version"`
-	State        RunState   `json:"state"`
-	Status       RunStatus  `json:"status"`
-	Reason       string     `json:"reason,omitempty"`
-	TriggerKind  string     `json:"trigger_kind"`
-	TriggerID    string     `json:"trigger_id"`
-	Subject      Subject    `json:"subject"`
-	CurrentNodes []string   `json:"current_nodes"`
-	Error        *StepError `json:"error"`
-	CreatedAt    string     `json:"created_at"`
-	UpdatedAt    string     `json:"updated_at"`
+	RunID        string    `json:"run_id"`
+	AutomationID string    `json:"automation_id"`
+	Version      int       `json:"version"`
+	State        RunState  `json:"state"`
+	Status       RunStatus `json:"status"`
+	Reason       string    `json:"reason,omitempty"`
+	TriggerKind  string    `json:"trigger_kind"`
+	TriggerID    string    `json:"trigger_id"`
+	Subject      Subject   `json:"subject"`
+	CurrentNodes []string  `json:"current_nodes"`
+	// SubjectURL is the page of the run's subject (automations.run only; "" without a link).
+	SubjectURL string     `json:"subject_url,omitempty"`
+	Error      *StepError `json:"error"`
+	CreatedAt  string     `json:"created_at"`
+	UpdatedAt  string     `json:"updated_at"`
 }
 
 // RunsResponse is a page of runs.
@@ -566,9 +580,11 @@ type RunsResponse struct {
 	NextCursor *string      `json:"next_cursor"`
 }
 
-// RunRequest names a run.
+// RunRequest names a run. Nodes adds the latest step of each named node (≤ 50) to the run's latest
+// steps, wherever it is in the run (a node test's example).
 type RunRequest struct {
-	RunID string `json:"run_id"`
+	RunID string   `json:"run_id"`
+	Nodes []string `json:"nodes,omitempty"`
 }
 
 // TokenView is a token of a run.
@@ -594,12 +610,16 @@ type StepView struct {
 	StartedAt string          `json:"started_at"`
 	EndedAt   *string         `json:"ended_at"`
 	Warnings  []string        `json:"warnings,omitempty"`
-	Hidden    bool            `json:"hidden,omitempty"`
+	// Logs are what the node logged, masked by the engine.
+	Logs   []string `json:"logs,omitempty"`
+	Hidden bool     `json:"hidden,omitempty"`
 }
 
 // WaitView is a wait of a run.
 type WaitView struct {
-	TokenID   string  `json:"token_id"`
+	TokenID string `json:"token_id"`
+	// NodeID is the node the wait belongs to.
+	NodeID    string  `json:"node_id"`
 	WaitID    string  `json:"wait_id"`
 	Kind      string  `json:"kind"`
 	EventKind string  `json:"event_kind,omitempty"`
@@ -609,10 +629,12 @@ type WaitView struct {
 
 // RunData is a run with its tokens, steps and waits (RunData of #1347).
 type RunData struct {
-	Run    RunSummary  `json:"run"`
-	Tokens []TokenView `json:"tokens"`
-	Steps  []StepView  `json:"steps"`
-	Waits  []WaitView  `json:"waits"`
+	Run RunSummary `json:"run"`
+	// Event is the event that started the run, projected for the viewer.
+	Event  json.RawMessage `json:"event,omitempty"`
+	Tokens []TokenView     `json:"tokens"`
+	Steps  []StepView      `json:"steps"`
+	Waits  []WaitView      `json:"waits"`
 }
 
 // RunCancelResponse is ok, or run_finished.

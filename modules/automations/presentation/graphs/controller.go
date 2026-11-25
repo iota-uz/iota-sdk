@@ -50,6 +50,8 @@ const (
 	RouteNew    = "automations.new"
 	RouteEditor = "automations.editor"
 	RouteRun    = "automations.run"
+	// RouteRunLink is a run named by its id alone (a notification, a task, the journal).
+	RouteRunLink = "automations.run_link"
 )
 
 // DefaultPath is where the section is mounted.
@@ -130,6 +132,8 @@ type Config struct {
 	// Behaviors are the graph behaviors of the catalog (default graph.DefaultBehaviors).
 	Behaviors *graph.Behaviors
 	Users     UserNames
+	// Links gives a run's subject its page («Open <subject>» in the run view); nil: no link.
+	Links engine.Links
 	// Origin is who acts in a request; default: human for an interactive session, agent for an agent
 	// session (agentsession.Audience), a request with an Authorization header or no session.
 	Origin func(r *http.Request) engine.Origin
@@ -203,6 +207,7 @@ func NewController(cfg Config) (*Controller, error) {
 			{Spec: application.Get(cfg.Path+"/new", application.ClientRoute(RouteNew), application.RequireAll(permissions.AutomationsRead, permissions.AutomationsAuthor)), Feature: screen, Build: c.build(ViewNew)},
 			{Spec: application.Get(cfg.Path+"/"+id, application.ClientRoute(RouteEditor), read), Feature: screen, Build: c.build(ViewEditor)},
 			{Spec: application.Get(cfg.Path+"/"+id+"/runs/{run:[0-9a-fA-F-]{36}}", application.ClientRoute(RouteRun), read), Feature: screen, Build: c.build(ViewEditor)},
+			{Spec: application.Get(cfg.Path+"/runs/{run:[0-9a-fA-F-]{36}}", application.ClientRoute(RouteRunLink), read), Feature: screen, Build: c.build(ViewRun)},
 		}, clienthost.WithShell(shell), clienthost.WithSession(c.session), clienthost.WithServices(clienthost.ServiceEndpoints{RPC: c.rpcPath()}))
 		if err != nil {
 			return nil, serrors.Wrap(op, err)

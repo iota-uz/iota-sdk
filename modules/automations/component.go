@@ -130,9 +130,13 @@ type component struct {
 	host            *clienthost.Manifest
 	automationsPath string
 	engineTune      []func(*engine.Config)
-	noEngine        bool
-	noBackground    bool
-	noMCP           bool
+	// subjectLinks are the pages of subjects by entity (WithSubjectLink); links is their registry, built
+	// over the configured origin: the run view's «Open <subject>» and a run context's subject.url.
+	subjectLinks map[string]engine.SubjectURLResolver
+	links        *engine.LinkRegistry
+	noEngine     bool
+	noBackground bool
+	noMCP        bool
 }
 
 func (c *component) Descriptor() composition.Descriptor {
@@ -208,6 +212,9 @@ func (c *component) Build(b *composition.Builder) error {
 	const op = serrors.Op("automations.Build")
 	cfg, err := c.readConfig(b)
 	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	if c.links, err = c.newLinks(cfg.origin); err != nil {
 		return serrors.Wrap(op, err)
 	}
 	keys, err := cfg.automation.Keyring()
@@ -718,7 +725,7 @@ func (c *component) buildPages(b *composition.Builder) {
 		ctrl, err := graphs.NewController(graphs.Config{
 			Engine:  graphs.Engine{Service: rt.Service(), Authoring: rt.Authoring(), Operations: rt.Operations()},
 			Catalog: reg, Users: persistence.NewUserNames(db), Host: host, Assets: assets, Path: path,
-			IntegrationsPath: integrations.DefaultPath, MessageKeys: keys, Logger: slog.Default(), MCPTools: tools,
+			IntegrationsPath: integrations.DefaultPath, MessageKeys: keys, Logger: slog.Default(), MCPTools: tools, Links: c.links,
 		})
 		if err != nil {
 			return nil, err

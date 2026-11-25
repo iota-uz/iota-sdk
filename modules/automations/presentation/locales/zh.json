@@ -425,9 +425,9 @@
         "Waiting": "等待中"
       },
       "Runs": {
-        "Empty": "尚未运行。",
-        "NoSteps": "尚无步骤。",
-        "Steps": "运行步骤"
+        "NotFound": "未找到运行",
+        "NotFoundText": "它已被删除，或属于另一个工作区。",
+        "Opening": "正在打开运行…"
       },
       "Status": {
         "Disabled": "已停用",

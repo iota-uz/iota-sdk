@@ -425,9 +425,9 @@
         "Waiting": "Kutmoqda"
       },
       "Runs": {
-        "Empty": "Hali ishga tushirilmagan.",
-        "NoSteps": "Hali qadamlar yoʻq.",
-        "Steps": "Ishga tushirish qadamlari"
+        "NotFound": "Ishga tushirish topilmadi",
+        "NotFoundText": "U oʻchirilgan yoki boshqa ish maydoniga tegishli.",
+        "Opening": "Ishga tushirish ochilmoqda…"
       },
       "Status": {
         "Disabled": "Oʻchirilgan",
