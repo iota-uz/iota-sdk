@@ -64,6 +64,8 @@ export type Strings = {
     selectAll: string
   }
   toolbar: {
+    dryRun: string
+    testNode: string
     label: string
     edit: string
     runs: string
@@ -238,6 +240,8 @@ const en: Strings = {
     selectAll: 'Select all',
   },
   toolbar: {
+    dryRun: 'Dry run',
+    testNode: 'Test step',
     label: 'Editor toolbar',
     edit: 'Edit',
     runs: 'Runs',
@@ -433,6 +437,8 @@ const ru: Strings = {
     selectAll: 'Выделить всё',
   },
   toolbar: {
+    dryRun: 'Пробный прогон',
+    testNode: 'Проверить шаг',
     label: 'Панель редактора',
     edit: 'Редактор',
     runs: 'Запуски',
@@ -628,6 +634,8 @@ const uz: Strings = {
     selectAll: 'Hammasini belgilash',
   },
   toolbar: {
+    dryRun: 'Sinov prog‘oni',
+    testNode: 'Qadamni sinash',
     label: 'Muharrir paneli',
     edit: 'Muharrir',
     runs: 'Ishga tushirishlar',
@@ -823,6 +831,8 @@ const uzCyrl: Strings = {
     selectAll: 'Ҳаммасини белгилаш',
   },
   toolbar: {
+    dryRun: 'Синов прогони',
+    testNode: 'Қадамни синаш',
     label: 'Муҳаррир панели',
     edit: 'Муҳаррир',
     runs: 'Ишга туширишлар',

@@ -390,7 +390,10 @@ func TestAIDryRunCachedDoesNotCallTheProviderAgain(t *testing.T) {
 				}
 			}
 			assert.Equal(t, tc.outcome, step.Outcome, "%s run %d", tc.name, i)
-			assert.Equal(t, "executed", step.Status, "%s run %d", tc.name, i)
+			// The first run decides live; the second takes the decision from the cache: it says so, and it is
+			// not counted as a call made to the provider.
+			assert.Equal(t, map[int]string{0: "executed", 1: engine.StatusCached}[i], step.Status, "%s run %d", tc.name, i)
+			assert.Equal(t, 1-i, res.LiveCalls, "%s run %d: calls made to the provider", tc.name, i)
 			assert.NotContains(t, string(step.Output), "sk-", "no key in the output")
 			if tc.name == "jev" {
 				// Only the secret fields of the credentials are masked: the provider is a public field.

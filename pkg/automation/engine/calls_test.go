@@ -206,6 +206,100 @@ func TestErrorMessageInTheFailedBranchIsMasked(t *testing.T) {
 	assert.Zero(t, ae.count(`SELECT count(*) FROM extruntime.workflow_instances WHERE input::text LIKE '%' || $1 || '%'`, acmeToken))
 }
 
+// What a call node logs during a run is kept with its step, masked with the connection's secrets: the
+// run view shows the step's logs, and no table holds the secret.
+func TestCallLogsAreKeptMaskedWithTheStep(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), graphJSON("HTTP", `{"id": "created", "event": "acme.order.created.v1"}`,
+		`{"id": "get", "type": "acme.http", "params": {}}, {"id": "fin", "type": "end", "params": {}}`,
+		`{"from": {"node": "created", "outcome": "fired"}, "to": "get"}, {"from": {"node": "get", "outcome": "ok"}, "to": "fin"}, {"from": {"node": "get", "outcome": "failed"}, "to": "fin"}`))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 1, Secret: "s3cret"}, 0)
+	p.until(func() bool {
+		runs := ae.runs(p, ae.human(), engine.RunFilter{})
+		return len(runs) == 1 && runs[0].Status == engine.RunDone
+	}, "the run ends")
+	run := runOf(t, ae.env, p)
+	// The runs that took a step on a node (a node test's example) are found by the server.
+	assert.Len(t, ae.runs(p, ae.human(), engine.RunFilter{Node: "get"}), 1)
+	assert.Empty(t, ae.runs(p, ae.human(), engine.RunFilter{Node: "nope"}))
+	d, err := p.rt.Service().GetRun(context.Background(), ae.human(), run.RunID)
+	require.NoError(t, err)
+	// The run's event comes with the run, projected for the viewer: a sensitive field only for a viewer
+	// who may read it.
+	assert.JSONEq(t, `{"kind": "acme.order.created.v1", "amount": 1, "note": "", "secret": "s3cret"}`, string(d.Event))
+	reader := ae.actor(ae.tenant, 1, engine.OriginHuman, engine.PermRead, permRead)
+	dr, err := p.rt.Service().GetRun(context.Background(), reader, run.RunID)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"kind": "acme.order.created.v1", "amount": 1, "note": ""}`, string(dr.Event))
+	// It fails closed. A key the schema does not declare is dropped, recorded as sensitive or not; a field
+	// of the schema guarded by a rule the viewer passes (the event's read permission) stays; an event the
+	// catalog no longer has gives nothing.
+	ctx := context.Background()
+	_, err = ae.db.Exec(ctx, `UPDATE automation.runs SET input = input || '{"legacy": "x"}'::jsonb,
+		sensitive = sensitive || '[{"event": "acme.order.created.v1", "path": "legacy"}]'::jsonb WHERE id = $1`, run.RunID)
+	require.NoError(t, err)
+	d, err = p.rt.Service().GetRun(ctx, ae.human(), run.RunID)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"kind": "acme.order.created.v1", "amount": 1, "note": "", "secret": "s3cret"}`, string(d.Event))
+	dr, err = p.rt.Service().GetRun(ctx, reader, run.RunID)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"kind": "acme.order.created.v1", "amount": 1, "note": ""}`, string(dr.Event))
+	_, err = ae.db.Exec(ctx, `UPDATE automation.runs SET input = jsonb_set(input, '{kind}', '"acme.gone.v1"') WHERE id = $1`, run.RunID)
+	require.NoError(t, err)
+	d, err = p.rt.Service().GetRun(ctx, ae.human(), run.RunID)
+	require.NoError(t, err)
+	assert.Nil(t, d.Event, "an event no rule can check is not shown")
+	// Past the detail's bound of steps, StepsOf still brings the step of the named node (a node test's
+	// example reads it).
+	restore := engine.SetMaxDetailSteps(1)
+	capped, err := p.rt.Service().GetRun(context.Background(), ae.human(), run.RunID)
+	require.NoError(t, err)
+	require.Len(t, capped.Steps, 1)
+	assert.Equal(t, "fin", capped.Steps[0].NodeID)
+	named, err := p.rt.Service().GetRun(context.Background(), ae.human(), run.RunID, engine.StepsOf("get"))
+	require.NoError(t, err)
+	nodes := []string{}
+	for _, s := range named.Steps {
+		nodes = append(nodes, s.NodeID)
+	}
+	assert.Equal(t, []string{"get", "fin"}, nodes)
+	// A later visit of the node the viewer may not read (it carries a field no rule can check now) does
+	// not hide the earlier one: StepsOf gives the viewer its latest readable visit, and the hidden one
+	// stays hidden.
+	_, err = ae.db.Exec(context.Background(), `INSERT INTO automation.steps (tenant_id, run_id, token_id, seq, node_id, outcome, output, sensitive, started_at, ended_at)
+		SELECT tenant_id, run_id, token_id, 99, node_id, 'ok', '{"headers": {"x": "later"}}', '[{"event": "acme.gone.v1", "path": "x"}]',
+			now() + interval '1 hour', now() + interval '1 hour'
+		FROM automation.steps WHERE run_id = $1 AND node_id = 'get'`, run.RunID)
+	require.NoError(t, err)
+	read, err := p.rt.Service().GetRun(context.Background(), ae.human(), run.RunID, engine.StepsOf("get"))
+	require.NoError(t, err)
+	var gets []engine.StepView
+	for _, s := range read.Steps {
+		if s.NodeID == "get" {
+			gets = append(gets, s)
+		}
+	}
+	require.Len(t, gets, 2, "the latest step (bound 1) is the hidden visit; StepsOf adds the readable one")
+	assert.False(t, gets[0].Hidden, "the earlier visit, readable, with its data")
+	assert.NotEmpty(t, gets[0].Output)
+	assert.Equal(t, 99, gets[1].Seq)
+	assert.True(t, gets[1].Hidden, "the later visit stays hidden")
+	assert.Empty(t, gets[1].Output)
+	_, err = ae.db.Exec(context.Background(), `DELETE FROM automation.steps WHERE run_id = $1 AND seq = 99`, run.RunID)
+	require.NoError(t, err)
+	restore()
+	var logs []string
+	for _, s := range d.Steps {
+		if s.NodeID == "get" {
+			logs = s.Logs
+		}
+	}
+	assert.Equal(t, []string{"GET /me with Bearer ***"}, logs)
+	assert.Zero(t, ae.count(`SELECT count(*) FROM automation.steps WHERE logs::text LIKE '%' || $1 || '%'`, acmeToken))
+	assert.Zero(t, ae.count(`SELECT count(*) FROM extruntime.workflow_occurrences WHERE result::text LIKE '%' || $1 || '%'`, acmeToken))
+}
+
 // Cancelling a run terminates its call and closes its correlations.
 func TestCancelTerminatesTheCall(t *testing.T) {
 	ae := newAcmeEnv(t)

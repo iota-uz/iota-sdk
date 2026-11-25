@@ -1,12 +1,12 @@
-import { ErrorBoundary, Match, Switch, createSignal, lazy, onCleanup, Suspense, type Component } from 'solid-js'
+import { ErrorBoundary, Match, Switch, createSignal, lazy, onCleanup, onMount, Suspense, type Component, type JSX } from 'solid-js'
 import { FetchRPCTransport, RPCClient, useClientHost, type SolidRouteProps } from '@iota-uz/sdk/solid'
 import { EditorSkeleton } from '@iota-uz/sdk/automation-editor'
 import { Button, ToastProvider, useToast } from '@iota-uz/sdk/solid-ui'
 import '@iota-uz/sdk/automation-editor/styles.css'
 import { rpcContracts, type Props } from './Automations.solid.generated'
-import { AppContext, type Call, type Ctx } from './context'
+import { AppContext, useApp, type Call, type Ctx } from './context'
 import { List } from './List'
-import { editorLocale, translator } from './model'
+import { editorLocale, errorCode, errorText, graphPath, translator } from './model'
 
 // The editor page and, through it, the editor's canvas chunk load only on a graph's page (AL4, P3).
 const EditorPage = lazy(() => import('./EditorPage'))
@@ -49,6 +49,7 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
       <div lang={lang} class="min-w-0">
         <Switch>
           <Match when={init.view === 'list'}><List /></Match>
+          <Match when={init.view === 'run'}><RunLink /></Match>
           <Match when={init.view !== 'list'}>
             <ErrorBoundary fallback={(error) => {
               console.warn('automations: the editor did not load', error)
@@ -68,5 +69,49 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
         </Switch>
       </div>
     </AppContext.Provider>
+  )
+}
+
+/**
+ * A link that knows only a run's id (a notification, a task, the journal: RV6, D3): the run names its
+ * graph, and the graph's Runs tab opens on it. A run that is deleted or another tenant's is «not found».
+ */
+function RunLink(): JSX.Element {
+  const app = useApp()
+  const t = app.t
+  const [missing, setMissing] = createSignal(false)
+  const [failed, setFailed] = createSignal<string>()
+  const open = async () => {
+    setFailed(undefined)
+    const run = app.props.run ?? ''
+    try {
+      const data = await app.call('automations.run', { run_id: run })
+      // The node the link names stays chosen in the run (D1).
+      const node = new URLSearchParams(window.location.search).get('node')
+      window.location.replace(graphPath(app.props.basePath, data.run.automation_id, { run, ...(node ? { node } : {}) }))
+    } catch (e) {
+      if (errorCode(e) === 'not_found') setMissing(true)
+      else setFailed(errorText(t, e, t('Actions.LoadRuns')))
+    }
+  }
+  onMount(() => void open())
+  return (
+    <div class="m-4 flex flex-col items-start gap-3 rounded-lg border border-subtle p-6" data-testid="run-link">
+      <Switch fallback={<p role="status" class="text-200">{t('Runs.Opening')}</p>}>
+        <Match when={missing()}>
+          <div role="alert" class="flex flex-col items-start gap-2" data-testid="run-not-found">
+            <h1 class="text-lg font-medium">{t('Runs.NotFound')}</h1>
+            <p class="text-200">{t('Runs.NotFoundText')}</p>
+            <Button variant="secondary" href={app.props.basePath}>{t('Editor.BackToList')}</Button>
+          </div>
+        </Match>
+        <Match when={failed()}>
+          <div role="alert" class="flex flex-col items-start gap-2">
+            <p>{failed()}</p>
+            <Button variant="secondary" onClick={() => void open()}>{t('Common.Retry')}</Button>
+          </div>
+        </Match>
+      </Switch>
+    </div>
   )
 }
