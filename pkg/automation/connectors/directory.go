@@ -1,6 +1,7 @@
 package connectors
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"regexp"
@@ -184,10 +185,9 @@ func AuthorizationOnlyFields(d Descriptor) map[string]bool {
 		if !set {
 			continue
 		}
-		// Fail closed: only an explicit false lets the field be served; any other value (true, "false", a
-		// number) withholds it. Directory.Register refuses such a schema anyway.
-		var only bool
-		if json.Unmarshal(raw, &only) != nil || only {
+		// Fail closed: only an explicit false lets the field be served; any other value (true, "false", null,
+		// a number) withholds it. Directory.Register refuses such a schema anyway.
+		if !isJSONFalse(raw) {
 			out[name] = true
 		}
 	}
@@ -212,13 +212,16 @@ func schemaProperties(schema json.RawMessage) (map[string]map[string]json.RawMes
 	return out, true
 }
 
+// isJSONFalse and isJSONTrue tell the JSON literals exactly: json.Unmarshal takes null into a bool as false.
+func isJSONFalse(raw json.RawMessage) bool { return string(bytes.TrimSpace(raw)) == "false" }
+func isJSONTrue(raw json.RawMessage) bool  { return string(bytes.TrimSpace(raw)) == "true" }
+
 // checkAnnotations refuses a credentials schema whose x-authorization-only is not a boolean.
 func checkAnnotations(kind catalog.ConnectorKind, schema json.RawMessage) error {
 	props, _ := schemaProperties(schema)
 	for name, p := range props {
 		if raw, set := p["x-authorization-only"]; set {
-			var only bool
-			if json.Unmarshal(raw, &only) != nil {
+			if !isJSONFalse(raw) && !isJSONTrue(raw) {
 				return fmt.Errorf("%w: connector %s: credentials property %s: x-authorization-only is not a boolean", ErrInvalid, kind, name)
 			}
 		}

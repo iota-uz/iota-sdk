@@ -3,6 +3,7 @@ package email
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -122,4 +123,22 @@ func TestCodeSendCountsCharacters(t *testing.T) {
 	_, err := f.smtp.CallCodeOperation(context.Background(), f.codeCall(
 		`{"to":"boss@example.org","subject":"`+strings.Repeat("ж", 998)+`","text":"`+strings.Repeat("ю", 2000)+`"}`, f.smtpCreds()))
 	require.NoError(t, err)
+}
+
+// The body limits count characters too: text or html of 1,000,000 multibyte characters is accepted by the
+// check, one more is refused before anything is sent.
+func TestCodeSendBodyLimitsCountCharacters(t *testing.T) {
+	f := newFx(t, emailtest.ModeTLS)
+	for _, field := range []string{"text", "html"} {
+		over := `{"to":"boss@example.org","subject":"s","` + field + `":"` + strings.Repeat("ж", 1000001) + `"}`
+		_, err := f.smtp.CallCodeOperation(context.Background(), f.codeCall(over, f.smtpCreds()))
+		assert.Equal(t, "invalid_args", codeErr(t, err).Code, field)
+
+		at := `{"to":"boss@example.org","subject":"s","` + field + `":"` + strings.Repeat("ж", 1000000) + `"}`
+		_, err = f.smtp.CallCodeOperation(context.Background(), f.codeCall(at, f.smtpCreds()))
+		var ce *connectors.CodeOperationError
+		if errors.As(err, &ce) {
+			assert.NotEqual(t, "invalid_args", ce.Code, "%s: 1,000,000 characters (2,000,000 bytes) pass the limit", field)
+		}
+	}
 }
