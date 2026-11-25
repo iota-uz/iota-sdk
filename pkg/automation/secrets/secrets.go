@@ -58,7 +58,8 @@ type Metadata struct {
 // Writer writes values: what managing a secret needs. A process may hold a Writer only (an OpenBao role
 // that may write and not read).
 type Writer interface {
-	// Put writes data as the value's next version (the first when there is none) and returns its metadata.
+	// Put writes data as the value's next version (the first when there is none) and returns the metadata
+	// of exactly that version (Version is the one this call wrote, even when a concurrent Put wrote a later one).
 	Put(ctx context.Context, ref Ref, data map[string]string) (Metadata, error)
 	// Delete removes the value with every version; deleting what is not there is not an error.
 	Delete(ctx context.Context, ref Ref) error

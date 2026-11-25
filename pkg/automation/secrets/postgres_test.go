@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -326,14 +327,19 @@ func TestADeleteWhoseValueCannotBeRemovedIsRetried(t *testing.T) {
 	again, err := down.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v2"})
 	require.NoError(t, err)
 
-	// The next call of a manager with a working store removes the old value and its tombstone.
+	// The next call of a manager with a working store removes the old value; the tombstone stays while a
+	// write claimed just before the delete could still land, and goes once that window is over.
 	_, err = e.mgr.List(e.ctx, e.tenant)
 	require.NoError(t, err)
-	var tombs int
-	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secrets WHERE tenant_id = $1 AND deleted_at IS NOT NULL`, e.tenant).Scan(&tombs))
-	assert.Zero(t, tombs)
 	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`, e.tenant, s.Ref.Path).Scan(&values))
 	assert.Zero(t, values)
+	var tombs int
+	_, err = e.db.Exec(e.ctx, `UPDATE automation.secrets SET value_write_at = now() - interval '1 hour' WHERE id = $1`, s.ID)
+	require.NoError(t, err)
+	_, err = e.mgr.List(e.ctx, e.tenant)
+	require.NoError(t, err)
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secrets WHERE tenant_id = $1 AND deleted_at IS NOT NULL`, e.tenant).Scan(&tombs))
+	assert.Zero(t, tombs)
 	got, err := e.res.Resolve(e.ctx, e.tenant, "API_KEY")
 	require.NoError(t, err)
 	assert.Equal(t, "v2", got)
@@ -479,4 +485,153 @@ func TestAStaleStagedRecordIsPurged(t *testing.T) {
 	got, err := e.res.Resolve(e.ctx, e.tenant, "API_KEY")
 	require.NoError(t, err)
 	assert.Equal(t, "fresh", got)
+}
+
+// Concurrent Puts at one path each get the version they wrote: none is handed a later writer's version.
+func TestConcurrentPutsReturnTheirOwnVersion(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	ref := secrets.Ref{TenantID: e.tenant, Path: "p/race"}
+	const writers = 8
+	type wrote struct {
+		value   string
+		version int
+		err     error
+	}
+	out := make(chan wrote, writers)
+	for i := range writers {
+		go func() {
+			v := fmt.Sprintf("value-%d", i)
+			md, err := e.store.Put(e.ctx, ref, map[string]string{secrets.ValueKey: v})
+			out <- wrote{value: v, version: md.Version, err: err}
+		}()
+	}
+	seen := map[int]bool{}
+	for range writers {
+		w := <-out
+		require.NoError(t, w.err)
+		assert.False(t, seen[w.version], "version %d returned twice", w.version)
+		seen[w.version] = true
+		got, err := e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: ref.Path, Version: w.version})
+		require.NoError(t, err)
+		assert.Equal(t, w.value, got.Data[secrets.ValueKey], "version %d holds what its Put wrote", w.version)
+	}
+}
+
+// overlapping runs another rotation of the same secret inside this one's Put, after its value is written.
+type overlapping struct {
+	secrets.Writer
+	during func()
+}
+
+func (w overlapping) Put(ctx context.Context, ref secrets.Ref, data map[string]string) (secrets.Metadata, error) {
+	md, err := w.Writer.Put(ctx, ref, data)
+	if w.during != nil {
+		w.during()
+	}
+	return md, err
+}
+
+// Two rotations of one secret from the same version: only one publishes, and what is published is the value
+// of the one that won.
+func TestOverlappingRotationsPublishTheWinnersValue(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	s, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
+	require.NoError(t, err)
+	a := secrets.NewManager(e.db, overlapping{Writer: e.store, during: func() {
+		_, err := e.mgr.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "from-b"})
+		require.NoError(t, err)
+	}}, e.store, secrets.DefaultLocator("test/"))
+	_, err = a.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "from-a"})
+	assert.ErrorIs(t, err, secrets.ErrVersionConflict, "the rotation that lost reports it")
+	got, err := e.res.Resolve(e.ctx, e.tenant, "API_KEY")
+	require.NoError(t, err)
+	assert.Equal(t, "from-b", got)
+}
+
+// A delete that overtakes a rotation: the value the rotation writes afterwards is removed, by the rotation
+// itself, or by purge from the tombstone when the rotation's process stops before it could.
+func TestALateRotationAfterADeleteLeavesNoValue(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	s, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
+	require.NoError(t, err)
+	late := secrets.NewManager(e.db, deleteFirst{Writer: e.store, del: func() { require.NoError(t, e.mgr.Delete(e.ctx, e.tenant, s.ID)) }},
+		e.store, secrets.DefaultLocator("test/"))
+	_, err = late.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "v2"})
+	assert.ErrorIs(t, err, secrets.ErrNotFound)
+	values := func() int {
+		var n int
+		require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`, e.tenant, s.Ref.Path).Scan(&n))
+		return n
+	}
+	assert.Zero(t, values(), "the rotation removed what it wrote after the delete")
+
+	// The rotation's process stopped right after its write: the tombstone (kept for the claim) leads purge to it.
+	_, err = e.store.Put(e.ctx, secrets.Ref{TenantID: e.tenant, Path: s.Ref.Path}, map[string]string{secrets.ValueKey: "landed-late"})
+	require.NoError(t, err)
+	require.Equal(t, 1, values())
+	_, err = e.mgr.List(e.ctx, e.tenant)
+	require.NoError(t, err)
+	assert.Zero(t, values(), "purge found the late value through the tombstone")
+	_, err = e.res.Resolve(e.ctx, e.tenant, "API_KEY")
+	assert.ErrorIs(t, err, secrets.ErrNotFound)
+}
+
+// deleteFirst deletes the secret (another administrator) right before its Put writes.
+type deleteFirst struct {
+	secrets.Writer
+	del func()
+}
+
+func (w deleteFirst) Put(ctx context.Context, ref secrets.Ref, data map[string]string) (secrets.Metadata, error) {
+	w.del()
+	return w.Writer.Put(ctx, ref, data)
+}
+
+// flakyStore fails Delete while down (a transient outage of the value store).
+type flakyStore struct {
+	secrets.Writer
+	down *bool
+}
+
+func (f flakyStore) Delete(ctx context.Context, ref secrets.Ref) error {
+	if *f.down {
+		return secrets.ErrUnavailable
+	}
+	return f.Writer.Delete(ctx, ref)
+}
+
+// A create given up while the store cannot delete its value: the staged record becomes a tombstone that keeps
+// the reference, so the value is removed once the store is back.
+func TestAGivenUpCreateKeepsItsReferenceAcrossAStoreOutage(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	down := true
+	ctx, cancel := context.WithCancel(e.ctx)
+	w := flakyStore{Writer: cancelAfterPut{Writer: e.store, cancel: cancel}, down: &down}
+	m := secrets.NewManager(e.db, w, e.store, secrets.DefaultLocator("test/"))
+	_, err := m.Create(ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
+	require.Error(t, err)
+
+	var path string
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT ref_path FROM automation.secrets WHERE tenant_id = $1 AND deleted_at IS NOT NULL`, e.tenant).Scan(&path),
+		"the given-up record is a tombstone with its reference")
+	var n int
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`, e.tenant, path).Scan(&n))
+	assert.Equal(t, 1, n, "the store was down: the value is still there")
+	_, err = e.res.Resolve(e.ctx, e.tenant, "API_KEY")
+	assert.ErrorIs(t, err, secrets.ErrNotFound)
+	_, err = e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v2"})
+	require.NoError(t, err, "the name is free")
+
+	down = false
+	_, err = m.List(e.ctx, e.tenant)
+	require.NoError(t, err)
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`, e.tenant, path).Scan(&n))
+	assert.Zero(t, n, "purge removed it once the store was back")
+	got, err := e.res.Resolve(e.ctx, e.tenant, "API_KEY")
+	require.NoError(t, err)
+	assert.Equal(t, "v2", got)
 }

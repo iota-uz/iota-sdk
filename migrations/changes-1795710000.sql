@@ -6,8 +6,8 @@
 -- a rotation that fails between the two writes leaves readers on the published version. A record is staged
 -- (value_version 0: the name is reserved, nothing reads it) before its first value is written, so recovery
 -- tells a published secret from an orphan by its row. A deleted record is a tombstone (deleted_at) until its
--- value is gone, so a failed delete of the value is retried. No transaction is held open while a value is
--- written: the value store may share the records' pool.
+-- value is gone and no write claimed before it can still land, so a failed or raced delete of the value is
+-- retried. No transaction is held open while a value is written: the value store may share the records' pool.
 -- +migrate Up
 CREATE TABLE automation.secret_values (
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
@@ -35,7 +35,11 @@ CREATE TABLE automation.secrets (
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
     rotated_at timestamp with time zone NOT NULL DEFAULT now(),
     last_used_at timestamp with time zone,
-    deleted_at timestamp with time zone
+    deleted_at timestamp with time zone,
+    -- The last claim of a value write (a create or a rotation, set before the value store is called): a
+    -- tombstone is kept, and its value deleted again, until the claim is older than the write window, so a
+    -- write that lands after a delete is still found and removed.
+    value_write_at timestamp with time zone
 );
 
 -- A name is unique among the live secrets of a tenant; tombstones keep theirs until purged.

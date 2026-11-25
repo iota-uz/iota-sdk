@@ -106,14 +106,22 @@ func validateName(n string) error {
 //   - published: value_version N > 0. Readers read version N of the value.
 //   - tombstone: deleted_at set. The name is free; the value is being removed.
 //
+// A write of a value is claimed on the record first (value_write_at, one statement before the store is
+// called). A tombstone stays, and its value is deleted again by every purge, until its last claim is older
+// than writeWindow: a write that lands after the value was deleted (a rotation racing a delete, a create's
+// value written late) is still found and removed, never left without a record.
+//
 // A step whose outcome is unknown (a lost COMMIT reply) is settled by reading the record again before
-// anything is undone: a value is removed only while no published record names it.
+// anything is undone: a value is removed only while no published record names it, and a record that is
+// given up becomes a tombstone (it is never removed before its value).
 
 const (
 	// live is the condition of a record readers and the page see: published, not a tombstone.
 	live = `deleted_at IS NULL AND value_version > 0`
-	// stagedFor is how long a staged record may wait for its value before purge removes it.
+	// stagedFor is how long a staged record may wait for its value before purge gives it up.
 	stagedFor = 10 * time.Minute
+	// writeWindow is how long after its claim a value write may still land: a tombstone is kept that long.
+	writeWindow = 10 * time.Minute
 	// readAttempts bounds how often Resolve follows a rotation that moved past the version it looked up.
 	readAttempts = 3
 	// cleanupTimeout bounds the best-effort steps that run after the caller's context is done.
@@ -179,8 +187,8 @@ func (m *manager) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 		return Secret{}, ErrForbidden
 	}
 	ref.Version = 0
-	if _, err := m.db.Exec(ctx, `INSERT INTO automation.secrets (id, tenant_id, name, description, ref_path, value_version, created_by)
-		VALUES ($1, $2, $3, $4, $5, 0, $6)`, id, tenantID, in.Name, in.Description, ref.Path, in.CreatedBy); err != nil {
+	if _, err := m.db.Exec(ctx, `INSERT INTO automation.secrets (id, tenant_id, name, description, ref_path, value_version, created_by, value_write_at)
+		VALUES ($1, $2, $3, $4, $5, 0, $6, now())`, id, tenantID, in.Name, in.Description, ref.Path, in.CreatedBy); err != nil {
 		if isUnique(err) {
 			return Secret{}, ErrNameTaken
 		}
@@ -204,8 +212,9 @@ func (m *manager) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 }
 
 // settleCreate reads the record of a create that failed after it was staged: published (returned, ok) is a
-// success whatever the error said; staged is undone; gone leaves an orphan value to remove. When the record
-// cannot be read nothing is undone: purge settles it later from the row.
+// success whatever the error said; staged is given up (a tombstone, then its value is removed); gone leaves
+// an orphan value to remove. When the record cannot be read nothing is undone: purge settles it later from
+// the row.
 func (m *manager) settleCreate(ctx context.Context, tenantID, id uuid.UUID, ref Ref) (Secret, bool) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
@@ -214,21 +223,23 @@ func (m *manager) settleCreate(ctx context.Context, tenantID, id uuid.UUID, ref 
 	case err == nil && s.ValueVersion > 0 && s.DeletedAt == nil:
 		return s, true
 	case err == nil && s.ValueVersion == 0:
-		m.dropStaged(ctx, tenantID, id, ref)
+		m.giveUpStaged(ctx, tenantID, id, ref)
 	case errors.Is(err, pgx.ErrNoRows):
 		_ = m.writer.Delete(ctx, ref) // no record names it: the path is this secret's own
 	}
 	return Secret{}, false
 }
 
-// dropStaged removes a staged record and then its value; the record goes first, so a value is never removed
-// while a row could still publish it.
-func (m *manager) dropStaged(ctx context.Context, tenantID, id uuid.UUID, ref Ref) {
-	tag, err := m.db.Exec(ctx, `DELETE FROM automation.secrets WHERE tenant_id = $1 AND id = $2 AND value_version = 0`, tenantID, id)
+// giveUpStaged turns a staged record into a tombstone (one statement: it can no longer be published, and
+// its name is free), then removes its value. The tombstone keeps the reference until the value is gone, so a
+// store that fails here, or a process that stops, leaves it for purge.
+func (m *manager) giveUpStaged(ctx context.Context, tenantID, id uuid.UUID, ref Ref) {
+	tag, err := m.db.Exec(ctx, `UPDATE automation.secrets SET deleted_at = now(), updated_at = now()
+		WHERE tenant_id = $1 AND id = $2 AND value_version = 0 AND deleted_at IS NULL`, tenantID, id)
 	if err != nil || tag.RowsAffected() == 0 {
 		return
 	}
-	_ = m.writer.Delete(ctx, ref)
+	m.removeValue(ctx, tenantID, id, ref.Path)
 }
 
 func (m *manager) Update(ctx context.Context, tenantID uuid.UUID, in UpdateInput) (Secret, error) {
@@ -293,7 +304,10 @@ func (m *manager) Rotate(ctx context.Context, tenantID uuid.UUID, in RotateInput
 		return Secret{}, err
 	}
 	m.purge(ctx, tenantID)
-	cur, err := scanSecret(m.db.QueryRow(ctx, `SELECT `+secretColumns+` FROM automation.secrets WHERE tenant_id = $1 AND id = $2 AND `+live, tenantID, in.ID))
+	// The claim of the write, before the store is called: a delete that overtakes this rotation keeps its
+	// tombstone until the value written here can no longer land, and removes it then.
+	cur, err := scanSecret(m.db.QueryRow(ctx, `UPDATE automation.secrets SET value_write_at = now()
+		WHERE tenant_id = $1 AND id = $2 AND `+live+` RETURNING `+secretColumns, tenantID, in.ID))
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return Secret{}, ErrNotFound
@@ -317,6 +331,10 @@ func (m *manager) Rotate(ctx context.Context, tenantID uuid.UUID, in RotateInput
 		switch {
 		case rerr == nil && now.ValueVersion == md.Version && now.DeletedAt == nil:
 			out = now // published: the error was the reply's
+		case rerr == nil && now.DeletedAt != nil:
+			// Deleted while the value was written: the value written here goes with the rest.
+			m.removeValue(settle, tenantID, in.ID, now.Ref.Path)
+			return Secret{}, ErrNotFound
 		case errors.Is(err, pgx.ErrNoRows):
 			return Secret{}, m.missOrConflict(settle, tenantID, in.ID)
 		default:
@@ -353,14 +371,16 @@ func (m *manager) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	return nil
 }
 
-// removeValue deletes a tombstone's value and then the tombstone; a failure leaves both for purge.
+// removeValue deletes a tombstone's value, then the tombstone once no claimed write can still land; a
+// failure, or a recent claim, leaves the tombstone for purge, which deletes the value again.
 func (m *manager) removeValue(ctx context.Context, tenantID, id uuid.UUID, path string) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
 	if err := m.writer.Delete(ctx, Ref{TenantID: tenantID, Path: path}); err != nil {
 		return
 	}
-	_, _ = m.db.Exec(ctx, `DELETE FROM automation.secrets WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NOT NULL`, tenantID, id)
+	_, _ = m.db.Exec(ctx, `DELETE FROM automation.secrets WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NOT NULL
+		AND (value_write_at IS NULL OR value_write_at < now() - make_interval(secs => $3))`, tenantID, id, writeWindow.Seconds())
 }
 
 // purgeBatch is how many records one call of the manager settles.
@@ -391,9 +411,7 @@ func (m *manager) purge(ctx context.Context, tenantID uuid.UUID) {
 	rows.Close()
 	for _, l := range found {
 		if l.staged {
-			cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
-			m.dropStaged(cleanup, tenantID, l.id, Ref{TenantID: tenantID, Path: l.path})
-			cancel()
+			m.giveUpStaged(ctx, tenantID, l.id, Ref{TenantID: tenantID, Path: l.path})
 			continue
 		}
 		m.removeValue(ctx, tenantID, l.id, l.path)

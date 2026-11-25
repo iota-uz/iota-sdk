@@ -84,7 +84,15 @@ func (s *sealedSecrets) Put(ctx context.Context, ref secrets.Ref, data map[strin
 			ref.TenantID, ref.Path, next, keyID, nonce, ct).Scan(&at)
 		switch {
 		case err == nil:
-			return s.Metadata(ctx, secrets.Ref{TenantID: ref.TenantID, Path: ref.Path})
+			// The version this call inserted, never the latest: a concurrent Put may already have added a
+			// later one, and the caller publishes exactly what it wrote.
+			md := secrets.Metadata{Version: next, CreatedAt: at, UpdatedAt: at}
+			var first *time.Time
+			if err := s.db.QueryRow(ctx, `SELECT min(created_at) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`,
+				ref.TenantID, ref.Path).Scan(&first); err == nil && first != nil {
+				md.CreatedAt = *first
+			}
+			return md, nil
 		case errors.Is(err, pgx.ErrNoRows):
 			continue
 		default:
