@@ -499,7 +499,7 @@
     "version": "0.55.1",
     "source": "562a8f99336c8cc3949c059fbb8a182fa0e7cd20",
     "sha": "a28b431c887bb533a9777894a4e05e018b30e370",
-    "phase": "testing",
+    "phase": "failed",
     "run_id": "45579236593"
   },
   "ready": {
