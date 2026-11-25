@@ -106,7 +106,8 @@ func TestRunAutomationStartsTheChildGraphInTheComposedModule(t *testing.T) {
 		require.Nil(t, rpc(t, s, graphs.MethodRun, map[string]any{"run_id": runID.String()}, &run).Error)
 		status = string(run.Run.Status)
 		if status == "blocked" {
-			b, _ := json.Marshal(run)
+			b, err := json.Marshal(run)
+			require.NoError(t, err)
 			t.Fatalf("the run is blocked: %s", b)
 		}
 		if status == string(engine.RunDone) || status == string(engine.RunFailed) {

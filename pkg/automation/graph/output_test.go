@@ -106,7 +106,11 @@ func TestEndOutputIsTheRunsOutput(t *testing.T) {
 		t.Fatalf("the run ends: %+v", end)
 	}
 	out, _ := end.End["output"].(map[string]any)
-	if b, _ := json.Marshal(out); string(b) != `{"label":"big","total":300}` {
+	b, err := json.Marshal(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != `{"label":"big","total":300}` {
 		t.Fatalf("the output: %s", b)
 	}
 	if end.End["reason"] != "done" {

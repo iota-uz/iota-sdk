@@ -10,7 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 )
 
-// FailInvalidOutput: the output an end node computed does not match the graph's output_schema.
+// FailInvalidOutput is the failure code when the output an end node computed does not match the graph's output_schema.
 const FailInvalidOutput = "INVALID_OUTPUT"
 
 // outputSpec compiles a graph's output schema: a JSON Schema of type object. nil: the graph has none.
