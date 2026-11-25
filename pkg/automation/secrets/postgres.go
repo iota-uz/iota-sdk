@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -61,6 +63,11 @@ type manager struct {
 	writer  Writer
 	meta    MetadataReader
 	locator Locator
+
+	// sweptTo is, per tenant, the last unreferenced path a sweep tried: the next sweep starts after it, so
+	// values that fail to delete never keep the ones behind them waiting.
+	mu      sync.Mutex
+	sweptTo map[uuid.UUID]string
 }
 
 // NewManager administers secrets: the records in automation.secrets and the values through writer. meta
@@ -194,6 +201,12 @@ func (m *manager) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 	ref := m.locator.Locate(tenantID, id)
 	if ref.TenantID != tenantID {
 		return Secret{}, ErrForbidden
+	}
+	// A value's path is the secret's own for its whole life: under the tenant's root (the sweep lists it)
+	// and carrying the new secret's id, so a path never names two secrets and a sweep that removes an
+	// unreferenced path can never remove a later secret's value. The records enforce it too (a unique index).
+	if root := m.locator.Root(tenantID); !strings.HasPrefix(ref.Path, root.Path) || !strings.Contains(strings.TrimPrefix(ref.Path, root.Path), id.String()) {
+		return Secret{}, fmt.Errorf("%w: the locator's path of a secret must lie under the tenant's root and carry the secret's id", ErrInvalid)
 	}
 	ref.Version = 0
 	var claim time.Time
@@ -412,7 +425,14 @@ func (m *manager) removeValue(ctx context.Context, tenantID, id uuid.UUID, path 
 		tenantID, id, writeWindow.Seconds()).Scan(&claim, &expired); err != nil {
 		return
 	}
-	if err := m.writer.Delete(ctx, Ref{TenantID: tenantID, Path: path}); err != nil || !expired {
+	if err := m.writer.Delete(ctx, Ref{TenantID: tenantID, Path: path}); err != nil {
+		// To the back of the queue: a tombstone the store keeps failing on never holds up the others.
+		bump, cancel := context.WithTimeout(context.WithoutCancel(ctx), lastUsedTimeout)
+		_, _ = m.db.Exec(bump, `UPDATE automation.secrets SET updated_at = now() WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NOT NULL`, tenantID, id)
+		cancel()
+		return
+	}
+	if !expired {
 		return
 	}
 	_, _ = m.db.Exec(ctx, `DELETE FROM automation.secrets WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NOT NULL
@@ -445,13 +465,13 @@ func (m *manager) purge(ctx context.Context, tenantID uuid.UUID) {
 		}
 	}
 	rows.Close()
-	// One deadline for the whole batch: a slow or failing store costs the caller at most cleanupTimeout,
-	// and what is left unfinished waits for the next call.
+	// One deadline for the tombstones and one for the sweep: a slow or failing store costs the caller at
+	// most twice cleanupTimeout, what is left waits for the next call, and neither phase can use up the
+	// other's time.
 	batch, cancel := cleanupContext(ctx)
-	defer cancel()
 	for _, l := range found {
 		if batch.Err() != nil {
-			return
+			break
 		}
 		if l.staged {
 			m.giveUpStaged(batch, tenantID, l.id, Ref{TenantID: tenantID, Path: l.path})
@@ -459,11 +479,14 @@ func (m *manager) purge(ctx context.Context, tenantID uuid.UUID) {
 		}
 		m.removeValue(batch, tenantID, l.id, l.path)
 	}
-	m.sweep(batch, tenantID)
+	cancel()
+	sweep, cancelSweep := cleanupContext(ctx)
+	defer cancelSweep()
+	m.sweep(sweep, tenantID)
 }
 
 // sweepBatch is how many unreferenced values one sweep removes.
-const sweepBatch = 50
+var sweepBatch = 50
 
 // sweep removes the values under the tenant's root that no live or staged record names. It is what makes
 // cleanup independent of timing: a write the store commits late — after its secret was deleted and its
@@ -492,16 +515,37 @@ func (m *manager) sweep(ctx context.Context, tenantID uuid.UUID) {
 	if rows.Err() != nil {
 		return
 	}
-	removed := 0
+	var orphans []string
 	for _, p := range paths {
-		if named[p] {
-			continue
+		if !named[p] {
+			orphans = append(orphans, p)
 		}
-		if ctx.Err() != nil || removed >= sweepBatch {
+	}
+	if len(orphans) == 0 {
+		return
+	}
+	sort.Strings(orphans)
+	// Start after the path the last sweep stopped at, wrapping around: every orphan gets its turn, however
+	// many before it keep failing.
+	m.mu.Lock()
+	after := m.sweptTo[tenantID]
+	m.mu.Unlock()
+	start := sort.SearchStrings(orphans, after)
+	if start < len(orphans) && orphans[start] == after {
+		start++
+	}
+	for i := range min(len(orphans), sweepBatch) {
+		if ctx.Err() != nil {
 			return
 		}
+		p := orphans[(start+i)%len(orphans)]
 		_ = m.writer.Delete(ctx, Ref{TenantID: tenantID, Path: p})
-		removed++
+		m.mu.Lock()
+		if m.sweptTo == nil {
+			m.sweptTo = map[uuid.UUID]string{}
+		}
+		m.sweptTo[tenantID] = p
+		m.mu.Unlock()
 	}
 }
 

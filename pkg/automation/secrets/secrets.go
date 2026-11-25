@@ -102,6 +102,9 @@ type Locator interface {
 	Locate(tenantID, secretID uuid.UUID) Ref
 	// Root is the prefix every value Locate gives the tenant lies under: the records sweep it, and remove
 	// a value there that no record names. Nothing else may be stored under it.
+	//
+	// Locate must give each secret a path of its own for good: under Root and carrying secretID (a fresh
+	// id per secret), never a path an earlier secret had. The manager refuses a path that does not.
 	Root(tenantID uuid.UUID) Ref
 }
 

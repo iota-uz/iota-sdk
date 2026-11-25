@@ -30,3 +30,10 @@ func SetCleanupTimeout(d time.Duration) func() {
 	cleanupTimeout = d
 	return func() { cleanupTimeout = c }
 }
+
+// SetSweepBatch changes how many orphans one sweep tries; the returned func restores it.
+func SetSweepBatch(n int) func() {
+	b := sweepBatch
+	sweepBatch = n
+	return func() { sweepBatch = b }
+}

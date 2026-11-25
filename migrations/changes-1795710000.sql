@@ -45,6 +45,10 @@ CREATE TABLE automation.secrets (
 -- A name is unique among the live secrets of a tenant; tombstones keep theirs until purged.
 CREATE UNIQUE INDEX secrets_tenant_name_idx ON automation.secrets (tenant_id, name) WHERE deleted_at IS NULL;
 
+-- A value's path belongs to one secret for good (the manager puts the secret's id in it): the sweep, which
+-- removes values no record names, can never take a later secret's value at a reused path.
+CREATE UNIQUE INDEX secrets_tenant_ref_path_idx ON automation.secrets (tenant_id, ref_path);
+
 CREATE INDEX secrets_deleted_idx ON automation.secrets (tenant_id) WHERE deleted_at IS NOT NULL;
 
 -- +migrate Down

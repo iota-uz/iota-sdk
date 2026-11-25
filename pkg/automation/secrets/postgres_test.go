@@ -765,8 +765,8 @@ func TestCleanupIsBoundedAcrossTheBatch(t *testing.T) {
 	started := time.Now()
 	_, err := m.List(e.ctx, e.tenant)
 	require.NoError(t, err)
-	assert.Less(t, time.Since(started), 2*time.Second, "one deadline for the batch")
-	assert.Equal(t, 1, calls, "the batch stopped at its deadline")
+	assert.Less(t, time.Since(started), 3*time.Second, "one deadline for the tombstones, one for the sweep")
+	assert.LessOrEqual(t, calls, 2, "each phase stopped at its deadline: one hanging delete each, not one per tombstone")
 	var tombs int
 	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secrets WHERE tenant_id = $1 AND deleted_at IS NOT NULL`, e.tenant).Scan(&tombs))
 	assert.Equal(t, 4, tombs, "unfinished tombstones wait for the next cleanup")
@@ -830,4 +830,96 @@ func TestTheSweepKeepsAStagedCreatesValue(t *testing.T) {
 	require.NoError(t, err)
 	_, err = e.store.Read(e.ctx, ref)
 	require.NoError(t, err, "a staged record names its value")
+}
+
+// pathTrap fails (or hangs, until its context ends) on the deletes of the paths it holds.
+type pathTrap struct {
+	secrets.Writer
+	fail map[string]bool
+	hang map[string]bool
+}
+
+func (p pathTrap) Delete(ctx context.Context, ref secrets.Ref) error {
+	switch {
+	case p.hang[ref.Path]:
+		<-ctx.Done()
+		return ctx.Err()
+	case p.fail[ref.Path]:
+		return secrets.ErrUnavailable
+	}
+	return p.Writer.Delete(ctx, ref)
+}
+
+// Orphans behind ones that keep failing still get swept: each sweep resumes after the last path it tried,
+// and a tombstone the store hangs on cannot use up the sweep's time.
+func TestFailingCleanupNeverStarvesHealthyOrphans(t *testing.T) {
+	restoreBatch := secrets.SetSweepBatch(2)
+	defer restoreBatch()
+	restoreTimeout := secrets.SetCleanupTimeout(300 * time.Millisecond)
+	defer restoreTimeout()
+	e := newEnv(t)
+	loc := secrets.DefaultLocator("test/")
+	root := loc.Root(e.tenant).Path
+	put := func(name string) string {
+		path := root + name
+		_, err := e.store.Put(e.ctx, secrets.Ref{TenantID: e.tenant, Path: path}, map[string]string{secrets.ValueKey: "orphan"})
+		require.NoError(t, err)
+		return path
+	}
+	// A deleted secret whose value the store hangs on: first in the tombstone queue on every purge.
+	s, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "STUCK", Value: "v"})
+	require.NoError(t, err)
+	_, err = e.db.Exec(e.ctx, `UPDATE automation.secrets SET deleted_at = now() WHERE id = $1`, s.ID)
+	require.NoError(t, err)
+	bad1, bad2 := put("a1"), put("a2")
+	good1, good2 := put("b1"), put("b2")
+
+	trap := pathTrap{Writer: e.store, fail: map[string]bool{bad1: true, bad2: true}, hang: map[string]bool{s.Ref.Path: true}}
+	m := secrets.NewManager(e.db, trap, e.store, loc)
+	exists := func(path string) bool {
+		var n int
+		require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`, e.tenant, path).Scan(&n))
+		return n > 0
+	}
+	for range 3 {
+		_, err := m.List(e.ctx, e.tenant)
+		require.NoError(t, err)
+	}
+	assert.False(t, exists(good1), "a healthy orphan behind failing ones is swept")
+	assert.False(t, exists(good2))
+	assert.True(t, exists(bad1) && exists(bad2), "the failing ones stay for later")
+}
+
+// fixedLocator gives every secret the same path (a custom locator that reuses paths).
+type fixedLocator struct{ secrets.Locator }
+
+func (f fixedLocator) Locate(tenantID, _ uuid.UUID) secrets.Ref {
+	r := f.Root(tenantID)
+	r.Path += "shared"
+	return r
+}
+
+// outsideLocator puts values outside the tenant's root, where the sweep would never look.
+type outsideLocator struct{ secrets.Locator }
+
+func (o outsideLocator) Locate(tenantID, id uuid.UUID) secrets.Ref {
+	return secrets.Ref{TenantID: tenantID, Path: "elsewhere/" + id.String()}
+}
+
+// A path is a secret's own for good: a locator that reuses a path, or puts it outside the root, is refused,
+// so the sweep can never remove a later secret's value.
+func TestALocatorMustGiveEachSecretItsOwnPathUnderTheRoot(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	for name, loc := range map[string]secrets.Locator{
+		"reused":  fixedLocator{Locator: secrets.DefaultLocator("test/")},
+		"outside": outsideLocator{Locator: secrets.DefaultLocator("test/")},
+	} {
+		m := secrets.NewManager(e.db, e.store, e.store, loc)
+		_, err := m.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v"})
+		require.ErrorIs(t, err, secrets.ErrInvalid, name)
+	}
+	var n int
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1`, e.tenant).Scan(&n))
+	assert.Zero(t, n, "nothing was written")
 }
