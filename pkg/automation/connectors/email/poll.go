@@ -155,13 +155,16 @@ func (c *imapConnector) initialCursor(s *imapSession, mailbox string, sel *imap.
 // cursorAfter is the cursor before the first message of the mailbox the server received at or after the time
 // (INTERNALDATE, to the second), else the cursor at its end.
 func cursorAfter(s *imapSession, mailbox string, sel *imap.SelectData, after time.Time) (cursor, error) {
+	// The end is taken before the date search: on a server that gives no UIDNEXT it is a search of its own, and
+	// a message that arrived after the date search would be taken for the end and never read. Taken first, such
+	// a message is above the end, or the date search finds it.
+	endRaw, err := initialCursorOf(s, mailbox, sel)
+	if err != nil {
+		return cursor{}, err
+	}
 	end := func() (cursor, error) {
-		raw, err := initialCursorOf(s, mailbox, sel)
-		if err != nil {
-			return cursor{}, err
-		}
 		var c cursor
-		return c, json.Unmarshal(raw, &c)
+		return c, json.Unmarshal(endRaw, &c)
 	}
 	// SINCE is a date in the server's zone: a day earlier covers every zone, INTERNALDATE decides.
 	res, err := s.c.UIDSearch(&imap.SearchCriteria{Since: after.Add(-24 * time.Hour)}, nil).Wait()

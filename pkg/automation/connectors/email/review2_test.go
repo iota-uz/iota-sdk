@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"net"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/emersion/go-imap/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -241,4 +243,38 @@ func TestTheSendersMailboxIsBaselinedBeforeTheSend(t *testing.T) {
 	require.NoError(t, json.Unmarshal(seededCursor(t, f, own), &cur))
 	assert.NotZero(t, cur.UIDValidity, "a cursor of the mailbox")
 	assert.Nil(t, cur.After)
+}
+
+// A server that gives no UIDNEXT: the end of the mailbox is found by a search, which is made before the date
+// search. A reply that arrives between the two commands is then above the end and is found by the date
+// search — it never becomes the end the cursor stands at.
+func TestSendMarkOnAServerWithoutUIDNextKeepsAReplyBetweenTheSearches(t *testing.T) {
+	f := newFx(t, emailtest.ModeTLS)
+	after := time.Now()
+	f.srv.DeliverAt(mailbox, "INBOX", mailText("<old@x>", "a@example.org", "old", "x"), after.Add(-time.Hour))
+	var once sync.Once
+	f.srv.BeforeSearch(func(c *imap.SearchCriteria) {
+		if c.Since.IsZero() { // the search for the end of the mailbox, not the date search
+			once.Do(func() {
+				f.srv.DeliverAt(mailbox, "INBOX", mailText("<reply@x>", "boss@example.org", "Re: x", "y"), after.Add(time.Minute))
+			})
+		}
+	})
+	a, err := f.imap.parseIMAP(f.imapCreds())
+	require.NoError(t, err)
+	s, err := f.imap.openIMAP(context.Background(), a, "")
+	require.NoError(t, err)
+	sel, err := s.selectMailbox(a.mailbox, true)
+	require.NoError(t, err)
+	sel.UIDNext = 0 // as a server that does not say it
+	cur, err := cursorAfter(s, a.mailbox, sel, after)
+	s.close()
+	require.NoError(t, err)
+	f.srv.BeforeSearch(nil)
+
+	raw, err := json.Marshal(cur)
+	require.NoError(t, err)
+	evs, _ := f.pollOnce(t, f.connection(KindIMAP), f.imapCreds(), raw)
+	require.Len(t, evs, 1, "the reply that came between the searches is published, the older mail is not")
+	assert.Equal(t, "<reply@x>", payloadOf(t, evs[0])["messageId"])
 }

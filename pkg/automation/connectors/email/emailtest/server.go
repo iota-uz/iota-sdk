@@ -82,6 +82,8 @@ type Server struct {
 	imapCaps  imap.CapSet
 	failFetch int
 	noIMAP    bool // the IMAP server refuses every login (a mailbox with IMAP switched off)
+	// beforeSearch runs before the server answers a SEARCH (a test that puts a message in between commands).
+	beforeSearch func(*imap.SearchCriteria)
 }
 
 // New starts the servers; they stop with the test.
@@ -167,6 +169,14 @@ func (s *Server) DisableUIDPlus() {
 	defer s.mu.Unlock()
 	delete(s.imapCaps, imap.CapUIDPlus)
 	delete(s.imapCaps, imap.CapIMAP4rev2)
+}
+
+// BeforeSearch runs fn before the IMAP server answers each SEARCH, with its criteria: a test puts a message into
+// a mailbox between two commands of a client with it. fn may call Deliver.
+func (s *Server) BeforeSearch(fn func(*imap.SearchCriteria)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.beforeSearch = fn
 }
 
 // Security is the "security" credential that matches the servers' mode.
@@ -593,6 +603,17 @@ func (x *imapSession) Fetch(w *imapserver.FetchWriter, numSet imap.NumSet, optio
 		}
 	}
 	return x.Session.Fetch(w, numSet, options)
+}
+
+// Search runs the hook of BeforeSearch first.
+func (x *imapSession) Search(kind imapserver.NumKind, criteria *imap.SearchCriteria, options *imap.SearchOptions) (*imap.SearchData, error) {
+	x.s.mu.Lock()
+	hook := x.s.beforeSearch
+	x.s.mu.Unlock()
+	if hook != nil {
+		hook(criteria)
+	}
+	return x.Session.Search(kind, criteria, options)
 }
 
 func (x *imapSession) AuthenticateMechanisms() []string { return []string{"PLAIN", "XOAUTH2"} }
