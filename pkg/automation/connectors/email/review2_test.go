@@ -195,3 +195,19 @@ func TestASilentMailboxDoesNotHoldTheSend(t *testing.T) {
 	assert.False(t, hasCursor(f, silent))
 	assert.Len(t, f.srv.Sent(), 1)
 }
+
+// The mailbox of the sender's address is where the reply comes: its baseline takes the send's time, not the short
+// one of a mailbox whose address is unknown, so a slow server still gets its cursor before the message goes.
+func TestTheSendersMailboxIsSeededEvenWhenItIsSlow(t *testing.T) {
+	old := baselineTimeout
+	baselineTimeout = time.Nanosecond // a mailbox of unknown address would never make it
+	t.Cleanup(func() { baselineTimeout = old })
+	f := newFx(t, emailtest.ModeTLS)
+	own := f.connection(KindIMAP)
+	own.Identity = connectors.Identity{External: mailbox, Kind: connectors.IdentityEmail}
+	f.conns.add(own, f.imapCreds())
+	res, err := (&sendNode{f.smtp.hub}).Execute(context.Background(), f.sendInput(params(nil), f.smtpCreds()))
+	require.NoError(t, err)
+	assert.Equal(t, "sent", res.Outcome)
+	assert.True(t, hasCursor(f, own), "the sender's mailbox is seeded with the send's time")
+}

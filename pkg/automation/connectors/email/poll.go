@@ -376,9 +376,15 @@ func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, addresses ...
 		if err != nil {
 			continue
 		}
-		// Each mailbox has a time of its own: one that does not answer neither holds the send for long nor takes
-		// the time the send itself has.
-		bctx, cancel := context.WithTimeout(ctx, baselineTimeout)
+		// The mailbox of the sender's or Reply-To's address is where the reply comes: it is baselined with the
+		// send's own time, so a slow server still gets its cursor before the message goes. A mailbox whose
+		// address is unknown is seeded only in case the reply comes to it: it has a time of its own, so one that
+		// does not answer neither holds every send of the tenant nor takes the send's time (a server that does
+		// not answer within it cannot be polled for the reply either; the poller baselines it when it answers).
+		bctx, cancel := ctx, context.CancelFunc(func() {})
+		if !knownAddress(c.Identity) {
+			bctx, cancel = context.WithTimeout(ctx, baselineTimeout)
+		}
 		cur, err := h.baseline(bctx, conn, creds)
 		cancel()
 		if err != nil {
@@ -391,7 +397,8 @@ func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, addresses ...
 	}
 }
 
-// baselineTimeout bounds the baseline of one mailbox before a send (a variable for tests).
+// baselineTimeout bounds the baseline, before a send, of one mailbox whose address is unknown (a variable for
+// tests).
 var baselineTimeout = 10 * time.Second
 
 var _ engine.Baseliner = (*imapConnector)(nil)
