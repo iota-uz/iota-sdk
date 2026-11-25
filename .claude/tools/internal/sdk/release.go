@@ -203,6 +203,7 @@ func (g GitHub) Prepare(ctx context.Context, runID string, retry bool) (*Candida
 	if err != nil {
 		return nil, err
 	}
+	version = pastAbandoned(version, state.Releases)
 	versionField := regexp.MustCompile(`("version"\s*:\s*)"[^"]+"`)
 	if len(versionField.FindAllIndex(packageData, -1)) != 1 {
 		return nil, fmt.Errorf("canonical package must contain exactly one version field")

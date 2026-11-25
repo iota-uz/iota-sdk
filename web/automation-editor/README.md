@@ -52,6 +52,11 @@ Only `solid-js` and the SDK's own `solid-ui` subpath stay external.
     left-to-right Tidy it replaced (`src/test/legacyTidy.ts`). 240 steps take under 100 ms.
   - The Tidy button (broom, ⇧⌘L) is in the canvas controls next to Fit; the context menu has it too.
     One Tidy is one undo step; the cards glide for 200 ms (none under `prefers-reduced-motion`).
+- A param whose schema has `x-options-source` (a chat of a Telegram bot) is a picker, not a plain field: the
+  step's connection's known choices from the host (`EditorApi.searchOptions(source, query, { nodeType, params })`,
+  grouped by `group`), an id or @username typed by hand, or a CEL expression. Without `searchOptions` the list
+  mode says so and the other two still work. The value is a number (an id), a quoted string (`"@name"`) or an
+  expression.
 - Validation results belong to the snapshot they checked: they are rebased onto the current draft by
   item id, an edit invalidates a check in flight, and Save checks exactly the snapshot it sends.
 - Layout saves run one at a time; when one ends, the layout on screen is compared with what was saved

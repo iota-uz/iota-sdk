@@ -132,6 +132,13 @@
         "LoadLatest": "Carregar a versão mais recente",
         "Reloaded": "A versão mais recente foi carregada. Verifique o formulário e salve novamente.",
         "RetryChanged": "O primeiro salvamento pode ter sido concluído com os valores anteriores. Feche o formulário e edite a conexão pela lista.",
+        "Warnings": {
+          "foreign_webhook": "Este bot já é usado por outro serviço. Depois de conectá-lo, esse serviço deixará de receber mensagens.",
+          "polling_unknown": "Não conseguimos saber se outro serviço lê as mensagens deste bot (por polling). Se ler, ele deixará de recebê-las depois que você conectar."
+        },
+        "ConfirmWarning": "Conectar mesmo assim",
+        "ConfirmRequired": "Confirme que deseja conectar este bot apesar dos avisos acima.",
+        "BotInUse": "Este bot já está reservado: ele está conectado aqui como outra conexão, ou pertence a outra conta ou à plataforma. Use outro bot ou peça a um administrador. Se você gerencia a conexão existente, exclua-a primeiro (desativá-la mantém o bot reservado).",
         "Preset": {
           "custom": "Qualquer servidor (login e senha)",
           "gmail": "Gmail (entrar com o Google)",
@@ -139,7 +146,7 @@
         },
         "PresetProvider": {
           "gmail": "Google",
-          "m365": "Microsoft"
+          "m365": "Microsoft 365"
         }
       },
       "Test": {

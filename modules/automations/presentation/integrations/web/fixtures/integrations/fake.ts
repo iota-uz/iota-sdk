@@ -25,6 +25,8 @@ export interface FakeOptions {
   /** The first update meets a version conflict (another manager saved the connection meanwhile):
    * as a result ('result') or as an RPC error ('error'); '' for none. */
   conflictOnce: '' | 'result' | 'error'
+  /** The sign-in presets the application has OAuth2 clients for (scenario email); default gmail. */
+  presets?: string[]
 
   calls: { method: string; params: unknown }[]
 }
@@ -81,7 +83,7 @@ const mcpSchema = {
   },
 }
 
-function seed(scenario: FakeOptions['scenario']): ConnectorView[] {
+function seed(scenario: FakeOptions['scenario'], presets: string[] = ['gmail']): ConnectorView[] {
   if (scenario === 'empty') return []
   if (scenario === 'mcp') {
     return [{
@@ -110,7 +112,7 @@ function seed(scenario: FakeOptions['scenario']): ConnectorView[] {
     },
     ...(scenario === 'email' ? [{
       kind: 'imap', title: 'Email (IMAP)', icon: '', description: 'Receive email and wait for replies.', category: 'email' as const, auth: 'custom' as const,
-      credential_schema: imapSchema, nodes: ['Wait for a reply'], platform: null, oauth_presets: ['gmail'],
+      credential_schema: imapSchema, nodes: ['Wait for a reply'], platform: null, oauth_presets: presets,
       connections: [conn('imap', 'robot_inbox', 'Robot inbox', { identity: 'robot@acme.uz', status: 'needs_reauth', status_reason: 'reauth', fields: { preset: 'gmail', username: 'robot@acme.uz' } }),
         conn('imap', 'office_inbox', 'Office inbox', { identity: 'office@acme.uz', fields: { preset: 'custom', host: 'imap.acme.uz', port: '993', username: 'office@acme.uz' } })],
     }] : []),
@@ -147,7 +149,7 @@ function carried(): { connectors: ConnectorView[]; seq: number } | undefined {
 
 export function installFake(rpcPath: string, opts: FakeOptions): void {
   const kept = carried()
-  const connectors = kept?.connectors ?? seed(opts.scenario)
+  const connectors = kept?.connectors ?? seed(opts.scenario, opts.presets)
   const carry = () => {
     try { window.sessionStorage.setItem(CARRIED, JSON.stringify({ connectors, seq })) } catch { /* a private window: the return reseeds */ }
   }
@@ -203,6 +205,9 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       if (c.connections.some((x) => x.name === p.name)) return { ok: false, error: 'name_taken', fields: { name: 'taken' } }
       const secret = String(p.credentials.bot_token ?? p.credentials.password ?? p.credentials.api_key ?? '')
       if (secret === 'bad') return { ok: false, error: 'test_failed', reason: 'auth' }
+      // A bot another service already uses: the person confirms before it is connected.
+      // The confirmation is bound to the bot (the server's token is "<code>@<bot id>"): the code alone is not enough.
+      if (secret === 'foreign' && !(p.confirm ?? []).includes('foreign_webhook@222222')) return { ok: false, error: 'confirmation_required', warnings: ['foreign_webhook@222222'] }
       const key = p.idempotency_key
       if (key && keys.has(key)) return { ok: true, connection: keys.get(key) }
       const signIn = c.kind === 'mcp' && p.credentials.auth === 'oauth2'
@@ -281,6 +286,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       f.connector.connections = f.connector.connections.filter((x) => x.id !== p.id)
       return { ok: true }
     },
+    'automations.connections.options': () => ({ options: [] }),
     'automations.platform.set_enabled': (p: { kind: string; enabled: boolean }) => {
       if (opts.platformFails) throw { code: 'internal', message: 'internal error' }
       const c = connectors.find((x) => x.kind === p.kind)

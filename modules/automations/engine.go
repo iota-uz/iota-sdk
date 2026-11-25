@@ -12,6 +12,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/email"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine/ownernotice"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
@@ -105,11 +106,12 @@ func (c *component) runtime(container *composition.Container) (*engine.Runtime, 
 }
 
 // defaultEngineConfig is the engine's configuration before the application's tuning: it records what
-// calls spend (the SMS nodes' units, for one) in automation.connector_usage.
+// calls spend (the SMS nodes' units, for one) in automation.connector_usage, and matches the triggers of
+// the SDK's connectors (the email connector's subject_contains).
 func defaultEngineConfig(db *pgxpool.Pool, wf *workflow.Engine, users host.SubjectLoader, reg catalog.Registry, creds connectors.CredentialSource) engine.Config {
 	return engine.Config{
 		DB: db, Workflows: wf, Users: users, Catalog: reg, Credentials: creds, Logger: slog.Default(),
-		Usage: connectors.NewUsageRecorder(db),
+		Usage: connectors.NewUsageRecorder(db), MatchHooks: email.MatchHooks(),
 	}
 }
 

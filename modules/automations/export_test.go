@@ -10,3 +10,6 @@ import (
 func DefaultEngineUsage(db *pgxpool.Pool) catalog.UsageRecorder {
 	return defaultEngineConfig(db, nil, nil, nil, nil).Usage
 }
+
+// StartPlatformConnectors is the start hook of the platform credentials of the connectors.
+var StartPlatformConnectors = startPlatformConnectors

@@ -485,6 +485,20 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	if wi.Event == "" {
 		kind = waitTimer
 	}
+	// A node type that names the conversation it waits in (WaitKeyer) listens there or nowhere: a run that
+	// cannot say which conversation (the connection is not the tenant's own, cannot be resolved) never
+	// falls back to the run's own conversation, or to none, where another chat's message could answer it.
+	var keyed *SubjectRef
+	if kind == waitEvent {
+		var serr *StepError
+		var err error
+		if keyed, serr, err = m.keyedSubject(ctx, node, params); err != nil {
+			return err // the catalog could not be read: the step is tried again, the run is not failed for it
+		}
+		if serr != nil {
+			return m.nodeFailed(ctx, tok, node.ID, behavior, 0, input, *serr)
+		}
+	}
 	timeout := m.capWait(wi.Timeout)
 	if kind == waitEvent && timeout == 0 {
 		timeout = m.x.r.cfg.Limits.WaitMax // a wait never outlives WaitMax
@@ -507,7 +521,11 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 			f := wi.Filter
 			w.Filter = &f
 		}
-		w.Subject = m.waitSubject(node, ev, params)
+		if keyed != nil {
+			w.Subject = keyed
+		} else {
+			w.Subject = m.waitSubject(node, ev, params)
+		}
 		if nt, ok := m.x.r.cfg.Catalog.Node(node.Type); ok && effectOut != nil {
 			if ek, ok := nt.(EffectWaitKeyer); ok {
 				if s, ok := ek.EffectWaitSubject(params, effectOut); ok {
@@ -528,6 +546,48 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	}
 	tok.Status = tokWaiting
 	return saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *tok)
+}
+
+// keyedSubject is the conversation a wait of a WaitKeyer node listens on, nil for a node type that does not
+// name one. The connection it is keyed by is the one in the params, or, when they leave it out, the one the
+// node resolves to as a call does (the tenant's own one for a node that takes no platform credential). It
+// is a step error when that connection or the conversation cannot be named; a failure to read the tenant's
+// connections is an ordinary error (storage), which retries the step rather than failing the node.
+func (m *mover) keyedSubject(ctx context.Context, node graph.Node, params map[string]any) (*SubjectRef, *StepError, error) {
+	nt, ok := m.x.r.cfg.Catalog.Node(node.Type)
+	if !ok {
+		return nil, nil, nil
+	}
+	wk, keyed := nt.(WaitKeyer)
+	if !keyed {
+		return nil, nil, nil
+	}
+	unnamed := &StepError{Code: CodeConnectionUnavailable, Message: node.ID + " cannot name the conversation it waits in: its connection or its chat is not usable"}
+	view, err := m.x.r.cfg.Catalog.ForTenant(ctx, m.x.tenant)
+	if err != nil {
+		return nil, nil, fmt.Errorf("the connections of the tenant could not be read for %s: %w", node.ID, err)
+	}
+	if kinds := view.NodeRequires[node.Type]; len(kinds) > 0 {
+		connections := view.Connections
+		if view.TenantOnlyNodes[node.Type] {
+			connections = catalog.OwnConnections(connections)
+		}
+		ref, _, err := catalog.ResolveConnection(connections, kinds, params[catalog.ConnectionParam])
+		if err != nil {
+			return nil, unnamed, nil
+		}
+		out := make(map[string]any, len(params)+1)
+		for k, v := range params {
+			out[k] = v
+		}
+		out[catalog.ConnectionParam] = ref.ID
+		params = out
+	}
+	s, ok := wk.WaitSubject(params)
+	if !ok {
+		return nil, unnamed, nil
+	}
+	return &s, nil, nil
 }
 
 // waitSubject is the subject a wait listens on: the run's when the event is about the run's entity, the
@@ -1273,7 +1333,16 @@ func (m *mover) answer(ctx context.Context, tok *tokenRow, w waitRow, gev graph.
 	if err != nil {
 		return err
 	}
-	outcome, out, err := asker.Answer(raw)
+	var (
+		outcome string
+		out     json.RawMessage
+	)
+	if pa, ok := asker.(ParamAnswerer); ok {
+		params, _ := m.in().View().Params(w.NodeID)
+		outcome, out, err = pa.AnswerFor(params, raw)
+	} else {
+		outcome, out, err = asker.Answer(raw)
+	}
 	if err != nil {
 		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, StepError{Code: graph.FailInvalidAnswer, Message: err.Error()})
 	}

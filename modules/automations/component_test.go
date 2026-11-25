@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -16,9 +17,11 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/automations"
+	"github.com/iota-uz/iota-sdk/modules/automations/services"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/email"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
@@ -230,4 +233,89 @@ func TestModuleRegistryKnowsWithheldPlatformKeys(t *testing.T) {
 	view, err = reg.ForTenant(f.Ctx, tenant)
 	require.NoError(t, err)
 	assert.True(t, view.PlatformWithheld[catalog.KindOpenAI], "switched off again")
+}
+
+// The SDK's email connectors are in the directory and the catalog of the module without any option: the
+// application's SMTP_* is the platform credential of kind smtp, the trigger's matching rule is the engine's,
+// and both sign-ins (Google and Microsoft 365) are offered and start at their provider once the application
+// has their OAuth2 clients.
+func TestComponentRegistersTheEmailConnectors(t *testing.T) {
+	src, err := config.Build(static.New(map[string]any{
+		"automation.connections.keys": "k1:" + string(bytes.Repeat([]byte("ab"), 32)),
+		"smtp.host":                   "smtp.corp.example", "smtp.port": 465, "smtp.username": "bot", "smtp.password": "pw", "smtp.from": "noreply@corp.example",
+		"automation.platform.credentials": `{"google_oauth": {"client_id": "g-client", "client_secret": "g-secret"},
+			"microsoft_oauth": {"client_id": "m-client", "client_secret": "m-secret"}}`,
+	}))
+	require.NoError(t, err)
+	components := []composition.Component{}
+	for _, c := range modules.Components() {
+		if c.Descriptor().Name != "automations" {
+			components = append(components, c)
+		}
+	}
+	components = append(components, automations.NewComponent())
+	f := itf.Setup(t, itf.WithComponents(components...), itf.WithUser(itf.User()), itf.WithSource(src))
+
+	dir, err := composition.Resolve[connectors.Directory](f.Container)
+	require.NoError(t, err)
+	for _, kind := range []catalog.ConnectorKind{email.KindSMTP, email.KindIMAP} {
+		c, ok := dir.Get(kind)
+		require.True(t, ok, kind)
+		assert.Equal(t, connectors.CategoryEmail, c.Descriptor().Category, kind)
+		assert.ElementsMatch(t, []string{email.PresetGmail, email.PresetM365}, keysOf(c.Descriptor().OAuth2Presets), kind)
+	}
+	reg, err := composition.Resolve[catalog.Registry](f.Container)
+	require.NoError(t, err)
+	for _, node := range []string{"email.send", "email.wait_reply", "email.label"} {
+		_, ok := reg.Node(node)
+		assert.True(t, ok, "node %s is registered", node)
+	}
+
+	platform, err := composition.Resolve[connectors.PlatformCredentials](f.Container)
+	require.NoError(t, err)
+	creds, _, ok := platform.Platform(email.KindSMTP)
+	require.True(t, ok, "SMTP_* is the platform credential of kind smtp")
+	assert.Equal(t, "smtp.corp.example", creds["host"])
+
+	svc, err := composition.Resolve[*services.IntegrationsService](f.Container)
+	require.NoError(t, err)
+	// The sign-in's state is written through the pool, outside the test's transaction: its user is committed.
+	var userID int64
+	require.NoError(t, f.Pool.QueryRow(f.Ctx, `INSERT INTO users (tenant_id, type, first_name, last_name, email, ui_language)
+		VALUES ($1, 'user', 'Ann', 'Admin', $2, 'en') RETURNING id`, f.Tenant.ID, "admin-"+uuid.NewString()+"@example.com").Scan(&userID))
+	t.Cleanup(func() {
+		_, _ = f.Pool.Exec(context.Background(), `DELETE FROM automation.oauth_states WHERE user_id = $1`, userID)
+		_, _ = f.Pool.Exec(context.Background(), `DELETE FROM users WHERE id = $1`, userID)
+	})
+	actor := services.Actor{TenantID: f.Tenant.ID, UserID: userID}
+	entries, err := svc.List(f.Ctx, actor, services.ListOptions{})
+	require.NoError(t, err)
+	presets := map[catalog.ConnectorKind][]string{}
+	for _, e := range entries {
+		presets[e.Connector.Kind()] = e.OAuthPresets
+	}
+	assert.Equal(t, []string{email.PresetGmail, email.PresetM365}, presets[email.KindIMAP], "the page offers both sign-ins")
+	assert.Equal(t, []string{email.PresetGmail, email.PresetM365}, presets[email.KindSMTP])
+
+	for preset, want := range map[string]struct{ host, client string }{
+		email.PresetGmail: {"accounts.google.com", "g-client"},
+		email.PresetM365:  {"login.microsoftonline.com", "m-client"},
+	} {
+		authURL, err := svc.OAuthStartPreset(f.Ctx, actor, email.KindIMAP, preset, "", "", uuid.Nil, "https://app.example/settings/integrations/oauth/callback")
+		require.NoError(t, err, preset)
+		u, err := url.Parse(authURL)
+		require.NoError(t, err)
+		assert.Equal(t, want.host, u.Host, preset)
+		assert.Equal(t, want.client, u.Query().Get("client_id"), preset)
+		assert.NotEmpty(t, u.Query().Get("state"), preset)
+		assert.Contains(t, u.Query().Get("scope"), "openid", preset)
+	}
+}
+
+func keysOf[V any](m map[string]V) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }

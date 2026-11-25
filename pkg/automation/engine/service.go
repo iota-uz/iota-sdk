@@ -234,7 +234,7 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 // triggersReadable reports whether the author may read every event the graph's triggers are on.
 func triggersReadable(view catalog.View, g graph.Graph) bool {
 	for _, t := range g.Triggers {
-		if view.Unavailable[t.Event] == catalog.ReasonPermission {
+		if view.UnavailableEvents[t.Event] == catalog.ReasonPermission {
 			return false
 		}
 	}

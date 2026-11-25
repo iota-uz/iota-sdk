@@ -22,6 +22,13 @@ type Asker interface {
 	Answer(payload json.RawMessage) (outcome string, output json.RawMessage, err error)
 }
 
+// ParamAnswerer is an optional interface of an Asker whose answer depends on the node's params: the
+// event carries the number of the button pressed and the node's options say which outcome it is. The
+// engine calls AnswerFor, with the node's parsed params, instead of Answer.
+type ParamAnswerer interface {
+	AnswerFor(params map[string]any, payload json.RawMessage) (outcome string, output json.RawMessage, err error)
+}
+
 // AnswerEventer is what an Asker must also implement: its answer as known before the question is sent —
 // the inbound event key it comes as and whether the first one closes the wait. The token is issued
 // with them, so from that moment only that event takes it (an event of another key with the token

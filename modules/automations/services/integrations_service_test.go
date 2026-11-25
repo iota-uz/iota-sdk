@@ -64,6 +64,93 @@ type telegram struct {
 	policy       connectors.PlatformPolicy
 	auth         connectors.AuthKind // default api_key
 	nodes        []catalog.NodeType
+
+	// lifecycle (connectors.Provisioner and connectors.Advisor)
+	lmu              sync.Mutex
+	provisioned      []string // the tokens a connection was set up with, in order
+	deprovisioned    []string
+	provisionErr     error
+	warnings         []connectors.Warning
+	advisedFor       []*connectors.Connection
+	exclusive        bool
+	consents         [][]string
+	needConsent      []connectors.Warning // what Provision itself asks the person to confirm
+	adviseErr        error
+	live             bool            // the webhook is set at the provider
+	liveBy           map[string]bool // the same, by the token (the account) it is set for
+	gate             chan struct{}   // when set, Deprovision waits here after announcing itself on entered
+	entered          chan struct{}
+	provisionApplied bool // a failed Provision changed the provider all the same
+}
+
+// ExternalID makes the fake an exclusive-identity connector when exclusive is set: its account is the token.
+func (c *telegram) ExternalID(creds connectors.Credentials) string {
+	if !c.exclusive {
+		return ""
+	}
+	return "acct-" + creds["token"]
+}
+
+func (c *telegram) Provision(_ context.Context, _ connectors.Connection, creds connectors.Credentials, consent []string, _ json.RawMessage) (map[string]json.RawMessage, error) {
+	c.lmu.Lock()
+	defer c.lmu.Unlock()
+	c.consents = append(c.consents, consent)
+	if c.provisionErr != nil {
+		c.live = c.provisionApplied // a lost answer: the provider may have applied the change
+		return nil, c.provisionErr
+	}
+	if len(c.needConsent) > 0 {
+		if open := connectors.Unconfirmed(c.needConsent, consent); len(open) > 0 {
+			return nil, &connectors.ConfirmationRequiredError{Warnings: open}
+		}
+	}
+	c.provisioned = append(c.provisioned, creds["token"])
+	c.live = true
+	c.setLive(creds["token"], true)
+	return map[string]json.RawMessage{"fake_secret": json.RawMessage(`{"n":` + fmt.Sprint(len(c.provisioned)) + `}`)}, nil
+}
+
+func (c *telegram) Deprovision(_ context.Context, _ connectors.Connection, creds connectors.Credentials) error {
+	c.lmu.Lock()
+	gate, entered := c.gate, c.entered
+	c.lmu.Unlock()
+	if gate != nil {
+		entered <- struct{}{}
+		<-gate
+	}
+	c.lmu.Lock()
+	defer c.lmu.Unlock()
+	c.live = false
+	c.setLive(creds["token"], false)
+	c.deprovisioned = append(c.deprovisioned, creds["token"])
+	return nil
+}
+
+// setLive records whether the webhook of the account (the token) is set; the caller holds lmu.
+func (c *telegram) setLive(token string, on bool) {
+	if c.liveBy == nil {
+		c.liveBy = map[string]bool{}
+	}
+	c.liveBy[token] = on
+}
+
+// webhookOf reports whether the webhook of the account is set at the provider.
+func (c *telegram) webhookOf(token string) bool {
+	c.lmu.Lock()
+	defer c.lmu.Unlock()
+	return c.liveBy[token]
+}
+
+func (c *telegram) Advise(_ context.Context, existing *connectors.Connection, _ connectors.Credentials) ([]connectors.Warning, error) {
+	c.lmu.Lock()
+	c.advisedFor = append(c.advisedFor, existing)
+	c.lmu.Unlock()
+	if c.adviseErr != nil {
+		return nil, c.adviseErr
+	}
+	c.lmu.Lock()
+	defer c.lmu.Unlock()
+	return c.warnings, nil
 }
 
 func (c *telegram) Kind() catalog.ConnectorKind       { return catalog.KindTelegramBot }
@@ -358,7 +445,7 @@ func TestAnotherTenantGetsNotFound(t *testing.T) {
 	_, err = e.svc.Update(e.ctx, other, services.UpdateInput{ID: c.Connection.ID, Version: c.Connection.Version, DisplayName: &name})
 	require.ErrorIs(t, err, connectors.ErrNotFound)
 	require.ErrorIs(t, e.svc.Delete(e.ctx, other, c.Connection.ID), connectors.ErrNotFound)
-	_, err = e.svc.SetDisabled(e.ctx, other, c.Connection.ID, true)
+	_, err = e.svc.SetDisabled(e.ctx, other, c.Connection.ID, true, nil)
 	require.ErrorIs(t, err, connectors.ErrNotFound)
 	_, err = e.svc.ConnectionUsage(e.ctx, other, c.Connection.ID)
 	require.ErrorIs(t, err, connectors.ErrNotFound)
@@ -374,7 +461,7 @@ func TestDisabledConnectionLeavesTheCatalog(t *testing.T) {
 	c := e.create("sales_bot")
 	assert.Contains(t, e.nodes(e.tenant), "telegram.send")
 
-	got, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, true)
+	got, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, true, nil)
 	require.NoError(t, err)
 	assert.Equal(t, connectors.StatusDisabled, got.Connection.Status)
 	assert.NotContains(t, e.nodes(e.tenant), "telegram.send")
@@ -386,7 +473,7 @@ func TestDisabledConnectionLeavesTheCatalog(t *testing.T) {
 	assert.Equal(t, "@sales_bot", res.Identity)
 	assert.NotContains(t, e.nodes(e.tenant), "telegram.send")
 
-	got, err = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false)
+	got, err = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false, nil)
 	require.NoError(t, err)
 	assert.Equal(t, connectors.StatusConnected, got.Connection.Status)
 	assert.Contains(t, e.nodes(e.tenant), "telegram.send")
@@ -511,7 +598,7 @@ func TestOAuthReauthSavesOnlyTheChosenConnection(t *testing.T) {
 	e.putNamed("b", "account_b")
 	b, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "b", "code")
 	require.NoError(t, err)
-	_, err = e.svc.SetDisabled(e.ctx, e.actor(), b.ID, true)
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), b.ID, true, nil)
 	require.NoError(t, err)
 	require.NoError(t, e.store.SetStatus(e.ctx, e.tenant, a.ID, connectors.StatusNeedsReauth, "reauth"))
 	bBefore, _, err := e.store.Get(e.ctx, e.tenant, b.ID)
@@ -543,7 +630,7 @@ func TestOAuthReauthOfADisabledConnectionKeepsItDisabled(t *testing.T) {
 	e.putNamed("a", "account_a")
 	a, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "a", "code")
 	require.NoError(t, err)
-	_, err = e.svc.SetDisabled(e.ctx, e.actor(), a.ID, true)
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), a.ID, true, nil)
 	require.NoError(t, err)
 	e.putState("again", a.ID)
 	got, _, err := e.svc.OAuthComplete(e.ctx, e.actor(), "again", "code")
@@ -1176,9 +1263,9 @@ func TestOAuthImplementationErrorsAreDropped(t *testing.T) {
 	require.ErrorIs(t, err, services.ErrOAuthProvider)
 	assert.NotContains(t, err.Error(), goodToken)
 
-	_, err = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, true)
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, true, nil)
 	require.NoError(t, err)
-	_, err = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false) // CheckToken of the disabled row
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false, nil) // CheckToken of the disabled row
 	require.ErrorIs(t, err, services.ErrOAuthProvider)
 	assert.NotContains(t, err.Error(), goodToken)
 
@@ -1188,11 +1275,446 @@ func TestOAuthImplementationErrorsAreDropped(t *testing.T) {
 
 	// Documented sentinels keep their meaning, without the text around them.
 	e.oauth.tokenErr = fmt.Errorf("%s: %w", leak, context.DeadlineExceeded)
-	_, err = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false)
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false, nil)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.NotContains(t, err.Error(), goodToken)
 	e.oauth.tokenErr = fmt.Errorf("wrapped %s: %w", leak, connectors.ErrNeedsReauth)
-	res, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false)
+	res, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false, nil)
 	require.NoError(t, err)
 	assert.Equal(t, connectors.StatusNeedsReauth, res.Connection.Status)
+}
+
+// ---- lifecycle: the provider's side of a connection
+
+func TestSavingProvisionsAndDeletingDeprovisions(t *testing.T) {
+	e := newEnv(t)
+	got := e.create("main")
+	assert.Equal(t, []string{goodToken}, e.tg.provisioned, "the webhook is set when the connection is saved")
+
+	// A change of the display name does not touch the provider; new credentials set it up again and
+	// release the old ones.
+	name := "Renamed"
+	_, err := e.svc.Update(e.ctx, e.actor(), services.UpdateInput{ID: got.Connection.ID, Version: got.Connection.Version, DisplayName: &name})
+	require.NoError(t, err)
+	assert.Len(t, e.tg.provisioned, 1)
+	e.tg.accept = "777:other-token"
+	cur, err := e.svc.Update(e.ctx, e.actor(), services.UpdateInput{ID: got.Connection.ID, Version: got.Connection.Version + 1, Credentials: map[string]any{"token": "777:other-token"}})
+	require.NoError(t, err)
+	assert.Equal(t, []string{goodToken, "777:other-token"}, e.tg.provisioned)
+	assert.Equal(t, []string{goodToken}, e.tg.deprovisioned, "the old credentials' webhook is removed")
+	assert.False(t, e.tg.webhookOf(goodToken), "the old account has no webhook")
+	assert.True(t, e.tg.webhookOf("777:other-token"), "and the new one has")
+
+	// Disabling removes the webhook, enabling sets it again; deleting removes it.
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), cur.Connection.ID, true, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{goodToken, "777:other-token"}, e.tg.deprovisioned)
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), cur.Connection.ID, false, nil)
+	require.NoError(t, err)
+	assert.Len(t, e.tg.provisioned, 3)
+	require.NoError(t, e.svc.Delete(e.ctx, e.actor(), cur.Connection.ID))
+	assert.Len(t, e.tg.deprovisioned, 3)
+	_, _, err = e.store.Get(e.ctx, e.tenant, cur.Connection.ID)
+	assert.ErrorIs(t, err, connectors.ErrNotFound)
+}
+
+func TestAProviderThatRefusesTheSetupFailsTheSave(t *testing.T) {
+	e := newEnv(t)
+	e.tg.provisionErr = errors.New("telegram setWebhook: status 400: Bad Request: bad webhook: " + goodToken)
+	_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "main", Credentials: map[string]any{"token": goodToken}})
+	var failed *services.TestFailedError
+	require.ErrorAs(t, err, &failed)
+	assert.Equal(t, services.ReasonConfig, failed.Reason)
+	assert.NotContains(t, err.Error(), goodToken)
+	conns, err := e.store.List(e.ctx, e.tenant, catalog.KindTelegramBot)
+	require.NoError(t, err)
+	assert.Empty(t, conns, "the connection was not saved")
+}
+
+func TestWarningsNeedAConfirmation(t *testing.T) {
+	e := newEnv(t)
+	e.tg.warnings = []connectors.Warning{{Code: "foreign_webhook"}}
+	in := services.CreateInput{Kind: catalog.KindTelegramBot, Name: "main", Credentials: map[string]any{"token": goodToken}}
+	_, err := e.svc.Create(e.ctx, e.actor(), in)
+	var need *connectors.ConfirmationRequiredError
+	require.ErrorAs(t, err, &need)
+	assert.Equal(t, []connectors.Warning{{Code: "foreign_webhook"}}, need.Warnings)
+	assert.Empty(t, e.tg.provisioned, "nothing is changed at the provider without the confirmation")
+	conns, err := e.store.List(e.ctx, e.tenant, catalog.KindTelegramBot)
+	require.NoError(t, err)
+	assert.Empty(t, conns)
+
+	in.Confirmed = []string{"something_else"}
+	_, err = e.svc.Create(e.ctx, e.actor(), in)
+	require.ErrorAs(t, err, &need)
+	in.Confirmed = []string{"foreign_webhook"}
+	got, err := e.svc.Create(e.ctx, e.actor(), in)
+	require.NoError(t, err)
+	assert.Equal(t, []string{goodToken}, e.tg.provisioned)
+
+	// New credentials on a connection need it too.
+	e.tg.accept = "777:other-token"
+	_, err = e.svc.Update(e.ctx, e.actor(), services.UpdateInput{ID: got.Connection.ID, Version: got.Connection.Version, Credentials: map[string]any{"token": "777:other-token"}})
+	require.ErrorAs(t, err, &need)
+}
+
+func TestTheProviderStateIsKeptWithTheConnection(t *testing.T) {
+	e := newEnv(t)
+	got := e.create("main")
+	state, err := e.store.(connectors.InboundReader).InboundState(e.ctx, e.tenant, got.Connection.ID)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"fake_secret":{"n":1}}`, string(state), "what Provision handed back is saved in the same transaction")
+}
+
+func TestABotOfAnotherConnectionIsRefusedWithoutAConfirmation(t *testing.T) {
+	e := newEnv(t)
+	e.tg.warnings = []connectors.Warning{{Code: "bot_in_use", Blocking: true, Field: "token"}}
+	_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{
+		Kind: catalog.KindTelegramBot, Name: "main", Credentials: map[string]any{"token": goodToken}, Confirmed: []string{"bot_in_use"}})
+	var invalid *services.InvalidInputError
+	require.ErrorAs(t, err, &invalid)
+	assert.Equal(t, map[string]string{"token": "in_use"}, invalid.Fields, "no confirmation lifts it")
+	assert.Empty(t, e.tg.provisioned)
+}
+
+// Enabling a connection again changes the provider's webhook as saving one does: it is asked first, and a
+// foreign webhook the bot acquired meanwhile needs the person's confirmation.
+func TestEnablingAgainAsksBeforeItChangesTheProvider(t *testing.T) {
+	e := newEnv(t)
+	c := e.create("main")
+	_, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, true, nil)
+	require.NoError(t, err)
+	provisioned := len(e.tg.provisioned)
+
+	e.tg.warnings = []connectors.Warning{{Code: "foreign_webhook"}}
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false, nil)
+	var need *connectors.ConfirmationRequiredError
+	require.ErrorAs(t, err, &need)
+	assert.Len(t, e.tg.provisioned, provisioned, "the webhook is not replaced without consent")
+	cur, err := e.svc.ConnectionUsage(e.ctx, e.actor(), c.Connection.ID)
+	require.NoError(t, err)
+	_ = cur
+	list, err := e.store.List(e.ctx, e.tenant, catalog.KindTelegramBot)
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusDisabled, list[0].Status, "and it stays disabled")
+
+	got, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false, []string{"foreign_webhook"})
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusConnected, got.Connection.Status)
+	assert.Len(t, e.tg.provisioned, provisioned+1)
+	require.NotEmpty(t, e.tg.advisedFor)
+	last := e.tg.advisedFor[len(e.tg.advisedFor)-1]
+	require.NotNil(t, last)
+	assert.Equal(t, c.Connection.ID, last.ID, "advised as that connection, not as a new one")
+}
+
+// One provider account belongs to one connection: another connection of any name (or of another tenant) is
+// refused, the platform credential holds its account too, and deleting the owner frees it.
+func TestAProviderAccountBelongsToOneConnection(t *testing.T) {
+	e := newEnv(t)
+	e.tg.exclusive = true
+	first := e.create("main")
+	in := services.CreateInput{Kind: catalog.KindTelegramBot, Name: "second", Credentials: map[string]any{"token": goodToken}}
+	_, err := e.svc.Create(e.ctx, e.actor(), in)
+	var invalid *services.InvalidInputError
+	require.ErrorAs(t, err, &invalid)
+	assert.Equal(t, map[string]string{"token": "in_use"}, invalid.Fields)
+	other := e.newTenant()
+	_, err = e.svc.Create(e.ctx, services.Actor{TenantID: other}, in)
+	require.ErrorAs(t, err, &invalid, "another tenant's connection too")
+	assert.Len(t, e.tg.provisioned, 1, "the provider was set up once")
+
+	// Disabling keeps the account reserved (the owner may enable it again); deleting frees it.
+	_, err = e.svc.SetDisabled(e.ctx, e.actor(), first.Connection.ID, true, nil)
+	require.NoError(t, err)
+	_, err = e.svc.Create(e.ctx, e.actor(), in)
+	require.ErrorAs(t, err, &invalid)
+	require.NoError(t, e.svc.Delete(e.ctx, e.actor(), first.Connection.ID))
+	second, err := e.svc.Create(e.ctx, e.actor(), in)
+	require.NoError(t, err)
+
+	// The platform credential holds an account of its own: a tenant's connection cannot take it, and the
+	// platform cannot take one a connection holds.
+	require.ErrorIs(t, connectors.ReservePlatformIdentity(e.ctx, e.db, catalog.KindTelegramBot, "acct-"+goodToken), connectors.ErrIdentityTaken)
+	require.NoError(t, connectors.ReservePlatformIdentity(e.ctx, e.db, catalog.KindTelegramBot, "acct-platform"))
+	e.tg.accept = "platform-token"
+	_, err = e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "third", Credentials: map[string]any{"token": "platform-token"}})
+	require.NoError(t, err, "another account is free")
+	require.NoError(t, e.svc.Delete(e.ctx, e.actor(), second.Connection.ID))
+	require.NoError(t, connectors.ReservePlatformIdentity(e.ctx, e.db, catalog.KindTelegramBot, "acct-"+goodToken), "freed by the delete")
+	_, err = e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "fourth", Credentials: map[string]any{"token": goodToken}})
+	require.ErrorAs(t, err, &invalid, "the platform's account is not a tenant's")
+}
+
+// Two saves of one account that run together: the lock on the account serializes them, so exactly one sets
+// the provider up.
+func TestConcurrentSavesOfOneAccountSetTheProviderUpOnce(t *testing.T) {
+	e := newEnv(t)
+	e.tg.exclusive = true
+	errs := make(chan error, 2)
+	for _, name := range []string{"one", "two"} {
+		go func() {
+			_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: name, Credentials: map[string]any{"token": goodToken}})
+			errs <- err
+		}()
+	}
+	var failed int
+	for range 2 {
+		if err := <-errs; err != nil {
+			failed++
+			var invalid *services.InvalidInputError
+			require.ErrorAs(t, err, &invalid)
+		}
+	}
+	assert.Equal(t, 1, failed)
+	assert.Len(t, e.tg.provisioned, 1)
+}
+
+// What the provider itself asks for, at the moment it changes: advice given earlier does not stand in for it.
+func TestTheProviderAsksForConsentAtTheMomentItChangesTheProvider(t *testing.T) {
+	e := newEnv(t)
+	e.tg.needConsent = []connectors.Warning{{Code: "foreign_webhook"}}
+	in := services.CreateInput{Kind: catalog.KindTelegramBot, Name: "main", Credentials: map[string]any{"token": goodToken}}
+	_, err := e.svc.Create(e.ctx, e.actor(), in)
+	var need *connectors.ConfirmationRequiredError
+	require.ErrorAs(t, err, &need, "the advice was empty, the provider's own look was not")
+	conns, err := e.store.List(e.ctx, e.tenant, "")
+	require.NoError(t, err)
+	assert.Empty(t, conns)
+	in.Confirmed = []string{"foreign_webhook"}
+	_, err = e.svc.Create(e.ctx, e.actor(), in)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"foreign_webhook"}, e.tg.consents[len(e.tg.consents)-1])
+}
+
+// A connector that cannot look at the provider's state gets no save: what it would change is not known.
+func TestAnAdviceThatCannotBeHadRefusesTheSave(t *testing.T) {
+	e := newEnv(t)
+	e.tg.adviseErr = errors.New("telegram getWebhookInfo: status 503: down")
+	_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "main", Credentials: map[string]any{"token": goodToken}})
+	var failed *services.TestFailedError
+	require.ErrorAs(t, err, &failed)
+	assert.Empty(t, e.tg.provisioned)
+}
+
+// A save that changed the provider and did not commit has the provider's setup removed again.
+func TestASaveThatDoesNotCommitUndoesTheProviderSetup(t *testing.T) {
+	e := newEnv(t)
+	failing := failingRequests{Requests: persistence.NewRequests(e.db)}
+	svc := services.NewIntegrationsService(services.IntegrationsDeps{Directory: e.svc.Directory(), Store: e.store, Requests: failing})
+	_, err := svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "sales_bot", Credentials: map[string]any{"token": goodToken}, IdempotencyKey: "k-undo"})
+	require.Error(t, err)
+	assert.Equal(t, []string{goodToken}, e.tg.provisioned)
+	assert.Equal(t, []string{goodToken}, e.tg.deprovisioned, "the webhook of a connection that was not saved is removed")
+}
+
+// Enabling again is one transaction behind the version check: two enables together change the provider once,
+// and the loser never touches it.
+func TestConcurrentEnablesChangeTheProviderOnce(t *testing.T) {
+	e := newEnv(t)
+	c := e.create("main")
+	_, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, true, nil)
+	require.NoError(t, err)
+	before := len(e.tg.provisioned)
+	errs := make(chan error, 2)
+	for range 2 {
+		go func() {
+			_, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false, nil)
+			errs <- err
+		}()
+	}
+	for range 2 {
+		if err := <-errs; err != nil {
+			require.ErrorIs(t, err, connectors.ErrVersionConflict)
+		}
+	}
+	assert.Len(t, e.tg.provisioned, before+1)
+	list, err := e.store.List(e.ctx, e.tenant, catalog.KindTelegramBot)
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusConnected, list[0].Status)
+	state, err := e.store.(connectors.InboundReader).InboundState(e.ctx, e.tenant, c.Connection.ID)
+	require.NoError(t, err)
+	assert.Contains(t, string(state), "fake_secret", "the provider's state was committed with the status")
+}
+
+// A cleanup that a disable owes runs after the status committed, and an enable may commit in between: the
+// cleanup decides on what is committed when it runs, under the account's lock, so a connection that ends
+// connected never ends without its webhook.
+func TestADelayedDisableNeverRemovesTheWebhookOfAnEnable(t *testing.T) {
+	e := newEnv(t)
+	e.tg.exclusive = true
+	c := e.create("main")
+	for i := 0; i < 12; i++ {
+		var done sync.WaitGroup
+		done.Add(2)
+		go func() { defer done.Done(); _, _ = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, true, nil) }()
+		go func() { defer done.Done(); _, _ = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false, nil) }()
+		done.Wait()
+		list, err := e.store.List(e.ctx, e.tenant, catalog.KindTelegramBot)
+		require.NoError(t, err)
+		e.tg.lmu.Lock()
+		live := e.tg.live
+		e.tg.lmu.Unlock()
+		assert.Equal(t, list[0].Status == connectors.StatusConnected, live, "round %d: status %s, webhook set %v", i, list[0].Status, live)
+		// Bring it back to connected for the next round.
+		if list[0].Status != connectors.StatusConnected {
+			_, err = e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false, nil)
+			require.NoError(t, err)
+		}
+	}
+}
+
+// A disable's cleanup that is still running (the provider is slow) when an enable arrives: the enable waits for the
+// account, sets the webhook after the cleanup, and the connection ends connected with its webhook. This is the
+// cleanup-first order; the enable-first order (the cleanup finds the connection connected under the lock) cannot
+// be forced from outside, because an enable needs the same lock to commit, and is what the repeated test above
+// checks.
+func TestAnEnableDuringADisablesCleanupEndsWithItsWebhook(t *testing.T) {
+	e := newEnv(t)
+	e.tg.exclusive = true
+	c := e.create("main")
+	gate, entered := make(chan struct{}), make(chan struct{}, 1)
+	e.tg.lmu.Lock()
+	e.tg.gate, e.tg.entered = gate, entered
+	e.tg.lmu.Unlock()
+	// The gate is released once, whatever the test does: a failed assertion must not leave the provider call held.
+	var once sync.Once
+	release := func() {
+		once.Do(func() {
+			e.tg.lmu.Lock()
+			e.tg.gate = nil // later calls are not held
+			e.tg.lmu.Unlock()
+			close(gate)
+		})
+	}
+	t.Cleanup(release)
+	errs := make(chan error, 2)
+	go func() { _, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, true, nil); errs <- err }()
+	select {
+	case <-entered: // the status is committed, and the cleanup is at the provider
+	case err := <-errs:
+		require.FailNow(t, "the disable ended before it reached the provider", "%v", err)
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the disable did not reach the provider")
+	}
+	go func() { _, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, false, nil); errs <- err }()
+	e.waitForLockWaiter(t) // the enable is queued on the account's lock behind the held cleanup
+	release()
+	for range 2 {
+		require.NoError(t, <-errs)
+	}
+	list, err := e.store.List(e.ctx, e.tenant, catalog.KindTelegramBot)
+	require.NoError(t, err)
+	assert.Equal(t, connectors.StatusConnected, list[0].Status)
+	assert.True(t, e.tg.webhookOf(goodToken), "the enable's webhook is not removed by the cleanup that was held")
+}
+
+// waitForLockWaiter blocks until a backend of the test database waits for an advisory lock: the account's lock a
+// request queues on. Polling the server's own view replaces a fixed pause.
+func (e *env) waitForLockWaiter(t *testing.T) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		var waiting int
+		err := e.db.QueryRow(e.ctx, `SELECT count(*) FROM pg_locks l JOIN pg_database d ON d.oid = l.database
+			WHERE l.locktype = 'advisory' AND NOT l.granted AND d.datname = current_database()`).Scan(&waiting)
+		return err == nil && waiting > 0
+	}, 10*time.Second, 20*time.Millisecond, "no request is waiting for the account's lock")
+}
+
+// A delete that overlaps a disable (the status committed, the credentials not read yet) still tells the provider: the
+// disabled row is cleaned up for too.
+func TestDeletingADisabledConnectionStillTearsTheProviderDown(t *testing.T) {
+	e := newEnv(t)
+	e.tg.exclusive = true
+	c := e.create("main")
+	// The disable's status is committed but its cleanup has not run: the row is disabled, the webhook is set.
+	require.NoError(t, e.store.SetStatus(e.ctx, e.tenant, c.Connection.ID, connectors.StatusDisabled, ""))
+	require.NoError(t, e.svc.Delete(e.ctx, e.actor(), c.Connection.ID))
+	assert.False(t, e.tg.webhookOf(goodToken), "the webhook of the deleted connection is removed")
+}
+
+// A pool of one connection saves, updates and enables a bot: the provider is set up on the save's own
+// transaction, with no second database connection.
+func TestProvisioningNeedsOnlyTheSavesOwnConnection(t *testing.T) {
+	e := newEnv(t)
+	e.tg.exclusive = true
+	cfg, err := pgxpool.ParseConfig(e.db.Config().ConnString())
+	require.NoError(t, err)
+	cfg.MaxConns = 1
+	one, err := pgxpool.NewWithConfig(e.ctx, cfg)
+	require.NoError(t, err)
+	t.Cleanup(one.Close)
+	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": bytes.Repeat([]byte{7}, 32)})
+	require.NoError(t, err)
+	store := connectors.NewStore(one, keys, nil, nil, nil)
+	svc := services.NewIntegrationsService(services.IntegrationsDeps{Directory: e.svc.Directory(), Store: store, Requests: persistence.NewRequests(one)})
+	ctx, cancel := context.WithTimeout(e.ctx, 20*time.Second)
+	defer cancel()
+	made, err := svc.Create(ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "main", Credentials: map[string]any{"token": goodToken}})
+	require.NoError(t, err)
+	_, err = svc.SetDisabled(ctx, e.actor(), made.Connection.ID, true, nil)
+	require.NoError(t, err)
+	_, err = svc.SetDisabled(ctx, e.actor(), made.Connection.ID, false, nil)
+	require.NoError(t, err)
+	assert.Len(t, e.tg.provisioned, 2)
+}
+
+// Credentials saved on a disabled connection move its reservation with them, whatever its status.
+func TestReservationFollowsTheCredentialsOfADisabledConnection(t *testing.T) {
+	e := newEnv(t)
+	e.tg.exclusive = true
+	e.tg.accept = "second-token"
+	c := e.create("main")
+	_, err := e.svc.SetDisabled(e.ctx, e.actor(), c.Connection.ID, true, nil)
+	require.NoError(t, err)
+	cur, err := e.store.List(e.ctx, e.tenant, catalog.KindTelegramBot)
+	require.NoError(t, err)
+	_, err = e.svc.Update(e.ctx, e.actor(), services.UpdateInput{ID: c.Connection.ID, Version: cur[0].Version, Credentials: map[string]any{"token": "second-token"}})
+	require.NoError(t, err)
+
+	var invalid *services.InvalidInputError
+	_, err = e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "taker", Credentials: map[string]any{"token": "second-token"}})
+	require.ErrorAs(t, err, &invalid, "the new account is held by the disabled connection")
+	taken, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "former", Credentials: map[string]any{"token": goodToken}})
+	require.NoError(t, err, "the old account is free again")
+	assert.NotEmpty(t, taken.Connection.ID)
+}
+
+// The platform credential's reservation is released when the credential is no longer configured, and a
+// platform credential can be withdrawn at runtime.
+func TestPlatformReservationIsReleasedAndTheCredentialWithdrawn(t *testing.T) {
+	e := newEnv(t)
+	require.NoError(t, connectors.ReservePlatformIdentity(e.ctx, e.db, catalog.KindTelegramBot, "acct-x"))
+	held := e.create("holder")
+	reserve := func() error {
+		return pgx.BeginFunc(e.ctx, e.db, func(tx pgx.Tx) error {
+			return connectors.ReserveIdentity(e.ctx, tx, catalog.KindTelegramBot, "acct-x", held.Connection.ID)
+		})
+	}
+	require.ErrorIs(t, reserve(), connectors.ErrIdentityTaken)
+	require.NoError(t, connectors.ReleasePlatformIdentities(e.ctx, e.db, catalog.KindTelegramBot))
+	require.NoError(t, reserve())
+
+	platform := connectors.NewPlatformCredentials(e.svc.Directory(), map[catalog.ConnectorKind]connectors.PlatformCredential{
+		catalog.KindTelegramBot: {Credentials: connectors.Credentials{"token": "platform-secret"}}})
+	_, _, has := platform.Platform(catalog.KindTelegramBot)
+	require.True(t, has)
+	platform.(connectors.PlatformWithdrawer).Withdraw(catalog.KindTelegramBot)
+	_, _, has = platform.Platform(catalog.KindTelegramBot)
+	assert.False(t, has, "a withdrawn credential is not served to anyone")
+	assert.Empty(t, platform.(connectors.PlatformCatalog).Kinds())
+}
+
+// A setup whose answer was lost may have changed the provider: the save that failed has it undone.
+func TestAFailedSetupThatMayHaveAppliedIsCleanedUp(t *testing.T) {
+	e := newEnv(t)
+	e.tg.provisionErr = errors.New("telegram setWebhook: the request timed out")
+	e.tg.provisionApplied = true
+	_, err := e.svc.Create(e.ctx, e.actor(), services.CreateInput{Kind: catalog.KindTelegramBot, Name: "main", Credentials: map[string]any{"token": goodToken}})
+	var failed *services.TestFailedError
+	require.ErrorAs(t, err, &failed)
+	e.tg.lmu.Lock()
+	defer e.tg.lmu.Unlock()
+	assert.False(t, e.tg.live, "what the failed setup may have set is removed")
+	assert.Equal(t, []string{goodToken}, e.tg.deprovisioned)
 }
