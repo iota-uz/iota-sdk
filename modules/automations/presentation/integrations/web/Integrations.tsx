@@ -1145,8 +1145,8 @@ function SecretForm(props: { ctx: Ctx; state: SecretFormState; onClose: () => vo
             ...(name().trim() !== b!.name ? { name: name().trim() } : {}),
             ...(description().trim() !== b!.description ? { description: description().trim() } : {}),
           })
-      setBusy(false)
       if (r.ok && r.secret) {
+        setBusy(false)
         setValue('') // the value leaves the page with the request
         props.onSaved(r.secret)
         return
@@ -1156,14 +1156,20 @@ function SecretForm(props: { ctx: Ctx; state: SecretFormState; onClose: () => vo
       if (r.error === 'version_conflict' && b) {
         // The latest version is loaded: what the person typed stays, the next save applies it to that version.
         // A field the person did not touch follows the latest version, so the save does not send the old one back.
-        const latest = (await props.reload())?.find((x) => x.id === b.id)
-        if (latest) {
-          const next = rebaseSecretDraft({ name: name(), description: description() }, b, latest)
-          setName(next.name)
-          setDescription(next.description)
-          setBase(latest)
+        // The form stays busy until the draft and the base are rebased: a save meanwhile would send a stale version.
+        try {
+          const latest = (await props.reload())?.find((x) => x.id === b.id)
+          if (latest) {
+            const next = rebaseSecretDraft({ name: name(), description: description() }, b, latest)
+            setName(next.name)
+            setDescription(next.description)
+            setBase(latest)
+          }
+        } catch (e) {
+          console.warn('automations: reloading the secret after a conflict failed', errorCode(e))
         }
       }
+      setBusy(false)
       if (r.fields) focusFirstError(r.fields)
     } catch (e) {
       setBusy(false)

@@ -814,20 +814,42 @@ func TestAWriteCommittedAfterRetirementIsSwept(t *testing.T) {
 	assert.Equal(t, "kept", got)
 }
 
-// The sweep lists the store before it reads the records: a create in flight (staged, value written) keeps
-// its value.
+// listStaging stages a create (record, then value) while the sweep lists the store, before delegating: the
+// sweep reads the records after its listing only if it is to see the staged record that names the value.
+type listStaging struct {
+	secrets.Writer
+	stage func()
+}
+
+func (l listStaging) List(ctx context.Context, root secrets.Ref) ([]string, error) {
+	l.stage()
+	return l.Writer.List(ctx, root)
+}
+
+// The sweep lists the store before it reads the records: a create that stages its record and writes its
+// value during the listing keeps its value. (A sweep that read the records first would see the value
+// without its record and remove it.)
 func TestTheSweepKeepsAStagedCreatesValue(t *testing.T) {
 	t.Parallel()
 	e := newEnv(t)
+	loc := secrets.DefaultLocator("test/")
 	id := uuid.New()
-	ref := secrets.DefaultLocator("test/").Locate(e.tenant, id)
-	_, err := e.db.Exec(e.ctx, `INSERT INTO automation.secrets (id, tenant_id, name, ref_path, value_version, value_write_at)
-		VALUES ($1, $2, 'API_KEY', $3, 0, now())`, id, e.tenant, ref.Path)
+	ref := loc.Locate(e.tenant, id)
+	staged := false
+	m := secrets.NewManager(e.db, listStaging{Writer: e.store, stage: func() {
+		if staged {
+			return
+		}
+		staged = true
+		_, err := e.db.Exec(e.ctx, `INSERT INTO automation.secrets (id, tenant_id, name, ref_path, value_version, value_write_at)
+			VALUES ($1, $2, 'API_KEY', $3, 0, now())`, id, e.tenant, ref.Path)
+		require.NoError(t, err)
+		_, err = e.store.Put(e.ctx, ref, map[string]string{secrets.ValueKey: "in flight"})
+		require.NoError(t, err)
+	}}, e.store, loc)
+	_, err := m.List(e.ctx, e.tenant)
 	require.NoError(t, err)
-	_, err = e.store.Put(e.ctx, ref, map[string]string{secrets.ValueKey: "in flight"})
-	require.NoError(t, err)
-	_, err = e.mgr.List(e.ctx, e.tenant)
-	require.NoError(t, err)
+	require.True(t, staged)
 	_, err = e.store.Read(e.ctx, ref)
 	require.NoError(t, err, "a staged record names its value")
 }
@@ -906,6 +928,11 @@ func (o outsideLocator) Locate(tenantID, id uuid.UUID) secrets.Ref {
 	return secrets.Ref{TenantID: tenantID, Path: "elsewhere/" + id.String()}
 }
 
+// emptyRootLocator has no root: the sweep could list nothing.
+type emptyRootLocator struct{ secrets.Locator }
+
+func (emptyRootLocator) Root(tenantID uuid.UUID) secrets.Ref { return secrets.Ref{TenantID: tenantID} }
+
 // A path is a secret's own for good: a locator that reuses a path, or puts it outside the root, is refused,
 // so the sweep can never remove a later secret's value.
 func TestALocatorMustGiveEachSecretItsOwnPathUnderTheRoot(t *testing.T) {
@@ -914,6 +941,7 @@ func TestALocatorMustGiveEachSecretItsOwnPathUnderTheRoot(t *testing.T) {
 	for name, loc := range map[string]secrets.Locator{
 		"reused":  fixedLocator{Locator: secrets.DefaultLocator("test/")},
 		"outside": outsideLocator{Locator: secrets.DefaultLocator("test/")},
+		"no root": emptyRootLocator{Locator: secrets.DefaultLocator("test/")},
 	} {
 		m := secrets.NewManager(e.db, e.store, e.store, loc)
 		_, err := m.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v"})

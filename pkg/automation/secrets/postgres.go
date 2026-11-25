@@ -205,7 +205,7 @@ func (m *manager) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 	// A value's path is the secret's own for its whole life: under the tenant's root (the sweep lists it)
 	// and carrying the new secret's id, so a path never names two secrets and a sweep that removes an
 	// unreferenced path can never remove a later secret's value. The records enforce it too (a unique index).
-	if root := m.locator.Root(tenantID); !strings.HasPrefix(ref.Path, root.Path) || !strings.Contains(strings.TrimPrefix(ref.Path, root.Path), id.String()) {
+	if root := m.locator.Root(tenantID); root.Path == "" || !strings.HasPrefix(ref.Path, root.Path) || !strings.Contains(strings.TrimPrefix(ref.Path, root.Path), id.String()) {
 		return Secret{}, fmt.Errorf("%w: the locator's path of a secret must lie under the tenant's root and carry the secret's id", ErrInvalid)
 	}
 	ref.Version = 0

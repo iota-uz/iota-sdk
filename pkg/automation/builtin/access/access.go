@@ -392,13 +392,17 @@ func Target(c Connection, target string) (*url.URL, error) {
 	case parsed.Opaque != "":
 		return nil, &code.ConnectionRefusedError{Code: code.ReasonConnectionOriginMismatch, Message: "the path is invalid"}
 	default:
-		// A path relative to the base URL: joined both decoded and escaped, so an escaped separator (%2F)
-		// stays one segment.
+		// A path relative to the base URL: the escaped paths are joined and the decoded path derived from the
+		// result, so the two always agree and an escaped separator (%2F, also a leading one) stays one segment.
 		joined := *base
-		joined.Path = strings.TrimSuffix(base.Path, "/") + "/" + strings.TrimPrefix(parsed.Path, "/")
-		joined.RawPath = strings.TrimSuffix(base.EscapedPath(), "/") + "/" + strings.TrimPrefix(parsed.EscapedPath(), "/")
-		if joined.EscapedPath() != joined.RawPath {
-			joined.RawPath = "" // the escaping is the default one
+		raw := strings.TrimSuffix(base.EscapedPath(), "/") + "/" + strings.TrimPrefix(parsed.EscapedPath(), "/")
+		decoded, err := url.PathUnescape(raw)
+		if err != nil {
+			return nil, &code.ConnectionRefusedError{Code: code.ReasonConnectionOriginMismatch, Message: "the path is invalid"}
+		}
+		joined.Path, joined.RawPath = decoded, raw
+		if joined.EscapedPath() != raw {
+			joined.RawPath = ""
 		}
 		joined.RawQuery = parsed.RawQuery
 		joined.Fragment, joined.RawFragment = "", ""

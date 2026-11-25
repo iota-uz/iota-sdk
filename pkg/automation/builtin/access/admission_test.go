@@ -106,6 +106,7 @@ func TestTargetJoinsRelativePathsAsParsed(t *testing.T) {
 	for target, want := range map[string]string{
 		"/deals?next=https://example.com/done": "https://crm.example.com/v1/deals?next=https://example.com/done",
 		"/files/a%2Fb":                         "https://crm.example.com/v1/files/a%2Fb",
+		"%2Ffiles":                             "https://crm.example.com/v1/%2Ffiles",
 		"deals/7":                              "https://crm.example.com/v1/deals/7",
 		"https://crm.example.com/other":        "https://crm.example.com/other",
 	} {
