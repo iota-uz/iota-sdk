@@ -448,6 +448,13 @@
       "phase": "ready",
       "run_id": "45351736426"
     },
+    "0.55.0": {
+      "version": "0.55.0",
+      "source": "ee09a69b3a8cc066003840ad5838f1ce43c489e5",
+      "sha": "1416d98f04c1a980fee6e773cbca170d25d3c027",
+      "phase": "abandoned",
+      "run_id": "45448855252"
+    },
     "0.6.0": {
       "version": "0.6.0",
       "source": "8040ff2301500a20901ef40ddd899d3e1cf8ff64",
@@ -488,13 +495,6 @@
     1405,
     1421
   ],
-  "candidate": {
-    "version": "0.55.0",
-    "source": "ee09a69b3a8cc066003840ad5838f1ce43c489e5",
-    "sha": "1416d98f04c1a980fee6e773cbca170d25d3c027",
-    "phase": "publishing",
-    "run_id": "45448855252"
-  },
   "ready": {
     "version": "0.54.0",
     "source": "9b444db35a62c28e0d77b6d93b1643a0d6aedda8",
