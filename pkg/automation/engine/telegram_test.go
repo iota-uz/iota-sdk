@@ -631,7 +631,8 @@ func TestTelegramRetiredPlatformBotIsRefused(t *testing.T) {
 }
 
 // A platform setWebhook that Telegram applied late — from an instance that crashed during the call, after the bot
-// stopped being the platform's and a tenant's connection took it — points the tenant's bot back to the platform route.
+// stopped being the platform's and a tenant's connection took it, however long after — points the tenant's bot back
+// to the platform route.
 // The route recognises the stray update (its secret is that bot's platform secret, checked with the connection's
 // token), points the webhook back to the connection and answers 503; Telegram's next delivery reaches the connection
 // and runs its graph. A request no retired account verifies stays a plain 404.
@@ -643,10 +644,15 @@ func TestTelegramStrayPlatformWebhookIsPointedBackToItsConnection(t *testing.T) 
 	te.create(p, te.human(), tgMessageGraph(`{"id": "m", "event": "telegram.message_received.v1"}`))
 	ctx := context.Background()
 	account := te.tg.ExternalID(connectors.Credentials{"token": tgToken})
-	// The tenant's bot was the platform's until a rotation three days ago: its reservation is retired, and the
-	// connection holds it. However long ago, it is watched while the connection holds it.
-	_, err := te.db.Exec(ctx, `INSERT INTO automation.retired_platform_identities (kind, external, retired_at) VALUES ($1, $2, now() - interval '3 days')`, string(telegram.Kind), account)
+	// The tenant's bot was the platform's: its reservation's lease ran out and the prune released it (recorded as
+	// retired). Days pass with nobody holding it, prunes keep running, and only then a tenant's connection takes it.
+	require.NoError(t, connectors.ReservePlatformIdentity(ctx, te.db, telegram.Kind, account))
+	_, err := te.db.Exec(ctx, `UPDATE automation.exclusive_identities SET lease_until = now() - interval '1 second' WHERE platform AND external = $1`, account)
 	require.NoError(t, err)
+	require.NoError(t, connectors.PrunePlatformIdentities(ctx, te.db, telegram.Kind))
+	_, err = te.db.Exec(ctx, `UPDATE automation.retired_platform_identities SET retired_at = now() - interval '3 days' WHERE external = $1`, account)
+	require.NoError(t, err)
+	require.NoError(t, connectors.PrunePlatformIdentities(ctx, te.db, telegram.Kind))
 	require.NoError(t, pgx.BeginFunc(ctx, te.db, func(tx pgx.Tx) error {
 		return connectors.ReserveIdentity(ctx, tx, telegram.Kind, account, te.conn.ID)
 	}))

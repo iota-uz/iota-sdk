@@ -179,14 +179,9 @@ func lockIdentity(ctx context.Context, tx pgx.Tx, kind catalog.ConnectorKind, ex
 // free to be connected as a tenant's own. Its webhook cannot be removed without its token, which is gone with the
 // configuration; a tenant's connection replaces it.
 func PrunePlatformIdentities(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind) error {
-	if _, err := db.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE platform AND kind = $1 AND lease_until < now()`, string(kind)); err != nil {
-		return err
-	}
-	// A retired account is watched as long as a tenant's connection holds it (a stray platform webhook may surface at
-	// its next update, however late); one nobody holds is forgotten after RetiredPlatformWindow.
-	_, err := db.Exec(ctx, `DELETE FROM automation.retired_platform_identities r WHERE r.kind = $1 AND r.retired_at < now() - $2::interval
-		AND NOT EXISTS (SELECT 1 FROM automation.exclusive_identities e WHERE e.kind = r.kind AND e.external = r.external AND NOT e.platform)`,
-		string(kind), retiredInterval())
+	// The account is recorded as retired (automation.retired_platform_identities) and stays so: a platform webhook
+	// Telegram applied late may surface whenever a tenant connects the account, however long after.
+	_, err := db.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE platform AND kind = $1 AND lease_until < now()`, string(kind))
 	return err
 }
 
@@ -203,15 +198,7 @@ func ReleasePlatformIdentities(ctx context.Context, db *pgxpool.Pool, kind catal
 	})
 }
 
-// RetiredPlatformWindow is how long an account that stopped being the platform's is remembered while no tenant's
-// connection holds it; one a connection holds is remembered as long as it does (RetiredPlatformHolders).
-const RetiredPlatformWindow = 24 * time.Hour
-
-func retiredInterval() string {
-	return fmt.Sprintf("%d seconds", int64(RetiredPlatformWindow.Seconds()))
-}
-
-// RetiredHolder is a tenant's connection that holds an account which was the platform's within RetiredPlatformWindow.
+// RetiredHolder is a tenant's connection that holds an account which was once the platform's.
 type RetiredHolder struct {
 	TenantID     uuid.UUID
 	ConnectionID uuid.UUID

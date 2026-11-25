@@ -32,7 +32,8 @@ CREATE TRIGGER exclusive_identities_keep_live_platform_leases
 -- The accounts that stopped being the platform's: a platform setWebhook the provider applied late (from an instance
 -- that crashed during the call) may point such an account back to the platform route after a tenant's connection took
 -- it. The platform route recognises the stray updates of these accounts and points their webhook back to the
--- connection (engine.PlatformStrayReceiver). Kept while a tenant's connection holds the account, else a day.
+-- connection (engine.PlatformStrayReceiver). Never forgotten: one row per platform account ever replaced, and the
+-- account may be connected by a tenant at any time after.
 CREATE TABLE automation.retired_platform_identities (
     kind text NOT NULL,
     external text NOT NULL,
