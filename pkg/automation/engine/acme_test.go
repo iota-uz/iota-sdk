@@ -50,6 +50,7 @@ type acme struct {
 	entered  chan string // a "crash" call is running
 	provider atomic.Int64
 	closed   atomic.Int64
+	closeErr atomic.Bool // AnswerClosed fails: the cleanup of the late answer did not complete
 	polls    atomic.Int64
 	active   atomic.Int64 // calls of mode hold running now
 	peak     atomic.Int64 // the most that ran at once
@@ -172,8 +173,12 @@ func (a *acme) Handle(_ context.Context, w http.ResponseWriter, body []byte, c c
 	return []engine.InboundEvent{u.event(c.ID.String())}, nil
 }
 
-func (a *acme) AnswerClosed(context.Context, engine.InboundEvent, connectors.Connection, connectors.Credentials) {
+func (a *acme) AnswerClosed(context.Context, engine.InboundEvent, connectors.Connection, connectors.Credentials) error {
 	a.closed.Add(1)
+	if a.closeErr.Load() {
+		return errors.New("the cleanup failed")
+	}
+	return nil
 }
 
 func (a *acme) Interval(connectors.Connection) time.Duration { return 30 * time.Second }

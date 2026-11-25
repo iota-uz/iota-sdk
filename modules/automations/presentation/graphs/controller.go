@@ -28,6 +28,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/agentsession"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/mcp"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
@@ -50,6 +51,8 @@ const (
 	RouteNew    = "automations.new"
 	RouteEditor = "automations.editor"
 	RouteRun    = "automations.run"
+	// RouteRunLink is a run named by its id alone (a notification, a task, the journal).
+	RouteRunLink = "automations.run_link"
 )
 
 // DefaultPath is where the section is mounted.
@@ -83,6 +86,7 @@ const (
 	MethodStateList      = "automations.state_list"
 	MethodStateSet       = "automations.state_set"
 	MethodStateDelete    = "automations.state_delete"
+	MethodSearchOptions  = "automations.search_options"
 )
 
 // screen declares the Solid module. The call keeps string literals so the iota-solid generator can
@@ -114,6 +118,7 @@ var screen = solid.Import[Props]("./web/Automations.tsx", solid.WithRPC(
 	solid.Query[StateListRequest, StateListResponse]("automations.state_list"),
 	solid.Action[StateSetRequest, StateSetResponse]("automations.state_set", solid.Invalidates("automations.state_list")),
 	solid.Action[StateKeyRequest, OKResponse]("automations.state_delete", solid.Invalidates("automations.state_list")),
+	solid.Query[SearchOptionsRequest, SearchOptionsResponse]("automations.search_options"),
 ))
 
 // Engine is what the controller calls: the engine's services (engine.Runtime provides all three).
@@ -139,6 +144,8 @@ type Config struct {
 	// Behaviors are the graph behaviors of the catalog (default graph.DefaultBehaviors).
 	Behaviors *graph.Behaviors
 	Users     UserNames
+	// Links gives a run's subject its page («Open <subject>» in the run view); nil: no link.
+	Links engine.Links
 	// Origin is who acts in a request; default: human for an interactive session, agent for an agent
 	// session (agentsession.Audience), a request with an Authorization header or no session.
 	Origin func(r *http.Request) engine.Origin
@@ -159,6 +166,16 @@ type Config struct {
 	// MCPTools lists the tools of an MCP connection for the mcp_tool node (nil: automations.mcp_tools
 	// answers unavailable).
 	MCPTools mcp.ToolLister
+	// Options gives the choices of a param field with x-options-source (the chats of a Telegram bot) for one
+	// of the tenant's connections (nil: automations.search_options answers none).
+	Options OptionSearcher
+}
+
+// OptionSearcher is the choices a connector offers for a param field that names a source
+// (connectors.OptionSource), for one of the tenant's connections; connectors.ErrNotFound when the connection is
+// not the tenant's.
+type OptionSearcher interface {
+	Options(ctx context.Context, tenantID, connectionID uuid.UUID, source, query string) ([]connectors.Option, error)
 }
 
 // Controller serves the section's pages and their RPC.
@@ -212,6 +229,7 @@ func NewController(cfg Config) (*Controller, error) {
 			{Spec: application.Get(cfg.Path+"/new", application.ClientRoute(RouteNew), application.RequireAll(permissions.AutomationsRead, permissions.AutomationsAuthor)), Feature: screen, Build: c.build(ViewNew)},
 			{Spec: application.Get(cfg.Path+"/"+id, application.ClientRoute(RouteEditor), read), Feature: screen, Build: c.build(ViewEditor)},
 			{Spec: application.Get(cfg.Path+"/"+id+"/runs/{run:[0-9a-fA-F-]{36}}", application.ClientRoute(RouteRun), read), Feature: screen, Build: c.build(ViewEditor)},
+			{Spec: application.Get(cfg.Path+"/runs/{run:[0-9a-fA-F-]{36}}", application.ClientRoute(RouteRunLink), read), Feature: screen, Build: c.build(ViewRun)},
 		}, clienthost.WithShell(shell), clienthost.WithSession(c.session), clienthost.WithServices(clienthost.ServiceEndpoints{RPC: c.rpcPath()}))
 		if err != nil {
 			return nil, serrors.Wrap(op, err)

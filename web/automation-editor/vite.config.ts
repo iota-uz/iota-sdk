@@ -9,7 +9,11 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig({
   base: './',
   resolve: {
-    alias: { '@iota-uz/sdk/solid-ui': path.resolve(rootDir, '../solid-ui/src/index.ts') },
+    alias: {
+      '@iota-uz/sdk/solid-ui': path.resolve(rootDir, '../solid-ui/src/index.ts'),
+      // As in the package (src/xy/d3-color.ts).
+      'd3-color': path.resolve(rootDir, 'src/xy/d3-color.ts'),
+    },
     dedupe: ['solid-js'],
   },
   plugins: [solid()],

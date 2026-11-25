@@ -4,6 +4,9 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
@@ -32,10 +35,10 @@ const (
 
 	expenseUpdateQuery = `
 		UPDATE expenses
-		SET transaction_id = $1, category_id = $2
-		WHERE id = $3`
+		SET transaction_id = $1, category_id = $2, updated_at = COALESCE($3, NOW())
+		WHERE id = $4 AND tenant_id = $5`
 
-	expenseDeleteQuery = `DELETE FROM expenses where id = $1`
+	expenseDeleteQuery = `DELETE FROM expenses WHERE id = $1 AND tenant_id = $2`
 
 	// Attachment queries
 	expenseAttachmentsQuery = `SELECT upload_id FROM expense_attachments WHERE expense_id = $1`
@@ -311,34 +314,73 @@ func (g *GormExpenseRepository) Create(ctx context.Context, data expense.Expense
 }
 
 func (g *GormExpenseRepository) Update(ctx context.Context, data expense.Expense) (expense.Expense, error) {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get tenant from context")
+	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get transaction")
+	}
+	// The expense row is checked first, so an expense of another tenant leaves
+	// its transaction untouched as well.
+	if err := g.lock(ctx, data.ID(), tenantID); err != nil {
+		return nil, err
 	}
 	expenseRow, transactionRow := ToDBExpense(data)
 	updatedTransaction, err := g.transactionRepo.Update(ctx, transactionRow)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to update transaction")
 	}
-	if _, err := tx.Exec(
+	var updatedAt *time.Time
+	if !expenseRow.UpdatedAt.IsZero() {
+		updatedAt = &expenseRow.UpdatedAt
+	}
+	tag, err := tx.Exec(
 		ctx,
 		expenseUpdateQuery,
 		updatedTransaction.ID().String(),
 		expenseRow.CategoryID,
+		updatedAt,
 		expenseRow.ID,
-	); err != nil {
+		tenantID,
+	)
+	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to update expense with ID: %s", expenseRow.ID))
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, errors.Wrap(ErrExpenseNotFound, fmt.Sprintf("id: %s", expenseRow.ID))
 	}
 	return g.GetByID(ctx, data.ID())
 }
 
 func (g *GormExpenseRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get tenant from context")
+	}
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get transaction")
 	}
-	if _, err := tx.Exec(ctx, expenseDeleteQuery, id); err != nil {
+	if _, err := tx.Exec(ctx, expenseDeleteQuery, id, tenantID); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to delete expense with ID: %s", id))
+	}
+	return nil
+}
+
+// lock takes the row lock of the tenant's expense until the transaction ends.
+func (g *GormExpenseRepository) lock(ctx context.Context, id, tenantID uuid.UUID) error {
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to get transaction")
+	}
+	var locked uuid.UUID
+	if err := tx.QueryRow(ctx, "SELECT id FROM expenses WHERE id = $1 AND tenant_id = $2 FOR UPDATE", id, tenantID).Scan(&locked); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errors.Wrap(ErrExpenseNotFound, fmt.Sprintf("id: %s", id))
+		}
+		return errors.Wrap(err, "failed to lock expense")
 	}
 	return nil
 }

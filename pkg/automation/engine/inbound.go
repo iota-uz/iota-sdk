@@ -54,6 +54,11 @@ var (
 	ErrInboundInvalid = errors.New("automation: inbound event is invalid")
 )
 
+// ErrWebhookRetry is what a WebhookReceiver's Handle wraps a failure in that the provider should repeat
+// (a lookup that failed, a handler that may succeed next time): the answer is 503, not 400, so the
+// provider redelivers the update.
+var ErrWebhookRetry = errors.New("automation: the webhook update is to be redelivered")
+
 // Inbound is the engine's Inbound.
 func (r *Runtime) Inbound() Inbound { return &inbound{r: r, specs: map[string]*graph.JSONValidator{}} }
 
@@ -265,13 +270,34 @@ type WebhookReceiver interface {
 // ClosedAnswerer is an optional interface of a WebhookReceiver: the answer to the provider for an event
 // whose correlation closed meanwhile (a second press of a button: "already answered").
 type ClosedAnswerer interface {
-	AnswerClosed(ctx context.Context, ev InboundEvent, c connectors.Connection, creds connectors.Credentials)
+	// An error says the answer to the provider could not be completed: the provider is answered 503 and
+	// redelivers the update.
+	AnswerClosed(ctx context.Context, ev InboundEvent, c connectors.Connection, creds connectors.Credentials) error
+}
+
+// PublishedAnswerer is an optional interface of a WebhookReceiver: the follow-up to the provider for an
+// event the engine published (new, not a duplicate and not closed) once its transaction committed: the
+// first press of a button is acknowledged and its keyboard removed only now, when the answer is the one
+// that counts.
+type PublishedAnswerer interface {
+	// An error says the follow-up could not be completed: the provider is answered 503 and redelivers the
+	// update (the event itself is a duplicate then, and is published no more).
+	AnswerPublished(ctx context.Context, ev InboundEvent, c connectors.Connection, creds connectors.Credentials) error
 }
 
 // Poller is an optional interface of connectors.Connector for providers without push.
 type Poller interface {
 	Interval(c connectors.Connection) time.Duration // ≥ 30s
 	Poll(ctx context.Context, c connectors.Connection, creds connectors.Credentials, cursor json.RawMessage) (events []InboundEvent, next json.RawMessage, err error)
+}
+
+// Baseliner is an optional interface of a Poller: where a connection's cursor stands now, without reading
+// or publishing anything. The poller keeps the cursor of a connected connection that no enabled graph
+// uses up to date with it, so a graph enabled later (a wait for a reply, an inbound trigger) starts from a
+// cursor at most one interval old: mail that arrived before the graph existed is never published, and mail
+// that arrives after it is never skipped.
+type Baseliner interface {
+	Baseline(ctx context.Context, c connectors.Connection, creds connectors.Credentials) (json.RawMessage, error)
 }
 
 // InboundConfig wires InboundHandler.
@@ -353,7 +379,7 @@ func (h *inboundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		pc, _, has := h.cfg.Platform.Platform(catalog.ConnectorKind(kind))
 		if !has {
-			notFound(w)
+			h.stray(w, r, body, catalog.ConnectorKind(kind))
 			return
 		}
 		conn = connectors.Connection{Kind: catalog.ConnectorKind(kind), Name: "platform", Status: connectors.StatusConnected}
@@ -397,40 +423,143 @@ func (h *inboundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := recv.Verify(r, body, conn, creds); err != nil {
+		if kind != "" {
+			h.stray(w, r, body, conn.Kind)
+			return
+		}
 		notFound(w)
 		return
 	}
 	buf := &bufferedResponse{header: http.Header{}}
 	evs, err := recv.Handle(ctx, buf, body, conn, creds)
+	if errors.Is(err, ErrWebhookRetry) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	closed, err := h.publish(ctx, evs, connID, tenantOf, kind != "")
+	closed, published, err := h.publish(ctx, evs, connID, tenantOf, kind != "")
 	if err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
+	redeliver := false
 	if ca, ok := recv.(ClosedAnswerer); ok {
 		for _, ev := range closed {
-			ca.AnswerClosed(ctx, ev, conn, creds)
+			if err := ca.AnswerClosed(ctx, ev, conn, creds); err != nil {
+				redeliver = true
+			}
 		}
+	}
+	if pa, ok := recv.(PublishedAnswerer); ok {
+		for _, ev := range published {
+			if err := pa.AnswerPublished(ctx, ev, conn, creds); err != nil {
+				redeliver = true
+			}
+		}
+	}
+	if redeliver {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
 	}
 	buf.flush(w)
 }
 
+// PlatformStrayReceiver is an optional interface of a WebhookReceiver whose accounts are exclusive (a Telegram bot,
+// one webhook): a request on the platform route that the platform credential does not verify may belong to an account
+// that was the platform's and that a tenant's connection took since (connectors.RetiredPlatformHolders) — a platform
+// setWebhook the provider applied late, from an instance that crashed during the call, points it back to the platform
+// route. VerifyStray tells whether the request is that account's platform webhook (verified with the connection's
+// credentials). Reclaim reads what pointing the account's webhook back to the connection needs (its stored secret)
+// and returns the step that does it, which touches no database: the handler runs it under the account's lock, once the
+// connection is found unchanged (same version). The request is then answered 503, so the provider delivers it again,
+// to the connection.
+//
+// StrayKey is the stray key of the request (connectors.StrayKeyOf its secret header; "" without one): the account is
+// found by it, by an index, before any credentials are read.
+type PlatformStrayReceiver interface {
+	StrayKey(r *http.Request) string
+	VerifyStray(r *http.Request, body []byte, c connectors.Connection, creds connectors.Credentials) bool
+	Reclaim(ctx context.Context, c connectors.Connection, creds connectors.Credentials) (func(ctx context.Context) error, error)
+}
+
+// latestReader is the part of connectors.Store that runs a step under the lock of a connection's exclusive account,
+// with the connection as it is committed then.
+type latestReader interface {
+	WithLatest(ctx context.Context, kind catalog.ConnectorKind, tenantID, id uuid.UUID, external string, fn func(found bool, c connectors.Connection, creds connectors.Credentials) error) error
+}
+
+func (h *inboundHandler) latest() latestReader {
+	lr, _ := h.cfg.Connections.(latestReader)
+	return lr
+}
+
+// stray answers a platform-route request the platform credential did not verify: a stray update of an account a
+// tenant's connection took (PlatformStrayReceiver) has its webhook pointed back to the connection and is answered 503
+// (delivered again, there); anything else is 404.
+func (h *inboundHandler) stray(w http.ResponseWriter, r *http.Request, body []byte, kind catalog.ConnectorKind) {
+	cn, found := h.cfg.Connectors.Get(kind)
+	sr, ok := cn.(PlatformStrayReceiver)
+	if !found || !ok || h.cfg.DB == nil || h.cfg.Connections == nil {
+		notFound(w)
+		return
+	}
+	key := sr.StrayKey(r)
+	if key == "" {
+		notFound(w)
+		return
+	}
+	ctx := r.Context()
+	hd, held, err := connectors.RetiredPlatformHolder(ctx, h.cfg.DB, kind, key)
+	if err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+	if !held {
+		notFound(w)
+		return
+	}
+	conn, creds, err := h.cfg.Connections.Get(ctx, hd.TenantID, hd.ConnectionID)
+	if err == nil && conn.Status == connectors.StatusConnected && sr.VerifyStray(r, body, conn, creds) {
+		// What the step needs is read first, outside the lock: the lock holds a database connection, and a pool of
+		// one would have none left for the read.
+		step, err := sr.Reclaim(ctx, conn, creds)
+		switch {
+		case err != nil:
+		case h.latest() != nil:
+			// Under the account's lock, and only while the connection is as it was read: a save or a delete of the
+			// connection meanwhile (which sets or removes its webhook itself) is not undone.
+			_ = h.latest().WithLatest(ctx, kind, hd.TenantID, hd.ConnectionID, hd.External, func(found bool, c connectors.Connection, _ connectors.Credentials) error {
+				if !found || c.Status != connectors.StatusConnected || c.Version != conn.Version {
+					return nil
+				}
+				return step(ctx)
+			})
+		default:
+			_ = step(ctx)
+		}
+		// Delivered again: to the connection once its webhook is back, or here, to try once more.
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+	notFound(w)
+}
+
 // publish writes the events of one request in one transaction; an event of another tenant than the
-// connection's is dropped. closed are the events whose correlation closed meanwhile.
-func (h *inboundHandler) publish(ctx context.Context, evs []InboundEvent, connID string, tenant uuid.UUID, platform bool) ([]InboundEvent, error) {
+// connection's is dropped. closed are the events whose correlation closed meanwhile; published are the
+// events that were new.
+func (h *inboundHandler) publish(ctx context.Context, evs []InboundEvent, connID string, tenant uuid.UUID, platform bool) ([]InboundEvent, []InboundEvent, error) {
 	if len(evs) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if h.cfg.DB == nil || h.cfg.Inbound == nil {
-		return nil, errors.New("automation inbound: no database")
+		return nil, nil, errors.New("automation inbound: no database")
 	}
-	var closed []InboundEvent
+	var closed, published []InboundEvent
 	err := publishInTx(ctx, h.cfg.DB, func(ctx context.Context, tx pgx.Tx) error {
-		closed = closed[:0]
+		closed, published = closed[:0], published[:0]
 		for _, ev := range evs {
 			ev.ConnectionID = connID
 			switch {
@@ -459,7 +588,7 @@ func (h *inboundHandler) publish(ctx context.Context, evs []InboundEvent, connID
 			if err != nil {
 				return err
 			}
-			_, err = h.cfg.Inbound.Publish(ctx, sp, ev)
+			isNew, err := h.cfg.Inbound.Publish(ctx, sp, ev)
 			switch {
 			case errors.Is(err, ErrCorrelationClosed):
 				_ = sp.Rollback(ctx)
@@ -475,10 +604,13 @@ func (h *inboundHandler) publish(ctx context.Context, evs []InboundEvent, connID
 			if err := sp.Commit(ctx); err != nil {
 				return err
 			}
+			if isNew {
+				published = append(published, ev)
+			}
 		}
 		return nil
 	})
-	return closed, err
+	return closed, published, err
 }
 
 // bufferedResponse holds what a connector answers the provider until the events are committed.

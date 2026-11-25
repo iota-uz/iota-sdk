@@ -97,6 +97,7 @@ func (r *Runtime) Prune(ctx context.Context) (int64, error) {
 		sql string
 		arg any
 	}{
+		{`DELETE FROM automation.inbound_actions WHERE ctid IN (SELECT ctid FROM automation.inbound_actions WHERE updated_at < now() - $1::interval LIMIT 1000)`, pgInterval(r.cfg.Retention.Steps.Seconds())},
 		{`DELETE FROM automation.inbound_dedup WHERE ctid IN (SELECT ctid FROM automation.inbound_dedup WHERE seen_at < now() - $1::interval LIMIT 1000)`, pgInterval(r.cfg.Retention.Steps.Seconds())},
 		{`DELETE FROM automation.correlations WHERE ctid IN (SELECT ctid FROM automation.correlations WHERE expires_at < now() - $1::interval LIMIT 1000)`, pgInterval(0)},
 		{`DELETE FROM automation.decision_cache WHERE ctid IN (SELECT ctid FROM automation.decision_cache WHERE created_at < now() - $1::interval LIMIT 1000)`, pgInterval(DecisionTTL.Seconds())},

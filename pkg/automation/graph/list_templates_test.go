@@ -1,0 +1,100 @@
+package graph_test
+
+import (
+	"testing"
+	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
+	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+)
+
+// A template path with [] reaches the items of a list: each is checked when a graph is saved and rendered
+// when the node starts.
+func TestTemplatesAndValuesInsideAList(t *testing.T) {
+	c := testCatalog(t)
+	params := graph.MustSchemaParams(`{"type":"object","additionalProperties":false,"required":["items"],"properties":{
+	  "items":{"type":"array","items":{"type":"object","additionalProperties":false,"properties":{"label":{"type":"string"},"n":{"type":"string"}}}}}}`)
+	c.Nodes["lister"] = graph.NodeSpec{
+		Type: "lister", Title: "Lister", Behavior: graph.BehaviorEffect, DryRun: graph.DryRunCapture, Params: params,
+		Templates: []string{"items[].label"}, Values: []string{"items[].n"}, Outcomes: []string{"done", "failed"}, DoneOutcome: "done", FailedOutcome: "failed",
+		Output: expr.Fields{},
+	}
+	if err := c.Check(nil); err != nil {
+		t.Fatal(err)
+	}
+	const raw = `{"name":"l","triggers":[{"id":"created","event":"order.created"}],
+	 "nodes":[{"id":"l","type":"lister","params":{"items":[{"label":"A {{ event.total }}","n":"1 + 2"},{"label":"B {{ event.total }}","n":"event.total"}]}}],
+	 "edges":[{"from":{"node":"created","outcome":"fired"},"to":"l"},{"from":{"node":"l","outcome":"done"},"to":"ignore"},{"from":{"node":"l","outcome":"failed"},"to":"ignore"}]}`
+	g := mustDecode(t, raw)
+	if errs := graph.Validate(c, g, graph.Options{}); len(errs) > 0 {
+		t.Fatalf("validate: %v", errs)
+	}
+	in, err := graph.NewInterpreter(c, g, graph.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := graph.Context{Now: time.Now(), Event: graph.Event{"kind": "order.created", "total": 7}}
+	st := in.Start("l", &graph.StepContext{Ctx: ctx})
+	if st.Kind != graph.StepOutcome || len(st.Effects) != 1 {
+		t.Fatalf("step: %+v", st)
+	}
+	items, _ := st.Effects[0].Params["items"].([]any)
+	if len(items) != 2 {
+		t.Fatalf("items: %+v", st.Effects[0].Params)
+	}
+	first, second := items[0].(map[string]any), items[1].(map[string]any)
+	if first["label"] != "A 7" || second["label"] != "B 7" {
+		t.Fatalf("labels: %v %v", first, second)
+	}
+	if first["n"] != int64(3) && first["n"] != 3 && first["n"] != float64(3) {
+		t.Fatalf("a value inside a list: %#v", first["n"])
+	}
+
+	// A broken template inside an item is reported at that item.
+	bad := mustDecode(t, `{"name":"l","triggers":[{"id":"created","event":"order.created"}],
+	 "nodes":[{"id":"l","type":"lister","params":{"items":[{"label":"ok"},{"label":"{{ event.nope }}"}]}}],
+	 "edges":[{"from":{"node":"created","outcome":"fired"},"to":"l"},{"from":{"node":"l","outcome":"done"},"to":"ignore"},{"from":{"node":"l","outcome":"failed"},"to":"ignore"}]}`)
+	errs := graph.Validate(c, bad, graph.Options{})
+	if len(errs) != 1 || errs[0].Path != "nodes[0].params.items[1].label" {
+		t.Fatalf("errors: %v", errs)
+	}
+}
+
+// A concrete path through a list names itself when the item is there; "[]" names every item.
+func TestExpandParamConcreteListItems(t *testing.T) {
+	params := map[string]any{"items": []any{map[string]any{"label": "a"}, map[string]any{"label": "b"}}}
+	paths := func(path string) []string {
+		var out []string
+		for _, p := range graph.ExpandParam(params, path) {
+			out = append(out, p.String())
+		}
+		return out
+	}
+	if got := paths("items.0.label"); len(got) != 1 || got[0] != "items[0].label" {
+		t.Fatalf("items.0.label: %v", got)
+	}
+	if got := paths("items.2.label"); len(got) != 0 {
+		t.Fatalf("an item that is not there: %v", got)
+	}
+	if got := paths("items[].label"); len(got) != 2 || got[1] != "items[1].label" {
+		t.Fatalf("items[].label: %v", got)
+	}
+}
+
+// A list's [] may be written after a name or as a segment of its own; both name the same paths.
+func TestExpandParamListItemsSpellings(t *testing.T) {
+	t.Parallel()
+	params := map[string]any{"options": []any{map[string]any{"label": "a"}, map[string]any{"label": "b"}}, "to": []any{"x", "y"}}
+	for _, path := range []string{"options[].label", "options.[].label"} {
+		got := graph.ExpandParam(params, path)
+		if len(got) != 2 || got[0].String() != "options[0].label" || got[1].String() != "options[1].label" {
+			t.Fatalf("%s: %v", path, got)
+		}
+	}
+	if got := graph.ExpandParam(params, "to[]"); len(got) != 2 || got[1].String() != "to[1]" {
+		t.Fatalf("to[]: %v", got)
+	}
+	if got := graph.ExpandParam(params, "options[].missing"); len(got) != 0 {
+		t.Fatalf("a missing key names nothing: %v", got)
+	}
+}

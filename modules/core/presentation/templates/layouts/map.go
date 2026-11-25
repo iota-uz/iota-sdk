@@ -19,6 +19,7 @@ func MapNavItemToSidebar(navItem types.NavigationItem) sidebar.Item {
 		navItem.Name,
 		navItem.Icon,
 		sidebar.WithBeta(navItem.IsBeta),
+		sidebar.WithBadge(navItem.Badge),
 	)
 }
 

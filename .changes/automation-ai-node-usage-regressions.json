@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Add regression tests for ai.jev: malformed Decisions metadata and malformed Chat Completions choices keep the token usage and are not retried (#1429)."}

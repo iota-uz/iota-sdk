@@ -7,7 +7,7 @@ import type { ConnectionView, ConnectorView, UsageView } from '../../model'
  * contract; this fixture drives screenshots and browser scenarios.
  */
 export interface FakeOptions {
-  scenario: 'default' | 'empty' | 'loading' | 'error' | 'fresh' | 'mcp'
+  scenario: 'default' | 'empty' | 'loading' | 'error' | 'fresh' | 'email' | 'mcp'
   delay: number
   platformFails: boolean
   /** false: the caller lacks Connections.Manage (an author). */
@@ -25,6 +25,8 @@ export interface FakeOptions {
   /** The first update meets a version conflict (another manager saved the connection meanwhile):
    * as a result ('result') or as an RPC error ('error'); '' for none. */
   conflictOnce: '' | 'result' | 'error'
+  /** The sign-in presets the application has OAuth2 clients for (scenario email); default gmail. */
+  presets?: string[]
 
   calls: { method: string; params: unknown }[]
 }
@@ -36,6 +38,17 @@ const tokenSchema = {
   properties: {
     bot_token: { type: 'string', title: 'Bot token', 'x-secret': true, description: 'From @BotFather' },
     chat_id: { type: 'string', title: 'Default chat', examples: ['-1001234567890'] },
+  },
+}
+// An email box: a form with a login and a password, and sign-in presets (the preset field is the choice).
+const imapSchema = {
+  type: 'object', required: [],
+  properties: {
+    preset: { type: 'string', title: 'Account', enum: ['custom', 'gmail', 'm365'], default: 'custom', 'x-oauth-client': { gmail: 'google_oauth', m365: 'microsoft_oauth' } },
+    host: { type: 'string', title: 'IMAP server', examples: ['imap.example.com'] },
+    port: { type: 'integer', title: 'Port', examples: ['993'] },
+    username: { type: 'string', title: 'Login' },
+    password: { type: 'string', title: 'Password', 'x-secret': true },
   },
 }
 const smtpSchema = {
@@ -70,7 +83,7 @@ const mcpSchema = {
   },
 }
 
-function seed(scenario: FakeOptions['scenario']): ConnectorView[] {
+function seed(scenario: FakeOptions['scenario'], presets: string[] = ['gmail']): ConnectorView[] {
   if (scenario === 'empty') return []
   if (scenario === 'mcp') {
     return [{
@@ -97,6 +110,12 @@ function seed(scenario: FakeOptions['scenario']): ConnectorView[] {
       credential_schema: smtpSchema, nodes: ['Send an email'], platform: null,
       connections: fresh ? [] : [conn('smtp', 'office_mail', 'Office mail', { identity: 'robot@acme.uz', status: 'disabled', fields: { host: 'smtp.acme.uz', port: '587', username: 'robot@acme.uz' } })],
     },
+    ...(scenario === 'email' ? [{
+      kind: 'imap', title: 'Email (IMAP)', icon: '', description: 'Receive email and wait for replies.', category: 'email' as const, auth: 'custom' as const,
+      credential_schema: imapSchema, nodes: ['Wait for a reply'], platform: null, oauth_presets: presets,
+      connections: [conn('imap', 'robot_inbox', 'Robot inbox', { identity: 'robot@acme.uz', status: 'needs_reauth', status_reason: 'reauth', fields: { preset: 'gmail', username: 'robot@acme.uz' } }),
+        conn('imap', 'office_inbox', 'Office inbox', { identity: 'office@acme.uz', fields: { preset: 'custom', host: 'imap.acme.uz', port: '993', username: 'office@acme.uz' } })],
+    }] : []),
     {
       kind: 'openai', title: 'OpenAI', icon: '', description: 'Classify, summarize and extract with language models.', category: 'ai', auth: 'api_key',
       credential_schema: { type: 'object', required: ['api_key'], properties: { api_key: { type: 'string', title: 'API key', 'x-secret': true } } },
@@ -130,7 +149,7 @@ function carried(): { connectors: ConnectorView[]; seq: number } | undefined {
 
 export function installFake(rpcPath: string, opts: FakeOptions): void {
   const kept = carried()
-  const connectors = kept?.connectors ?? seed(opts.scenario)
+  const connectors = kept?.connectors ?? seed(opts.scenario, opts.presets)
   const carry = () => {
     try { window.sessionStorage.setItem(CARRIED, JSON.stringify({ connectors, seq })) } catch { /* a private window: the return reseeds */ }
   }
@@ -186,6 +205,9 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       if (c.connections.some((x) => x.name === p.name)) return { ok: false, error: 'name_taken', fields: { name: 'taken' } }
       const secret = String(p.credentials.bot_token ?? p.credentials.password ?? p.credentials.api_key ?? '')
       if (secret === 'bad') return { ok: false, error: 'test_failed', reason: 'auth' }
+      // A bot another service already uses: the person confirms before it is connected.
+      // The confirmation is bound to the bot (the server's token is "<code>@<bot id>"): the code alone is not enough.
+      if (secret === 'foreign' && !(p.confirm ?? []).includes('foreign_webhook@222222')) return { ok: false, error: 'confirmation_required', warnings: ['foreign_webhook@222222'] }
       const key = p.idempotency_key
       if (key && keys.has(key)) return { ok: true, connection: keys.get(key) }
       const signIn = c.kind === 'mcp' && p.credentials.auth === 'oauth2'
@@ -199,7 +221,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       loseOnce()
       return { ok: true, connection: created }
     },
-    'automations.connections.oauth_start': (p: { kind: string; name: string; display_name?: string; connection_id?: string }) => {
+    'automations.connections.oauth_start': (p: { kind: string; name: string; display_name?: string; connection_id?: string; preset?: string }) => {
       const c = connectors.find((x) => x.kind === p.kind)
       if (!c) return notFound()
       if (opts.oauthFail) {
@@ -215,7 +237,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
         carry()
         return { authorize_url: `${window.location.pathname}?connected=${p.connection_id}&kind=${p.kind}&edit=${p.connection_id}` }
       }
-      const created = conn(c.kind, p.name || 'drive_2', 'docs@acme.uz', { id: `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`, identity: 'docs@acme.uz' })
+      const created = conn(c.kind, p.name || 'drive_2', 'docs@acme.uz', { fields: p.preset ? { preset: p.preset, username: 'docs@acme.uz' } : {}, id: `00000000-0000-4000-8000-${String(++seq).padStart(12, '0')}`, identity: 'docs@acme.uz' })
       c.connections.push(created)
       carry()
       return { authorize_url: `${window.location.pathname}${window.location.search.replace(/[?&](connect|kind)=[^&]*/g, '').replace(/^&/, '?') || '?'}&connected=${created.id}&kind=${c.kind}` }
@@ -264,6 +286,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       f.connector.connections = f.connector.connections.filter((x) => x.id !== p.id)
       return { ok: true }
     },
+    'automations.connections.options': () => ({ options: [] }),
     'automations.platform.set_enabled': (p: { kind: string; enabled: boolean }) => {
       if (opts.platformFails) throw { code: 'internal', message: 'internal error' }
       const c = connectors.find((x) => x.kind === p.kind)

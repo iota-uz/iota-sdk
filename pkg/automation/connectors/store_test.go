@@ -908,3 +908,283 @@ func TestCheckTokenRefreshesADisabledConnection(t *testing.T) {
 	assert.Equal(t, refused.Version, after.Version, "a refused check writes nothing")
 	assert.Equal(t, connectors.StatusDisabled, after.Status)
 }
+
+// An update a connector handles itself is claimed before its handler runs and again before its reply is sent:
+// two deliveries never both do either, and a claimant that was taken over cannot touch its successor's work.
+func TestInboundActionsClaimOnce(t *testing.T) {
+	e := newEnv(t)
+	store := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, nil, nil)
+	acts, ok := store.(connectors.InboundActions)
+	require.True(t, ok)
+	const conn, event, key = "platform:telegram_bot@222222", "start", "u1"
+
+	var claims atomic.Int32
+	owners := make(chan uuid.UUID, 8)
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if a, claimed, err := acts.ClaimInbound(e.ctx, conn, event, key); err == nil && claimed {
+				claims.Add(1)
+				owners <- a.Owner
+			}
+		}()
+	}
+	wg.Wait()
+	require.Equal(t, int32(1), claims.Load(), "one delivery runs the handler")
+	owner := <-owners
+	require.NotEqual(t, uuid.Nil, owner)
+
+	a, claimed, err := acts.ClaimInbound(e.ctx, conn, event, key)
+	require.NoError(t, err)
+	assert.False(t, claimed)
+	assert.Equal(t, connectors.InboundClaimed, a.State)
+
+	tenant := uuid.New()
+	require.ErrorIs(t, acts.InboundHandled(e.ctx, conn, event, key, uuid.New(), tenant, "x"), connectors.ErrInboundLost, "not the claimant")
+	require.NoError(t, acts.InboundHandled(e.ctx, conn, event, key, owner, tenant, "Linked"))
+	a, claimed, err = acts.ClaimInbound(e.ctx, conn, event, key)
+	require.NoError(t, err)
+	assert.False(t, claimed)
+	assert.Equal(t, connectors.InboundAction{State: connectors.InboundHandled, Tenant: tenant, Reply: "Linked"}, a)
+	require.ErrorIs(t, acts.ReleaseInbound(e.ctx, conn, event, key, owner), connectors.ErrInboundLost, "a handled update is not released by the handler's claim")
+
+	// The delivery is claimed once, with the kept result.
+	claims.Store(0)
+	deliveries := make(chan connectors.InboundAction, 8)
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if d, claimed, err := acts.ClaimDelivery(e.ctx, conn, event, key); err == nil && claimed {
+				claims.Add(1)
+				deliveries <- d
+			}
+		}()
+	}
+	wg.Wait()
+	require.Equal(t, int32(1), claims.Load(), "one delivery sends the reply")
+	d := <-deliveries
+	assert.Equal(t, "Linked", d.Reply)
+	assert.Equal(t, tenant, d.Tenant)
+	a, claimed, err = acts.ClaimDelivery(e.ctx, conn, event, key)
+	require.NoError(t, err)
+	assert.False(t, claimed)
+	assert.Equal(t, connectors.InboundDelivering, a.State)
+
+	// A delivery that could not send gives its claim up: the reply is sent by the next one.
+	require.NoError(t, acts.ReleaseInbound(e.ctx, conn, event, key, d.Owner))
+	d2, claimed, err := acts.ClaimDelivery(e.ctx, conn, event, key)
+	require.NoError(t, err)
+	require.True(t, claimed)
+	require.ErrorIs(t, acts.InboundCompleted(e.ctx, conn, event, key, d.Owner), connectors.ErrInboundLost, "the released claim is not the owner any more")
+	require.NoError(t, acts.InboundCompleted(e.ctx, conn, event, key, d2.Owner))
+	a, claimed, err = acts.ClaimInbound(e.ctx, conn, event, key)
+	require.NoError(t, err)
+	assert.False(t, claimed)
+	assert.Equal(t, connectors.InboundDone, a.State)
+	_, claimed, err = acts.ClaimDelivery(e.ctx, conn, event, key)
+	require.NoError(t, err)
+	assert.False(t, claimed, "a finished update is not delivered again")
+
+	// A failed handler gives its claim up; one that was abandoned is taken over, and the old claimant is fenced.
+	first, claimed, err := acts.ClaimInbound(e.ctx, conn, event, "u2")
+	require.NoError(t, err)
+	require.True(t, claimed)
+	require.NoError(t, acts.ReleaseInbound(e.ctx, conn, event, "u2", first.Owner))
+	second, claimed, err := acts.ClaimInbound(e.ctx, conn, event, "u2")
+	require.NoError(t, err)
+	assert.True(t, claimed, "released: the redelivery runs the handler")
+	_, err = e.db.Exec(e.ctx, `UPDATE automation.inbound_actions SET updated_at = now() - interval '1 hour' WHERE dedup_key = 'u2'`)
+	require.NoError(t, err)
+	third, claimed, err := acts.ClaimInbound(e.ctx, conn, event, "u2")
+	require.NoError(t, err)
+	assert.True(t, claimed, "abandoned: taken over")
+	require.NotEqual(t, second.Owner, third.Owner)
+	_, claimed, err = acts.ClaimInbound(e.ctx, conn, event, "u2")
+	require.NoError(t, err)
+	assert.False(t, claimed, "and fresh again")
+	require.ErrorIs(t, acts.InboundHandled(e.ctx, conn, event, "u2", second.Owner, tenant, "late"), connectors.ErrInboundLost, "the old handler's result is not recorded")
+	require.ErrorIs(t, acts.ReleaseInbound(e.ctx, conn, event, "u2", second.Owner), connectors.ErrInboundLost, "nor does its failure drop the successor's claim")
+	require.NoError(t, acts.InboundHandled(e.ctx, conn, event, "u2", third.Owner, tenant, "ok"))
+
+	// The same for the delivery.
+	_, err = e.db.Exec(e.ctx, `UPDATE automation.inbound_actions SET updated_at = now() - interval '1 hour' WHERE dedup_key = 'u2'`)
+	require.NoError(t, err)
+	old, claimed, err := acts.ClaimDelivery(e.ctx, conn, event, "u2")
+	require.NoError(t, err)
+	require.True(t, claimed)
+	_, err = e.db.Exec(e.ctx, `UPDATE automation.inbound_actions SET updated_at = now() - interval '1 hour' WHERE dedup_key = 'u2'`)
+	require.NoError(t, err)
+	next, claimed, err := acts.ClaimDelivery(e.ctx, conn, event, "u2")
+	require.NoError(t, err)
+	require.True(t, claimed, "an abandoned delivery is taken over")
+	require.ErrorIs(t, acts.InboundCompleted(e.ctx, conn, event, "u2", old.Owner), connectors.ErrInboundLost)
+	require.ErrorIs(t, acts.ReleaseInbound(e.ctx, conn, event, "u2", old.Owner), connectors.ErrInboundLost)
+	require.NoError(t, acts.InboundCompleted(e.ctx, conn, event, "u2", next.Owner))
+}
+
+// DeleteReturning gives what the row held when it was deleted (under its lock), not what an earlier read saw.
+func TestDeleteReturningGivesTheDeletedRow(t *testing.T) {
+	e := newEnv(t)
+	store := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, nil, nil)
+	c := e.save(store, e.tenant, "support_bot", connectors.Credentials{"token": botToken})
+	c2, err := store.Save(e.ctx, connectors.Connection{ID: c.ID, TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: "support_bot", DisplayName: "Support", Version: c.Version},
+		connectors.Credentials{"token": botToken + "-rotated"})
+	require.NoError(t, err)
+	require.Equal(t, c.ID, c2.ID, "saved again: the same connection")
+	got, creds, err := store.DeleteReturning(e.ctx, e.tenant, c.ID)
+	require.NoError(t, err)
+	assert.Equal(t, c.ID, got.ID)
+	assert.Equal(t, botToken+"-rotated", creds["token"], "the credentials of the deleted row")
+	_, _, err = store.DeleteReturning(e.ctx, e.tenant, c.ID)
+	require.ErrorIs(t, err, connectors.ErrNotFound)
+}
+
+// Deleting the owner of a token set and rewrapping the rows of an older key lock the rows in the same (id)
+// order: neither is chosen as the victim of a deadlock when a dependent sorts before its owner.
+func TestDeleteOfAnOwnerAndRewrapDoNotDeadlock(t *testing.T) {
+	e := newEnv(t)
+	old := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, nil, nil)
+	gs, ok := connectors.ConnectionStore(old).(connectors.GroupSaver)
+	require.True(t, ok)
+	var owners []uuid.UUID
+	for n := 0; len(owners) < 8 && n < 200; n++ {
+		items := []connectors.GroupItem{
+			{Connection: connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("owner_%d", n)}, Credentials: connectors.Credentials{"token": botToken}},
+			{Connection: connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("dep_%d", n)}, Credentials: connectors.Credentials{"token": botToken}},
+		}
+		saved, err := gs.SaveGroup(e.ctx, items)
+		require.NoError(t, err)
+		if saved[1].ID.String() < saved[0].ID.String() {
+			owners = append(owners, saved[0].ID) // the dependent sorts before its owner
+		}
+	}
+	require.Len(t, owners, 8, "groups whose dependent has the lower id")
+
+	rotated := connectors.NewStore(e.db, keyring(t, "k2", "k1", "k2"), nil, nil, nil)
+	errs := make(chan error, len(owners)+1)
+	var wg sync.WaitGroup
+	for _, id := range owners {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- rotated.Delete(e.ctx, e.tenant, id)
+		}()
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			n, err := rotated.Rewrap(e.ctx, 2)
+			if err != nil || n == 0 {
+				errs <- err
+				return
+			}
+		}
+	}()
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+}
+
+// A deletion locks the group in id order, the lowest first: while another transaction holds the dependent
+// that sorts before the owner, the deletion waits without already holding the owner, so whoever holds the
+// dependent (a rewrap, in id order) is never waiting for a row the deletion holds.
+func TestDeleteLocksTheGroupInIDOrder(t *testing.T) {
+	e := newEnv(t)
+	store := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, nil, nil)
+	gs, ok := connectors.ConnectionStore(store).(connectors.GroupSaver)
+	require.True(t, ok)
+	var owner, dep uuid.UUID
+	for n := 0; dep == uuid.Nil && n < 200; n++ {
+		saved, err := gs.SaveGroup(e.ctx, []connectors.GroupItem{
+			{Connection: connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("owner_%d", n)}, Credentials: connectors.Credentials{"token": botToken}},
+			{Connection: connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("dep_%d", n)}, Credentials: connectors.Credentials{"token": botToken}},
+		})
+		require.NoError(t, err)
+		if saved[1].ID.String() < saved[0].ID.String() {
+			owner, dep = saved[0].ID, saved[1].ID
+		}
+	}
+	require.NotEqual(t, uuid.Nil, dep)
+
+	hold, err := e.db.Begin(e.ctx)
+	require.NoError(t, err)
+	_, err = hold.Exec(e.ctx, `SELECT 1 FROM automation.connections WHERE id = $1 FOR UPDATE`, dep)
+	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() { done <- store.Delete(e.ctx, e.tenant, owner) }()
+	select {
+	case err := <-done:
+		t.Fatalf("Delete returned %v while the dependent was locked", err)
+	case <-time.After(500 * time.Millisecond):
+	}
+	probe, err := e.db.Begin(e.ctx)
+	require.NoError(t, err)
+	var got uuid.UUID
+	err = probe.QueryRow(e.ctx, `SELECT id FROM automation.connections WHERE id = $1 FOR UPDATE NOWAIT`, owner).Scan(&got)
+	_ = probe.Rollback(e.ctx)
+	if err != nil {
+		_ = hold.Rollback(e.ctx) // let the deletion finish before the test fails
+		<-done
+	}
+	require.NoError(t, err, "the waiting deletion does not hold the owner")
+	require.NoError(t, hold.Rollback(e.ctx))
+	require.NoError(t, <-done)
+}
+
+// A save of an existing group locks the rows it updates in id order before it writes the primary: while a
+// lower-id dependent is held by someone else it waits without holding the owner, as a deletion of the group does.
+func TestSaveGroupLocksTheExistingRowsInIDOrder(t *testing.T) {
+	e := newEnv(t)
+	store := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, nil, nil)
+	gs, ok := connectors.ConnectionStore(store).(connectors.GroupSaver)
+	require.True(t, ok)
+	var saved []connectors.Connection
+	for n := 0; saved == nil && n < 200; n++ {
+		got, err := gs.SaveGroup(e.ctx, []connectors.GroupItem{
+			{Connection: connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("owner_%d", n)}, Credentials: connectors.Credentials{"token": botToken}},
+			{Connection: connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("dep_%d", n)}, Credentials: connectors.Credentials{"token": botToken}},
+		})
+		require.NoError(t, err)
+		if got[1].ID.String() < got[0].ID.String() {
+			saved = got
+		}
+	}
+	require.NotNil(t, saved)
+
+	hold, err := e.db.Begin(e.ctx)
+	require.NoError(t, err)
+	_, err = hold.Exec(e.ctx, `SELECT 1 FROM automation.connections WHERE id = $1 FOR UPDATE`, saved[1].ID)
+	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() {
+		_, err := gs.SaveGroup(e.ctx, []connectors.GroupItem{
+			{Connection: saved[0], Credentials: connectors.Credentials{"token": botToken}},
+			{Connection: saved[1], Credentials: connectors.Credentials{"token": botToken}},
+		})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		_ = hold.Rollback(e.ctx)
+		t.Fatalf("SaveGroup returned %v while a row it updates was locked", err)
+	case <-time.After(500 * time.Millisecond):
+	}
+	probe, err := e.db.Begin(e.ctx)
+	require.NoError(t, err)
+	var got uuid.UUID
+	err = probe.QueryRow(e.ctx, `SELECT id FROM automation.connections WHERE id = $1 FOR UPDATE NOWAIT`, saved[0].ID).Scan(&got)
+	_ = probe.Rollback(e.ctx)
+	if err != nil {
+		_ = hold.Rollback(e.ctx)
+		<-done
+	}
+	require.NoError(t, err, "the waiting save does not hold the owner")
+	require.NoError(t, hold.Rollback(e.ctx))
+	require.NoError(t, <-done)
+}

@@ -4,7 +4,8 @@
   },
   "NavigationLinks": {
     "Integrations": "Integrations",
-    "Automations": "Automations"
+    "Automations": "Automations",
+    "AutomationTasks": "My tasks"
   },
   "Permissions": {
     "Automations.Read": "View automations",
@@ -130,7 +131,23 @@
         "InProgress": "The first attempt is still being processed. Retry in a few seconds; nothing will be saved twice.",
         "LoadLatest": "Load the latest version",
         "Reloaded": "The latest version is loaded. Check the form and save again.",
-        "RetryChanged": "The first save may have gone through with the earlier values. Close the form and edit the connection from the list."
+        "RetryChanged": "The first save may have gone through with the earlier values. Close the form and edit the connection from the list.",
+        "Warnings": {
+          "foreign_webhook": "This bot is already used by another service. After you connect it, that service will stop receiving messages.",
+          "polling_unknown": "We cannot tell whether another service reads this bot's messages (by polling). If one does, it will stop receiving them after you connect."
+        },
+        "ConfirmWarning": "Connect anyway",
+        "ConfirmRequired": "Confirm that you want to connect this bot despite the warnings above.",
+        "BotInUse": "This bot is already reserved: it is connected here as another connection, or it belongs to another account or to the platform. Use a different bot, or ask an administrator. If you manage the existing connection, delete it first (disabling it keeps the bot reserved).",
+        "Preset": {
+          "custom": "Any server (login and password)",
+          "gmail": "Gmail (sign in with Google)",
+          "m365": "Microsoft 365 (sign in with Microsoft)"
+        },
+        "PresetProvider": {
+          "gmail": "Google",
+          "m365": "Microsoft 365"
+        }
       },
       "Test": {
         "Running": "Checking…",
@@ -419,9 +436,9 @@
         "Waiting": "Waiting"
       },
       "Runs": {
-        "Empty": "No runs yet.",
-        "NoSteps": "No steps yet.",
-        "Steps": "Steps of the run"
+        "NotFound": "Run not found",
+        "NotFoundText": "It was deleted, or it belongs to another workspace.",
+        "Opening": "Opening the run…"
       },
       "Status": {
         "Disabled": "Off",
@@ -484,6 +501,148 @@
       "billing": "Billing",
       "projects": "Projects",
       "Misc": "Other"
+    },
+    "Tasks": {
+      "Title": "My tasks",
+      "Intro": "Decisions automations are waiting for from you: assigned to you, your roles and groups, or passed to you.",
+      "Tabs": {
+        "Label": "Task lists",
+        "Mine": "Mine",
+        "Overdue": "Overdue",
+        "Decided": "Decided by me"
+      },
+      "Search": {
+        "Label": "Search tasks",
+        "Placeholder": "Search by task or record"
+      },
+      "Empty": {
+        "Mine": "No tasks waiting for you",
+        "MineHint": "When an automation asks you, your role or your group to decide, the task appears here.",
+        "Overdue": "Nothing is overdue",
+        "OverdueHint": "Open tasks past their due time appear here.",
+        "Decided": "You have not decided any task yet",
+        "DecidedHint": "Tasks you decide stay here, with how they ended.",
+        "Filtered": "Nothing found for «{{.Query}}»",
+        "Reset": "Reset filters",
+        "ToMine": "Open my tasks"
+      },
+      "More": "Show more",
+      "Retry": "Retry",
+      "Back": "My tasks",
+      "Overdue": "Overdue",
+      "Escalated": "Escalated",
+      "Via": {
+        "User": "Assigned to you",
+        "Role": "Your role",
+        "Group": "Your group",
+        "Permission": "Your permission",
+        "Delegated": "Passed to you",
+        "DelegatedBy": "Passed from {{.Name}}"
+      },
+      "Quorum": "{{.Decided}} of {{.Required}}",
+      "MyDecision": "You decided: {{.Outcome}}",
+      "Closed": {
+        "DecidedBy": "Already decided by {{.Name}} at {{.At}}: {{.Outcome}}",
+        "Decided": "Decided: {{.Outcome}}",
+        "Expired": "The due time passed: the task closed without a decision",
+        "Cancelled": "The automation was stopped: the task is cancelled",
+        "Changed": "The task changed while you were deciding. Here is how it stands now.",
+        "PastDeadline": "The due time passed: decisions are no longer taken."
+      },
+      "Decision": {
+        "Heading": "Decision"
+      },
+      "Comment": {
+        "Label": "Comment",
+        "Required": "required",
+        "RequiredFor": "(required for {{.Outcomes}})",
+        "Hint": "Visible to the automation and the other assignees.",
+        "Missing": "Write a comment: this decision needs one.",
+        "Shortcut": "⌘/Ctrl+Enter — «{{.Outcome}}»."
+      },
+      "Confirm": {
+        "Label": "Confirm {{.Outcome}}",
+        "Question": "Decide «{{.Outcome}}»?",
+        "Hint": "The decision cannot be changed once it is recorded.",
+        "Cancel": "Cancel"
+      },
+      "Submitting": "Confirming…",
+      "Slow": "Still waiting for the server. The decision will not be recorded twice.",
+      "Form": {
+        "Unavailable": "Form unavailable",
+        "UnavailableHint": "This task is decided with a form this application does not have. Ask the automation's owner to fix the step; until then it cannot be decided here."
+      },
+      "Delegate": {
+        "Open": "Pass to a colleague",
+        "To": "Colleague",
+        "Search": "Find by name or email",
+        "NotFound": "No one matches",
+        "Comment": "Comment for the colleague",
+        "Submit": "Pass the task",
+        "Submitting": "Passing…",
+        "NothingFor": "No one matches «{{.Query}}»"
+      },
+      "OpenRun": "Open the run",
+      "Copy": "Copy",
+      "Copied": "Copied",
+      "Missing": {
+        "Title": "This task is not available",
+        "Hint": "It was assigned to someone else, passed on, or you are no longer among its assignees.",
+        "Back": "Back to my tasks"
+      },
+      "Errors": {
+        "ListFailed": "Could not load the tasks",
+        "ListFailedHint": "Check the connection and retry.",
+        "TaskFailed": "Could not open the task",
+        "Invalid": "Check the decision: a required comment or field is missing or wrong.",
+        "DecideFailed": "Could not record the decision. Try again in a minute.",
+        "DelegationDenied": "This task cannot be passed to that person. Pick another colleague.",
+        "DelegateFailed": "Could not pass the task on. Try again in a minute.",
+        "HumanRequired": "Only a person decides a task, in their own session.",
+        "MoreFailed": "Could not load more tasks."
+      },
+      "Toast": {
+        "Decided": "Decision recorded",
+        "Delegated": "Passed on",
+        "DelegatedTo": "Passed to {{.Name}}"
+      },
+      "Badge": {
+        "Open": {
+          "one": "{{.Count}} open task",
+          "other": "{{.Count}} open tasks"
+        }
+      },
+      "Time": {
+        "Now": "now",
+        "In": "in {{.Span}}",
+        "Ago": "{{.Span}} ago",
+        "Minutes": {
+          "one": "{{.Count}} min",
+          "other": "{{.Count}} min"
+        },
+        "Hours": {
+          "one": "{{.Count}} h",
+          "other": "{{.Count}} h"
+        },
+        "Days": {
+          "one": "{{.Count}} day",
+          "other": "{{.Count}} days"
+        },
+        "Months": "Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec"
+      },
+      "Offline": {
+        "Text": "No connection to the server. What you typed stays here."
+      },
+      "Field": {
+        "Null": "Empty (null)",
+        "Yes": "Yes",
+        "No": "No",
+        "Document": "Decision fields (JSON)",
+        "DocumentHint": "Enter the decision's fields as a JSON object; they are checked against the task's form."
+      },
+      "Unconfirmed": "Confirm the decision below: it was not sent.",
+      "RetryChooseColleague": "Choose a colleague again, then press «Pass the task».",
+      "CopyFailed": "Could not copy. Select the ID and copy it:"
     }
   }
 }

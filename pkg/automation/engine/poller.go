@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -56,6 +57,11 @@ type polled struct {
 	tenant uuid.UUID
 	id     uuid.UUID
 	kind   catalog.ConnectorKind
+	// baseline: no enabled graph uses the connection; its cursor is only kept at the end of the mailbox.
+	baseline bool
+	// scanned is when (wall clock) the scan that found the connection idle began: a graph enabled after it is
+	// not in that scan's view, however long the target stays cached.
+	scanned time.Time
 }
 
 // InboundPoller polls the connected connections that an enabled graph's inbound trigger uses, each at its
@@ -178,9 +184,12 @@ func (p *InboundPoller) PollOnce(ctx context.Context) (time.Time, error) {
 	return next, errors.Join(errs...)
 }
 
-// scan lists the connected connections of a Poller connector that an inbound trigger of an enabled
-// version uses (its connection param, or the one connection of its kinds).
+// scan lists the connected connections of a Poller connector that an enabled version uses to receive:
+// by an inbound trigger, or by a node that waits for an event of the connector (a wait for the reply to a
+// message). The connection is the node's or trigger's connection param, or the one connection of its
+// kinds.
 func (p *InboundPoller) scan(ctx context.Context) ([]polled, map[uuid.UUID]bool, error) {
+	scanStarted := time.Now()
 	rows, err := p.r.cfg.DB.Query(ctx, `
 		SELECT t.tenant_id, t.trigger_id, v.graph
 		FROM automation.triggers t
@@ -208,49 +217,184 @@ func (p *InboundPoller) scan(ctx context.Context) ([]polled, map[uuid.UUID]bool,
 	if err := rows.Err(); err != nil {
 		return nil, nil, serrors.FromDB(opPoll, err)
 	}
+	waiters, err := p.waitingGraphs(ctx, p.waitTypes())
+	if err != nil {
+		return nil, nil, err
+	}
 	views := map[uuid.UUID]catalog.View{}
 	failed := map[uuid.UUID]bool{}
 	seen := map[uuid.UUID]bool{}
 	var out []polled
+	viewOf := func(tenant uuid.UUID) (catalog.View, bool) {
+		if view, ok := views[tenant]; ok {
+			return view, true
+		}
+		if failed[tenant] {
+			return catalog.View{}, false
+		}
+		view, err := p.r.cfg.Catalog.ForTenant(ctx, tenant)
+		if err != nil {
+			failed[tenant] = true
+			p.r.cfg.Logger.Warn("automation poller: the catalog of a tenant could not be read", "tenant_id", tenant.String(), "error", err)
+			return catalog.View{}, false
+		}
+		views[tenant] = view
+		return view, true
+	}
+	add := func(tenant uuid.UUID, view catalog.View, kinds []catalog.ConnectorKind, param any) {
+		ref, kind, err := catalog.ResolveConnection(view.Connections, kinds, param)
+		if err != nil {
+			return
+		}
+		id, err := uuid.Parse(ref.ID) // a platform credential is not polled per tenant
+		if err != nil || seen[id] {
+			return
+		}
+		cn, ok := p.cfg.Connectors.Get(kind)
+		if _, isPoller := cn.(Poller); !ok || !isPoller {
+			return
+		}
+		seen[id] = true
+		out = append(out, polled{tenant: tenant, id: id, kind: kind})
+	}
 	for _, u := range uses {
 		g, errs := graph.Decode(u.raw)
 		if len(errs) > 0 {
 			continue
 		}
-		view, ok := views[u.tenant]
+		view, ok := viewOf(u.tenant)
 		if !ok {
-			if failed[u.tenant] {
-				continue
-			}
-			if view, err = p.r.cfg.Catalog.ForTenant(ctx, u.tenant); err != nil {
-				failed[u.tenant] = true
-				p.r.cfg.Logger.Warn("automation poller: the catalog of a tenant could not be read", "tenant_id", u.tenant.String(), "error", err)
-				continue
-			}
-			views[u.tenant] = view
+			continue
 		}
 		for _, t := range g.Triggers {
-			if t.ID != u.trigger {
-				continue
+			if t.ID == u.trigger {
+				add(u.tenant, view, view.EventRequires[t.Event], t.Params[catalog.ConnectionParam])
 			}
-			ref, kind, err := catalog.ResolveConnection(view.Connections, view.EventRequires[t.Event], t.Params[catalog.ConnectionParam])
-			if err != nil {
-				continue
-			}
-			id, err := uuid.Parse(ref.ID) // a platform credential is not polled per tenant
-			if err != nil || seen[id] {
-				continue
-			}
-			cn, ok := p.cfg.Connectors.Get(kind)
-			if _, isPoller := cn.(Poller); !ok || !isPoller {
-				continue
-			}
-			seen[id] = true
-			out = append(out, polled{tenant: u.tenant, id: id, kind: kind})
 		}
 	}
+	for _, w := range waiters {
+		g, errs := graph.Decode(w.raw)
+		if len(errs) > 0 {
+			continue
+		}
+		view, ok := viewOf(w.tenant)
+		if !ok {
+			continue
+		}
+		for _, n := range g.Nodes {
+			spec, known := view.Catalog.Nodes[n.Type]
+			if !known || spec.Wait == nil || spec.Wait.Event.IsZero() {
+				continue
+			}
+			kinds := view.NodeRequires[n.Type]
+			if len(kinds) == 0 {
+				kinds = view.EventRequires[spec.Wait.Event.Of(n.Params)]
+			}
+			add(w.tenant, view, kinds, n.Params[catalog.ConnectionParam])
+		}
+	}
+	idle, err := p.idleConnections(ctx, seen, failed, scanStarted)
+	if err != nil {
+		return nil, nil, err
+	}
+	out = append(out, idle...)
 	sort.Slice(out, func(i, j int) bool { return out[i].id.String() < out[j].id.String() })
 	return out, failed, nil
+}
+
+// idleConnections are the connected connections of Baseliner connectors that no enabled graph uses (seen
+// are the ones that are used): their cursors are kept at the end of the mailbox (see Baseliner).
+func (p *InboundPoller) idleConnections(ctx context.Context, seen map[uuid.UUID]bool, failed map[uuid.UUID]bool, scanned time.Time) ([]polled, error) {
+	var kinds []string
+	for _, c := range p.cfg.Connectors.List() {
+		if _, ok := c.(Baseliner); ok {
+			if _, ok := c.(Poller); ok {
+				kinds = append(kinds, string(c.Kind()))
+			}
+		}
+	}
+	if len(kinds) == 0 {
+		return nil, nil
+	}
+	rows, err := p.r.cfg.DB.Query(ctx, `SELECT tenant_id, id, kind FROM automation.connections WHERE status = 'connected' AND kind = ANY($1)`, kinds)
+	if err != nil {
+		return nil, serrors.FromDB(opPoll, err)
+	}
+	defer rows.Close()
+	var out []polled
+	for rows.Next() {
+		var t polled
+		var kind string
+		if err := rows.Scan(&t.tenant, &t.id, &kind); err != nil {
+			return nil, serrors.FromDB(opPoll, err)
+		}
+		// A tenant whose catalog could not be read has connections that may well be in use: they are not
+		// idle, and their cursors are not moved (the scan keeps their last targets and tries again).
+		if seen[t.id] || failed[t.tenant] {
+			continue
+		}
+		t.kind, t.baseline, t.scanned = catalog.ConnectorKind(kind), true, scanned
+		out = append(out, t)
+	}
+	return out, serrors.FromDB(opPoll, rows.Err())
+}
+
+// waitingGraph is the graph of an enabled version, whose waits may need a connection to be polled.
+type waitingGraph struct {
+	tenant uuid.UUID
+	raw    []byte
+}
+
+// waitTypes are the node types of the polling connectors that wait for an event: a graph that has none
+// of them has nothing to poll for by waiting.
+func (p *InboundPoller) waitTypes() []string {
+	var out []string
+	for _, c := range p.cfg.Connectors.List() {
+		if _, ok := c.(Poller); !ok {
+			continue
+		}
+		for _, n := range c.Nodes() {
+			if spec := n.Spec(); spec.Wait != nil && !spec.Wait.Event.IsZero() {
+				out = append(out, spec.Type)
+			}
+		}
+	}
+	return out
+}
+
+// waitingGraphs are the graphs of the enabled versions that have a node of one of the types.
+func (p *InboundPoller) waitingGraphs(ctx context.Context, types []string) ([]waitingGraph, error) {
+	if len(types) == 0 {
+		return nil, nil
+	}
+	// The enabled versions that have a wait node, and the versions of the runs that have an open wait of an
+	// event: a run keeps waiting after its version is no longer the enabled one (enabling another does not
+	// close waits), and the reply it waits for is still to be read from its mailbox.
+	rows, err := p.r.cfg.DB.Query(ctx, `
+		SELECT a.tenant_id, v.graph
+		FROM automation.automations a
+		JOIN automation.versions v ON v.tenant_id = a.tenant_id AND v.automation_id = a.id AND v.version = a.enabled_version
+		WHERE a.enabled_version IS NOT NULL AND a.deleted_at IS NULL
+		  AND EXISTS (SELECT 1 FROM jsonb_array_elements(v.graph->'nodes') n WHERE n->>'type' = ANY($1))
+		UNION
+		SELECT r.tenant_id, v.graph
+		FROM automation.runs r
+		JOIN automation.versions v ON v.tenant_id = r.tenant_id AND v.automation_id = r.automation_id AND v.version = r.version
+		WHERE EXISTS (SELECT 1 FROM automation.waits w WHERE w.tenant_id = r.tenant_id AND w.run_id = r.id AND w.status = 'open' AND w.kind = 'event')
+		  AND EXISTS (SELECT 1 FROM jsonb_array_elements(v.graph->'nodes') n WHERE n->>'type' = ANY($1))`, types)
+	if err != nil {
+		return nil, serrors.FromDB(opPoll, err)
+	}
+	defer rows.Close()
+	var out []waitingGraph
+	for rows.Next() {
+		var w waitingGraph
+		if err := rows.Scan(&w.tenant, &w.raw); err != nil {
+			return nil, serrors.FromDB(opPoll, err)
+		}
+		out = append(out, w)
+	}
+	return out, serrors.FromDB(opPoll, rows.Err())
 }
 
 // pollOne polls one connection when its state says it is due; it returns when it is due next.
@@ -282,10 +426,24 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 	// waited), whenever the pass began.
 	now = p.cfg.Clock()
 	// release ends the claim keeping the cursor (a poll that moved nothing).
-	release := func() error {
-		return p.saveState(ctx, t, owner, pollState{Cursor: state.Cursor, NextAt: ptrTime(now.Add(interval))})
+	release := func() error { return p.endClaim(ctx, t, owner, now.Add(interval)) }
+	var (
+		evs  []InboundEvent
+		next json.RawMessage
+		// fence: a baseline gives way to a graph enabled while it was taken (see commitPoll).
+		fence *time.Time
+	)
+	if t.baseline {
+		started := t.scanned.Add(-baselineFenceSkew)
+		fence = &started
+		bl, ok := cn.(Baseliner)
+		if !ok {
+			return now.Add(p.cfg.Rescan), release()
+		}
+		next, err = bl.Baseline(ctx, c, creds)
+	} else {
+		evs, next, err = poller.Poll(ctx, c, creds, state.Cursor)
 	}
-	evs, next, err := poller.Poll(ctx, c, creds, state.Cursor)
 	if err != nil {
 		p.r.metrics.pollError(ctx, string(t.kind))
 		if errors.Is(err, connectors.ErrNeedsReauth) || isUnauthorized(err) {
@@ -314,10 +472,18 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 	// The batch and the cursor commit together, under the connection's row lock: only while this poll
 	// still owns the claim and its credentials (the version it read, still connected) are the
 	// connection's. Events and a cursor of credentials a reauthorization replaced meanwhile are dropped.
-	err = p.commitPoll(ctx, t, owner, c.Version, evs, pollState{Cursor: next, NextAt: ptrTime(now.Add(interval))})
+	err = p.commitPoll(ctx, t, owner, c.Version, evs, pollState{Cursor: next, NextAt: ptrTime(now.Add(interval))}, state.Cursor, fence)
 	switch {
+	case errors.Is(err, errBaselineFenced):
+		// A graph was enabled while the baseline was taken: the connection is used now, and its cursor stays
+		// where it was (mail since then is read by the next poll, which a reply may be among).
+		return now.Add(interval), release()
 	case errors.Is(err, errClaimLost):
 		return now.Add(interval), nil // the batch is discarded; the new owner's cursor stands
+	case errors.Is(err, errCursorMoved):
+		// The cursor was set while this poll read (a message about to be sent seeds the mailbox): its batch is
+		// dropped with its cursor, and the next poll reads from the one that was set.
+		return now.Add(interval), release()
 	case errors.Is(err, errCredentialsChanged):
 		// The next poll asks again from the same cursor with the connection's credentials now. A token
 		// refresh during the poll changes the version too: its batch comes again then, nothing is lost.
@@ -330,7 +496,7 @@ func (p *InboundPoller) pollOne(ctx context.Context, t polled, now time.Time) (t
 
 // commitPoll publishes a poll's events and saves its state in one transaction under the connection's
 // row lock, fenced by the claim's owner and the credentials version the poll read.
-func (p *InboundPoller) commitPoll(ctx context.Context, t polled, owner string, version int, evs []InboundEvent, st pollState) error {
+func (p *InboundPoller) commitPoll(ctx context.Context, t polled, owner string, version int, evs []InboundEvent, st pollState, readFrom json.RawMessage, fence *time.Time) error {
 	in := p.r.Inbound()
 	return publishInTx(ctx, p.r.cfg.DB, func(ctx context.Context, tx pgx.Tx) error {
 		var (
@@ -347,6 +513,25 @@ func (p *InboundPoller) commitPoll(ctx context.Context, t polled, owner string, 
 		}
 		if ver != version || status != string(connectors.StatusConnected) {
 			return errCredentialsChanged
+		}
+		if !sameCursor(pollCursor(raw), readFrom) {
+			// The cursor is not the one this poll read from: it was seeded after the poll claimed the
+			// connection. The batch (read from the older state) and its cursor are not saved over it.
+			return errCursorMoved
+		}
+		if fence != nil {
+			// A baseline only moves the cursor of a connection nobody uses. Checked here, under the
+			// connection's row lock, against the tenant's graphs: one enabled since the scan that called the
+			// connection idle began (however long that scan's view has been kept) makes the connection used,
+			// and its cursor must not jump over what that graph awaits.
+			var enabled bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM automation.automations
+				WHERE tenant_id = $1 AND deleted_at IS NULL AND enabled_version IS NOT NULL AND updated_at >= $2)`, t.tenant, *fence).Scan(&enabled); err != nil {
+				return err
+			}
+			if enabled {
+				return errBaselineFenced
+			}
 		}
 		for _, ev := range evs {
 			ev.TenantID, ev.ConnectionID = t.tenant, t.id.String()
@@ -403,6 +588,16 @@ func ptrTime(t time.Time) *time.Time { return &t }
 
 // errClaimLost: the poll's claim of the connection passed to another poller before its batch committed.
 var errClaimLost = errors.New("automation poller: the claim of the connection was lost")
+
+// baselineFenceSkew is how far before a baseline began a graph's enablement still counts as during it (the
+// clocks of the application and the database are not one).
+const baselineFenceSkew = 5 * time.Second
+
+// errBaselineFenced: a graph was enabled while a baseline was taken.
+var errBaselineFenced = errors.New("automation poller: a graph was enabled while the baseline was taken")
+
+// errCursorMoved: the cursor changed while the poll that claimed the connection read.
+var errCursorMoved = errors.New("automation poller: the connection's cursor was set during the poll")
 
 // errCredentialsChanged: the connection's credentials (or status) changed while the poll ran.
 var errCredentialsChanged = errors.New("automation poller: the connection's credentials changed during the poll")
@@ -473,9 +668,9 @@ func (p *InboundPoller) claim(ctx context.Context, t polled, interval time.Durat
 	return st, owner, wait, nil
 }
 
-// saveState ends the owner's claim with the state it polled to. A claim lost to another (its lease ran
-// out) saves nothing: the newer owner's cursor stands.
-func (p *InboundPoller) saveState(ctx context.Context, t polled, owner string, st pollState) error {
+// endClaim ends the owner's claim and sets the next poll, keeping the cursor as it is now: a cursor changes
+// only by a commit (or a seed), never by a poll that moved nothing. A claim lost to another saves nothing.
+func (p *InboundPoller) endClaim(ctx context.Context, t polled, owner string, next time.Time) error {
 	err := p.cfg.Connections.UpdateInbound(ctx, t.tenant, t.id, func(raw json.RawMessage) (json.RawMessage, error) {
 		all := inboundState{}
 		if len(raw) > 0 {
@@ -491,7 +686,8 @@ func (p *InboundPoller) saveState(ctx context.Context, t polled, owner string, s
 		if cur.Owner != owner {
 			return raw, nil
 		}
-		b, err := json.Marshal(st)
+		cur.Owner, cur.LeaseUntil, cur.NextAt = "", nil, ptrTime(next)
+		b, err := json.Marshal(cur)
 		if err != nil {
 			return nil, err
 		}
@@ -499,4 +695,78 @@ func (p *InboundPoller) saveState(ctx context.Context, t polled, owner string, s
 		return json.Marshal(all)
 	})
 	return serrors.Wrap(opPoll, err)
+}
+
+// InboundStateStore is the part of connectors.ConnectionStore the cursor helpers use.
+type InboundStateStore interface {
+	UpdateInbound(ctx context.Context, tenantID, id uuid.UUID, fn func(state json.RawMessage) (json.RawMessage, error)) error
+}
+
+// HasCursor reports whether the poll of a connection has a cursor: it was baselined or polled.
+func HasCursor(ctx context.Context, store InboundStateStore, tenantID, id uuid.UUID) (bool, error) {
+	var has bool
+	err := store.UpdateInbound(ctx, tenantID, id, func(raw json.RawMessage) (json.RawMessage, error) {
+		has = len(pollCursor(raw)) > 0
+		return raw, nil
+	})
+	return has, serrors.Wrap(opPoll, err)
+}
+
+// SeedCursor gives a connection that has no cursor the one a connector's Baseline returned, and leaves one
+// that has it alone; it reports whether it was set. A connector that is about to cause the event an
+// automation waits for (a message whose reply is awaited) seeds the cursor of the mailbox first, so the
+// first poll does not jump over the reply.
+func SeedCursor(ctx context.Context, store InboundStateStore, tenantID, id uuid.UUID, cursor json.RawMessage) (bool, error) {
+	var set bool
+	err := store.UpdateInbound(ctx, tenantID, id, func(raw json.RawMessage) (json.RawMessage, error) {
+		if len(pollCursor(raw)) > 0 {
+			return raw, nil
+		}
+		all := inboundState{}
+		if len(raw) > 0 {
+			_ = json.Unmarshal(raw, &all)
+			if all == nil {
+				all = inboundState{}
+			}
+		}
+		var st pollState
+		if b, ok := all[pollKey]; ok {
+			_ = json.Unmarshal(b, &st)
+		}
+		st.Cursor = cursor
+		b, err := json.Marshal(st)
+		if err != nil {
+			return nil, err
+		}
+		all[pollKey] = b
+		set = true
+		return json.Marshal(all)
+	})
+	return set, serrors.Wrap(opPoll, err)
+}
+
+// sameCursor compares two cursors as JSON documents (their whitespace does not matter; none and null are
+// the same).
+func sameCursor(a, b json.RawMessage) bool {
+	norm := func(r json.RawMessage) []byte {
+		var out bytes.Buffer
+		if len(r) == 0 || json.Compact(&out, r) != nil || out.String() == "null" {
+			return nil
+		}
+		return out.Bytes()
+	}
+	return bytes.Equal(norm(a), norm(b))
+}
+
+// pollCursor is the cursor an inbound state holds.
+func pollCursor(raw json.RawMessage) json.RawMessage {
+	var all inboundState
+	if len(raw) == 0 || json.Unmarshal(raw, &all) != nil {
+		return nil
+	}
+	var st pollState
+	if b, ok := all[pollKey]; ok {
+		_ = json.Unmarshal(b, &st)
+	}
+	return st.Cursor
 }

@@ -57,6 +57,7 @@ const (
 	MethodSetDisabled = "automations.connections.set_disabled"
 	MethodDelete      = "automations.connections.delete"
 	MethodPlatform    = "automations.platform.set_enabled"
+	MethodOptions     = "automations.connections.options"
 )
 
 // screen declares the Solid module. The call keeps string literals so the iota-solid generator can
@@ -71,6 +72,7 @@ var screen = solid.Import[Props]("./web/Integrations.tsx", solid.WithRPC(
 	solid.Action[SetDisabledRequest, ConnectionResponse]("automations.connections.set_disabled", solid.Invalidates("automations.connectors.list")),
 	solid.Action[IDRequest, DeleteResponse]("automations.connections.delete", solid.Invalidates("automations.connectors.list", "automations.connections.usage")),
 	solid.Action[PlatformRequest, OKResponse]("automations.platform.set_enabled", solid.Invalidates("automations.connectors.list")),
+	solid.Query[OptionsRequest, OptionsResponse]("automations.connections.options"),
 ))
 
 // Service is what the controller calls; *services.IntegrationsService implements it, and a test or an
@@ -81,10 +83,12 @@ type Service interface {
 	Create(ctx context.Context, a services.Actor, in services.CreateInput) (services.ConnectionEntry, error)
 	Update(ctx context.Context, a services.Actor, in services.UpdateInput) (services.ConnectionEntry, error)
 	Test(ctx context.Context, a services.Actor, id uuid.UUID) (services.TestResult, error)
-	SetDisabled(ctx context.Context, a services.Actor, id uuid.UUID, disabled bool) (services.ConnectionEntry, error)
+	SetDisabled(ctx context.Context, a services.Actor, id uuid.UUID, disabled bool, confirmed []string) (services.ConnectionEntry, error)
 	Delete(ctx context.Context, a services.Actor, id uuid.UUID) error
+	Options(ctx context.Context, a services.Actor, connectionID uuid.UUID, source, query string) ([]connectors.Option, error)
 	SetPlatformEnabled(ctx context.Context, a services.Actor, kind catalog.ConnectorKind, enabled bool) error
 	OAuthStart(ctx context.Context, a services.Actor, kind catalog.ConnectorKind, name, displayName string, connectionID uuid.UUID, redirectURL string) (string, error)
+	OAuthStartPreset(ctx context.Context, a services.Actor, kind catalog.ConnectorKind, preset, name, displayName string, connectionID uuid.UUID, redirectURL string) (string, error)
 	OAuthComplete(ctx context.Context, a services.Actor, state, code string) (connectors.Connection, services.OAuthState, error)
 	OAuthAbandon(ctx context.Context, a services.Actor, state string) (services.OAuthState, error)
 }

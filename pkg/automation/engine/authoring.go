@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/code"
@@ -79,7 +80,14 @@ type DryRunInput struct {
 }
 
 // DryRunResult is the trace of a dry run.
-type DryRunResult struct{ Trace []TraceStep }
+type DryRunResult struct {
+	Trace []TraceStep
+	// LiveCalls is the number of calls the dry run made to providers (a cached decision is not one).
+	LiveCalls int
+}
+
+// StatusCached marks a dry run's execute step answered from the decision cache.
+const StatusCached = "cached"
 
 // TraceStep is one step of a dry run.
 type TraceStep struct {
@@ -89,8 +97,8 @@ type TraceStep struct {
 	Outcome string
 	Path    string // error path (missing_context, expression_failed)
 	Message string
-	// Status is captured (an effect the dry run did not make, its params rendered) or executed (a call
-	// the dry run made for real).
+	// Status is captured (an effect the dry run did not make, its params rendered), executed (a call
+	// the dry run made for real) or cached (a decision answered from the cache, no call made).
 	Status  string
 	Effects []json.RawMessage // calls that would be made, params rendered, secrets as "***"
 	Output  json.RawMessage
@@ -116,17 +124,29 @@ type TestNodeInput struct {
 	NodeID string
 	// AutomationID is the saved automation whose memory (state) the node reads (see DryRunInput).
 	AutomationID uuid.UUID
-	Subject      *SubjectRef
-	Context      map[string]json.RawMessage
+	// Key identifies the test the author confirmed (≤ 100 characters). The first request with a key
+	// claims it in automation.node_tests (every process sees the claim) and runs the test; a repeat — a
+	// retry after a lost answer, on any process — gets the stored answer, or, while the first is running
+	// or its outcome is unknown (its process died), outcome_unknown: it is never run a second time. The
+	// call is made with the idempotency key "test:<Key>". "": every request is a new test.
+	Key     string
+	Subject *SubjectRef
+	Context map[string]json.RawMessage
 }
 
 // TestNodeResult is what the node did.
+//
+// The JSON names are the Go field names: automation.node_tests.result stores a result in this form.
 type TestNodeResult struct {
-	Outcome    string
-	Output     json.RawMessage
-	Logs       []string
-	DurationMS int64
-	Error      *StepError // reason: exception | timeout | network_blocked | connection_unavailable | ...
+	Outcome string          `json:"Outcome"`
+	Output  json.RawMessage `json:"Output"`
+	Logs    []string        `json:"Logs"`
+	// Request is the rendered params of the call the node made (its prompt, its input), as JSON with the
+	// connection's secrets masked; the credentials themselves are never in it. Empty for a node that
+	// makes no call.
+	Request    json.RawMessage `json:"Request"`
+	DurationMS int64           `json:"DurationMS"`
+	Error      *StepError      `json:"Error"` // reason: exception | timeout | network_blocked | connection_unavailable | ...
 }
 
 // SubjectOption is a subject an author may pick.
@@ -251,6 +271,10 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 	if in.MaxCalls > 0 {
 		budget = &callBudget{left: in.MaxCalls}
 	}
+	// Whether each execute call, in order per node, was answered from the cache: the trace's steps of a
+	// node come in the same order, so a cached one is reported as such and not as a live call.
+	cachedBy := map[string][]bool{}
+	live := 0
 	if mode != DecisionsScripted {
 		opts.Execute = func(node graph.Node, effects []graph.Effect) graph.ExecAnswer {
 			params := map[string]any{}
@@ -260,6 +284,10 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 			}
 			res := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params, context: stepCtx,
 				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode, budget: budget, realCalls: in.RealCalls})
+			cachedBy[node.ID] = append(cachedBy[node.ID], res.cached)
+			if res.called {
+				live++
+			}
 			if res.script {
 				return graph.ExecAnswer{Script: true}
 			}
@@ -282,7 +310,19 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 	if budget.wasExceeded() {
 		return DryRunResult{}, fmt.Errorf("%w: a dry run makes at most %d real calls", ErrLimitExceeded, in.MaxCalls)
 	}
-	return DryRunResult{Trace: traceOf(interp, steps)}, nil
+	trace := traceOf(interp, steps)
+	for i := range trace {
+		if trace[i].Status != graph.StatusExecuted {
+			continue
+		}
+		if q := cachedBy[trace[i].Node]; len(q) > 0 {
+			if q[0] {
+				trace[i].Status = StatusCached
+			}
+			cachedBy[trace[i].Node] = q[1:]
+		}
+	}
+	return DryRunResult{Trace: trace, LiveCalls: live}, nil
 }
 
 // DryRunEventCount is how many events a dry run's input feeds: a batch counts its entries, anything
@@ -337,6 +377,15 @@ func traceOf(in *graph.Interpreter, steps []graph.TraceStep) []TraceStep {
 		switch {
 		case s.Outcome == graph.TraceNotTriggered:
 			t.Kind = TraceNotTriggered
+			// One step per trigger the input reached and failed: the trigger and the condition that failed.
+			if missed, ok := s.ContextPatch["triggers"].([]map[string]any); ok && len(missed) > 0 {
+				for _, m := range missed {
+					id, _ := m["trigger"].(string)
+					failed, _ := m["failed"].(string)
+					out = append(out, TraceStep{Node: id, Kind: TraceNotTriggered, Path: failed, Message: triggerCondition(in, id, failed)})
+				}
+				continue
+			}
 		case isTrigger && s.Outcome == graph.TriggerOutcome:
 			t.Kind = TraceTriggered
 		case s.Outcome == graph.TraceWaiting:
@@ -373,6 +422,30 @@ func traceOf(in *graph.Interpreter, steps []graph.TraceStep) []TraceStep {
 	return out
 }
 
+// triggerCondition is the condition of a trigger that did not pass, as the author wrote it: its CEL
+// filter, or the trigger parameter the event did not match (param = value).
+func triggerCondition(in *graph.Interpreter, id, failed string) string {
+	t, ok := in.Trigger(id)
+	if !ok {
+		return ""
+	}
+	switch failed {
+	case graph.MismatchFilter:
+		return t.Filter
+	case graph.MismatchHook, "":
+		return ""
+	}
+	if v, ok := t.Params[failed]; ok {
+		if b, err := json.Marshal(v); err == nil {
+			return failed + " = " + string(b)
+		}
+	}
+	return failed
+}
+
+// MaxTestKey bounds TestNodeInput.Key.
+const MaxTestKey = 100
+
 // testedNodeNeedsReauth reports whether the node a test names needs a connection that waits for a new
 // sign-in (needsReauth).
 func (au *authoring) testedNodeNeedsReauth(ctx context.Context, a Actor, in TestNodeInput) bool {
@@ -394,6 +467,98 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 	if err := au.r.service.authorize(a, PermAuthor); err != nil {
 		return TestNodeResult{}, err
 	}
+	if len(in.Key) > MaxTestKey {
+		return TestNodeResult{}, fmt.Errorf("%w: the test key is longer than %d characters", ErrInvalidInput, MaxTestKey)
+	}
+	if in.Key == "" {
+		return au.testNode(ctx, a, in, "test:"+uuid.NewString())
+	}
+	return au.keyedTest(ctx, a, in)
+}
+
+// testWait is how long a repeat of a node test waits for the first one to record its answer.
+var testWait = 30 * time.Second
+
+// testRetention is how long the answer of a keyed node test is kept for its repeats. The claim itself is
+// kept: a key once used never runs a test again (a repeat past the retention is refused as unknown).
+const testRetention = 24 * time.Hour
+
+// keyedTest runs a node test once per (tenant, author, key), whatever process a request reaches.
+func (au *authoring) keyedTest(ctx context.Context, a Actor, in TestNodeInput) (TestNodeResult, error) {
+	db := au.r.cfg.DB
+	if _, err := db.Exec(ctx, `UPDATE automation.node_tests SET result = NULL WHERE tenant_id = $1 AND created_at < $2 AND result IS NOT NULL`,
+		a.TenantID, time.Now().Add(-testRetention)); err != nil {
+		return TestNodeResult{}, serrors.FromDB(opAuthoring, err)
+	}
+	tag, err := db.Exec(ctx, `INSERT INTO automation.node_tests (tenant_id, user_id, key, node_id) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+		a.TenantID, a.UserID, in.Key, in.NodeID)
+	if err != nil {
+		return TestNodeResult{}, serrors.FromDB(opAuthoring, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return au.repeatedTest(ctx, a, in)
+	}
+	// The claim is ours: the test runs to its end even if the request goes away, and its answer is kept.
+	run := context.WithoutCancel(ctx)
+	res, err := au.testNode(run, a, in, "test:"+in.Key)
+	if err != nil {
+		// Nothing was called (the graph, the context or the store refused first): the key is free again.
+		if _, derr := db.Exec(run, `DELETE FROM automation.node_tests WHERE tenant_id = $1 AND user_id = $2 AND key = $3 AND result IS NULL`,
+			a.TenantID, a.UserID, in.Key); derr != nil {
+			au.r.cfg.Logger.Warn("automation: a node test's claim was not released", "error", derr)
+		}
+		return TestNodeResult{}, err
+	}
+	raw, err := json.Marshal(res)
+	if err != nil {
+		return TestNodeResult{}, err
+	}
+	if _, err := db.Exec(run, `UPDATE automation.node_tests SET result = $4 WHERE tenant_id = $1 AND user_id = $2 AND key = $3`,
+		a.TenantID, a.UserID, in.Key, raw); err != nil {
+		return TestNodeResult{}, serrors.FromDB(opAuthoring, err)
+	}
+	return res, nil
+}
+
+// repeatedTest is the answer of a test whose key was claimed before: the stored answer, or outcome_unknown
+// when none is recorded within testWait (it is still running, or its process died mid-call).
+func (au *authoring) repeatedTest(ctx context.Context, a Actor, in TestNodeInput) (TestNodeResult, error) {
+	deadline := time.Now().Add(testWait)
+	for {
+		var raw []byte
+		var node string
+		var claimed time.Time
+		err := au.r.cfg.DB.QueryRow(ctx, `SELECT node_id, result, created_at FROM automation.node_tests WHERE tenant_id = $1 AND user_id = $2 AND key = $3`,
+			a.TenantID, a.UserID, in.Key).Scan(&node, &raw, &claimed)
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			// The first request released its claim (it ran nothing): this one may run the test.
+			return au.keyedTest(ctx, a, in)
+		case err != nil:
+			return TestNodeResult{}, serrors.FromDB(opAuthoring, err)
+		case node != in.NodeID:
+			return TestNodeResult{}, fmt.Errorf("%w: the test key was used for another node", ErrInvalidInput)
+		case len(raw) > 0:
+			var res TestNodeResult
+			if err := json.Unmarshal(raw, &res); err != nil {
+				return TestNodeResult{}, err
+			}
+			return res, nil
+		}
+		// A claim older than the wait has no answer coming (its process died, or its answer expired).
+		if !time.Now().Before(deadline) || time.Since(claimed) > testWait {
+			return TestNodeResult{Error: &StepError{Code: CodeOutcomeUnknown,
+				Message: "the test with this key has no recorded answer: it is still running or its outcome is unknown, so it is not run again"}}, nil
+		}
+		select {
+		case <-ctx.Done():
+			return TestNodeResult{}, ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
+}
+
+func (au *authoring) testNode(ctx context.Context, a Actor, in TestNodeInput, key string) (TestNodeResult, error) {
 	v, interp, err := au.authorGraph(ctx, a, in.Graph)
 	if err != nil {
 		// A node whose connection waits for a new sign-in left the catalog, so the graph does not
@@ -447,10 +612,13 @@ func (au *authoring) TestNode(ctx context.Context, a Actor, in TestNodeInput) (T
 			params, stepCtx = st.Effects[0].Params, st.Effects[0].Context
 		}
 		dr := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params, context: stepCtx,
-			subject: subject, key: "test:" + uuid.NewString(), decisions: DecisionsLive})
+			subject: subject, key: key, decisions: DecisionsLive})
 		res.Outcome, res.Output, res.Error = dr.outcome, dr.output, dr.err
 		if dr.masker != nil {
 			masker = dr.masker
+		}
+		if raw, err := json.Marshal(params); err == nil {
+			res.Request = masker.MaskJSON(raw)
 		}
 		// As in a run: a call whose answer names its outcome by a choice field takes it from the output.
 		if dr.err == nil && dr.outcome == "" && interp.View().Catalog().Nodes[node.Type].Answer != nil {
@@ -657,6 +825,8 @@ func (b *callBudget) wasExceeded() bool {
 }
 
 type directResult struct {
+	cached  bool // answered from the decision cache, no call made
+	called  bool // the provider was called
 	outcome string
 	output  json.RawMessage
 	err     *StepError
@@ -700,6 +870,9 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 		switch {
 		case errors.Is(err, connectors.ErrNeedsReauth):
 			return directResult{err: &StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth}}
+		case errors.Is(err, connectors.ErrNotFound) && strings.HasPrefix(ref.ID, catalog.PlatformPrefix):
+			// As in a run: the platform key was switched off since the catalog was read.
+			return directResult{err: &StepError{Code: catalog.CallUnavailable, Message: platformOffMessage}}
 		case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrUndecryptable):
 			return directResult{err: &StepError{Code: CodeConnectionUnavailable, Message: "the connection is not connected"}}
 		case err != nil:
@@ -707,10 +880,13 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 		}
 		info, creds = &ci, cr
 	}
-	masker := code.NewMasker(map[string]string(creds))
+	masker := code.NewMasker(nil)
+	if info != nil {
+		masker = r.credentialMasker(info.Kind, creds)
+	}
 	timeout := r.cfg.CallLimits.DefaultTimeout
-	if ms, ok := graph.DurationMs(c.params["timeout"]); ok {
-		timeout = min(time.Duration(ms)*time.Millisecond, r.cfg.CallLimits.MaxTimeout)
+	if t, ok := paramTimeout(c.params); ok {
+		timeout = min(t, r.cfg.CallLimits.MaxTimeout)
 	}
 	deadline := time.Now().Add(timeout)
 	in := catalog.CallInput{
@@ -728,7 +904,7 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 					Output  json.RawMessage `json:"output"`
 				}
 				if json.Unmarshal(raw, &d) == nil {
-					return directResult{masker: masker, outcome: d.Outcome, output: nonNull(d.Output)}
+					return directResult{masker: masker, outcome: d.Outcome, output: nonNull(d.Output), cached: true}
 				}
 			}
 		}
@@ -747,35 +923,44 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 		callCtx = WithCorrelation(callCtx, Correlation{Token: NewCorrelationToken()})
 	}
 	res, err := cn.Execute(callCtx, in)
+	// Every answer from here on followed a real call to the provider.
+	called := func(r directResult) directResult {
+		r.called = true
+		return r
+	}
 	if err != nil {
 		var ce *catalog.CallError
 		if errors.As(err, &ce) {
 			// As in a run's call: the code is kept only as an identifier with nothing a mask hides.
-			return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: callCode(ce.Code, masker), Message: masker.Mask(ce.Message), Retryable: ce.Retryable}}
+			return called(directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: callCode(ce.Code, masker), Message: masker.Mask(ce.Message), Retryable: ce.Retryable}})
 		}
 		if callCtx.Err() != nil {
-			return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: CodeTimeout, Message: c.node.ID + " got no answer by its deadline"}}
+			return called(directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: CodeTimeout, Message: c.node.ID + " got no answer by its deadline"}})
 		}
-		return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: "exception", Message: masker.Mask(err.Error())}}
+		return called(directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: "exception", Message: masker.Mask(err.Error())}})
 	}
 	if res.RetryAfter > 0 {
 		// The provider asked to repeat later: a refusal, as in a run (and never a cached decision).
-		return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: CodeRateLimited,
-			Message: fmt.Sprintf("the provider asked to repeat the call in %s", res.RetryAfter), Retryable: true}}
+		return called(directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: CodeRateLimited,
+			Message: fmt.Sprintf("the provider asked to repeat the call in %s", res.RetryAfter), Retryable: true}})
 	}
 	out, err := json.Marshal(nonNilMap(res.Output))
 	if err != nil {
-		return directResult{masker: masker, err: &StepError{Code: graph.FailInvalidAnswer, Message: "the output is not JSON"}}
+		return called(directResult{masker: masker, err: &StepError{Code: graph.FailInvalidAnswer, Message: "the output is not JSON"}})
 	}
-	out = masker.MaskJSON(out)
+	// One canonical value: what the cache holds (jsonb refuses U+0000) is what a live call returns, so a
+	// cached decision and a fresh one give a downstream expression the same value.
+	output := withoutNUL(masker.MaskJSON(out)) // a json.RawMessage: bytes would be stored as base64
 	if cacheKey != "" {
-		if b, err := json.Marshal(map[string]any{"outcome": res.Outcome, "output": out}); err == nil {
+		// The output is stored as JSON: bytes would be written as a base64 string, and a cached decision
+		// would answer without its output.
+		if b, err := json.Marshal(map[string]any{"outcome": res.Outcome, "output": output}); err == nil {
 			if err := r.cfg.Decisions.Put(ctx, c.tenant, cacheKey, b); err != nil {
 				r.cfg.Logger.Warn("automation: a decision was not cached", "error", err)
 			}
 		}
 	}
-	return directResult{masker: masker, outcome: res.Outcome, output: out}
+	return called(directResult{masker: masker, outcome: res.Outcome, output: output})
 }
 
 // logCollector collects the log lines a node writes during a test (Log).
@@ -804,7 +989,8 @@ func withLogs(ctx context.Context, l *logCollector) context.Context {
 	return context.WithValue(ctx, logsKey{}, l)
 }
 
-// Log writes a line to the log of a node test (TestNodeResult.Logs); outside a test it does nothing. A
+// Log writes a line to the log of a node test (TestNodeResult.Logs) or of a run's call (the step's logs,
+// masked with the connection's secrets); elsewhere it does nothing. A
 // node never logs credentials.
 func Log(ctx context.Context, format string, args ...any) {
 	if l, ok := ctx.Value(logsKey{}).(*logCollector); ok {

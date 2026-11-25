@@ -54,6 +54,13 @@ type Store interface {
 	// exist exactly when the connection change does (an idempotency key). An error of within rolls the
 	// write back.
 	SaveWith(ctx context.Context, c Connection, creds Credentials, within func(ctx context.Context, tx pgx.Tx, saved Connection) error) (Connection, error)
+	// WithLatest runs fn with the connection as it is committed now (found false: it is gone), holding the
+	// advisory lock of the exclusive identity external (when it is not empty) that a save takes while it
+	// changes the provider: a cleanup of the provider's side that a delayed disable, a failed save or a
+	// replaced credential owes is decided under the same protection as the setup, on what is committed
+	// by then, so it never removes what a later save set up. fn runs in a transaction and must not use
+	// the database.
+	WithLatest(ctx context.Context, kind catalog.ConnectorKind, tenantID, id uuid.UUID, external string, fn func(found bool, c Connection, creds Credentials) error) error
 	// Fingerprint is an HMAC of data under the active key: it binds a record to a payload with
 	// credentials without storing anything a value could be guessed back from. ErrNotConfigured without
 	// a keyring.
@@ -145,6 +152,27 @@ func (s *store) Connected(ctx context.Context, tenantID uuid.UUID) (map[catalog.
 		}
 		if available {
 			out[kind] = append(out[kind], catalog.ConnectionRef{ID: catalog.PlatformConnectionID(kind), Name: "platform"})
+		}
+	}
+	return out, nil
+}
+
+// PlatformWithheld implements catalog.PlatformOffers: the kinds with a platform credential that the tenant
+// cannot use now.
+func (s *store) PlatformWithheld(ctx context.Context, tenantID uuid.UUID) (map[catalog.ConnectorKind]bool, error) {
+	const op = serrors.Op("automation.connectors.Store.PlatformWithheld")
+	out := map[catalog.ConnectorKind]bool{}
+	pc, ok := s.platform.(PlatformCatalog)
+	if !ok {
+		return out, nil
+	}
+	for _, kind := range pc.Kinds() {
+		available, err := s.platformAvailable(ctx, tenantID, pc, kind)
+		if err != nil {
+			return nil, serrors.Wrap(op, err)
+		}
+		if !available {
+			out[kind] = true
 		}
 	}
 	return out, nil
@@ -344,6 +372,80 @@ func (s *store) SaveWith(ctx context.Context, c Connection, creds Credentials, w
 	return saved, nil
 }
 
+var _ GroupSaver = (*store)(nil)
+
+func (s *store) SaveGroup(ctx context.Context, items []GroupItem) ([]Connection, error) {
+	const op = serrors.Op("automation.connectors.Store.SaveGroup")
+	if err := s.configured(); err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	if len(items) == 0 {
+		return nil, nil
+	}
+	for _, it := range items {
+		if it.Connection.TenantID != items[0].Connection.TenantID {
+			return nil, serrors.Wrap(op, fmt.Errorf("%w: the connections of a sign-in are of one tenant", ErrInvalid))
+		}
+	}
+	out := make([]Connection, 0, len(items))
+	var existing []uuid.UUID
+	for _, it := range items {
+		if it.Connection.Version > 0 {
+			existing = append(existing, it.Connection.ID)
+		}
+	}
+	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		out = out[:0]
+		// The rows the save updates are locked first, in ascending id order: the order a deletion of the
+		// group (lockGroup) and a rewrap lock in, whatever order the group is written in (the primary
+		// first), so the transactions cannot wait for each other's rows crosswise.
+		if len(existing) > 0 {
+			rows, err := tx.Query(ctx, `SELECT id FROM automation.connections WHERE tenant_id = $1 AND id = ANY($2) ORDER BY id FOR UPDATE`,
+				items[0].Connection.TenantID, existing)
+			if err != nil {
+				return err
+			}
+			rows.Close()
+			if err := rows.Err(); err != nil {
+				return err
+			}
+		}
+		for i, it := range items {
+			c, err := checkConnection(it.Connection)
+			if err != nil {
+				return err
+			}
+			identity, err := json.Marshal(c.Identity)
+			if err != nil {
+				return err
+			}
+			creds := make(Credentials, len(it.Credentials)+1)
+			for k, v := range it.Credentials {
+				creds[k] = v
+			}
+			delete(creds, OAuth2TokenFrom)
+			if i > 0 {
+				creds[OAuth2TokenFrom] = out[0].ID.String()
+			}
+			var saved Connection
+			if c.Version == 0 {
+				saved, err = s.create(ctx, tx, c, identity, creds)
+			} else {
+				saved, err = s.update(ctx, tx, c, identity, creds)
+			}
+			if err != nil {
+				return err
+			}
+			out = append(out, saved)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	return out, nil
+}
+
 func (s *store) Fingerprint(data []byte) (string, error) {
 	if err := s.configured(); err != nil {
 		return "", serrors.Wrap("automation.connectors.Store.Fingerprint", err)
@@ -386,10 +488,10 @@ func (s *store) create(ctx context.Context, q querier, c Connection, identity []
 		return Connection{}, err
 	}
 	row := q.QueryRow(ctx, `INSERT INTO automation.connections
-		(tenant_id, id, kind, name, display_name, identity, status, status_reason, key_id, nonce, secret, version, created_by, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, $12, now(), now())
+		(tenant_id, id, kind, name, display_name, identity, status, status_reason, key_id, nonce, secret, version, created_by, token_owner, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 1, $12, $13, now(), now())
 		RETURNING `+connectionColumns,
-		c.TenantID, c.ID, string(c.Kind), c.Name, c.DisplayName, identity, string(c.Status), c.StatusReason, keyID, nonce, secret, nullableUser(c.CreatedBy))
+		c.TenantID, c.ID, string(c.Kind), c.Name, c.DisplayName, identity, string(c.Status), c.StatusReason, keyID, nonce, secret, nullableUser(c.CreatedBy), tokenOwnerOf(creds))
 	saved, err := scanConnection(row)
 	return saved, mapWriteError(err)
 }
@@ -407,10 +509,10 @@ func (s *store) update(ctx context.Context, q execQuerier, c Connection, identit
 			return Connection{}, err
 		}
 		row = q.QueryRow(ctx, `UPDATE automation.connections SET name = $5, display_name = $6, identity = $7, status = $8,
-			status_reason = $9, key_id = $10, nonce = $11, secret = $12, version = version + 1, updated_at = now()
+			status_reason = $9, key_id = $10, nonce = $11, secret = $12, token_owner = $13, version = version + 1, updated_at = now()
 			WHERE tenant_id = $1 AND id = $2 AND kind = $3 AND version = $4
 			RETURNING `+connectionColumns,
-			c.TenantID, c.ID, string(c.Kind), c.Version, c.Name, c.DisplayName, identity, string(c.Status), c.StatusReason, keyID, nonce, secret)
+			c.TenantID, c.ID, string(c.Kind), c.Version, c.Name, c.DisplayName, identity, string(c.Status), c.StatusReason, keyID, nonce, secret, tokenOwnerOf(creds))
 	} else {
 		row = q.QueryRow(ctx, `UPDATE automation.connections SET name = $5, display_name = $6, identity = $7, status = $8,
 			status_reason = $9, version = version + 1, updated_at = now()
@@ -431,6 +533,15 @@ func (s *store) update(ctx context.Context, q execQuerier, c Connection, identit
 		return Connection{}, ErrNotFound
 	}
 	return saved, mapWriteError(err)
+}
+
+// tokenOwnerOf is the id a credentials set takes its tokens from (OAuth2TokenFrom), or nil: kept in a
+// column of its own, beside the encrypted credentials, in step with them.
+func tokenOwnerOf(creds Credentials) any {
+	if id, err := uuid.Parse(creds[OAuth2TokenFrom]); err == nil {
+		return id
+	}
+	return nil
 }
 
 func mapWriteError(err error) error {
@@ -508,9 +619,14 @@ func (s *store) SetStatusIf(ctx context.Context, tenantID, id uuid.UUID, status 
 }
 
 func (s *store) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
+	_, _, err := s.DeleteReturning(ctx, tenantID, id)
+	return err
+}
+
+func (s *store) DeleteReturning(ctx context.Context, tenantID, id uuid.UUID) (Connection, Credentials, error) {
 	const op = serrors.Op("automation.connectors.Store.Delete")
 	if err := s.configured(); err != nil {
-		return serrors.Wrap(op, err)
+		return Connection{}, nil, serrors.Wrap(op, err)
 	}
 	// The row stays locked from the check to the delete: whoever starts using the connection (enabling a
 	// graph version) locks it FOR SHARE, so a use cannot appear in between. A TxUsageIndex reads the
@@ -519,34 +635,43 @@ func (s *store) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	// The check reports ErrUsageChanged when a status change between the catalog read and the lock
 	// (another connection reauthorized, this one reconnected) changed what a graph resolves to: the
 	// catalog is read again.
-	var err error
+	var (
+		err  error
+		conn Connection
+		cred Credentials
+	)
 	for attempt := 0; attempt < maxUsageAttempts; attempt++ {
-		if err = s.deleteOnce(ctx, tenantID, id); !errors.Is(err, ErrUsageChanged) {
+		if conn, cred, err = s.deleteOnce(ctx, tenantID, id); !errors.Is(err, ErrUsageChanged) {
 			break
 		}
 	}
-	return serrors.Wrap(op, err)
+	if err != nil {
+		return Connection{}, nil, serrors.Wrap(op, err)
+	}
+	return conn, cred, nil
 }
 
 // maxUsageAttempts bounds the Delete retries after ErrUsageChanged.
 const maxUsageAttempts = 5
 
-func (s *store) deleteOnce(ctx context.Context, tenantID, id uuid.UUID) error {
+func (s *store) deleteOnce(ctx context.Context, tenantID, id uuid.UUID) (Connection, Credentials, error) {
 	var check UsesCheck
 	if tu, ok := s.usage.(TxUsageIndex); ok {
 		c, err := tu.PrepareUses(ctx, tenantID)
 		if err != nil {
-			return err
+			return Connection{}, nil, err
 		}
 		check = c
 	}
-	return pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
-		var locked uuid.UUID
-		err := tx.QueryRow(ctx, `SELECT id FROM automation.connections WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, tenantID, id).Scan(&locked)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		if err != nil {
+	var (
+		snapshot Connection
+		creds    Credentials
+	)
+	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		// The connection and the connections that take their tokens from it are locked together, in id
+		// order: the order Rewrap (and every other walk over the rows) locks in, so a deletion and a rewrap
+		// of a group never wait for each other's rows in opposite orders.
+		if err := lockGroup(ctx, tx, tenantID, id); err != nil {
 			return err
 		}
 		if s.usage != nil {
@@ -564,9 +689,274 @@ func (s *store) deleteOnce(ctx context.Context, tenantID, id uuid.UUID) error {
 				return &InUseError{Uses: uses}
 			}
 		}
-		_, err = tx.Exec(ctx, `DELETE FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, id)
+		// The connection as it is now, under the lock: a connection whose credentials do not decrypt is
+		// still deleted, with no credentials to clean up for.
+		if c, cr, lerr := s.load(ctx, tx, tenantID, id, false); lerr == nil {
+			snapshot, creds = c, cr
+		} else if c2, serr := scanConnection(tx.QueryRow(ctx, `SELECT `+connectionColumns+` FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, id)); serr == nil {
+			snapshot = c2
+		}
+		if err := s.promoteCompanions(ctx, tx, tenantID, id); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `DELETE FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, id)
 		return err
 	})
+	return snapshot, creds, err
+}
+
+func (s *store) WithLatest(ctx context.Context, kind catalog.ConnectorKind, tenantID, id uuid.UUID, external string, fn func(found bool, c Connection, creds Credentials) error) error {
+	const op = serrors.Op("automation.connectors.Store.WithLatest")
+	if err := s.configured(); err != nil {
+		return serrors.Wrap(op, err)
+	}
+	err := pgx.BeginFunc(ctx, s.db, func(tx pgx.Tx) error {
+		if external != "" {
+			if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, identityLockKey(kind, external)); err != nil {
+				return err
+			}
+		}
+		c, creds, err := s.load(ctx, tx, tenantID, id, false)
+		if errors.Is(err, ErrNotFound) {
+			return fn(false, Connection{}, nil)
+		}
+		if err != nil {
+			return err
+		}
+		return fn(true, c, creds)
+	})
+	return serrors.Wrap(op, err)
+}
+
+// claimTimeout is how long a claim whose handler has not finished is held before it is abandoned.
+const claimTimeout = 2 * time.Minute
+
+func (s *store) ClaimInbound(ctx context.Context, connection, event, key string) (InboundAction, bool, error) {
+	const op = serrors.Op("automation.connectors.Store.ClaimInbound")
+	var owner uuid.UUID
+	err := s.db.QueryRow(ctx, `INSERT INTO automation.inbound_actions (connection_id, event, dedup_key, state) VALUES ($1, $2, $3, 'claimed')
+		ON CONFLICT DO NOTHING RETURNING owner`, connection, event, key).Scan(&owner)
+	if err == nil {
+		return InboundAction{State: InboundClaimed, Owner: owner}, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return InboundAction{}, false, serrors.Wrap(op, err)
+	}
+	// A claim that was abandoned (its handler never finished) is taken over, atomically, with a new owner.
+	err = s.db.QueryRow(ctx, `UPDATE automation.inbound_actions SET owner = gen_random_uuid(), updated_at = now()
+		WHERE connection_id = $1 AND event = $2 AND dedup_key = $3 AND state = 'claimed' AND updated_at < now() - $4::interval RETURNING owner`,
+		connection, event, key, claimInterval()).Scan(&owner)
+	if err == nil {
+		return InboundAction{State: InboundClaimed, Owner: owner}, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return InboundAction{}, false, serrors.Wrap(op, err)
+	}
+	out, err := s.inboundAction(ctx, connection, event, key)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Released between the statements: claim it again.
+		return s.ClaimInbound(ctx, connection, event, key)
+	}
+	return out, false, serrors.Wrap(op, err)
+}
+
+func claimInterval() string { return fmt.Sprintf("%d seconds", int(claimTimeout.Seconds())) }
+
+// inboundAction reads the record of an update (the owner token stays with its claimant).
+func (s *store) inboundAction(ctx context.Context, connection, event, key string) (InboundAction, error) {
+	var (
+		state  string
+		tenant *uuid.UUID
+		reply  string
+	)
+	err := s.db.QueryRow(ctx, `SELECT state, tenant_id, reply FROM automation.inbound_actions WHERE connection_id = $1 AND event = $2 AND dedup_key = $3`,
+		connection, event, key).Scan(&state, &tenant, &reply)
+	if err != nil {
+		return InboundAction{}, err
+	}
+	out := InboundAction{State: InboundState(state), Reply: reply}
+	if tenant != nil {
+		out.Tenant = *tenant
+	}
+	return out, nil
+}
+
+func (s *store) InboundHandled(ctx context.Context, connection, event, key string, owner, tenantID uuid.UUID, reply string) error {
+	var tenant any
+	if tenantID != uuid.Nil {
+		tenant = tenantID
+	}
+	tag, err := s.db.Exec(ctx, `UPDATE automation.inbound_actions SET state = 'handled', tenant_id = $5, reply = $6, updated_at = now()
+		WHERE connection_id = $1 AND event = $2 AND dedup_key = $3 AND owner = $4 AND state = 'claimed'`, connection, event, key, owner, tenant, reply)
+	return fenced("automation.connectors.Store.InboundHandled", tag.RowsAffected(), err)
+}
+
+func (s *store) ClaimDelivery(ctx context.Context, connection, event, key string) (InboundAction, bool, error) {
+	const op = serrors.Op("automation.connectors.Store.ClaimDelivery")
+	var (
+		out    InboundAction
+		tenant *uuid.UUID
+	)
+	err := s.db.QueryRow(ctx, `UPDATE automation.inbound_actions SET state = 'delivering', owner = gen_random_uuid(), updated_at = now()
+		WHERE connection_id = $1 AND event = $2 AND dedup_key = $3
+		  AND (state = 'handled' OR (state = 'delivering' AND updated_at < now() - $4::interval))
+		RETURNING owner, tenant_id, reply`, connection, event, key, claimInterval()).Scan(&out.Owner, &tenant, &out.Reply)
+	if err == nil {
+		out.State = InboundDelivering
+		if tenant != nil {
+			out.Tenant = *tenant
+		}
+		return out, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return InboundAction{}, false, serrors.Wrap(op, err)
+	}
+	cur, err := s.inboundAction(ctx, connection, event, key)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return InboundAction{}, false, serrors.Wrap(op, ErrNotFound)
+	}
+	return cur, false, serrors.Wrap(op, err)
+}
+
+func (s *store) InboundCompleted(ctx context.Context, connection, event, key string, owner uuid.UUID) error {
+	tag, err := s.db.Exec(ctx, `UPDATE automation.inbound_actions SET state = 'done', updated_at = now()
+		WHERE connection_id = $1 AND event = $2 AND dedup_key = $3 AND owner = $4 AND state = 'delivering'`, connection, event, key, owner)
+	return fenced("automation.connectors.Store.InboundCompleted", tag.RowsAffected(), err)
+}
+
+func (s *store) ReleaseInbound(ctx context.Context, connection, event, key string, owner uuid.UUID) error {
+	const op = "automation.connectors.Store.ReleaseInbound"
+	// The delivery's claim goes back to handled (a redelivery sends the reply); the handler's is dropped.
+	tag, err := s.db.Exec(ctx, `UPDATE automation.inbound_actions SET state = 'handled', owner = gen_random_uuid(), updated_at = now()
+		WHERE connection_id = $1 AND event = $2 AND dedup_key = $3 AND owner = $4 AND state = 'delivering'`, connection, event, key, owner)
+	if err != nil || tag.RowsAffected() == 1 {
+		return serrors.Wrap(op, err)
+	}
+	tag, err = s.db.Exec(ctx, `DELETE FROM automation.inbound_actions WHERE connection_id = $1 AND event = $2 AND dedup_key = $3 AND owner = $4 AND state = 'claimed'`,
+		connection, event, key, owner)
+	return fenced(op, tag.RowsAffected(), err)
+}
+
+// fenced turns a write that touched no row (the claim was taken over, or the record is gone) into ErrInboundLost.
+func fenced(op string, rows int64, err error) error {
+	if err != nil {
+		return serrors.Wrap(serrors.Op(op), err)
+	}
+	if rows == 0 {
+		return serrors.Wrap(serrors.Op(op), ErrInboundLost)
+	}
+	return nil
+}
+
+// ConnectionExists reports whether a connection of any tenant has the id.
+func (s *store) ConnectionExists(ctx context.Context, id uuid.UUID) (bool, error) {
+	var found bool
+	err := s.db.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM automation.connections WHERE id = $1)`, id).Scan(&found)
+	return found, serrors.Wrap("automation.connectors.Store.ConnectionExists", err)
+}
+
+// InboundState is the inbound state of a connection of the tenant.
+func (s *store) InboundState(ctx context.Context, tenantID, id uuid.UUID) (json.RawMessage, error) {
+	const op = serrors.Op("automation.connectors.Store.InboundState")
+	if err := s.configured(); err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	var state []byte
+	err := s.db.QueryRow(ctx, `SELECT inbound FROM automation.connections WHERE tenant_id = $1 AND id = $2`, tenantID, id).Scan(&state)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, serrors.Wrap(op, ErrNotFound)
+	}
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	return json.RawMessage(state), nil
+}
+
+// lockGroup locks a connection and its dependents (token_owner) in id order, and reports ErrNotFound when
+// the connection is not there.
+func lockGroup(ctx context.Context, tx pgx.Tx, tenantID, id uuid.UUID) error {
+	rows, err := tx.Query(ctx, `SELECT id FROM automation.connections
+		WHERE tenant_id = $1 AND (id = $2 OR token_owner = $2) ORDER BY id FOR UPDATE`, tenantID, id)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	found := false
+	for rows.Next() {
+		var got uuid.UUID
+		if err := rows.Scan(&got); err != nil {
+			return err
+		}
+		found = found || got == id
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if !found {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// promoteCompanions hands the token set of a deleted connection to the connections that take their tokens
+// from it (token_owner), which are the connections of the same sign-in: they go on working. The deleted
+// connection is the authority on the set (it is the one that refreshed it), so what it holds is copied
+// whole. One survivor becomes the owner and the others follow it, so a rotating refresh token has one
+// holder that refreshes. Only the actual dependents are read (by the column kept in the clear), in id
+// order: a connection that has none is deleted without reading, or locking, any other.
+func (s *store) promoteCompanions(ctx context.Context, tx pgx.Tx, tenantID, owner uuid.UUID) error {
+	rows, err := tx.Query(ctx, `SELECT id FROM automation.connections WHERE tenant_id = $1 AND token_owner = $2 ORDER BY id FOR UPDATE`, tenantID, owner)
+	if err != nil {
+		return err
+	}
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	_, theirs, err := s.load(ctx, tx, tenantID, owner, false)
+	if err != nil {
+		return err
+	}
+	for i, id := range ids {
+		c, creds, err := s.load(ctx, tx, tenantID, id, false)
+		if err != nil {
+			return err
+		}
+		next := Credentials{}
+		for _, k := range tokenSet {
+			if v := theirs[k]; v != "" {
+				next[k] = v
+			}
+		}
+		for k, v := range creds {
+			if _, own := next[k]; !own && !isTokenField(k) && k != OAuth2TokenFrom {
+				next[k] = v
+			}
+		}
+		if i > 0 {
+			next[OAuth2TokenFrom] = ids[0].String() // the first survivor owns the set; the rest follow it
+		}
+		identity, err := json.Marshal(c.Identity)
+		if err != nil {
+			return err
+		}
+		if _, err := s.update(ctx, tx, c, identity, next); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *store) UpdateInbound(ctx context.Context, tenantID, id uuid.UUID, fn func(state json.RawMessage) (json.RawMessage, error)) error {

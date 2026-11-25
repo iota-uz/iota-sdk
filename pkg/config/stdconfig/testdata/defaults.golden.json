@@ -127,6 +127,11 @@
     "PageSize": 25,
     "MaxPageSize": 100
   },
+  "Jev": {
+    "Provider": "",
+    "APIKey": "",
+    "DefaultModel": ""
+  },
   "Meili": {
     "URL": "",
     "APIKey": ""
@@ -137,6 +142,11 @@
     "AccessTokenLifetime": 3600000000000,
     "RefreshTokenLifetime": 2592000000000000,
     "IDTokenLifetime": 3600000000000
+  },
+  "OpenAI": {
+    "APIKey": "",
+    "BaseURL": "",
+    "DefaultModel": ""
   },
   "Payments": {
     "Click": {

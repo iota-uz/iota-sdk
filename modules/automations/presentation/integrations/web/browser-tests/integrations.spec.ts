@@ -51,6 +51,35 @@ test('IN1: cards by category with status in words and an icon; states', async ({
   await expect(failure.getByRole('button', { name: 'Retry' })).toBeVisible()
 })
 
+test('a bot another service uses is connected only after the person confirms it', async ({ page }) => {
+  await open(page)
+  await page.getByTestId('connect-telegram_bot').click()
+  const form = page.getByTestId('connection-form')
+  await form.getByLabel('Name', { exact: true }).fill('Shared bot')
+  await form.locator('[data-field="bot_token"]').fill('foreign')
+  await form.getByTestId('form-save').click()
+  // The warning says what connecting does to the other service; nothing is saved yet.
+  const warning = form.getByTestId('form-warnings')
+  await expect(warning).toContainText('already used by another service')
+  await expect(warning).toContainText('will stop receiving messages')
+  await expect(form).toBeVisible()
+  expect(await callsOf(page, 'connections.create')).toHaveLength(1)
+
+  // Without the confirmation the save does not go again.
+  await form.getByTestId('form-save').click()
+  await expect(form.getByTestId('form-error')).toContainText('Confirm that you want to connect this bot')
+  expect(await callsOf(page, 'connections.create')).toHaveLength(1)
+
+  await form.getByText('Connect anyway').click()
+  await expect(form.getByTestId('form-confirm')).toBeChecked()
+  await form.getByTestId('form-save').click()
+  await expect(form).toHaveCount(0)
+  const created = await callsOf(page, 'connections.create')
+  expect(created).toHaveLength(2)
+  expect(created[1]!.params.confirm).toEqual(['foreign_webhook@222222']) // the whole token, not the code
+  await expect(row(page, 'shared_bot')).toBeVisible()
+})
+
 test('S2: loading is a skeleton of the cards', async ({ page }) => {
   await page.goto('/?scenario=loading')
   await expect(page.getByTestId('integrations-loading')).toBeVisible()
@@ -403,6 +432,69 @@ test('IN8/T6: 390 px has one column and no horizontal scroll; the form fills the
   // The drawer slides in: axe measures contrast of the settled layer.
   await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)))
   await expectNoA11yViolations(page)
+})
+
+test('an email box signs in with a provider the application has, and offers no other', async ({ page }) => {
+  await open(page, 'scenario=email')
+  await page.getByTestId('connect-imap').click()
+  const preset = page.getByTestId('preset')
+  // Only the form and the providers whose OAuth2 client is configured (gmail here, not m365).
+  await expect(preset.locator('option')).toHaveText(['Any server (login and password)', 'Gmail (sign in with Google)'])
+  await expect(page.getByLabel('IMAP server')).toBeVisible()
+  await preset.selectOption('gmail')
+  await expect(page.getByLabel('IMAP server')).toHaveCount(0)
+  await expect(page.getByText('You will be sent to Google')).toBeVisible()
+  // A name of its own: the page already holds a seeded connection, which must not stand for the new one.
+  await page.getByLabel('Name', { exact: true }).fill('support_inbox')
+  await page.getByTestId('form-save').click()
+  // The sign-in, not a save of credentials: the fake provider sends the browser back with the connection.
+  await expect(page).toHaveURL(/connected=/)
+  await expect(row(page, 'support_inbox')).toBeVisible()
+  await expect(row(page, 'support_inbox').locator('[data-status="connected"]')).toBeVisible()
+})
+
+test('an email card signs in with Google or Microsoft 365 in one click, only with providers the application has', async ({ page }) => {
+  await open(page, 'scenario=email&presets=gmail,m365')
+  const card = page.getByTestId('connector-imap')
+  await expect(card.getByTestId('signin-imap-gmail')).toHaveText('Sign in with Google')
+  await expect(card.getByTestId('signin-imap-m365')).toHaveText('Sign in with Microsoft 365')
+  // A connector without sign-in presets has no such buttons.
+  await expect(page.getByTestId('connector-smtp').locator('[data-testid^="signin-"]')).toHaveCount(0)
+  await card.getByTestId('signin-imap-m365').click()
+  // The provider sends the browser back with the new connection; it was made by the Microsoft 365 sign-in.
+  await expect(page).toHaveURL(/connected=/)
+  await expect(page.getByTestId('connector-imap').locator('[data-status="connected"]')).toHaveCount(2)
+  await page.keyboard.press('Escape')
+  await menu(page, 'drive_2')
+  await row(page, 'drive_2').getByTestId('menu-edit').click()
+  await expect(page.getByText('You will be sent to Microsoft 365')).toBeVisible()
+
+  // Only the providers whose OAuth2 client is configured are offered.
+  await page.evaluate(() => window.sessionStorage.clear())
+  await open(page, 'scenario=email')
+  await expect(page.getByTestId('connector-imap').getByTestId('signin-imap-gmail')).toBeVisible()
+  await expect(page.getByTestId('connector-imap').getByTestId('signin-imap-m365')).toHaveCount(0)
+  // An author without Connections.Manage is offered no sign-in.
+  await page.evaluate(() => window.sessionStorage.clear())
+  await open(page, 'scenario=email&manage=0')
+  await expect(page.locator('[data-testid^="signin-"]')).toHaveCount(0)
+})
+
+test('a saved login-and-password connection is not offered a provider sign-in on edit', async ({ page }) => {
+  await open(page, 'scenario=email')
+  await menu(page, 'office_inbox')
+  await row(page, 'office_inbox').getByTestId('menu-edit').click()
+  // The edit saves credentials: a provider that would need a sign-in is not on offer, the form stays.
+  await expect(page.getByLabel('IMAP server')).toHaveValue('imap.acme.uz')
+  await expect(page.getByTestId('preset')).toHaveCount(0)
+})
+
+test('a sign-in connection of a form-and-sign-in connector is signed in again with its preset', async ({ page }) => {
+  await open(page, 'scenario=email')
+  await expect(row(page, 'robot_inbox').getByTestId('reauth')).toHaveText('Sign in again')
+  await row(page, 'robot_inbox').getByTestId('reauth').click()
+  await expect(page).toHaveURL(/connected=/)
+  await expect(row(page, 'robot_inbox').locator('[data-status="connected"]')).toBeVisible()
 })
 
 test('MCP: a connection with OAuth is saved, then signed in; one that needs it offers «Sign in again»', async ({ page }) => {

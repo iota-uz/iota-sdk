@@ -90,6 +90,30 @@ export function schemaFields(schema: unknown): FormField[] {
   })
 }
 
+/** The sign-in presets of a connector that has a form and a sign-in (gmail, m365): the keys of the preset field's x-oauth-client. */
+export function knownPresets(connector: ConnectorView): string[] {
+  const props = (connector.credential_schema as { properties?: Record<string, { 'x-oauth-client'?: Record<string, string> }> } | undefined)?.properties
+  return Object.keys(props?.preset?.['x-oauth-client'] ?? {})
+}
+
+/** The presets the application can sign in with now (their OAuth2 client is configured). */
+export function availablePresets(connector: ConnectorView): string[] {
+  return (connector.oauth_presets ?? []).filter((p) => knownPresets(connector).includes(p))
+}
+
+/** The sign-in preset a connection was made with, when it was made by a sign-in. */
+export function connectionPreset(connector: ConnectorView, connection: { fields?: Record<string, string> } | undefined): string | undefined {
+  const p = connection?.fields?.preset
+  return p && knownPresets(connector).includes(p) ? p : undefined
+}
+
+/** The choices of a preset field: the form («custom») and the providers that can be signed in with; none else is shown. */
+export function presetOptions(connector: ConnectorView, options: readonly string[] | undefined): string[] {
+  const known = knownPresets(connector)
+  const available = availablePresets(connector)
+  return (options ?? []).filter((o) => !known.includes(o) || available.includes(o))
+}
+
 function humanize(name: string): string {
   const s = name.replace(/[_-]+/g, ' ').trim()
   return s.charAt(0).toUpperCase() + s.slice(1)
@@ -121,6 +145,7 @@ export function fieldErrorText(t: Translator, code: string): string {
     case 'required': return t('Form.Required')
     case 'name': return t('Form.NameFormat')
     case 'taken': return t('Form.NameTaken')
+    case 'in_use': return t('Form.BotInUse')
     default: return t('Form.Invalid')
   }
 }
@@ -142,6 +167,15 @@ export const OAUTH_ERRORS = ['denied', 'state', 'exchange', 'unavailable', 'refu
 /** The phrase of an OAuth2 return code. */
 export function oauthErrorText(t: Translator, code: string): string {
   return t(`OAuth.${(OAUTH_ERRORS as readonly string[]).includes(code) ? code : 'exchange'}`)
+}
+
+/**
+ * The phrase of a warning the server asks to confirm. Its token is the code bound to the bot it was raised for
+ * ("foreign_webhook@222222"): the account is for the server's check, the phrase is the code's.
+ */
+export function warningText(t: Translator, token: string): string {
+  const at = token.indexOf('@')
+  return t(`Form.Warnings.${at < 0 ? token : token.slice(0, at)}`)
 }
 
 /** The phrase of a failed save; never a raw code or the provider's text. */

@@ -1,0 +1,825 @@
+package inbox
+
+import (
+	"fmt"
+	"strings"
+
+	icons "github.com/iota-uz/icons/phosphor"
+
+	"github.com/iota-uz/iota-sdk/modules/automations/tasks"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+)
+
+// ---- navigation counter ----
+
+// Badge is the counter of open tasks after the navigation item. The live region stays in place and
+// only its content is swapped, and only when the count changed (the refresh answers 204 otherwise), so
+// a screen reader announces a change and nothing else.
+templ Badge(url string, c tasks.TaskCounts) {
+	<span
+		class="ml-auto inline-flex"
+		aria-live="polite"
+		data-testid="automations-tasks-badge"
+		data-htmx-error-toast="off"
+		hx-get={ url }
+		hx-trigger={ "automations:tasks-changed from:body, notificationsChanged from:body, every 120s" }
+		hx-include="find input[name='n']"
+		hx-swap="innerHTML"
+	>
+		@BadgeCount(c)
+	</span>
+}
+
+templ BadgeCount(c tasks.TaskCounts) {
+	<input type="hidden" name="n" value={ badgeToken(c) }/>
+	if c.Open > 0 {
+		<span
+			class={ "min-w-6 rounded-full px-1.5 text-center text-xs font-semibold leading-5 tabular-nums",
+				templ.KV("bg-red-500 text-white", c.Overdue > 0), templ.KV("bg-primary-500 text-white", c.Overdue == 0) }
+		>
+			<span aria-hidden="true">{ badgeText(c.Open) }</span>
+			<span class="sr-only">{ trn(ctx, "Badge.Open", c.Open) }</span>
+		</span>
+	}
+}
+
+// ---- list ----
+templ ListPage(p *ListProps) {
+	@layouts.Authenticated(layouts.AuthenticatedProps{BaseProps: layouts.BaseProps{Title: tr(ctx, "Title")}}) {
+		@ListScreen(p)
+	}
+}
+
+templ ListScreen(p *ListProps) {
+	<div id={ screenID } class="mx-auto w-full max-w-3xl px-4 py-4 md:px-8 md:py-8" data-testid="automations-tasks-list-screen" { connection(true)... }>
+		@connectionBanner()
+		<header class="mb-4">
+			<h1 class="text-2xl font-semibold text-100">{ tr(ctx, "Title") }</h1>
+			<p class="mt-1 text-sm text-200">{ tr(ctx, "Intro") }</p>
+		</header>
+		<nav class="-mx-4 mb-3 flex overflow-x-auto border-b border-subtle px-4 md:mx-0 md:px-0" aria-label={ tr(ctx, "Tabs.Label") }>
+			@tabLink(p, TabMine, tr(ctx, "Tabs.Mine"), p.Counts.Open, false)
+			@tabLink(p, TabOverdue, tr(ctx, "Tabs.Overdue"), p.Counts.Overdue, p.Counts.Overdue > 0)
+			@tabLink(p, TabDecided, tr(ctx, "Tabs.Decided"), -1, false)
+		</nav>
+		<form
+			role="search"
+			action={ templ.SafeURL(p.path()) }
+			method="get"
+			class="mb-4"
+			hx-get={ p.path() }
+			hx-target={ "#" + screenID }
+			hx-select={ "#" + screenID }
+			hx-swap="outerHTML"
+			hx-push-url="true"
+			hx-trigger="input changed delay:300ms from:find input[type='search'], search, submit"
+			hx-sync="this:replace"
+		>
+			if p.Tab != TabMine {
+				<input type="hidden" name="tab" value={ p.Tab }/>
+			}
+			<label class="sr-only" for="automations-tasks-search">{ tr(ctx, "Search.Label") }</label>
+			<div class="form-control flex w-full items-center">
+				<span class="pl-2.5 text-300" aria-hidden="true">
+					@icons.MagnifyingGlass(icons.Props{Size: "18"})
+				</span>
+				<input
+					id="automations-tasks-search"
+					type="search"
+					name="q"
+					value={ p.Query }
+					placeholder={ tr(ctx, "Search.Placeholder") }
+					autocomplete="off"
+					class="form-control-input min-h-11 w-full outline-none"
+				/>
+			</div>
+		</form>
+		if p.Done {
+			<p role="status" class="sr-only">{ tr(ctx, "Toast.Decided") }</p>
+		}
+		if p.Failed {
+			<div role="alert" class="rounded-lg border border-danger px-5 py-6 text-center" data-testid="automations-tasks-failed">
+				<p class="font-medium text-100">{ tr(ctx, "Errors.ListFailed") }</p>
+				<p class="mt-1 text-sm text-200">{ tr(ctx, "Errors.ListFailedHint") }</p>
+				<a class="btn btn-secondary btn-normal mt-4 min-h-11" href={ templ.SafeURL(p.base.listURL(p.Tab, p.Query, "")) }>{ tr(ctx, "Retry") }</a>
+			</div>
+		} else if len(p.Items) == 0 && p.Query != "" {
+			<div class="rounded-lg border border-subtle px-5 py-10 text-center" data-testid="automations-tasks-nothing-found">
+				<p class="font-medium text-100">{ trf(ctx, "Empty.Filtered", map[string]any{"Query": p.Query}) }</p>
+				<a class="btn btn-secondary btn-normal mt-4 min-h-11" href={ templ.SafeURL(p.resetURL()) }>{ tr(ctx, "Empty.Reset") }</a>
+			</div>
+		} else if len(p.Items) == 0 {
+			<div class="rounded-lg border border-subtle px-5 py-10 text-center" data-testid="automations-tasks-empty">
+				<span class="mx-auto mb-3 flex h-10 w-10 items-center justify-center text-300" aria-hidden="true">
+					@icons.CheckSquareOffset(icons.Props{Size: "32"})
+				</span>
+				switch p.Tab {
+					case TabOverdue:
+						<p class="font-medium text-100">{ tr(ctx, "Empty.Overdue") }</p>
+						<p class="mx-auto mt-1 max-w-80 text-sm text-200">{ tr(ctx, "Empty.OverdueHint") }</p>
+					case TabDecided:
+						<p class="font-medium text-100">{ tr(ctx, "Empty.Decided") }</p>
+						<p class="mx-auto mt-1 max-w-80 text-sm text-200">{ tr(ctx, "Empty.DecidedHint") }</p>
+					default:
+						<p class="font-medium text-100">{ tr(ctx, "Empty.Mine") }</p>
+						<p class="mx-auto mt-1 max-w-80 text-sm text-200">{ tr(ctx, "Empty.MineHint") }</p>
+				}
+				if p.Tab != TabMine {
+					<a class="btn btn-secondary btn-normal mt-4 min-h-11" href={ templ.SafeURL(p.tabURL(TabMine)) }>{ tr(ctx, "Empty.ToMine") }</a>
+				}
+			</div>
+		} else {
+			<ul class="flex flex-col gap-2" data-testid="automations-tasks-list">
+				@ListMore(p)
+			</ul>
+		}
+		@relativeTimes()
+	</div>
+}
+
+templ tabLink(p *ListProps, tab, label string, count int, alarm bool) {
+	<a
+		href={ templ.SafeURL(p.tabURL(tab)) }
+		class={ "-mb-px inline-flex min-h-11 shrink-0 items-center gap-1.5 border-b-2 px-3 text-sm font-medium",
+			templ.KV("border-primary text-100", p.Tab == tab), templ.KV("border-transparent text-200 hover:text-100", p.Tab != tab) }
+		if p.Tab == tab {
+			aria-current="page"
+		}
+		data-testid={ "automations-tasks-tab-" + tab }
+	>
+		{ label }
+		if count > 0 {
+			<span class={ "rounded-full px-1.5 text-xs tabular-nums", templ.KV("bg-red-500 text-white", alarm), templ.KV("bg-surface-100 text-200", !alarm) }>{ badgeText(count) }</span>
+		}
+	</a>
+}
+
+// ListMore is the rows of a page and the button that loads the next one in its place.
+templ ListMore(p *ListProps) {
+	for _, v := range p.Items {
+		@row(p, v)
+	}
+	if p.NextCursor != "" {
+		<li class="list-none" id="automations-tasks-more">
+			<button
+				type="button"
+				class="btn btn-secondary btn-normal min-h-11 w-full"
+				hx-get={ p.moreURL() }
+				hx-target="#automations-tasks-more"
+				hx-swap="outerHTML"
+				hx-disabled-elt="this"
+			>
+				<span class="htmx-request:hidden">{ tr(ctx, "More") }</span>
+			</button>
+		</li>
+	}
+}
+
+templ row(p *ListProps, v tasks.TaskView) {
+	<li
+		class={ "relative rounded-lg border bg-surface-300 px-4 py-3 focus-within:border-brand",
+			templ.KV("border-danger", v.Overdue), templ.KV("border-subtle", !v.Overdue) }
+		data-testid="automations-task-row"
+		data-task-id={ v.ID.String() }
+	>
+		<a
+			href={ templ.SafeURL(p.open(v.ID)) }
+			class="block break-words font-medium text-100 outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:underline"
+		>
+			{ v.Title }
+		</a>
+		@meta(v, true)
+		if p.Tab == TabDecided && v.MyDecision != nil {
+			<p class="mt-1 text-sm text-200">
+				{ myDecisionLine(ctx, v) }
+				if v.State != tasks.StateOpen {
+					<span aria-hidden="true">·</span> { closedLine(ctx, v) }
+				}
+			</p>
+		}
+	</li>
+}
+
+// meta is the line of facts of a task: its subject, due time, where it came from and its quorum.
+templ meta(v tasks.TaskView, compact bool) {
+	<div class={ "flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-200", templ.KV("mt-1", compact), templ.KV("mt-2", !compact) }>
+		if v.Subject != nil {
+			if v.Subject.URL != "" {
+				<a class="relative z-10 inline-flex min-h-6 items-center [@media(pointer:coarse)]:min-h-11 gap-1 text-primary hover:underline" href={ templ.SafeURL(v.Subject.URL) } data-testid="automations-task-subject">
+					@icons.Link(icons.Props{Size: "14"})
+					{ v.Subject.Label }
+				</a>
+			} else {
+				<span class="inline-flex items-center gap-1" data-testid="automations-task-subject">{ v.Subject.Label }</span>
+			}
+		}
+		if v.DueAt != nil {
+			<span class={ "inline-flex items-center gap-1", templ.KV("font-medium text-red-600", v.Overdue) } data-testid="automations-task-due">
+				if v.Overdue {
+					@icons.WarningCircle(icons.Props{Size: "16"})
+					<span>{ tr(ctx, "Overdue") }</span>
+					<span aria-hidden="true">·</span>
+				} else {
+					@icons.Clock(icons.Props{Size: "16"})
+				}
+				<time datetime={ isoTime(*v.DueAt) } title={ dateTime(ctx, *v.DueAt) }>
+					<span data-relative-time={ isoTime(*v.DueAt) }>{ relative(ctx, *v.DueAt) }</span>
+					<span class="text-200">({ dateTime(ctx, *v.DueAt) })</span>
+				</time>
+			</span>
+		}
+		if v.Escalated {
+			<span class="inline-flex items-center gap-1" data-testid="automations-task-escalated">
+				@icons.ArrowFatLinesUp(icons.Props{Size: "16"})
+				{ tr(ctx, "Escalated") }
+			</span>
+		}
+		<span class="inline-flex items-center gap-1" data-testid="automations-task-via">
+			if v.AssignedVia == tasks.ViaDelegated {
+				@icons.ShareFat(icons.Props{Size: "16"})
+			} else if v.AssignedVia == tasks.ViaUser {
+				@icons.User(icons.Props{Size: "16"})
+			} else {
+				@icons.UsersThree(icons.Props{Size: "16"})
+			}
+			{ via(ctx, v) }
+		</span>
+		if v.Quorum.Required > 1 {
+			<span class="inline-flex items-center gap-1 tabular-nums" data-testid="automations-task-quorum">
+				@icons.CheckCircle(icons.Props{Size: "16"})
+				{ quorum(ctx, v.Quorum) }
+			</span>
+		}
+	</div>
+}
+
+// relativeTimes refreshes every relative time of the screen with one timer a minute.
+templ relativeTimes() {
+	<script>
+		(function () {
+			if (window.__iotaTaskTimes) { window.__iotaTaskTimes(); return; }
+			var lang = document.documentElement.lang || navigator.language || "en";
+			var fmt;
+			try { fmt = new Intl.RelativeTimeFormat(lang, { numeric: "auto" }); } catch (e) { return; }
+			function update() {
+				var now = Date.now();
+				document.querySelectorAll("[data-relative-time]").forEach(function (el) {
+					var at = Date.parse(el.getAttribute("data-relative-time"));
+					if (isNaN(at)) { return; }
+					var min = Math.round((at - now) / 60000), abs = Math.abs(min);
+					el.textContent = abs < 60 ? fmt.format(min, "minute") : abs < 2880 ? fmt.format(Math.round(min / 60), "hour") : fmt.format(Math.round(min / 1440), "day");
+				});
+			}
+			window.__iotaTaskTimes = update;
+			setInterval(update, 60000);
+		})();
+	</script>
+}
+
+// ---- one task ----
+templ TaskPage(p *TaskProps) {
+	@layouts.Authenticated(layouts.AuthenticatedProps{BaseProps: layouts.BaseProps{Title: p.Task.Title}}) {
+		@TaskScreen(p)
+	}
+}
+
+templ TaskScreen(p *TaskProps) {
+	<div id={ screenID } class="mx-auto w-full max-w-3xl px-4 pb-24 pt-4 md:px-8 md:pt-8" data-testid="automations-task-screen" data-task-id={ p.Task.ID.String() } { connection(false)... }>
+		<a href={ templ.SafeURL(p.backURL()) } class="-ml-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-sm text-200 hover:text-100">
+			@icons.ArrowLeft(icons.Props{Size: "16"})
+			{ tr(ctx, "Back") }
+		</a>
+		<h1 class="break-words text-2xl font-semibold text-100">{ p.Task.Title }</h1>
+		@meta(p.Task, false)
+		if p.Instructions != "" {
+			<div class="mt-4 max-w-none break-words text-100 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_a]:text-primary [&_a]:underline" data-testid="automations-task-instructions">
+				@templ.Raw(string(p.Instructions))
+			</div>
+		}
+		<section class="mt-6 border-t border-subtle pt-4" aria-labelledby="automations-task-decision" data-testid="automations-task-decision">
+			<h2 id="automations-task-decision" class="sr-only">{ tr(ctx, "Decision.Heading") }</h2>
+			if p.Task.State != tasks.StateOpen || p.Notice == "closed" || p.Task.PastDeadline {
+				@closedPanel(p)
+			} else if p.Task.MyDecision != nil {
+				<p role="status" class="flex items-center gap-2 text-sm text-100" data-testid="automations-task-my-decision">
+					@icons.CheckCircle(icons.Props{Size: "18"})
+					{ myDecisionLine(ctx, p.Task) }
+					if p.Task.Quorum.Required > 1 {
+						<span class="text-200">· { quorum(ctx, p.Task.Quorum) }</span>
+					}
+				</p>
+			} else if p.Task.FormUnavailable {
+				@unavailablePanel(p)
+			} else if p.Task.CanDecide && p.CustomForm != nil {
+				<form
+					method="post"
+					action={ templ.SafeURL(p.postURL("decide")) }
+					hx-post={ p.postURL("decide") }
+					hx-target={ "#" + screenID }
+					hx-swap="outerHTML"
+					hx-sync="this:drop"
+					hx-disabled-elt="find button"
+					data-testid="automations-task-custom-form"
+				>
+					@p.CustomForm
+					if p.Error != "" {
+						<p role="alert" class="mt-3 text-sm text-red-600">{ p.Error }</p>
+					}
+				</form>
+			} else if p.Task.CanDecide {
+				@decisionForm(p)
+			}
+			// The failure of an action shows next to it (F3): under the buttons, where the person is.
+			<div class="mt-4">
+				@connectionBanner()
+			</div>
+			if p.Task.CanDecide && p.Task.AllowDelegation && p.Notice != "closed" && !p.Task.PastDeadline {
+				@delegatePanel(p)
+			}
+		</section>
+		<p class="mt-10 flex flex-wrap items-center gap-2 text-xs text-200">
+			if p.CanReadRun {
+				<a class="inline-flex min-h-6 items-center [@media(pointer:coarse)]:min-h-11 gap-1 hover:underline" href={ templ.SafeURL(p.RunURL) } data-testid="automations-task-run-link">
+					@icons.FlowArrow(icons.Props{Size: "14"})
+					{ tr(ctx, "OpenRun") }
+				</a>
+				<span aria-hidden="true">·</span>
+			}
+			<span>ID</span>
+			// «Copied» only once the clipboard took the ID; without a clipboard (denied, an insecure page)
+			// the ID shows to copy by hand.
+			<span class="inline-flex flex-wrap items-center gap-2" x-data="{ copied: false, failed: false, timer: null }">
+				<button
+					type="button"
+					class="inline-flex min-h-6 items-center [@media(pointer:coarse)]:min-h-11 gap-1 hover:underline"
+					data-testid="automations-task-copy-id"
+					@click={ copyID(p.Task.ID.String()) }
+				>
+					@icons.Copy(icons.Props{Size: "14"})
+					<span x-show="!copied">{ tr(ctx, "Copy") }</span>
+					<span x-show="copied" x-cloak role="status">{ tr(ctx, "Copied") }</span>
+				</button>
+				<span x-show="failed" x-cloak role="status" data-testid="automations-task-id-manual">
+					{ tr(ctx, "CopyFailed") }
+					<code class="select-all break-all text-100">{ p.Task.ID.String() }</code>
+				</span>
+			</span>
+		</p>
+		@relativeTimes()
+	</div>
+}
+
+templ closedPanel(p *TaskProps) {
+	<div role="status" class="flex items-start gap-2 text-sm text-100" data-testid="automations-task-closed">
+		<span class="mt-0.5 text-200">
+			@icons.LockSimple(icons.Props{Size: "18"})
+		</span>
+		<div>
+			if p.Task.PastDeadline && p.Task.State == tasks.StateOpen {
+				<p class="font-medium">{ tr(ctx, "Closed.PastDeadline") }</p>
+			} else if p.Notice == "closed" && p.Task.State == tasks.StateOpen {
+				<p class="font-medium">{ tr(ctx, "Closed.Changed") }</p>
+			} else {
+				<p class="font-medium">{ closedLine(ctx, p.Task) }</p>
+			}
+			if p.Task.MyDecision != nil {
+				<p class="mt-1 text-200">{ myDecisionLine(ctx, p.Task) }</p>
+			}
+			for _, d := range p.Task.Decisions {
+				<p class="mt-1 text-200">
+					{ d.By.Name }: { p.Task.OutcomeLabel(d.Outcome) } · <time datetime={ isoTime(d.At) }>{ dateTime(ctx, d.At) }</time>
+					if d.Comment != "" {
+						<span class="block whitespace-pre-wrap break-words text-100">{ d.Comment }</span>
+					}
+				</p>
+			}
+		</div>
+	</div>
+}
+
+templ unavailablePanel(p *TaskProps) {
+	<div role="alert" class="rounded-lg border border-warning px-4 py-3 text-sm" data-testid="automations-task-form-unavailable">
+		<p class="flex items-center gap-2 font-medium text-100">
+			@icons.WarningCircle(icons.Props{Size: "18"})
+			{ tr(ctx, "Form.Unavailable") }
+		</p>
+		<p class="mt-1 text-200">{ tr(ctx, "Form.UnavailableHint") }</p>
+		if p.CanReadRun {
+			<a class="mt-2 inline-flex min-h-11 items-center gap-1 text-primary hover:underline" href={ templ.SafeURL(p.RunURL) }>{ tr(ctx, "OpenRun") }</a>
+		}
+	</div>
+}
+
+// decisionForm is the default form: the fields of the node's schema, a comment and a button per
+// outcome. A danger outcome is confirmed in a panel above the buttons; a button that needs a comment
+// asks for it before anything is sent.
+templ decisionForm(p *TaskProps) {
+	{{
+		required := []string{}
+		for _, o := range p.Task.Outcomes {
+			if o.CommentRequired {
+				required = append(required, o.Value)
+			}
+		}
+		danger := []string{}
+		for _, o := range p.Task.Outcomes {
+			if o.Style == tasks.StyleDanger {
+				danger = append(danger, o.Value)
+			}
+		}
+		// A danger outcome goes only from its confirmation panel (confirm is its value, sent along):
+		// anything else (Enter in a field submitting the hidden button) opens the panel instead.
+		state := fmt.Sprintf(`{ pending: '', confirm: %s, missing: false, slow: false, timer: null, required: %s, danger: %s,
+			check(e) {
+				var params = e.detail.parameters, outcome = params && (params.get ? params.get('outcome') : params.outcome);
+				if (this.danger.indexOf(outcome) >= 0 && this.confirm !== outcome) { e.preventDefault(); this.confirm = outcome; this.$nextTick(() => { var c = this.$refs['cancel_' + outcome]; if (c) c.focus() }); return; }
+				var comment = this.$refs.comment ? this.$refs.comment.value.trim() : '';
+				if (this.required.indexOf(outcome) >= 0 && comment === '') { e.preventDefault(); this.missing = true; this.confirm = ''; this.$nextTick(() => this.$refs.comment.focus()); return; }
+				this.missing = false; this.pending = outcome; this.slow = false; clearTimeout(this.timer); this.timer = setTimeout(() => this.slow = true, 4000);
+			},
+			done() { clearTimeout(this.timer); this.pending = ''; this.slow = false; } }`, jsString(p.Confirm), jsList(required), jsList(danger))
+	}}
+	<form
+		method="post"
+		action={ templ.SafeURL(p.postURL("decide")) }
+		hx-post={ p.postURL("decide") }
+		hx-target={ "#" + screenID }
+		hx-swap="outerHTML"
+		hx-sync="this:drop"
+		hx-disabled-elt="find button"
+		x-data={ state }
+		@htmx:config-request="check($event)"
+		@htmx:after-request="done()"
+		@keydown.enter="if ($event.target.tagName === 'INPUT' && !$event.isComposing) $event.preventDefault()"
+		data-testid="automations-task-form"
+	>
+		// Enter in a one-line field submits nothing (implicit submission would press the first button,
+		// possibly a hidden danger one): an outcome is always a button pressed.
+		<input type="hidden" name="confirm" :value="confirm"/>
+		if len(p.Fields) > 0 {
+			<div class="mb-4 flex flex-col gap-4">
+				for _, f := range p.Fields {
+					@field(f)
+				}
+			</div>
+		}
+		<div class="flex flex-col">
+			<label for="automations-task-comment" class="mb-2 text-sm font-medium text-100">
+				{ tr(ctx, "Comment.Label") }
+				if p.allCommentRequired() {
+					<span class="text-red-600">*</span>
+					<span class="sr-only">{ tr(ctx, "Comment.Required") }</span>
+				} else if len(p.commentRequiredFor()) > 0 {
+					<span class="font-normal text-200">{ trf(ctx, "Comment.RequiredFor", map[string]any{"Outcomes": strings.Join(p.commentRequiredFor(), ", ")}) }</span>
+				}
+			</label>
+			<textarea
+				id="automations-task-comment"
+				name="comment"
+				rows="3"
+				maxlength="4000"
+				x-ref="comment"
+				class={ "form-control form-control-input min-h-24 w-full", templ.KV("border-danger", p.ErrorOutcome != "" && p.Comment == "") }
+				:aria-invalid="missing ? 'true' : 'false'"
+				aria-describedby="automations-task-comment-hint"
+				data-testid="automations-task-comment"
+				if o := p.primaryOutcome(); o != nil {
+					@keydown.enter={ submitShortcut(o.Value) }
+				}
+			>{ p.Comment }</textarea>
+			<p id="automations-task-comment-hint" class="mt-1 text-xs text-200">
+				<span x-show="!missing">
+					{ tr(ctx, "Comment.Hint") }
+					if o := p.primaryOutcome(); o != nil {
+						<span class="hidden [@media(hover:hover)]:inline" data-testid="automations-task-shortcut-hint">{ " " + trf(ctx, "Comment.Shortcut", map[string]any{"Outcome": o.Label}) }</span>
+					}
+				</span>
+				<span x-show="missing" x-cloak role="alert" class="text-red-600">{ tr(ctx, "Comment.Missing") }</span>
+			</p>
+		</div>
+		for _, o := range p.Task.Outcomes {
+			if o.Style == tasks.StyleDanger {
+				<div
+					x-show={ fmt.Sprintf("confirm === %s", jsString(o.Value)) }
+					x-cloak
+					class="mt-4 rounded-lg border border-danger px-4 py-3"
+					role="group"
+					aria-label={ trf(ctx, "Confirm.Label", map[string]any{"Outcome": o.Label}) }
+					data-testid={ "automations-task-confirm-" + o.Value }
+					@keydown.escape.stop="confirm = ''"
+				>
+					<p class="text-sm font-medium text-100">{ trf(ctx, "Confirm.Question", map[string]any{"Outcome": o.Label}) }</p>
+					<p class="mt-1 text-sm text-200">{ tr(ctx, "Confirm.Hint") }</p>
+					<div class="mt-3 grid grid-cols-1 gap-2 sm:flex sm:flex-row-reverse sm:justify-end">
+						<button type="submit" name="outcome" value={ o.Value } class="btn btn-danger btn-normal min-h-11 justify-center" data-testid={ "automations-task-confirm-submit-" + o.Value }>
+							<span x-show={ fmt.Sprintf("pending !== %s", jsString(o.Value)) }>{ o.Label }</span>
+							<span x-show={ fmt.Sprintf("pending === %s", jsString(o.Value)) } x-cloak>{ tr(ctx, "Submitting") }</span>
+						</button>
+						<button type="button" class="btn btn-secondary btn-normal min-h-11 justify-center" x-ref={ "cancel_" + o.Value } @click="confirm = ''">{ tr(ctx, "Confirm.Cancel") }</button>
+					</div>
+				</div>
+			}
+		}
+		<div class="mt-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap" x-show="confirm === ''" data-testid="automations-task-outcomes">
+			for _, o := range p.Task.Outcomes {
+				if o.Style == tasks.StyleDanger {
+					<button
+						type="button"
+						class={ outcomeClass(o.Style), "min-h-11 justify-center" }
+						@click={ fmt.Sprintf("confirm = %s; $nextTick(() => $refs[%s].focus())", jsString(o.Value), jsString("cancel_"+o.Value)) }
+						data-testid={ "automations-task-outcome-" + o.Value }
+					>
+						{ o.Label }
+					</button>
+				} else {
+					<button
+						type="submit"
+						name="outcome"
+						value={ o.Value }
+						class={ outcomeClass(o.Style), "min-h-11 justify-center" }
+						data-testid={ "automations-task-outcome-" + o.Value }
+					>
+						<span x-show={ fmt.Sprintf("pending !== %s", jsString(o.Value)) }>{ o.Label }</span>
+						<span x-show={ fmt.Sprintf("pending === %s", jsString(o.Value)) } x-cloak>{ tr(ctx, "Submitting") }</span>
+					</button>
+				}
+			}
+		</div>
+		<p x-show="slow" x-cloak role="status" class="mt-2 text-sm text-200">{ tr(ctx, "Slow") }</p>
+		if p.Error != "" {
+			<p role="alert" class="mt-3 flex items-center gap-2 text-sm text-red-600" data-testid="automations-task-error">
+				@icons.WarningCircle(icons.Props{Size: "16"})
+				{ p.Error }
+			</p>
+		}
+	</form>
+}
+
+templ field(f Field) {
+	{{ id := "automations-task-field-" + f.Name }}
+	<div class="flex flex-col">
+		if f.Kind == "boolean" && f.Required {
+			// Required: a checkbox, unchecked is an explicit no.
+			<label class="inline-flex min-h-11 items-center gap-2 text-sm text-100">
+				<input type="checkbox" name={ "field." + f.Name } value="true" checked?={ f.Value != "" } class="h-5 w-5"/>
+				{ f.Title }
+			</label>
+		} else if f.Kind == KindDocument {
+			<label for="automations-task-field-document" class="mb-2 text-sm font-medium text-100">
+				{ tr(ctx, "Field.Document") }
+				if f.Required {
+					<span class="text-red-600" aria-hidden="true">*</span>
+				}
+			</label>
+			<textarea
+				id="automations-task-field-document"
+				name={ documentFormName }
+				rows="6"
+				spellcheck="false"
+				class="form-control form-control-input w-full font-mono"
+				aria-describedby="automations-task-field-document-hint"
+				required?={ f.Required }
+				data-testid="automations-task-field-document"
+			>{ f.Value }</textarea>
+			<p id="automations-task-field-document-hint" class="mt-1 text-xs text-200">{ tr(ctx, "Field.DocumentHint") }</p>
+		} else {
+			<label for={ id } class="mb-2 text-sm font-medium text-100">
+				{ f.Title }
+				if f.Required {
+					<span class="text-red-600" aria-hidden="true">*</span>
+				}
+			</label>
+			switch f.Kind {
+				case "boolean":
+					// Optional: unset (left out), yes or no.
+					<select id={ id } name={ "field." + f.Name } class="form-control form-control-input min-h-11 w-full">
+						<option value=""></option>
+						<option value="true" selected?={ f.Value == "true" }>{ tr(ctx, "Field.Yes") }</option>
+						<option value="false" selected?={ f.Value == "false" }>{ tr(ctx, "Field.No") }</option>
+					</select>
+				case "enum":
+					<select id={ id } name={ "field." + f.Name } class="form-control form-control-input min-h-11 w-full" required?={ f.Required }>
+						if !f.Required {
+							<option value=""></option>
+						}
+						for _, v := range f.Enum {
+							<option value={ v.Value } selected?={ f.Value == v.Value }>
+								if v.Value == "null" {
+									{ tr(ctx, "Field.Null") }
+								} else {
+									{ v.Label }
+								}
+							</option>
+						}
+					</select>
+				case "textarea", "json":
+					<textarea id={ id } name={ "field." + f.Name } rows="3" class="form-control form-control-input w-full" required?={ f.Required }>{ f.Value }</textarea>
+				case "integer", "number":
+					<input
+						id={ id }
+						type="text"
+						if f.Kind == "integer" {
+							inputmode="numeric"
+						} else {
+							inputmode="decimal"
+						}
+						name={ "field." + f.Name }
+						value={ f.Value }
+						class="form-control form-control-input min-h-11 w-full"
+						required?={ f.Required }
+					/>
+				default:
+					<input id={ id } type="text" name={ "field." + f.Name } value={ f.Value } class="form-control form-control-input min-h-11 w-full" required?={ f.Required }/>
+			}
+		}
+		if f.Description != "" {
+			<p class="mt-1 text-xs text-200">{ f.Description }</p>
+		}
+	</div>
+}
+
+templ delegatePanel(p *TaskProps) {
+	<details class="group mt-6 rounded-lg border border-subtle" open?={ p.DelegateOpen } data-testid="automations-task-delegate">
+		<summary class="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 text-sm font-medium text-100">
+			@icons.ShareFat(icons.Props{Size: "16"})
+			{ tr(ctx, "Delegate.Open") }
+			@icons.CaretDown(icons.Props{Size: "14", Class: "ml-auto duration-200 group-open:rotate-180"})
+		</summary>
+		<div
+			class="flex flex-col gap-3 border-t border-subtle px-4 py-4"
+			x-data="{ q: '', open: false, active: -1, chosen: '', label: '', closed: false,
+			items() { return Array.from(this.$refs.list.querySelectorAll('[role=option]')) },
+			mark() { this.items().forEach((el, i) => el.setAttribute('aria-selected', i === this.active ? 'true' : 'false')) },
+			move(d) { const it = this.items(); if (!it.length) return; this.open = true; this.active = (this.active + d + it.length) % it.length; this.mark(); it[this.active].scrollIntoView({ block: 'nearest' }) },
+			pick(el) { this.chosen = el.dataset.value; this.label = el.dataset.label; this.q = el.dataset.label; this.open = false; this.closed = true; this.active = -1 },
+			fresh() { const m = this.$refs.list.querySelector('[data-query]'); return !!m && m.dataset.query === this.q.trim() },
+			enter() { const it = this.items(); if (this.open && this.fresh() && it[this.active]) this.pick(it[this.active]) } }"
+		>
+			@delegatePicker(p)
+			<form
+				method="post"
+				action={ templ.SafeURL(p.postURL("delegate")) }
+				hx-post={ p.postURL("delegate") }
+				hx-target={ "#" + screenID }
+				hx-swap="outerHTML"
+				hx-disabled-elt="find button[type='submit']"
+				class="flex flex-col gap-3"
+				x-data="{ pending: false }"
+				@htmx:before-request="if ($event.target === $el) { if (pending) { $event.preventDefault() } else { pending = true } }"
+				@htmx:after-request="if ($event.target === $el) pending = false"
+			>
+				<input type="hidden" name="to" :value="chosen"/>
+				<div class="flex flex-col">
+					<label for="automations-task-delegate-comment" class="mb-2 text-sm font-medium text-100">{ tr(ctx, "Delegate.Comment") }</label>
+					<textarea
+						id="automations-task-delegate-comment"
+						name="delegate_comment"
+						rows="2"
+						maxlength="2000"
+						class="form-control form-control-input w-full"
+						@keydown.enter="if (($event.metaKey || $event.ctrlKey) && !$event.isComposing) { $event.preventDefault(); $el.form.requestSubmit() }"
+					>{ p.DelegateComment }</textarea>
+				</div>
+				if p.DelegateError != "" {
+					<p role="alert" class="text-sm text-red-600" data-testid="automations-task-delegate-error">{ p.DelegateError }</p>
+				}
+				<div>
+					<button type="submit" class="btn btn-secondary btn-normal min-h-11 w-full justify-center sm:w-auto" data-testid="automations-task-delegate-submit" :disabled="!chosen" data-retry-hint={ tr(ctx, "RetryChooseColleague") } data-retry-focus="#automations-task-delegate-search">
+						<span x-show="!pending">{ tr(ctx, "Delegate.Submit") }</span>
+						<span x-show="pending" x-cloak>{ tr(ctx, "Delegate.Submitting") }</span>
+					</button>
+				</div>
+			</form>
+		</div>
+	</details>
+}
+
+// delegatePicker is the colleague search (K5): ↑ ↓ move, Enter picks, Esc closes; the server lists
+// the active users of the tenant the task may go to. Its state lives in the delegate form.
+templ delegatePicker(p *TaskProps) {
+	<div
+		class="flex flex-col"
+		@htmx:after-settle="if ($event.target === $refs.list) { if (!fresh()) { $refs.list.innerHTML = ''; return } active = -1; mark(); if (!closed && document.activeElement === $refs.search) open = true }"
+		@click.outside="open = false"
+		data-testid="automations-task-delegate-to"
+	>
+		<label for="automations-task-delegate-search" class="mb-2 text-sm font-medium text-100">{ tr(ctx, "Delegate.To") }</label>
+		<input
+			id="automations-task-delegate-search"
+			type="text"
+			role="combobox"
+			name="q"
+			autocomplete="off"
+			aria-autocomplete="list"
+			aria-controls="automations-task-delegates"
+			:aria-expanded="open ? 'true' : 'false'"
+			:aria-activedescendant="active >= 0 && items()[active] ? items()[active].id : null"
+			placeholder={ tr(ctx, "Delegate.Search") }
+			class="form-control form-control-input min-h-11 w-full"
+			x-model="q"
+			x-ref="search"
+			@input="chosen = ''; active = -1; closed = false; open = false; $refs.list.innerHTML = ''"
+			@focus="if (items().length && fresh() && !closed) open = true"
+			@keydown.down.prevent="move(1)"
+			@keydown.up.prevent="move(-1)"
+			@keydown.enter.prevent="enter()"
+			@keydown.escape.prevent="open = false; closed = true"
+			hx-get={ p.delegatesURL() }
+			hx-trigger="input changed delay:250ms, focus once, retry"
+			hx-sync="this:replace"
+			hx-target="#automations-task-delegates"
+			hx-swap="innerHTML"
+		/>
+		<ul
+			id="automations-task-delegates"
+			x-ref="list"
+			role="listbox"
+			aria-label={ tr(ctx, "Delegate.To") }
+			x-show="open"
+			x-cloak
+			class="mt-1 max-h-60 overflow-y-auto overscroll-contain rounded-lg border border-default bg-surface-300 py-1"
+		></ul>
+	</div>
+}
+
+// DelegateOptions are the colleagues matching the search, as options of the picker.
+templ DelegateOptions(query string, list []tasks.UserOption) {
+	// The query this answer is for: a late answer to an older query is dropped by the picker.
+	<li role="presentation" hidden data-query={ query }></li>
+	for i, u := range list {
+		<li
+			id={ fmt.Sprintf("automations-task-delegate-%d", i) }
+			role="option"
+			aria-selected="false"
+			data-value={ fmt.Sprint(u.ID) }
+			data-label={ u.Name }
+			class="flex min-h-11 cursor-pointer flex-col justify-center px-3 py-1 text-sm text-100 hover:bg-surface-100 aria-selected:bg-surface-100"
+			@click="pick($el)"
+		>
+			<span>{ u.Name }</span>
+			if u.Hint != "" {
+				<span class="text-xs text-200">{ u.Hint }</span>
+			}
+		</li>
+	}
+	if len(list) == 0 {
+		<li role="presentation" class="px-3 py-2 text-sm text-200">
+			if query != "" {
+				{ trf(ctx, "Delegate.NothingFor", map[string]any{"Query": query}) }
+			} else {
+				{ tr(ctx, "Delegate.NotFound") }
+			}
+		</li>
+	}
+}
+
+// ---- a task the user cannot open ----
+templ MissingPage(p *MissingProps) {
+	@layouts.Authenticated(layouts.AuthenticatedProps{BaseProps: layouts.BaseProps{Title: tr(ctx, "Title")}}) {
+		@MissingScreen(p)
+	}
+}
+
+// MissingScreen is a task the user cannot open (D3), or one that could not be read.
+templ MissingScreen(p *MissingProps) {
+	<div id={ screenID } class="mx-auto w-full max-w-3xl px-4 py-10 md:px-8" data-testid="automations-task-missing">
+		<div class="rounded-lg border border-subtle px-5 py-10 text-center">
+			if p.Failed {
+				<p role="alert" class="font-medium text-100">{ tr(ctx, "Errors.TaskFailed") }</p>
+				<p class="mx-auto mt-1 max-w-96 text-sm text-200">{ tr(ctx, "Errors.ListFailedHint") }</p>
+				<a class="btn btn-secondary btn-normal mt-4 min-h-11" href={ templ.SafeURL(p.Retry) }>{ tr(ctx, "Retry") }</a>
+			} else {
+				<p class="font-medium text-100">{ tr(ctx, "Missing.Title") }</p>
+				<p class="mx-auto mt-1 max-w-96 text-sm text-200">{ tr(ctx, "Missing.Hint") }</p>
+			}
+			<a class="btn btn-primary btn-normal mt-4 min-h-11" href={ templ.SafeURL(p.backURL()) }>{ tr(ctx, "Missing.Back") }</a>
+		</div>
+	</div>
+}
+
+// connectionBanner is «No connection · Retry» while the network or the server is unreachable (S7):
+// Retry repeats the action that failed (a decision is idempotent), or reads the screen again.
+templ connectionBanner() {
+	<div x-show="offline" x-cloak role="alert" x-effect="if (offline) { for (const ms of [0, 100, 300]) setTimeout(() => offline && $el.scrollIntoView({ block: 'nearest' }), ms) }" class="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-warning px-4 py-3 text-sm text-100" data-testid="automations-tasks-offline">
+		@icons.WifiSlash(icons.Props{Size: "18"})
+		<span>{ tr(ctx, "Offline.Text") }</span>
+		<button type="button" class="btn btn-secondary btn-normal ml-auto min-h-11" @click="retry()">{ tr(ctx, "Retry") }</button>
+		<span x-show="hint" x-text="hint" x-cloak class="basis-full text-200" data-testid="automations-tasks-retry-hint"></span>
+	</div>
+}
+
+// ListMoreFailed takes the place of «Show more» when the next page could not be read (S4).
+templ ListMoreFailed(retryURL string) {
+	<li class="list-none" id="automations-tasks-more" role="alert" data-testid="automations-tasks-more-failed">
+		<div class="flex flex-wrap items-center gap-2 rounded-lg border border-danger px-4 py-3 text-sm text-100">
+			<span>{ tr(ctx, "Errors.MoreFailed") }</span>
+			<button
+				type="button"
+				class="btn btn-secondary btn-normal ml-auto min-h-11"
+				hx-get={ retryURL }
+				hx-target="#automations-tasks-more"
+				hx-swap="outerHTML"
+			>{ tr(ctx, "Retry") }</button>
+		</div>
+	</li>
+}

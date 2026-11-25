@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -52,7 +53,10 @@ func TestDryRunCachedDecidesAndCapturesTheSend(t *testing.T) {
 		for _, s := range res.Trace {
 			kinds = append(kinds, s.Node+":"+s.Kind+":"+s.Outcome+":"+s.Status)
 		}
-		assert.Equal(t, []string{"m:triggered:fired:", "cls:step:sales:executed", "sales:step:sent:captured", "fin:ended:end:"}, kinds, "run %d", i)
+		// The first run decides live; the second takes the decision from the cache and calls nobody.
+		decided := map[int]string{0: "executed", 1: engine.StatusCached}[i]
+		assert.Equal(t, []string{"m:triggered:fired:", "cls:step:sales:" + decided, "sales:step:sent:captured", "fin:ended:end:"}, kinds, "run %d", i)
+		assert.Equal(t, 1-i, res.LiveCalls, "run %d: calls made to the provider", i)
 		require.Len(t, res.Trace[2].Effects, 1)
 		assert.Contains(t, string(res.Trace[2].Effects[0]), "to sales: I want to buy", "the send's params are rendered")
 	}
@@ -69,6 +73,22 @@ func TestDryRunCachedDecidesAndCapturesTheSend(t *testing.T) {
 	assert.Equal(t, "support", res.Trace[1].Outcome)
 	assert.Equal(t, "captured", res.Trace[1].Status)
 	assert.Equal(t, int64(1), ae.acme.provider.Load())
+}
+
+// A trigger whose filter fails is named with the condition, so the author sees why nothing ran.
+func TestDryRunNamesTheTriggerConditionThatFailed(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	res, err := p.rt.Authoring().DryRun(context.Background(), ae.human(), engine.DryRunInput{
+		Graph: json.RawMessage(graphJSON("Big orders", `{"id": "big", "event": "acme.order.created.v1", "filter": "event.amount > 100"}`,
+			`{"id": "fin", "type": "end", "params": {}}`, `{"from": {"node": "big", "outcome": "fired"}, "to": "fin"}`)),
+		Subject: engine.SubjectRef{Entity: "acme.order", Key: "o-1"},
+		Events:  []json.RawMessage{json.RawMessage(`{"kind": "acme.order.created.v1", "amount": 1, "note": "", "secret": ""}`)},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Trace, 1)
+	assert.Equal(t, engine.TraceStep{Node: "big", Kind: engine.TraceNotTriggered, Path: graph.MismatchFilter, Message: "event.amount > 100"}, res.Trace[0])
+	assert.Zero(t, res.LiveCalls)
 }
 
 // A forbidden node stops the dry run.
@@ -88,6 +108,71 @@ func TestDryRunStopsOnAForbiddenNode(t *testing.T) {
 	last := res.Trace[len(res.Trace)-1]
 	assert.Equal(t, engine.TraceError, last.Kind)
 	assert.Equal(t, graph.FailDryRunForbidden, last.Path)
+}
+
+// A repeat of a confirmed test (its answer lost) gets the first answer on any process: the claim and the
+// answer are in the database, so a non-idempotent send is made once. A claim without an answer (the first
+// test still runs, or its process died mid-call) is refused as outcome_unknown, never run again; another
+// key is another test.
+func TestTestNodeRepeatWithTheSameKeyCallsOnce(t *testing.T) {
+	ae := newAcmeEnv(t)
+	first, second := ae.proc(), ae.proc() // two processes over one database
+	g := sendGraph("acme.send", "ok", "", true)
+	in := engine.TestNodeInput{Graph: json.RawMessage(g), NodeID: "send", Key: "confirm-1"}
+	res1, err := first.rt.Authoring().TestNode(context.Background(), ae.human(), in)
+	require.NoError(t, err)
+	require.Nil(t, res1.Error)
+	res2, err := second.rt.Authoring().TestNode(context.Background(), ae.human(), in)
+	require.NoError(t, err)
+	assert.Equal(t, res1.Outcome, res2.Outcome)
+	assert.JSONEq(t, string(res1.Output), string(res2.Output), "the stored answer")
+	require.Len(t, ae.acme.callsOf("acme.send"), 1, "the repeat on the other process called nothing")
+	assert.Equal(t, "test:confirm-1", ae.acme.callsOf("acme.send")[0].Key)
+
+	// The key names its node: another node with it is refused.
+	_, err = second.rt.Authoring().TestNode(context.Background(), ae.human(), engine.TestNodeInput{Graph: json.RawMessage(g), NodeID: "ok", Key: "confirm-1"})
+	require.ErrorIs(t, err, engine.ErrInvalidInput)
+
+	// A claim without an answer: refused, not run.
+	defer engine.SetTestWait(300 * time.Millisecond)()
+	_, err = ae.db.Exec(context.Background(), `INSERT INTO automation.node_tests (tenant_id, user_id, key, node_id) VALUES ($1, $2, 'lost', 'send')`, ae.tenant, ae.human().UserID)
+	require.NoError(t, err)
+	in.Key = "lost"
+	res3, err := second.rt.Authoring().TestNode(context.Background(), ae.human(), in)
+	require.NoError(t, err)
+	require.NotNil(t, res3.Error)
+	assert.Equal(t, engine.CodeOutcomeUnknown, res3.Error.Code)
+	assert.Len(t, ae.acme.callsOf("acme.send"), 1)
+
+	// Past the retention the answer is gone but the claim stays: the key is refused, the send not repeated.
+	_, err = ae.db.Exec(context.Background(), `UPDATE automation.node_tests SET created_at = now() - interval '25 hours' WHERE key IN ('confirm-1', 'lost')`)
+	require.NoError(t, err)
+	for _, key := range []string{"confirm-1", "lost"} {
+		in.Key = key
+		old, err := first.rt.Authoring().TestNode(context.Background(), ae.human(), in)
+		require.NoError(t, err)
+		require.NotNil(t, old.Error, key)
+		assert.Equal(t, engine.CodeOutcomeUnknown, old.Error.Code, key)
+	}
+	assert.Len(t, ae.acme.callsOf("acme.send"), 1)
+
+	in.Key = "confirm-2"
+	_, err = first.rt.Authoring().TestNode(context.Background(), ae.human(), in)
+	require.NoError(t, err)
+	assert.Len(t, ae.acme.callsOf("acme.send"), 2)
+	in.Key = strings.Repeat("k", engine.MaxTestKey+1)
+	_, err = first.rt.Authoring().TestNode(context.Background(), ae.human(), in)
+	require.ErrorIs(t, err, engine.ErrInvalidInput)
+}
+
+// The failure of a call recovered from its attempt's journal keeps what the node logged.
+func TestRecoveredFailureKeepsTheLogs(t *testing.T) {
+	ae := newAcmeEnv(t)
+	p := ae.proc()
+	wr, ok := p.rt.RecordedAnswer([]byte(`{"kind":"failed","code":"rejected","message":"refused","logs":["GET /me with Bearer ***"]}`), "acme.send")
+	require.True(t, ok)
+	require.NotNil(t, wr.Error)
+	assert.Equal(t, []string{"GET /me with Bearer ***"}, wr.Logs)
 }
 
 // Testing an HTTP node runs it once, as the author: no run, no steps, no outbox events; the secret in

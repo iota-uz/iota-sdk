@@ -4,7 +4,8 @@
   },
   "NavigationLinks": {
     "Integrations": "Integratsiyalar",
-    "Automations": "Avtomatlashtirishlar"
+    "Automations": "Avtomatlashtirishlar",
+    "AutomationTasks": "Mening vazifalarim"
   },
   "Permissions": {
     "Automations.Read": "Avtomatlashtirishlarni koʻrish",
@@ -130,7 +131,23 @@
         "InProgress": "Birinchi urinish hali bajarilmoqda. Bir necha soniyadan soʻng qayta urining — hech narsa ikki marta saqlanmaydi.",
         "LoadLatest": "Oxirgi versiyani yuklash",
         "Reloaded": "Oxirgi versiya yuklandi. Formani tekshirib, qayta saqlang.",
-        "RetryChanged": "Birinchi saqlash avvalgi qiymatlar bilan bajarilgan bo‘lishi mumkin. Formani yoping va ulanishni ro‘yxatdan tahrirlang."
+        "RetryChanged": "Birinchi saqlash avvalgi qiymatlar bilan bajarilgan bo‘lishi mumkin. Formani yoping va ulanishni ro‘yxatdan tahrirlang.",
+        "Warnings": {
+          "foreign_webhook": "Bu bot allaqachon boshqa xizmatda ishlatilmoqda. Ulangandan keyin u xizmat xabarlarni olmay qoʻyadi.",
+          "polling_unknown": "Boshqa xizmat bu bot xabarlarini (soʻrov orqali) oʻqiyotganini aniqlay olmaymiz. Agar shunday boʻlsa, ulangandan keyin u xabarlarni olmay qoʻyadi."
+        },
+        "ConfirmWarning": "Baribir ulash",
+        "ConfirmRequired": "Yuqoridagi ogohlantirishlarga qaramay botni ulashni xohlashingizni tasdiqlang.",
+        "BotInUse": "Bu bot allaqachon band: u bu yerda boshqa ulanish sifatida ulangan yoki boshqa tashkilot yoki platformaga tegishli. Boshqa botdan foydalaning yoki administratorga murojaat qiling. Agar mavjud ulanishni siz boshqarsangiz, avval uni o‘chiring (faqat o‘chirib qo‘yish botni band qoldiradi).",
+        "Preset": {
+          "custom": "Istalgan server (login va parol)",
+          "gmail": "Gmail (Google orqali kirish)",
+          "m365": "Microsoft 365 (Microsoft orqali kirish)"
+        },
+        "PresetProvider": {
+          "gmail": "Google",
+          "m365": "Microsoft 365"
+        }
       },
       "Test": {
         "Running": "Tekshiryapmiz…",
@@ -419,9 +436,9 @@
         "Waiting": "Kutmoqda"
       },
       "Runs": {
-        "Empty": "Hali ishga tushirilmagan.",
-        "NoSteps": "Hali qadamlar yoʻq.",
-        "Steps": "Ishga tushirish qadamlari"
+        "NotFound": "Ishga tushirish topilmadi",
+        "NotFoundText": "U oʻchirilgan yoki boshqa ish maydoniga tegishli.",
+        "Opening": "Ishga tushirish ochilmoqda…"
       },
       "Status": {
         "Disabled": "Oʻchirilgan",
@@ -484,6 +501,148 @@
       "billing": "Toʻlovlar",
       "projects": "Loyihalar",
       "Misc": "Boshqa"
+    },
+    "Tasks": {
+      "Title": "Mening vazifalarim",
+      "Intro": "Avtomatlashtirishlar sizdan kutayotgan qarorlar: sizga, rollaringiz va guruhlaringizga tayinlangan yoki sizga topshirilgan.",
+      "Tabs": {
+        "Label": "Vazifalar ro‘yxatlari",
+        "Mine": "Meniki",
+        "Overdue": "Muddati o‘tgan",
+        "Decided": "Men hal qilganlar"
+      },
+      "Search": {
+        "Label": "Vazifalarni qidirish",
+        "Placeholder": "Vazifa yoki yozuv bo‘yicha qidirish"
+      },
+      "Empty": {
+        "Mine": "Siz uchun vazifa yo‘q",
+        "MineHint": "Avtomatlashtirish sizdan, rolingiz yoki guruhingizdan qaror so‘rasa, vazifa shu yerda paydo bo‘ladi.",
+        "Overdue": "Muddati o‘tgan vazifa yo‘q",
+        "OverdueHint": "Muddati o‘tgan ochiq vazifalar shu yerda paydo bo‘ladi.",
+        "Decided": "Siz hali birorta vazifani hal qilmadingiz",
+        "DecidedHint": "Hal qilingan vazifalar natijasi bilan shu yerda qoladi.",
+        "Filtered": "«{{.Query}}» bo‘yicha hech narsa topilmadi",
+        "Reset": "Filtrlarni tozalash",
+        "ToMine": "Vazifalarimni ochish"
+      },
+      "More": "Yana ko‘rsatish",
+      "Retry": "Qayta urinish",
+      "Back": "Mening vazifalarim",
+      "Overdue": "Muddati o‘tgan",
+      "Escalated": "Eskalatsiya qilingan",
+      "Via": {
+        "User": "Sizga tayinlangan",
+        "Role": "Rolingiz",
+        "Group": "Guruhingiz",
+        "Permission": "Huquqingiz",
+        "Delegated": "Sizga topshirilgan",
+        "DelegatedBy": "{{.Name}} topshirdi"
+      },
+      "Quorum": "{{.Required}} dan {{.Decided}}",
+      "MyDecision": "Sizning qaroringiz: {{.Outcome}}",
+      "Closed": {
+        "DecidedBy": "Allaqachon hal qilingan: {{.Name}}, {{.At}} — {{.Outcome}}",
+        "Decided": "Hal qilingan: {{.Outcome}}",
+        "Expired": "Muddat o‘tdi: vazifa qarorsiz yopildi",
+        "Cancelled": "Avtomatlashtirish to‘xtatildi: vazifa bekor qilindi",
+        "Changed": "Siz qaror qilayotganda vazifa o‘zgardi. Hozirgi holati shu.",
+        "PastDeadline": "Muddat o‘tdi: qarorlar endi qabul qilinmaydi."
+      },
+      "Decision": {
+        "Heading": "Qaror"
+      },
+      "Comment": {
+        "Label": "Izoh",
+        "Required": "majburiy",
+        "RequiredFor": "({{.Outcomes}} uchun majburiy)",
+        "Hint": "Izohni avtomatlashtirish va boshqa ijrochilar ko‘radi.",
+        "Missing": "Izoh yozing: bu qaror uchun u majburiy.",
+        "Shortcut": "⌘/Ctrl+Enter — «{{.Outcome}}»."
+      },
+      "Confirm": {
+        "Label": "Tasdiqlash: {{.Outcome}}",
+        "Question": "«{{.Outcome}}» qarorini qabul qilasizmi?",
+        "Hint": "Yozilgan qarorni o‘zgartirib bo‘lmaydi.",
+        "Cancel": "Bekor qilish"
+      },
+      "Submitting": "Tasdiqlanmoqda…",
+      "Slow": "Server javobini hali kutyapmiz. Qaror ikki marta yozilmaydi.",
+      "Form": {
+        "Unavailable": "Shakl mavjud emas",
+        "UnavailableHint": "Bu vazifa ilovada yo‘q shakl bilan hal qilinadi. Avtomatlashtirish egasidan qadamni tuzatishni so‘rang; ungacha bu yerda hal qilib bo‘lmaydi."
+      },
+      "Delegate": {
+        "Open": "Hamkasbga topshirish",
+        "To": "Hamkasb",
+        "Search": "Ism yoki email bo‘yicha topish",
+        "NotFound": "Hech kim topilmadi",
+        "Comment": "Hamkasb uchun izoh",
+        "Submit": "Vazifani topshirish",
+        "Submitting": "Topshirilmoqda…",
+        "NothingFor": "«{{.Query}}» bo‘yicha hech kim topilmadi"
+      },
+      "OpenRun": "Ishga tushirishni ochish",
+      "Copy": "Nusxalash",
+      "Copied": "Nusxalandi",
+      "Missing": {
+        "Title": "Vazifa mavjud emas",
+        "Hint": "U boshqaga tayinlangan, topshirilgan yoki siz endi uning ijrochilari qatorida emassiz.",
+        "Back": "Vazifalarimga qaytish"
+      },
+      "Errors": {
+        "ListFailed": "Vazifalarni yuklab bo‘lmadi",
+        "ListFailedHint": "Ulanishni tekshirib, qayta urining.",
+        "TaskFailed": "Vazifani ochib bo‘lmadi",
+        "Invalid": "Qarorni tekshiring: majburiy izoh yoki maydon to‘ldirilmagan yoki noto‘g‘ri.",
+        "DecideFailed": "Qarorni yozib bo‘lmadi. Bir daqiqadan so‘ng qayta urining.",
+        "DelegationDenied": "Bu vazifani bu odamga topshirib bo‘lmaydi. Boshqa hamkasbni tanlang.",
+        "DelegateFailed": "Vazifani topshirib bo‘lmadi. Bir daqiqadan so‘ng qayta urining.",
+        "HumanRequired": "Vazifani faqat inson o‘z sessiyasida hal qiladi.",
+        "MoreFailed": "Yana vazifalarni yuklab bo‘lmadi."
+      },
+      "Toast": {
+        "Decided": "Qaror yozildi",
+        "Delegated": "Topshirildi",
+        "DelegatedTo": "Topshirildi: {{.Name}}"
+      },
+      "Badge": {
+        "Open": {
+          "one": "{{.Count}} ta ochiq vazifa",
+          "other": "{{.Count}} ta ochiq vazifa"
+        }
+      },
+      "Time": {
+        "Now": "hozir",
+        "In": "{{.Span}}dan so‘ng",
+        "Ago": "{{.Span}} oldin",
+        "Minutes": {
+          "one": "{{.Count}} daq",
+          "other": "{{.Count}} daq"
+        },
+        "Hours": {
+          "one": "{{.Count}} soat",
+          "other": "{{.Count}} soat"
+        },
+        "Days": {
+          "one": "{{.Count}} kun",
+          "other": "{{.Count}} kun"
+        },
+        "Months": "yan,fev,mar,apr,may,iyn,iyl,avg,sen,okt,noy,dek"
+      },
+      "Offline": {
+        "Text": "Server bilan aloqa yo‘q. Kiritilgan ma’lumot saqlanib qoladi."
+      },
+      "Field": {
+        "Null": "Bo‘sh (null)",
+        "Yes": "Ha",
+        "No": "Yo‘q",
+        "Document": "Qaror maydonlari (JSON)",
+        "DocumentHint": "Qaror maydonlarini JSON obyekt sifatida kiriting; ular vazifa shakli bo‘yicha tekshiriladi."
+      },
+      "Unconfirmed": "Quyida qarorni tasdiqlang: u yuborilmadi.",
+      "RetryChooseColleague": "Hamkasbni qayta tanlang va «Vazifani topshirish» tugmasini bosing.",
+      "CopyFailed": "Nusxalab bo‘lmadi. ID ni belgilab, nusxalang:"
     }
   }
 }
