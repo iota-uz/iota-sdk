@@ -6,7 +6,7 @@ import {
 } from '@iota-uz/sdk/solid-ui'
 import { rpcContracts, type Props, type RPC } from './Integrations.solid.generated'
 import {
-  CATEGORY_KEY, NAME_RE, changedCredentials, oauthErrorText, reasonSentence, reasonText, errorCode, fieldErrorText, groupByCategory, missingRequired, newCredentials, saveErrorText,
+  CATEGORY_KEY, NAME_RE, changedCredentials, oauthErrorText, reasonSentence, reasonText, errorCode, fieldErrorText, groupByCategory, missingRequired, newCredentials, saveErrorText, warningText,
   schemaFields, availablePresets, connectionPreset, knownPresets, presetOptions, slugify, translator, usageHref, usedByText,
   type ConnectionView, type ConnectorView, type FormField, type ListResult, type Status, type Translator, type UsageView,
 } from './model'
@@ -153,9 +153,31 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
     onCleanup(() => window.removeEventListener('popstate', pop))
   })
 
-  const setDisabled = async (c: ConnectionView, disabled: boolean, undo = false) => {
+  const setDisabled = async (c: ConnectionView, disabled: boolean, undo = false, confirm?: string[]) => {
     try {
-      const r = await call('automations.connections.set_disabled', { id: c.id, disabled })
+      const r = await call('automations.connections.set_disabled', { id: c.id, disabled, ...(confirm ? { confirm } : {}) })
+      if (r.error === 'confirmation_required') {
+        // The bot has been given to another service while the connection was off: enabling it again would
+        // take its messages away, so the person says so first.
+        const codes = r.warnings ?? []
+        // What was confirmed on the earlier attempts stays confirmed: the next answer may name one more warning.
+        const confirmedNow = [...new Set([...(confirm ?? []), ...codes])]
+        toast.notify({
+          variant: 'error', title: (codes.length ? codes : ['foreign_webhook']).map((w) => warningText(t, w)).join(' '),
+          action: { label: t('Form.ConfirmWarning'), onAction: () => setDisabled(c, disabled, undo, confirmedNow) },
+        })
+        return
+      }
+      if (r.error || !r.connection) {
+        toast.notify({ variant: 'error', title: t(r.error === 'invalid_input' ? 'Form.BotInUse' : 'Toast.Failed') })
+        return
+      }
+      if (!disabled && r.connection.status !== 'connected') {
+        // The provider refused the setup: the connection is saved with its error, not enabled.
+        refetch()
+        toast.notify({ variant: 'error', title: t('Toast.Failed') })
+        return
+      }
       highlight(r.connection.id)
       refetch()
       toast.notify({
@@ -551,6 +573,13 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
   const [notice, setNotice] = createSignal<string>()
   const [fieldErrors, setFieldErrors] = createSignal<Record<string, string>>({})
   const [error, setError] = createSignal<string>()
+  // Warnings the connector raised for these credentials (a bot another service uses): the save goes
+  // through only once the person confirmed them.
+  const [warnings, setWarnings] = createSignal<string[]>([])
+  const [confirmed, setConfirmed] = createSignal(false)
+  // Warnings the person confirmed on earlier attempts of this draft: a later answer may name one more, and the
+  // ones already confirmed are sent with it, so the two never alternate.
+  const [accepted, setAccepted] = createSignal<string[]>([])
   const [busy, setBusy] = createSignal(false)
   const [slow, setSlow] = createSignal(false)
   let slowTimer: ReturnType<typeof setTimeout> | undefined
@@ -567,7 +596,15 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
 
   createEffect(() => { if (!nameTouched() && !editing()) setName(slugify(displayName(), connector().kind)) })
   const secretSet = (f: string) => Boolean(editing()) && !replaced().has(f)
-  const setValue = (k: string, v: string) => setValues((cur) => ({ ...cur, [k]: v }))
+  // New credentials are another bot: what was confirmed for the earlier ones does not carry over.
+  const setValue = (k: string, v: string) => {
+    setValues((cur) => ({ ...cur, [k]: v })); setWarnings([]); setAccepted([]); setConfirmed(false)
+    clearConfirmError() // the confirmation asked for was about the earlier credentials, not these
+  }
+  // Only the "confirm first" message goes when the credentials or the switch change: a version conflict (and its
+  // «Load latest») or another failure of the last save stays until the next save.
+  const clearConfirmError = () => { if (error() === t('Form.ConfirmRequired')) setError(undefined) }
+  const confirmList = () => [...new Set([...accepted(), ...warnings()])]
 
   const begin = () => { setBusy(true); setSlow(false); setError(undefined); setNotice(undefined); setRetry(false); setConflict(false); slowTimer = setTimeout(() => setSlow(true), 4000) }
   const end = () => { setBusy(false); setSlow(false); clearTimeout(slowTimer) }
@@ -580,6 +617,11 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
     if (!oauth()) Object.assign(local, missingRequired(fields(), values(), secretSet))
     setFieldErrors(local)
     if (Object.keys(local).length > 0) { focusFirstError(local); return }
+    if (warnings().length > 0 && !confirmed()) {
+      setError(t('Form.ConfirmRequired'))
+      queueMicrotask(() => formRef?.querySelector<HTMLElement>('[data-field="confirm_warnings"]')?.focus())
+      return
+    }
     begin()
     try {
       if (signIn()) {
@@ -592,9 +634,11 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
       const result = e
         ? await props.ctx.call('automations.connections.update', {
           id: e.id, version: e.version, display_name: displayName(), idempotency_key: idempotencyKey, ...(creds ? { credentials: creds } : {}),
+          ...(confirmed() ? { confirm: confirmList() } : {}),
         })
         : await props.ctx.call('automations.connections.create', {
           kind: connector().kind, name: name(), display_name: displayName(), credentials: newCredentials(fields(), values()), idempotency_key: idempotencyKey,
+          ...(confirmed() ? { confirm: confirmList() } : {}),
         })
       if (result.ok && result.connection) {
         const saved = result.connection
@@ -608,6 +652,15 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
         end(); props.onSaved(saved, !e); return
       }
       end()
+      if (result.error === 'confirmation_required') {
+        // The request did nothing: ask again for the same intent, with the warnings confirmed.
+        if (confirmed()) setAccepted(confirmList())
+        setWarnings(result.warnings ?? [])
+        setConfirmed(false)
+        setError(undefined)
+        queueMicrotask(() => formRef?.querySelector<HTMLElement>('[data-field="confirm_warnings"]')?.focus())
+        return
+      }
       const { idempotency_key: changedRetry, ...fieldsLeft } = result.fields ?? {}
       setFieldErrors(fieldsLeft)
       if (changedRetry) {
@@ -722,6 +775,13 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
             secretSet={secretSet(f.name)} shown={shown().has(f.name)}
             onShow={(s) => setShown((cur) => { const n = new Set(cur); if (s) n.add(f.name); else n.delete(f.name); return n })}
             onReplace={(r) => setReplaced((cur) => { const n = new Set(cur); if (r) n.add(f.name); else { n.delete(f.name); setValue(f.name, '') } return n })} /></Show>}</For>
+        </Show>
+        <Show when={warnings().length > 0}>
+          <div class="flex flex-col items-start gap-2 rounded-md border border-subtle p-3" role="group" data-testid="form-warnings">
+            <For each={warnings()}>{(code) => <p role="alert" class="text-sm text-pink">{warningText(t, code)}</p>}</For>
+            <Switch checked={confirmed()} label={t('Form.ConfirmWarning')} onChange={(e) => { setConfirmed(e.currentTarget.checked); clearConfirmError() }}
+              disabled={busy()} data-field="confirm_warnings" data-testid="form-confirm" />
+          </div>
         </Show>
         <Show when={error()}>
           <div class="flex flex-col items-start gap-2">

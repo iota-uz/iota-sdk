@@ -54,6 +54,11 @@ var (
 	ErrInboundInvalid = errors.New("automation: inbound event is invalid")
 )
 
+// ErrWebhookRetry is what a WebhookReceiver's Handle wraps a failure in that the provider should repeat
+// (a lookup that failed, a handler that may succeed next time): the answer is 503, not 400, so the
+// provider redelivers the update.
+var ErrWebhookRetry = errors.New("automation: the webhook update is to be redelivered")
+
 // Inbound is the engine's Inbound.
 func (r *Runtime) Inbound() Inbound { return &inbound{r: r, specs: map[string]*graph.JSONValidator{}} }
 
@@ -265,7 +270,19 @@ type WebhookReceiver interface {
 // ClosedAnswerer is an optional interface of a WebhookReceiver: the answer to the provider for an event
 // whose correlation closed meanwhile (a second press of a button: "already answered").
 type ClosedAnswerer interface {
-	AnswerClosed(ctx context.Context, ev InboundEvent, c connectors.Connection, creds connectors.Credentials)
+	// An error says the answer to the provider could not be completed: the provider is answered 503 and
+	// redelivers the update.
+	AnswerClosed(ctx context.Context, ev InboundEvent, c connectors.Connection, creds connectors.Credentials) error
+}
+
+// PublishedAnswerer is an optional interface of a WebhookReceiver: the follow-up to the provider for an
+// event the engine published (new, not a duplicate and not closed) once its transaction committed: the
+// first press of a button is acknowledged and its keyboard removed only now, when the answer is the one
+// that counts.
+type PublishedAnswerer interface {
+	// An error says the follow-up could not be completed: the provider is answered 503 and redelivers the
+	// update (the event itself is a duplicate then, and is published no more).
+	AnswerPublished(ctx context.Context, ev InboundEvent, c connectors.Connection, creds connectors.Credentials) error
 }
 
 // Poller is an optional interface of connectors.Connector for providers without push.
@@ -411,35 +428,54 @@ func (h *inboundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	buf := &bufferedResponse{header: http.Header{}}
 	evs, err := recv.Handle(ctx, buf, body, conn, creds)
+	if errors.Is(err, ErrWebhookRetry) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	closed, err := h.publish(ctx, evs, connID, tenantOf, kind != "")
+	closed, published, err := h.publish(ctx, evs, connID, tenantOf, kind != "")
 	if err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
+	redeliver := false
 	if ca, ok := recv.(ClosedAnswerer); ok {
 		for _, ev := range closed {
-			ca.AnswerClosed(ctx, ev, conn, creds)
+			if err := ca.AnswerClosed(ctx, ev, conn, creds); err != nil {
+				redeliver = true
+			}
 		}
+	}
+	if pa, ok := recv.(PublishedAnswerer); ok {
+		for _, ev := range published {
+			if err := pa.AnswerPublished(ctx, ev, conn, creds); err != nil {
+				redeliver = true
+			}
+		}
+	}
+	if redeliver {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
 	}
 	buf.flush(w)
 }
 
 // publish writes the events of one request in one transaction; an event of another tenant than the
-// connection's is dropped. closed are the events whose correlation closed meanwhile.
-func (h *inboundHandler) publish(ctx context.Context, evs []InboundEvent, connID string, tenant uuid.UUID, platform bool) ([]InboundEvent, error) {
+// connection's is dropped. closed are the events whose correlation closed meanwhile; published are the
+// events that were new.
+func (h *inboundHandler) publish(ctx context.Context, evs []InboundEvent, connID string, tenant uuid.UUID, platform bool) ([]InboundEvent, []InboundEvent, error) {
 	if len(evs) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if h.cfg.DB == nil || h.cfg.Inbound == nil {
-		return nil, errors.New("automation inbound: no database")
+		return nil, nil, errors.New("automation inbound: no database")
 	}
-	var closed []InboundEvent
+	var closed, published []InboundEvent
 	err := publishInTx(ctx, h.cfg.DB, func(ctx context.Context, tx pgx.Tx) error {
-		closed = closed[:0]
+		closed, published = closed[:0], published[:0]
 		for _, ev := range evs {
 			ev.ConnectionID = connID
 			switch {
@@ -468,7 +504,7 @@ func (h *inboundHandler) publish(ctx context.Context, evs []InboundEvent, connID
 			if err != nil {
 				return err
 			}
-			_, err = h.cfg.Inbound.Publish(ctx, sp, ev)
+			isNew, err := h.cfg.Inbound.Publish(ctx, sp, ev)
 			switch {
 			case errors.Is(err, ErrCorrelationClosed):
 				_ = sp.Rollback(ctx)
@@ -484,10 +520,13 @@ func (h *inboundHandler) publish(ctx context.Context, evs []InboundEvent, connID
 			if err := sp.Commit(ctx); err != nil {
 				return err
 			}
+			if isNew {
+				published = append(published, ev)
+			}
 		}
 		return nil
 	})
-	return closed, err
+	return closed, published, err
 }
 
 // bufferedResponse holds what a connector answers the provider until the events are committed.

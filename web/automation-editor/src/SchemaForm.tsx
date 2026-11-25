@@ -1,18 +1,19 @@
 // The Configure form of a node: one normal control per JSON Schema field. CEL and template params get
 // a code field with client-side completion; the host can replace any top-level field through fieldSlot.
 // JSON text appears only for a schema without a type (`{}`), labelled "any JSON".
-import { Button, Combobox, Switch, ViewDrawer } from '@iota-uz/sdk/solid-ui'
+import { Button, Combobox, Switch, ViewDrawer, type ComboboxOption } from '@iota-uz/sdk/solid-ui'
 import { createEffect, createMemo, createSignal, createUniqueId, For, Index, Match, on, Show, Switch as Choose, type JSX } from 'solid-js'
 import { completeAt, type CompletionPath } from './completion'
 import { pick } from './locale'
 import { offeredParticipants } from './graph'
-import type { AutomationGraph, CatalogEvent, EditorLocale, ExpressionType, FieldSlot, JsonSchema } from './types'
+import type { AutomationGraph, CatalogEvent, EditorApi, EditorLocale, ExpressionType, FieldSlot, JsonSchema } from './types'
 
 const STRINGS: Record<EditorLocale, {
   anyJson: string; invalidJson: string; clear: string; add: string; remove: string; up: string; down: string
   openInPanel: string; connectionFromHost: string; item: (n: number) => string; seconds: string; minutes: string; hours: string; days: string
   durationAmount: string; durationUnit: string; empty: string; suggestions: string; cel: string; template: string; done: string; choose: string
-  notFound: string
+  notFound: string; sourceList: string; sourceManual: string; sourceExpression: string; sourceGroups: { private: string; group: string }
+  manualPlaceholder: string; manualHint: string; sourceModes: string; noList: string
 }> = {
   en: {
     anyJson: 'any JSON', invalidJson: 'Not valid JSON: the value is kept as it was.', clear: 'Clear', add: 'Add', remove: 'Remove',
@@ -20,6 +21,8 @@ const STRINGS: Record<EditorLocale, {
     item: (n) => `Item ${n}`, seconds: 'seconds', minutes: 'minutes', hours: 'hours', days: 'days', durationAmount: 'Amount',
     durationUnit: 'Unit', empty: 'Nothing yet', suggestions: 'Suggestions', cel: 'CEL expression', template: 'Text with {{ }} placeholders',
     done: 'Done', choose: 'Choose…', notFound: 'Nothing matches.',
+    sourceList: 'From chats', sourceManual: 'Id or @username', sourceExpression: 'Expression', sourceGroups: { private: 'Private', group: 'Groups' },
+    manualPlaceholder: '-1001234567890 or @channel', manualHint: 'A chat id, or the @username of a public group or channel.', sourceModes: 'How the value is given', noList: 'The list is not available here: give an id or an expression.',
   },
   ru: {
     anyJson: 'любой JSON', invalidJson: 'Это не JSON: значение осталось прежним.', clear: 'Очистить', add: 'Добавить', remove: 'Удалить',
@@ -27,6 +30,8 @@ const STRINGS: Record<EditorLocale, {
     item: (n) => `Элемент ${n}`, seconds: 'секунды', minutes: 'минуты', hours: 'часы', days: 'дни', durationAmount: 'Количество',
     durationUnit: 'Единица', empty: 'Пока пусто', suggestions: 'Подсказки', cel: 'Выражение CEL', template: 'Текст с подстановками {{ }}',
     done: 'Готово', choose: 'Выберите…', notFound: 'Ничего не подходит.',
+    sourceList: 'Из чатов', sourceManual: 'Id или @username', sourceExpression: 'Выражение', sourceGroups: { private: 'Личные', group: 'Группы' },
+    manualPlaceholder: '-1001234567890 или @channel', manualHint: 'Id чата или @username публичной группы или канала.', sourceModes: 'Как задано значение', noList: 'Список здесь недоступен: укажите id или выражение.',
   },
   uz: {
     anyJson: 'istalgan JSON', invalidJson: 'Bu JSON emas: qiymat oʻzgarmadi.', clear: 'Tozalash', add: 'Qoʻshish', remove: 'Oʻchirish',
@@ -34,6 +39,8 @@ const STRINGS: Record<EditorLocale, {
     item: (n) => `Element ${n}`, seconds: 'soniya', minutes: 'daqiqa', hours: 'soat', days: 'kun', durationAmount: 'Miqdor',
     durationUnit: 'Birlik', empty: 'Hozircha boʻsh', suggestions: 'Takliflar', cel: 'CEL ifodasi', template: '{{ }} oʻrinbosarli matn',
     done: 'Tayyor', choose: 'Tanlang…', notFound: 'Hech narsa mos kelmadi.',
+    sourceList: 'Chatlardan', sourceManual: 'Id yoki @username', sourceExpression: 'Ifoda', sourceGroups: { private: 'Shaxsiy', group: 'Guruhlar' },
+    manualPlaceholder: '-1001234567890 yoki @channel', manualHint: 'Chat id yoki ochiq guruh yoki kanalning @username.', sourceModes: 'Qiymat qanday berilgan', noList: 'Roʻyxat bu yerda mavjud emas: id yoki ifoda kiriting.',
   },
   'uz-Cyrl': {
     anyJson: 'исталган JSON', invalidJson: 'Бу JSON эмас: қиймат ўзгармади.', clear: 'Тозалаш', add: 'Қўшиш', remove: 'Ўчириш',
@@ -41,6 +48,8 @@ const STRINGS: Record<EditorLocale, {
     item: (n) => `Элемент ${n}`, seconds: 'сония', minutes: 'дақиқа', hours: 'соат', days: 'кун', durationAmount: 'Миқдор',
     durationUnit: 'Бирлик', empty: 'Ҳозирча бўш', suggestions: 'Таклифлар', cel: 'CEL ифодаси', template: '{{ }} ўринбосарли матн',
     done: 'Тайёр', choose: 'Танланг…', notFound: 'Ҳеч нарса мос келмади.',
+    sourceList: 'Чатлардан', sourceManual: 'Id ёки @username', sourceExpression: 'Ифода', sourceGroups: { private: 'Шахсий', group: 'Гуруҳлар' },
+    manualPlaceholder: '-1001234567890 ёки @channel', manualHint: 'Чат id ёки очиқ гуруҳ ёки канал @username.', sourceModes: 'Қиймат қандай берилган', noList: 'Рўйхат бу ерда мавжуд эмас: id ёки ифода киритинг.',
   },
 }
 
@@ -56,6 +65,8 @@ export type SchemaFormProps = {
   /** The catalog's events: a field marked `x-event-participants` is offered only where the trigger events that reach the node have participants. Left out, every field is shown. */
   events?: CatalogEvent[]
   fieldSlot?: FieldSlot
+  /** Choices of a field with `x-options-source` (the host's `EditorApi.searchOptions`). */
+  searchOptions?: EditorApi['searchOptions']
   expressions: { param: string; type: ExpressionType }[]
   templates: string[]
   completions: () => CompletionPath[]
@@ -63,7 +74,7 @@ export type SchemaFormProps = {
   errors?: { path: string; message: string }[]
 }
 
-export type FieldKind = 'cel' | 'template' | 'duration' | 'enum' | 'boolean' | 'number' | 'string' | 'list' | 'object' | 'json' | 'connection'
+export type FieldKind = 'source' | 'cel' | 'template' | 'duration' | 'enum' | 'boolean' | 'number' | 'string' | 'list' | 'object' | 'json' | 'connection'
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -79,6 +90,7 @@ export function isNullable(schema: JsonSchema): boolean {
 /** The control a field gets. `path` is the field's path from the params' root; `name` is its top-level param. */
 export function fieldKind(schema: JsonSchema, path: string, ctx: { expressions: string[]; templates: string[] }): FieldKind {
   if (path === 'connection') return 'connection'
+  if (typeof schema['x-options-source'] === 'string') return 'source'
   if (ctx.expressions.includes(path)) return 'cel'
   if (ctx.templates.includes(path)) return 'template'
   if ('x-max-ms' in schema) return 'duration'
@@ -250,6 +262,10 @@ function FieldView(props: FieldViewProps) {
         <Match when={kind() === 'connection'}>
           {label()}
           <p class="ae-form-note">{props.ctx.s().connectionFromHost}</p>
+        </Match>
+        <Match when={kind() === 'source'}>
+          <SourceField ctx={props.ctx} id={id} label={label()} title={(typeof props.schema.title === 'string' && props.schema.title) || humanize(props.name)}
+            source={props.schema['x-options-source'] as string} value={props.value} onChange={props.onChange} readOnly={readOnly()} describedBy={descId} />
         </Match>
         <Match when={kind() === 'cel' || kind() === 'template'}>
           <CodeField
@@ -574,6 +590,181 @@ function JsonField(props: { ctx: Ctx; path: string; schema: JsonSchema; value: u
           try { props.onChange(JSON.parse(raw)); setInvalid(false) } catch { setInvalid(true) }
         }} />
       <Show when={invalid()}><p class="ae-form-error" role="alert">{props.ctx.s().invalidJson}</p></Show>
+    </>
+  )
+}
+
+type SourceMode = 'list' | 'manual' | 'expr'
+
+const QUOTED_USERNAME = /^"(@[A-Za-z][A-Za-z0-9_]{4,31})"$/
+const CHAT_ID = /^-?[0-9]{1,18}$/
+/** A plain string literal, the form in which the option of a source that is not a chat is stored. */
+const OPTION_LITERAL = /^"(?:[^"\\]|\\.)*"$/
+
+/** How a stored value reads: a number is an id (picked or typed), `"@name"` a typed username, any other text an expression. */
+export function sourceModeOf(value: unknown): SourceMode {
+  if (typeof value === 'string' && value !== '') {
+    if (QUOTED_USERNAME.test(value)) return 'manual'
+    return OPTION_LITERAL.test(value) ? 'list' : 'expr'
+  }
+  return 'list'
+}
+
+/** The option a stored value stands for in the picker: a chat id, or the declared value of another source's option. */
+export function optionOf(value: unknown): string {
+  if (typeof value === 'number') return String(value)
+  if (typeof value !== 'string' || QUOTED_USERNAME.test(value) || !OPTION_LITERAL.test(value)) return ''
+  try {
+    const decoded: unknown = JSON.parse(value) // the literal is a JSON string: escapes are decoded
+    return typeof decoded === 'string' ? decoded : ''
+  } catch {
+    return ''
+  }
+}
+
+/** The value a Combobox selection means: a chat id, undefined when the selection was removed, null when it is not a chat. */
+export function chatOfSelection(v: string | readonly string[] | undefined): number | undefined | null {
+  const raw = Array.isArray(v) ? v[0] : v
+  if (raw === undefined || raw === '') return undefined
+  return typeof raw === 'string' && CHAT_ID.test(raw) ? Number(raw) : null
+}
+
+/** The value of a Combobox selection that is not a chat id: the option's own value as a CEL string literal (the
+ *  way a typed username is stored), undefined for a group header, which is no choice. */
+export function literalOfSelection(v: string | readonly string[] | undefined): string | undefined {
+  const raw = Array.isArray(v) ? v[0] : v
+  if (typeof raw !== 'string' || raw === '' || raw.startsWith('group:')) return undefined
+  return JSON.stringify(raw)
+}
+
+/** The source whose options are Telegram chats: their values are numeric ids. */
+export const CHAT_SOURCE = 'telegram.chats'
+
+/**
+ * What a Combobox selection stores for a source: undefined removes the value; a chat id for the chat source; the
+ * option's own value, as a string literal that keeps its form ("00123" stays "00123"), for any other source. null:
+ * nothing is chosen (a group header, or a value the source cannot hold).
+ */
+export function selectionOf(source: string, v: string | readonly string[] | undefined): { value: unknown } | null {
+  const raw = Array.isArray(v) ? v[0] : v
+  if (raw === undefined || raw === '') return { value: undefined }
+  if (typeof raw === 'string' && raw.startsWith('group:')) return null
+  if (source === CHAT_SOURCE) {
+    const chat = chatOfSelection(raw)
+    return chat === null ? null : { value: chat }
+  }
+  const literal = literalOfSelection(raw)
+  return literal === undefined ? null : { value: literal }
+}
+
+/** What the "id or @username" input stores: a number for an id, a CEL string literal for a username. */
+export function manualValue(text: string): number | string | undefined {
+  const t = text.trim()
+  if (t === '') return undefined
+  if (CHAT_ID.test(t) && Number.isSafeInteger(Number(t))) return Number(t)
+  return JSON.stringify(t)
+}
+
+/** What the "id or @username" input shows for a stored value. */
+export function manualText(value: unknown): string {
+  if (typeof value === 'number') return String(value)
+  const m = typeof value === 'string' ? QUOTED_USERNAME.exec(value) : null
+  return m ? m[1]! : typeof value === 'string' ? value.replace(/^"|"$/g, '') : ''
+}
+
+/** A field whose value is a chat (or another choice of the host's source): picked from the known ones,
+ *  typed as an id or @username, or given as an expression. */
+function SourceField(props: {
+  ctx: Ctx; id: string; label: JSX.Element; title: string; source: string; value: unknown
+  onChange(v: unknown): void; readOnly: boolean; describedBy: string
+}) {
+  const st = () => props.ctx.s()
+  const [mode, setMode] = createSignal<SourceMode>(sourceModeOf(props.value))
+  // The value this field wrote last. A value that comes back equal to it is the field's own edit (a half-typed
+  // "-" or "@" reads as an expression, but it is still the id or username being typed); any other value is
+  // from outside (undo, redo, another edit), and when it no longer fits the mode on screen the mode moves to
+  // the one it reads as.
+  let wrote: { value: unknown } | undefined
+  const emit = (value: unknown) => { wrote = { value }; props.onChange(value) }
+  createEffect(on(() => props.value, (value) => {
+    if (wrote && wrote.value === value) return
+    wrote = undefined
+    const fits = mode() === 'expr' ? (value === undefined || typeof value === 'string')
+      : mode() === 'manual' ? (value === undefined || typeof value === 'number' || sourceModeOf(value) === 'manual')
+        : (value === undefined || typeof value === 'number' || sourceModeOf(value) === 'list')
+    if (!fits) setMode(sourceModeOf(value))
+  }, { defer: true }))
+  const modes = (): [SourceMode, string][] => [['list', st().sourceList], ['manual', st().sourceManual], ['expr', st().sourceExpression]]
+  const search = props.ctx.props.searchOptions
+  const groupLabel = (g: string | undefined) => (g === 'private' ? st().sourceGroups.private : g === 'group' ? st().sourceGroups.group : g ?? '')
+  const load = async (query: string): Promise<ComboboxOption[]> => {
+    if (!search) return []
+    const found = await search(props.source, query, { nodeType: props.ctx.props.nodeType, params: props.ctx.props.value })
+    const out: ComboboxOption[] = []
+    let last: string | undefined
+    for (const o of found) {
+      if (o.group !== last) { out.push({ value: `group:${o.group ?? ''}`, label: groupLabel(o.group), groupHeader: true }); last = o.group }
+      out.push({ value: o.value, label: o.label })
+    }
+    return out
+  }
+  const current = () => optionOf(props.value)
+  // The stored id is shown even before the list loads (or when the chat is not among the known ones).
+  const seed = (): ComboboxOption[] => (current() ? [{ value: current(), label: current() }] : [])
+  // The known chats are offered as the list opens; typing narrows them through the host.
+  const [known, setKnown] = createSignal<ComboboxOption[] | undefined>()
+  // The chats are those of the step's connection: another connection reloads them.
+  const connection = () => { const c = (props.ctx.props.value as Record<string, unknown>)?.connection; return typeof c === 'string' ? c : '' }
+  createEffect(on([mode, connection], ([m]) => {
+    if (m !== 'list' || !search) return
+    setKnown(undefined)
+    const asked = connection()
+    void load('').then((o) => { if (asked === connection()) setKnown(o) }).catch(() => { if (asked === connection()) setKnown([]) })
+  }))
+  const offered = (): ComboboxOption[] => {
+    const list = known() ?? []
+    return current() && !list.some((o) => o.value === current()) ? [...seed(), ...list] : list.length ? list : seed()
+  }
+  return (
+    <>
+      {props.label}
+      <div class="ae-form-segmented" role="radiogroup" aria-label={st().sourceModes}>
+        <For each={modes()}>{([m, text]) => (
+          <button type="button" role="radio" aria-checked={mode() === m} disabled={props.readOnly}
+            class="ae-form-segment" classList={{ 'ae-form-segment-active': mode() === m }} onClick={() => setMode(m)}>{text}</button>
+        )}</For>
+      </div>
+      <Choose>
+        <Match when={mode() === 'list'}>
+          <Show when={search} fallback={<p class="ae-form-note">{st().noList}</p>}>
+            {/* Keyed by the connection: another connection is another picker, with none of the earlier one's
+                remembered search results and none of its searches still on the way. */}
+            <For each={[connection()]}>{() => (
+              <Combobox
+                id={props.id} label={<span class="ae-sr-only">{props.title}</span>} searchable readOnly={props.readOnly} placeholder={st().choose}
+                labels={{ notFound: st().notFound }} options={offered()} value={current()}
+                loadOptions={(query) => load(query)}
+                onValueChange={(v) => {
+                  // The chat source stores a number; any other source keeps the value its option declared.
+                  const chosen = selectionOf(props.source, v)
+                  if (chosen) emit(chosen.value)
+                }}
+              />
+            )}</For>
+          </Show>
+        </Match>
+        <Match when={mode() === 'manual'}>
+          <input id={props.id} type="text" class="form-control form-control-input ae-form-input" readOnly={props.readOnly} autocomplete="off" spellcheck={false}
+            placeholder={st().manualPlaceholder} aria-describedby={props.describedBy} aria-label={props.title}
+            value={manualText(props.value)} onInput={(e) => emit(manualValue(e.currentTarget.value))} />
+          <p class="ae-form-note">{st().manualHint}</p>
+        </Match>
+        <Match when={mode() === 'expr'}>
+          <CodeField ctx={props.ctx} id={props.id} label={<span />} title={props.title} mode="cel"
+            value={typeof props.value === 'string' ? props.value : ''} onChange={(v) => emit(v === '' ? undefined : v)}
+            readOnly={props.readOnly} describedBy={props.describedBy} />
+        </Match>
+      </Choose>
     </>
   )
 }

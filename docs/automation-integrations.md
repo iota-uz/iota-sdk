@@ -39,6 +39,16 @@ components = append(components, automations.NewComponent(
 не хочет отдавать секреты подключений пакетам, задаёт `wiring.Options.Secrets` явно
 (в том числе резолвер, который всегда отвечает «не найдено»).
 
+## Жизненный цикл подключения у провайдера
+
+Коннектор может настраивать свою сторону подключения (webhook): `connectors.Provisioner` вызывается при
+сохранении подключения (создание, новые креды, повторное включение; отказ провайдера отменяет сохранение) и
+после удаления, отключения или замены кредов (ошибка не мешает). `connectors.Advisor` сообщает, что подключение
+изменит чужое (`ConfirmationRequiredError`): форма показывает предупреждение и повторяет запрос с `confirm`.
+`connectors.OptionSource` отдаёт выбор для поля ноды (RPC `automations.connections.options`),
+`connectors.PlatformProvider`/`PlatformStarter` — платформенный credential и его настройку при старте. Пример —
+[коннектор Telegram](automation-telegram.md).
+
 ## Конфигурация
 
 | Переменная | Что задаёт |
