@@ -41,8 +41,16 @@ func (d *directory) Register(c Connector) error {
 		return serrors.Wrap(op, fmt.Errorf("%w: connector %s declares OAuth2 presets and is a ConnectionAuthorizer", ErrInvalid, desc.Kind))
 	}
 	if ca, ok := c.(CodeAccessor); ok {
-		if err := ca.CodeAccess().Validate(); err != nil {
+		access := ca.CodeAccess()
+		check := access.Validate
+		if _, resolved := c.(CodeBaseURLResolver); resolved {
+			check = access.ValidateResolved
+		}
+		if err := check(); err != nil {
 			return serrors.Wrap(op, fmt.Errorf("connector %s: %w", desc.Kind, err))
+		}
+		if _, operates := c.(CodeOperator); len(access.Operations) > 0 && !operates {
+			return serrors.Wrap(op, fmt.Errorf("%w: connector %s declares code operations and is not a CodeOperator", ErrInvalid, desc.Kind))
 		}
 	}
 	d.mu.Lock()
