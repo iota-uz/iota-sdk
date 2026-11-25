@@ -364,7 +364,7 @@ func (s *Svc) Sources(ctx context.Context, a Actor, automationID uuid.UUID) ([]S
 	if _, err := s.automation(ctx, a, automationID); err != nil {
 		return nil, err
 	}
-	var out []SourceOption
+	out := make([]SourceOption, 0, len(s.cfg.Sources))
 	if s.cfg.Connections != nil && s.cfg.Connectors != nil {
 		for _, c := range s.cfg.Connectors.List() {
 			if _, ok := c.(HistoryImporter); !ok {
@@ -615,7 +615,10 @@ type cursor struct {
 }
 
 func encodeCursor(at time.Time, id uuid.UUID) string {
-	b, _ := json.Marshal(cursor{At: at, ID: id})
+	b, err := json.Marshal(cursor{At: at, ID: id})
+	if err != nil { // a time and a UUID always encode
+		return ""
+	}
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
@@ -1151,7 +1154,9 @@ func (s *Svc) Results(ctx context.Context, a Actor, id BacktestID, f ResultFilte
 		_ = json.Unmarshal(outcomes, &x.Outcomes)
 		_ = json.Unmarshal(decisions, &x.Decisions)
 		_ = json.Unmarshal(effects, &x.Effects)
-		_ = json.Unmarshal(trace, &x.Trace)
+		var recs []traceRecord
+		_ = json.Unmarshal(trace, &recs)
+		x.Trace = traceSteps(recs)
 		return x, nil
 	})
 	if err != nil {

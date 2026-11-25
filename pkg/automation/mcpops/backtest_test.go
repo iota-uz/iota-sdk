@@ -92,5 +92,5 @@ func TestAgentBacktestTools(t *testing.T) {
 	require.Len(t, list.Backtests, 1)
 
 	// A reader may not backtest.
-	e.failure(readerID, mcpops.ToolBacktestRun, map[string]any{"dataset_id": ds.DatasetID}, mcp.CodeForbidden)
+	_ = e.failure(readerID, mcpops.ToolBacktestRun, map[string]any{"dataset_id": ds.DatasetID}, mcp.CodeForbidden)
 }

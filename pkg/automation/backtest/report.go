@@ -62,7 +62,7 @@ func ratio(num, den int) *float64 {
 func metricsOf(node string, decision bool, rows []scored, mm *[]Mismatch) ClassifierMetrics {
 	m := ClassifierMetrics{Node: node, Decision: decision, Distribution: map[string]int{}}
 	type pair struct{ pred, want string }
-	var pairs []pair
+	pairs := make([]pair, 0, len(rows))
 	outcomes := map[string]bool{}
 	for _, r := range rows {
 		pred := r.outcomes[node]
@@ -353,4 +353,33 @@ func diffOf(a, b scored) (ExampleDiff, bool) {
 		d.EffectsA, d.EffectsB = ea, eb
 	}
 	return d, len(d.Changes) > 0 || effectsDiffer || a.end != b.end
+}
+
+// traceRecord is a trace step as a result stores it.
+type traceRecord struct {
+	Node    string            `json:"node"`
+	Token   string            `json:"token,omitempty"`
+	Kind    string            `json:"kind"`
+	Outcome string            `json:"outcome,omitempty"`
+	Path    string            `json:"path,omitempty"`
+	Message string            `json:"message,omitempty"`
+	Status  string            `json:"status,omitempty"`
+	Effects []json.RawMessage `json:"effects,omitempty"`
+	Output  json.RawMessage   `json:"output,omitempty"`
+}
+
+func traceRecords(steps []engine.TraceStep) []traceRecord {
+	out := make([]traceRecord, 0, len(steps))
+	for _, s := range steps {
+		out = append(out, traceRecord(s))
+	}
+	return out
+}
+
+func traceSteps(recs []traceRecord) []engine.TraceStep {
+	out := make([]engine.TraceStep, 0, len(recs))
+	for _, r := range recs {
+		out = append(out, engine.TraceStep(r))
+	}
+	return out
 }

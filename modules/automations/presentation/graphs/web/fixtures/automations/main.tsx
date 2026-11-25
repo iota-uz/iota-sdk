@@ -43,6 +43,8 @@ const fake: FakeOptions = {
   calls: [],
   warn: params.has('warn'),
   telegram: params.has('telegram'),
+  agent,
+  backtests: (params.get('bt') as FakeOptions['backtests']) ?? 'default',
 }
 ;(window as unknown as { __calls: FakeOptions['calls'] }).__calls = fake.calls
 installFake('/automations/rpc', fake)
@@ -50,7 +52,7 @@ installFake('/automations/rpc', fake)
 document.documentElement.dataset.theme = theme
 document.documentElement.lang = lang
 if (theme === 'dark') document.documentElement.classList.add('dark')
-const view = (params.get('view') ?? 'list') as 'list' | 'new' | 'editor'
+const view = (params.get('view') ?? 'list') as 'list' | 'new' | 'editor' | 'backtests'
 const context = {
   bootstrapVersion: '1.0.0',
   protocolVersion: SDK_IDENTITY.protocolVersion,
@@ -64,7 +66,7 @@ const context = {
   initial: {
     basePath: '/automations', integrationsPath: '/settings/integrations', view,
     ...(params.get('id') ? { id: params.get('id')! } : {}), ...(params.get('run') ? { run: params.get('run')! } : {}),
-    can, agent, state: params.get('state') !== 'off',
+    can, agent, state: params.get('state') !== 'off', backtests: !params.has('nobacktests'),
   },
 }
 document.getElementById('iota-client-context')!.textContent = JSON.stringify(context)

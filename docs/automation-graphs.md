@@ -580,6 +580,47 @@ resolve no audience and check no access themselves.
   and the count of runs that need attention (failed, blocked, `filter_failed`); `ListFilter.Attention`
   keeps graphs that have some; `Service.CountLive` names what disabling or deleting cancels.
 
+### Backtests: datasets, history import, labels and the report (#1389)
+
+`pkg/automation/backtest` runs a saved version of a graph over past and synthetic events without sending
+anything out and reports what the graph would have done for each of them.
+
+- **Datasets** (`automation.datasets`, at most 20 per automation, 5 000 events each) belong to an
+  automation. An example (`automation.dataset_examples`) is a copy of an event (`{kind, ...payload}`), so
+  pruning the outbox keeps it. Sources: the SDK's journal (`extruntime.outbox_events`) over a window,
+  for the events of the latest version's triggers by default; the history of a connection whose
+  connector implements `backtest.HistoryImporter` (the email connector reads its IMAP mailbox read-only:
+  nothing is marked read or moved); a module's `backtest.HistorySource` (`automations.WithHistorySources`);
+  synthetic events an author writes. A payload keeps what the importing author's catalog view declares:
+  sensitive fields the author may not read are not copied. An event already in the dataset (its outbox
+  id, a Message-ID) is a duplicate; past the limit the import counts what it left out (`overflow`).
+  Importing a connection's history needs the right to the connection (`backtest.DefaultConnectionAccess`:
+  `Connections.Manage` or its creator).
+- **Snapshot at the event.** An example keeps its subject's state: `SnapshotLoader.SnapshotAt` when the
+  engine's subject loader implements it, else the record as read at import, marked
+  `snapshot_approximate`. A backtest runs with that state (`DryRunInput.Vars`) and the event's time as
+  `now` (`DryRunInput.Now`).
+- **Run.** `Service.Run` queues a backtest; the worker (`Svc.Serve`, run by the module with the engine)
+  claims it with a lease and resumes after the examples it has results for. Each example is
+  `engine.Authoring.DryRun` with `RealCalls: decisions`: effects are captured with their params, execute
+  calls other than decisions of models are answered from the context. `cached` (default) takes a
+  decision from the decision cache and asks the provider once for one it lacks; an agent's cached
+  backtest reads the cache only (`RealCallsNone`: a missing decision is reported `missing`, never a
+  mismatch); `live` asks every decision again and is a person's (`HUMAN_REQUIRED`). `Service.Estimate`
+  shows before the run how many calls it may make and their cost from earlier backtests.
+- **Labels** (`automation.dataset_labels`): `expected` comes with a synthetic event, `manual` is a
+  person's and wins. Labels belong to the dataset and apply to every backtest over it, earlier ones
+  included (the report is computed when it is read).
+- **Report.** Precision and recall per classifier (every decision node and every labeled node) and
+  outcome, the mismatches with the labels, the effects the graph would have made, the cost of the
+  decisions (live and cached, from the `usage` the AI nodes report) and `Service.Compare` of two
+  backtests over their shared examples.
+- **UI and MCP.** The section «Backtests» is `/automations/{id}/backtests` (`Automations.Author`) of the
+  automations screen; the editor only links to it («Backtests: N» in the host's actions). MCP:
+  `mcpops.WithBacktests(svc)` adds `automation_backtests`, `automation_backtest_dataset_create`,
+  `automation_backtest_examples_add`, `automation_backtest_label`, `automation_backtest_run` (cached only)
+  and `automation_backtest_report`; `automations.Backtests(container)` gives the composed service.
+
 ## 6. Triggers and the event catalog
 
 - **Domain events** come from the outbox through the event catalog (`native.Event`, D7).

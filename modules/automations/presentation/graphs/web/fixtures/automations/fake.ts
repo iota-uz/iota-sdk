@@ -1,5 +1,6 @@
 import { catalog as editorCatalog } from '../../../../../../../web/automation-editor/fixture/catalog'
 import type { RPC } from '../../Automations.solid.generated'
+import { BT_GRAPH, jevNode, messageEvent, reportOf, resultsOf, routeGraph, seedBacktests } from './backtests'
 
 /**
  * An in-memory stand-in for the Go RPC (modules/automations/presentation/graphs): the same JSON-RPC
@@ -31,11 +32,15 @@ export interface FakeOptions {
   /** With hold: the first automations.get (the page's initial load) is held too (?hold=all). */
   holdFirst: boolean
   can: { author: boolean; enable: boolean; operate: boolean }
+  /** The session is an agent's. */
+  agent?: boolean
   calls: { method: string; params: unknown }[]
   /** Validation warns about the first node (a pinned tool schema the server changed), with its fix. */
   warn?: boolean
   /** «Close stale deals» sends a Telegram message whose chat is picked from the connection's known chats. */
   telegram?: boolean
+  /** The backtests of BT_GRAPH: seeded, none yet, or the section's read fails. */
+  backtests?: 'default' | 'empty' | 'error'
 }
 
 const now = '2026-11-20T09:30:00Z'
@@ -219,9 +224,110 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
   const tests = new Map<string, RPC['automations.test_node']['result']>()
   let testRuns = 0
   let testLost = opts.testLostOnce
-  const find = (id: string) => store.find((s) => s.item.id === id) ?? rpcError('not_found', 'automation not found')
+  // The graph with a classifier the backtests run on: reachable by id, not in the list (the list's baseline stays).
+  const hidden: Stored[] = [{
+    item: { id: BT_GRAPH, name: 'Route client messages', description: null, enabled: true, enabled_version: 2, latest_version: 3, pending_version: true, saved_by_agent: false,
+      triggers: [{ kind: 'inbound', title: 'Telegram message received' }], last_run: null, attention: 0, updated_at: now, updated_by: 'Dilnoza Karimova' },
+    versions: [1, 2, 3].map((v) => ({ version: v, graph: routeGraph(v) as Graph, by: 'Dilnoza Karimova', origin: 'human' as const, at: `2026-11-1${v}T08:00:00Z` })),
+    layout: { msg: { x: 48, y: 96 }, intent: { x: 368, y: 96 }, to_sales: { x: 688, y: 32 }, to_support: { x: 688, y: 192 }, fin: { x: 1008, y: 96 } }, revision: 1, live: { runs: 0, waits: 0 }, code: [],
+  }]
+  const btCatalog = { ...catalog, events: [...catalog.events, messageEvent], nodes: [...catalog.nodes, jevNode] }
+  const bt = seedBacktests(opts.backtests === 'empty')
+  let btSeq = 0
+  const backtestOf = (id: string) => bt.backtests.find((b) => b.id === id) ?? rpcError('not_found', 'not found')
+  const datasetOf = (id: string) => bt.datasets.find((d) => d.id === id) ?? rpcError('not_found', 'not found')
+  const find = (id: string) => store.find((s) => s.item.id === id) ?? hidden.find((s) => s.item.id === id) ?? rpcError('not_found', 'automation not found')
   const digestOf = (s: Stored) => (s.code.length > 0 ? `digest-${s.item.latest_version}-${s.code.map((c) => c.source.length).join('.')}` : '')
   const handlers: { [K in keyof RPC]?: (p: RPC[K]['params']) => RPC[K]['result'] } = {
+    // #1389: the section «Backtests».
+    'automations.backtests': (p) => {
+      find(p.automation_id)
+      if (opts.backtests === 'error') rpcError('internal', 'internal error')
+      return { datasets: bt.datasets, backtests: bt.backtests, sources: [{ kind: 'connection', connection_id: 'c-1', title: 'Sales bot', connector_kind: 'telegram' }], live: !opts.agent, decision_nodes: p.automation_id === BT_GRAPH ? ['intent'] : [] }
+    },
+    'automations.backtest_count': (p) => ({ count: p.automation_id === BT_GRAPH ? bt.backtests.length : 0 }),
+    'automations.dataset_create': (p) => {
+      if (bt.datasets.length >= 20) rpcError('limit_datasets', 'an automation has at most 20 datasets')
+      const id = `00000000-0000-4000-8000-0000000d${String(++btSeq).padStart(4, '0')}`
+      bt.datasets.unshift({ id, name: p.name, description: p.description ?? '', examples: 0, labeled: 0, created_by: 'You', created_at: now, imports: [] })
+      bt.examples.set(id, [])
+      return { id }
+    },
+    'automations.dataset_delete': (p) => { bt.datasets = bt.datasets.filter((d) => d.id !== p.dataset_id); bt.backtests = bt.backtests.filter((b) => b.dataset_id !== p.dataset_id); return { ok: true } },
+    'automations.dataset_import': (p) => {
+      const d = datasetOf(p.dataset_id)
+      const id = `i-${++btSeq}`
+      d.imports = [{ id, kind: p.kind, status: 'running', imported: 0, duplicates: 0, overflow: 0, unreadable: 0, error: null, created_at: now, finished_at: null }, ...d.imports]
+      return { id }
+    },
+    'automations.dataset_examples': (p) => {
+      const items = bt.examples.get(p.dataset_id) ?? []
+      return { items, next_cursor: null, total: items.length }
+    },
+    'automations.dataset_synthetic': (p) => {
+      const d = datasetOf(p.dataset_id)
+      const items = bt.examples.get(d.id) ?? []
+      const id = `00000000-0000-4000-8000-0000000c${String(++btSeq).padStart(4, '0')}`
+      const labels: Record<string, { outcome: string; source: 'expected' }> = {}
+      for (const [node, outcome] of Object.entries(p.expected ?? {})) labels[node] = { outcome, source: 'expected' }
+      items.push({ id, source: 'synthetic', title: p.title ?? '', event_kind: p.kind, event: { kind: p.kind, ...(p.payload as object) }, subject: { entity: 'conversation', key: '' },
+        snapshot_approximate: false, has_snapshot: false, occurred_at: now, labels })
+      bt.examples.set(d.id, items)
+      d.examples = items.length
+      d.labeled = items.filter((x) => Object.keys(x.labels).length > 0).length
+      return { id }
+    },
+    'automations.example_delete': () => ({ ok: true }),
+    'automations.example_label': (p) => {
+      for (const [ds, items] of bt.examples) {
+        const ex = items.find((x) => x.id === p.example_id)
+        if (!ex) continue
+        if (p.outcome) ex.labels = { ...ex.labels, [p.node]: { outcome: p.outcome, source: 'manual' } }
+        else { const { [p.node]: _, ...rest } = ex.labels; ex.labels = rest }
+        const d = datasetOf(ds)
+        d.labeled = items.filter((x) => Object.keys(x.labels).length > 0).length
+      }
+      return { ok: true }
+    },
+    'automations.backtest_estimate': (p) => {
+      const d = datasetOf(p.dataset_id)
+      return { examples: d.examples, decision_nodes: ['intent'], max_calls: d.examples, cost_usd: p.decisions === 'live' ? d.examples * 0.0021 : null }
+    },
+    'automations.backtest_run': (p) => {
+      const d = datasetOf(p.dataset_id)
+      if (p.decisions === 'live' && opts.agent) rpcError('HUMAN_REQUIRED', 'only a person runs a backtest with live decisions')
+      const id = `00000000-0000-4000-8000-0000000e${String(++btSeq).padStart(4, '0')}`
+      bt.backtests.unshift({ id, dataset_id: d.id, dataset_name: d.name, version: p.version || 3, decisions: p.decisions === 'live' ? 'live' : 'cached', status: 'queued', total: d.examples, done: 0,
+        live_calls: 0, error: null, created_by: 'You', by_agent: opts.agent ?? false, created_at: now, finished_at: null })
+      return { id }
+    },
+    'automations.backtest_cancel': (p) => {
+      const b = backtestOf(p.backtest_id)
+      if (b.status !== 'queued' && b.status !== 'running') rpcError('backtest_finished', 'the backtest has finished')
+      b.status = 'cancelled'
+      return { ok: true }
+    },
+    'automations.backtest_report': (p) => reportOf(bt, backtestOf(p.backtest_id)),
+    'automations.backtest_results': (p) => {
+      let items = resultsOf(bt, backtestOf(p.backtest_id))
+      if (p.node) items = items.filter((r) => r.example.labels[p.node!])
+      if (p.mismatch) items = items.filter((r) => (p.node ? r.mismatches.includes(p.node) : r.mismatches.length > 0))
+      return { items, next_cursor: null, total: items.length }
+    },
+    'automations.backtest_compare': (p) => {
+      const a = backtestOf(p.a)
+      const b = backtestOf(p.b)
+      const ra = resultsOf(bt, a)
+      const rb = resultsOf(bt, b)
+      const diffs = ra.flatMap((x, i) => {
+        const y = rb[i]
+        if (!y || x.outcomes.intent === y.outcomes.intent) return []
+        return [{ example_id: x.example.id, title: x.example.title || (x.example.event as { text: string }).text, occurred_at: x.example.occurred_at, end_a: x.end, end_b: y.end,
+          changes: [{ node: 'intent', a: x.outcomes.intent!, b: y.outcomes.intent!, ...(x.example.labels.intent ? { expected: x.example.labels.intent.outcome } : {}) }],
+          effects_a: x.effects.map((e) => e.node), effects_b: y.effects.map((e) => e.node) }]
+      })
+      return { a: reportOf(bt, a), b: reportOf(bt, b), common_examples: Math.min(ra.length, rb.length), changed: diffs.length, diffs }
+    },
     'automations.list': (p) => {
       let items = store.map((s) => s.item)
       if (p.query) items = items.filter((x) => x.name.toLowerCase().includes(p.query!.toLowerCase()))
@@ -238,7 +344,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
         automation: { id: s.item.id, name: s.item.name, enabled: s.item.enabled, enabled_version: s.item.enabled_version, latest_version: s.item.latest_version, owner: { user_id: 1, name: 'Dilnoza Karimova' }, layout: s.layout, layout_revision: s.revision },
         graph: v.graph, version: v.version, saved_by: { name: v.by, origin: v.origin },
         versions: [...s.versions].reverse().map((x) => ({ version: x.version, enabled: x.version === s.item.enabled_version, by: x.by, origin: x.origin, at: x.at })),
-        catalog: shown as never, connections: { telegram: [{ id: 'c-1', name: 'Sales bot' }] },
+        catalog: (s.item.id === BT_GRAPH ? btCatalog : shown) as never, connections: { telegram: [{ id: 'c-1', name: 'Sales bot' }] },
         read_only: !opts.can.author ? { reason: 'You may not change automations', code: 'no_author' } : v.version !== s.item.latest_version ? { reason: 'An old version is open', code: 'old_version' } : null,
         can: opts.can,
         manual_triggers: s.item.enabled_version === null ? [] : (s.versions.find((x) => x.version === s.item.enabled_version) ?? v).graph.triggers
@@ -469,7 +575,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     if (!url.endsWith(rpcPath)) return original(input, init)
     const body = JSON.parse(String(init?.body ?? '{}')) as { id: number; method: keyof RPC; params: never }
     opts.calls.push({ method: body.method, params: body.params })
-    const isList = body.method === 'automations.list' || body.method === 'automations.get' || body.method === 'automations.catalog'
+    const isList = body.method === 'automations.list' || body.method === 'automations.get' || body.method === 'automations.catalog' || body.method === 'automations.backtests'
     if (opts.scenario === 'loading' && isList) await new Promise(() => {})
     const signal = init?.signal
     if (body.method === 'automations.get' && (gets++ > 0 || opts.holdFirst) && opts.hold) await hold((body.params as { version?: number }).version ?? 0, signal)

@@ -110,7 +110,7 @@ type backtestHolder struct{ svc *backtest.Svc }
 // runs no automation engine.
 func Backtests(container *composition.Container) (backtest.Service, error) {
 	if !composition.Has[*backtestHolder](container) {
-		return nil, nil
+		return nil, nil //nolint:nilnil // no engine: no backtests
 	}
 	h, err := composition.Resolve[*backtestHolder](container)
 	if err != nil || h.svc == nil {

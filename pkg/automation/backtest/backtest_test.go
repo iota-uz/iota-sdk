@@ -136,7 +136,10 @@ type env struct {
 
 var allPerms = []string{engine.PermRead, engine.PermAuthor, engine.PermEnable, engine.PermOperate}
 
-func newEnv(t *testing.T) *env { return newEnvWith(t, nil) }
+func newEnv(t *testing.T) *env {
+	t.Helper()
+	return newEnvWith(t, nil)
+}
 
 // newEnvWith is newEnv whose catalog and backtest configuration extra adjusts (it runs before the
 // runtime is built).
@@ -506,8 +509,10 @@ func (m *mailConnector) Descriptor() connectors.Descriptor {
 func (m *mailConnector) Test(context.Context, connectors.Credentials) (connectors.Identity, error) {
 	return connectors.Identity{Display: "box"}, nil
 }
-func (m *mailConnector) Nodes() []catalog.NodeType          { return nil }
-func (m *mailConnector) Triggers() []catalog.TriggerSource { return []catalog.TriggerSource{mailEvents{}} }
+func (m *mailConnector) Nodes() []catalog.NodeType { return nil }
+func (m *mailConnector) Triggers() []catalog.TriggerSource {
+	return []catalog.TriggerSource{mailEvents{}}
+}
 
 type mailEvents struct{}
 

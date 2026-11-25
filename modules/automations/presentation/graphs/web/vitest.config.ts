@@ -13,6 +13,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      '@iota-uz/sdk/automation-editor': path.join(packageRoot, 'editor-core.vitest.ts'),
       'solid-js/web': path.join(solidRoot, 'web/dist/web.js'),
       'solid-js/store': path.join(solidRoot, 'store/dist/store.js'),
       'solid-js': path.join(solidRoot, 'dist/solid.js'),

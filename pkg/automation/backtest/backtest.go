@@ -112,8 +112,8 @@ const (
 // history may be imported (DefaultConnectionAccess).
 const PermConnectionsManage = "Connections.Manage"
 
-// Errors of the service are the engine's: engine.ErrNotFound, ErrForbidden, ErrInvalidInput,
-// ErrLimitExceeded, ErrHumanRequired. ErrUnsupported reports a source that cannot import history.
+// ErrUnsupported reports a source that cannot import history. The service's other errors are the
+// engine's: engine.ErrNotFound, ErrForbidden, ErrInvalidInput, ErrLimitExceeded, ErrHumanRequired.
 var ErrUnsupported = errors.New("automation: backtest source is unsupported")
 
 // Service is the API of datasets and backtests. Every method requires Automations.Author.
@@ -181,8 +181,8 @@ type Dataset struct {
 
 // TimeWindow is a half-open interval [From, To) of event times.
 type TimeWindow struct {
-	From time.Time
-	To   time.Time
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
 }
 
 // ImportSource is where an import reads events from: Kind journal (the SDK's event journal; Events are

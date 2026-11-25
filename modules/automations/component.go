@@ -853,8 +853,16 @@ func (c *component) buildPages(b *composition.Builder) {
 		if conn, ok := dir.Get(mcp.Kind); ok {
 			tools, _ = conn.(mcp.ToolLister)
 		}
+		bt, err := c.backtests(container)
+		if err != nil {
+			return nil, err
+		}
+		var backtests backtest.Service
+		if bt != nil {
+			backtests = bt
+		}
 		ctrl, err := graphs.NewController(graphs.Config{
-			Engine:  graphs.Engine{Service: rt.Service(), Authoring: rt.Authoring(), Operations: rt.Operations(), Memory: rt.Memory()},
+			Engine: graphs.Engine{Service: rt.Service(), Authoring: rt.Authoring(), Operations: rt.Operations(), Memory: rt.Memory()}, Backtests: backtests,
 			Catalog: reg, Users: persistence.NewUserNames(db), Host: host, Assets: assets, Path: path,
 			IntegrationsPath: integrations.DefaultPath, MessageKeys: keys, Logger: slog.Default(), MCPTools: tools, Links: c.links,
 			Options: connectionOptions{store: store, dir: dir},

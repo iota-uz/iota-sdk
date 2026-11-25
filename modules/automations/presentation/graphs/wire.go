@@ -16,6 +16,8 @@ const (
 	// ViewRun is a link that knows only a run's id (/automations/runs/{run}): the screen finds the run's
 	// graph and opens its Runs tab there, or says the run is not found.
 	ViewRun View = "run"
+	// ViewBacktests is the section «Backtests» of a graph (/automations/{id}/backtests, #1389).
+	ViewBacktests View = "backtests"
 )
 
 // Props are the initial props of the screen.
@@ -34,6 +36,8 @@ type Props struct {
 	Agent bool `json:"agent"`
 	// State: the memory of a graph between runs can be listed and edited (the engine's Memory is wired).
 	State bool `json:"state"`
+	// Backtests: the section «Backtests» is offered (the composition runs the backtest service).
+	Backtests bool `json:"backtests"`
 }
 
 // Can is what the caller may do.

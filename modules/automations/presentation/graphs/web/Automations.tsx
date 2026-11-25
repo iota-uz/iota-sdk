@@ -10,6 +10,8 @@ import { editorLocale, errorCode, errorText, graphPath, translator } from './mod
 
 // The editor page and, through it, the editor's canvas chunk load only on a graph's page (AL4, P3).
 const EditorPage = lazy(() => import('./EditorPage'))
+// The section «Backtests» of a graph (#1389) loads only on its page.
+const BacktestsPage = lazy(() => import('./Backtests'))
 
 /** Automations is the screen of /automations, /automations/new and /automations/{id}. */
 const Automations: Component<SolidRouteProps<Props>> = (props) => (
@@ -49,6 +51,11 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
         <Switch>
           <Match when={init.view === 'list'}><List /></Match>
           <Match when={init.view === 'run'}><RunLink /></Match>
+          <Match when={init.view === 'backtests'}>
+            <Suspense fallback={<div class="h-[calc(100vh-4rem)]" role="status" aria-busy="true" aria-label={ctx.t('Common.Loading')} />}>
+              <BacktestsPage />
+            </Suspense>
+          </Match>
           <Match when={init.view !== 'list'}>
             <ErrorBoundary fallback={(error) => {
               console.warn('automations: the editor did not load', error)

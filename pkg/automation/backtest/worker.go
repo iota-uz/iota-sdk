@@ -117,7 +117,7 @@ func (s *Svc) claimImport(ctx context.Context) (importJob, bool, error) {
 	}
 	if err := json.Unmarshal(src, &j.source); err != nil {
 		s.finishImport(ctx, j, importCounts{}, errors.New("the source of the import is not readable"))
-		return j, false, nil
+		return j, false, nil //nolint:nilerr // the job is failed and recorded; the worker goes on
 	}
 	return j, true, nil
 }
@@ -170,7 +170,7 @@ func (im *importer) add(ev Event) error {
 	if len(ev.Payload) > 0 {
 		if err := expr.UnmarshalJSON(ev.Payload, &payload); err != nil {
 			im.counts.unreadable++
-			return nil
+			return nil //nolint:nilerr // an unreadable event is counted, the import goes on
 		}
 	}
 	if payload == nil {
@@ -184,7 +184,7 @@ func (im *importer) add(ev Event) error {
 	body, err := json.Marshal(payload)
 	if err != nil || len(body) > MaxEventBytes {
 		im.counts.unreadable++
-		return nil
+		return nil //nolint:nilerr // an event that does not encode or is too large is counted, the import goes on
 	}
 	at := ev.OccurredAt
 	if at.IsZero() {
@@ -577,7 +577,7 @@ func (s *Svc) runExample(ctx context.Context, a Actor, j backtestJob, g json.Raw
 	_, err = s.cfg.DB.Exec(context.WithoutCancel(ctx), `
 		INSERT INTO automation.backtest_results (tenant_id, backtest_id, example_id, end_kind, outcomes, decisions, effects, trace, error, live_calls)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT DO NOTHING`,
-		j.tenant, j.id, ex.ID, an.end, enc(an.outcomes, "{}"), enc(an.decisions, "[]"), enc(an.effects, "[]"), enc(an.trace, "[]"), an.errText, res.LiveCalls)
+		j.tenant, j.id, ex.ID, an.end, enc(an.outcomes, "{}"), enc(an.decisions, "[]"), enc(an.effects, "[]"), enc(traceRecords(an.trace), "[]"), an.errText, res.LiveCalls)
 	if err != nil {
 		return 0, dbErr(err)
 	}
