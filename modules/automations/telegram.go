@@ -2,7 +2,6 @@ package automations
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 
@@ -40,7 +39,7 @@ func (c *component) newTelegram(container *composition.Container, cfg settingsCf
 		Logger:        slog.Default(),
 	}
 	if composition.Has[*coreservices.UploadService](container) {
-		tc.Uploads = lazyTelegramUploads{container: container, privateRoot: cfg.uploadsPrivate}
+		tc.Uploads = lazyTelegramUploads{container: container, privateRoot: cfg.uploads.PrivatePath()}
 	}
 	return telegram.New(tc)
 }
@@ -79,33 +78,6 @@ func (l lazyInbound) Correlation(ctx context.Context, token string) (uuid.UUID, 
 		return uuid.Nil, false, err
 	}
 	return in.Correlation(ctx, token)
-}
-
-// lazyConnectionState is the connection store as the Telegram connector writes to it.
-type lazyConnectionState struct{ container *composition.Container }
-
-func (l lazyConnectionState) Get(ctx context.Context, tenantID, id uuid.UUID) (connectors.Connection, connectors.Credentials, error) {
-	st, err := composition.Resolve[connectors.Store](l.container)
-	if err != nil {
-		return connectors.Connection{}, nil, err
-	}
-	return st.Get(ctx, tenantID, id)
-}
-
-func (l lazyConnectionState) SetStatusIf(ctx context.Context, tenantID, id uuid.UUID, s connectors.ConnectionStatus, reason string, cond func(state json.RawMessage, version int) bool) (bool, error) {
-	st, err := composition.Resolve[connectors.Store](l.container)
-	if err != nil {
-		return false, err
-	}
-	return st.SetStatusIf(ctx, tenantID, id, s, reason, cond)
-}
-
-func (l lazyConnectionState) UpdateInbound(ctx context.Context, tenantID, id uuid.UUID, fn func(state json.RawMessage) (json.RawMessage, error)) error {
-	st, err := composition.Resolve[connectors.Store](l.container)
-	if err != nil {
-		return err
-	}
-	return st.UpdateInbound(ctx, tenantID, id, fn)
 }
 
 // lazyUsage records the messages the connector sends outside a node in automation.connector_usage.

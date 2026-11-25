@@ -453,6 +453,33 @@ test('an email box signs in with a provider the application has, and offers no o
   await expect(row(page, 'support_inbox').locator('[data-status="connected"]')).toBeVisible()
 })
 
+test('an email card signs in with Google or Microsoft 365 in one click, only with providers the application has', async ({ page }) => {
+  await open(page, 'scenario=email&presets=gmail,m365')
+  const card = page.getByTestId('connector-imap')
+  await expect(card.getByTestId('signin-imap-gmail')).toHaveText('Sign in with Google')
+  await expect(card.getByTestId('signin-imap-m365')).toHaveText('Sign in with Microsoft 365')
+  // A connector without sign-in presets has no such buttons.
+  await expect(page.getByTestId('connector-smtp').locator('[data-testid^="signin-"]')).toHaveCount(0)
+  await card.getByTestId('signin-imap-m365').click()
+  // The provider sends the browser back with the new connection; it was made by the Microsoft 365 sign-in.
+  await expect(page).toHaveURL(/connected=/)
+  await expect(page.getByTestId('connector-imap').locator('[data-status="connected"]')).toHaveCount(2)
+  await page.keyboard.press('Escape')
+  await menu(page, 'drive_2')
+  await row(page, 'drive_2').getByTestId('menu-edit').click()
+  await expect(page.getByText('You will be sent to Microsoft 365')).toBeVisible()
+
+  // Only the providers whose OAuth2 client is configured are offered.
+  await page.evaluate(() => window.sessionStorage.clear())
+  await open(page, 'scenario=email')
+  await expect(page.getByTestId('connector-imap').getByTestId('signin-imap-gmail')).toBeVisible()
+  await expect(page.getByTestId('connector-imap').getByTestId('signin-imap-m365')).toHaveCount(0)
+  // An author without Connections.Manage is offered no sign-in.
+  await page.evaluate(() => window.sessionStorage.clear())
+  await open(page, 'scenario=email&manage=0')
+  await expect(page.locator('[data-testid^="signin-"]')).toHaveCount(0)
+})
+
 test('a saved login-and-password connection is not offered a provider sign-in on edit', async ({ page }) => {
   await open(page, 'scenario=email')
   await menu(page, 'office_inbox')

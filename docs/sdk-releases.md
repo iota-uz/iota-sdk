@@ -103,6 +103,29 @@ or npm version. The artifact is retained for 90 days. If it is deleted or expire
 during an incomplete publication, recovery stops: restore the exact verified
 artifact before retrying; do not substitute a new build or move the version tag.
 
+A partially published version whose Go module can never be served (the proxy
+refuses to build its zip, or its content disagrees with the checksum database)
+cannot be resumed: the tag is immutable, so every retry fails the same way. An
+administrator retires it from `.claude/tools`, with a token that can write
+sdk-release-state:
+
+```sh
+go run . sdk controller abandon <CANDIDATE_SHA>
+```
+
+The command first proves the failure: `go mod download -json` through
+proxy.golang.org, with an empty module cache, must answer with a permanent error
+(`create zip`, `malformed file path`, `checksum mismatch`, `SECURITY ERROR` or
+`invalid version`). A module that downloads, or a network or proxy failure, is
+refused. Only a `publishing` candidate is abandoned; a `testing` or `failed` one
+is superseded by the next release. The candidate moves to `releases` with the
+`abandoned` phase (the command prints the go command's error as the proof; record
+it on the release issue), the candidate slot is cleared and `ready` stays on the last ready release. The tag and the npm version
+stay as they are (deprecate the npm version separately). Consumers never resolve
+an abandoned version, and the next release takes a version above every abandoned
+one: the patch after it when its own bump would not clear it (0.55.0 abandoned,
+the next release is 0.55.1). Then start the release as usual.
+
 For a manual release or recovery:
 
 ```sh

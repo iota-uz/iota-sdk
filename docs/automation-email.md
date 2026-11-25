@@ -6,10 +6,29 @@ IMAP, а не API провайдеров: для Gmail и Microsoft 365 меня
 
 ## Подключение в приложении
 
+Модуль `automations` регистрирует оба коннектора сам: `automations.NewComponent()` без опций добавляет
+`smtp` и `imap` в каталог, если приложение не зарегистрировало свои коннекторы этих видов
+(`WithConnectors`). `automations.WithoutEmail()` их не подключает.
+
+`New` возвращает два коннектора: `smtp` (отправка) и `imap` (входящие, ожидание ответа, пометки; он же
+`engine.Poller`). Модуль собирает их так:
+
+| Что | Как |
+| --- | --- |
+| SMTP приложения как платформенный credential | `SMTP_*` (`smtpconfig.Config`) идёт в `email.Config.Platform`; модуль добавляет его в `connectors.PlatformCredentials` (`platform:smtp`, политика `auto`: доступен каждому тенанту, только для отправки), если `AUTOMATION_PLATFORM_CREDENTIALS` не называет `smtp`. Без `SMTP_HOST` платформенного SMTP нет. |
+| Токены входа через провайдера | `email.Config.OAuth` — `connectors.OAuth2` модуля (разрешается при первом запросе токена). |
+| Связь двух connection одного входа, курсор перед отправкой | `email.Config.Connections` — хранилище подключений модуля. |
+| Вложения | `services.NewEmailUploads` над сервисом загрузок SDK (`*coreservices.UploadService`, если он есть в композиции); файлы лежат в приватном пространстве (`<UPLOADS_PATH>/.private/automations-email/<tenant>`), анонимного URL у них нет. Без сервиса загрузок вложения приходят с ошибкой `no_storage`. |
+| Маршрут вложений | `GET /automations/attachments/{id}` (`presentation/attachments`) — только для пользователей с `Automations.Read` того же тенанта. |
+| Триггер `subject_contains` | `email.MatchHooks()` входит в `engine.Config.MatchHooks` по умолчанию (`WithEngineConfig` может дополнить). |
+| Опрос IMAP | Поллер движка (`automations.engine`) опрашивает connection, которые использует включённый граф: триггером `email.received.v1` или нодой `email.wait_reply`. Connection, который не использует ни один граф, опрашивается только чтобы держать курсор в конце ящика (`engine.Baseliner`): граф, включённый позже, не получит старой почты и не пропустит ответ, пришедший до его первого опроса. Курсор ставится не позже чем через минуту после подключения; кроме того, `email.send` перед отправкой ставит курсор ящиков отправителя и `Reply-To`, а также ящиков, чей логин IMAP не является адресом (адрес ящика неизвестен, ответ может прийти туда), у которых его нет. |
+| Вход через Google / Microsoft | На карточке коннектора — кнопки «Войти через Google» и «Войти через Microsoft 365» (только для провайдеров, у которых в приложении есть OAuth2-клиент, и только у пользователя с `Connections.Manage`). Кнопка вызывает `automations.connections.oauth_start` с `preset` и без имени: тот же аккаунт входит снова в свою пару, новый аккаунт получает пару с первыми свободными именами (`imap`, `imap_2`, …). В форме подключения поле «Аккаунт» (`preset`) предлагает «любой сервер» и тех же провайдеров; «Войти снова» повторяет вход с тем же `preset`. Сервис: `IntegrationsService.OAuthStartPreset` и `OAuthComplete`. |
+
+Своя сборка — например, с `Debug` или `Providers` для суверенного облака Microsoft:
+
 ```go
 cs := email.New(email.Config{
     Platform:    &smtpCfg,                                  // SMTP_* приложения (smtpconfig.Config)
-    Inbound:     rt.Inbound(),
     OAuth:       oauth,                                     // connectors.OAuth2 (Token обновляет токены)
     Uploads:     services.NewEmailUploads(uploadSvc, pool, uploadsCfg.PrivatePath()), // вложения входящих писем
     Connections: store,                                     // связывает два connection одного входа
@@ -17,24 +36,18 @@ cs := email.New(email.Config{
 automations.NewComponent(automations.WithConnectors(cs...))
 ```
 
-`New` возвращает два коннектора: `smtp` (отправка) и `imap` (входящие, ожидание ответа, пометки; он же
-`engine.Poller`).
+Клиенты OAuth2 провайдеров — платформенные credentials `google_oauth` и `microsoft_oauth`:
 
-Что подключает модуль `automations` сам:
+```bash
+AUTOMATION_PLATFORM_CREDENTIALS='{"google_oauth": {"client_id": "…", "client_secret": "…"},
+  "microsoft_oauth": {"client_id": "…", "client_secret": "…"}}'
+```
 
-| Что | Как |
-| --- | --- |
-| SMTP приложения как платформенный credential | `smtp.PlatformCredential()` берёт `Config.Platform`; модуль добавляет его в `connectors.PlatformCredentials` (`platform:smtp`, политика `auto`: доступен каждому тенанту, только для отправки), если `AUTOMATION_PLATFORM_CREDENTIALS` не называет `smtp`. |
-| Маршрут вложений | `GET /automations/attachments/{id}` (`presentation/attachments`) — только для пользователей с `Automations.Read` того же тенанта. |
-| Вход через Google / Microsoft | Форма подключения: поле «Аккаунт» (`preset`) предлагает «любой сервер» и провайдеров из `oauth_presets` (скрыты те, для кого нет OAuth2-клиента); выбор провайдера отправляет в `oauth_start` с `preset`, «Войти снова» повторяет вход с тем же `preset`. Сервис: `IntegrationsService.OAuthStartPreset` и `OAuthComplete`; RPC `automations.connections.oauth_start` принимает `preset`, список коннекторов отдаёт `oauth_presets` — только пресеты, для которых в приложении есть OAuth2-клиент. |
-
-Что остаётся приложению:
-
-| Что | Как |
-| --- | --- |
-| Триггер `subject_contains` | `engine.Config.MatchHooks` ← `email.MatchHooks()`. Без этого граф с триггером `email.received.v1` не сохранится: правило сопоставления не зарегистрировано. |
-| Опрос IMAP | `rt.NewPoller(...).Serve(ctx)`; опрашиваются connection, которые использует включённый граф: триггером `email.received.v1` или нодой `email.wait_reply`. Connection, который не использует ни один граф, опрашивается только чтобы держать курсор в конце ящика (`engine.Baseliner`): граф, включённый позже, не получит старой почты и не пропустит ответ, пришедший до его первого опроса. Курсор ставится не позже чем через минуту после подключения; кроме того, `email.send` перед отправкой ставит курсор ящиков отправителя и `Reply-To` (`Config.Connections`), у которых его нет, а базовая линия уступает графу, включённому после скана, который назвал подключение свободным (сколько бы он ни оставался в кэше). |
-| Вложения | `services.NewEmailUploads` — адаптер над сервисом загрузок SDK; файлы лежат в приватном пространстве (`.private/automations-email`), анонимного URL у них нет. |
+Адрес возврата, который регистрируется у провайдера: `<origin приложения>/settings/integrations/oauth/callback`.
+Google: OAuth-клиент типа «Web application», scope `https://mail.google.com/` (для внешних пользователей —
+проверка приложения Google). Microsoft Entra: приложение с типом «Web», делегированные права Office 365
+Exchange Online `SMTP.Send` и `IMAP.AccessAsUser.All`, `offline_access`, `openid`, `email`, `profile`; в
+арендаторе Microsoft 365 у ящика должен быть включён «Authenticated SMTP».
 
 ## Подключение тенанта
 

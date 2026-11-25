@@ -145,7 +145,7 @@
         },
         "PresetProvider": {
           "gmail": "Google",
-          "m365": "Microsoft"
+          "m365": "Microsoft 365"
         }
       },
       "Test": {

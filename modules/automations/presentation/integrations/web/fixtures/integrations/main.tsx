@@ -34,6 +34,7 @@ const fake: FakeOptions = {
   testFailOnce: params.has('testFailOnce'),
   refreshFails: params.has('refreshFails'),
   conflictOnce: params.has('conflictOnce') ? (params.get('conflictOnce') === 'error' ? 'error' : 'result') : '',
+  ...(params.has('presets') ? { presets: params.get('presets')!.split(',').filter(Boolean) } : {}),
   calls: [],
 }
 ;(window as unknown as { __calls: FakeOptions['calls'] }).__calls = fake.calls
