@@ -123,6 +123,9 @@ func StartPlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.C
 		}
 		// The reservation committed above, read again under the lock: nothing is set up without it, and the setup
 		// ends while a quarter of the committed lease is still left (the lock wait has used some of it).
+		// The deadline counts from before the lease is read: whatever passes between the database's reading and the
+		// deadline's start is taken from the budget, so the deadline never passes later than the margin allows.
+		readFrom := time.Now()
 		var leftMs float64
 		err := tx.QueryRow(ctx, `SELECT extract(epoch FROM lease_until - clock_timestamp()) * 1000 FROM automation.exclusive_identities
 			WHERE platform AND kind = $1 AND external = $2 FOR UPDATE`, string(kind), external).Scan(&leftMs)
@@ -137,7 +140,7 @@ func StartPlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.C
 			startErr = errLeaseTooShort
 			return nil
 		}
-		startCtx, cancel := context.WithTimeout(ctx, budget)
+		startCtx, cancel := context.WithDeadline(ctx, readFrom.Add(budget))
 		startErr = start(startCtx)
 		cancel()
 		// The lease counts from the moment start returned (the lock wait and the provider call would shorten it).
