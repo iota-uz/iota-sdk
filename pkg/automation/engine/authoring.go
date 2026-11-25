@@ -77,6 +77,11 @@ type DryRunInput struct {
 	// default, the editor's), RealCallsDecisions (decision nodes only) or RealCallsNone (cached reads the
 	// cache only). A node not called is answered from Context, as a captured one.
 	RealCalls string
+	// Vars, when set, are the subject's variables as given (a backtest's snapshot of the record at its
+	// event) instead of the record as the author reads it now: a JSON object.
+	Vars json.RawMessage
+	// Now is the time the context's now reads (a backtest's event time); zero: the current time.
+	Now time.Time
 }
 
 // DryRunResult is the trace of a dry run.
@@ -262,7 +267,21 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 	}
 	sub := a.Subject
 	sub.TenantID = a.TenantID
-	gctx, err := au.r.BuildRunContext(ctx, RunContextInput{TenantID: a.TenantID, AutomationID: in.AutomationID, Subject: in.Subject, RunAs: sub, Now: time.Now(), Overrides: overrides})
+	rc := RunContextInput{TenantID: a.TenantID, AutomationID: in.AutomationID, Subject: in.Subject, RunAs: sub, Now: time.Now(), Overrides: overrides}
+	if !in.Now.IsZero() {
+		rc.Now = in.Now
+	}
+	if len(in.Vars) > 0 {
+		var vars map[string]any
+		if err := expr.UnmarshalJSON(in.Vars, &vars); err != nil {
+			return DryRunResult{}, fmt.Errorf("%w: vars is not a JSON object", ErrInvalidInput)
+		}
+		if vars == nil {
+			vars = map[string]any{}
+		}
+		rc.Vars = vars
+	}
+	gctx, err := au.r.BuildRunContext(ctx, rc)
 	if err != nil {
 		return DryRunResult{}, &host.InfraError{Err: err}
 	}

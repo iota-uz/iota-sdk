@@ -179,6 +179,12 @@ func NewRuntime(cfg Config) (*Runtime, error) {
 // Service is the API of graphs, versions and runs.
 func (r *Runtime) Service() Service { return r.service }
 
+// Subjects is the loader of subjects' variables the runtime reads (Config.Subjects; nil when none).
+func (r *Runtime) Subjects() SubjectLoader { return r.cfg.Subjects }
+
+// Catalog is the catalog registry the runtime validates and runs graphs with.
+func (r *Runtime) Catalog() catalog.Registry { return r.cfg.Catalog }
+
 // Natives are the native workflow contracts the engine implements: automation.run.
 func (r *Runtime) Natives() map[string]workflow.NativeContract {
 	call := r.calls.contract()
