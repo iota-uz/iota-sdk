@@ -498,10 +498,10 @@
   ],
   "candidate": {
     "version": "0.55.1",
-    "source": "562a8f99336c8cc3949c059fbb8a182fa0e7cd20",
-    "sha": "a28b431c887bb533a9777894a4e05e018b30e370",
-    "phase": "failed",
-    "run_id": "45579236593"
+    "source": "a5cb22aeab88ebbfcc550f8eb94a16a3eb966435",
+    "sha": "9389e073a6bc828f653bc203d4fd47be12733a63",
+    "phase": "testing",
+    "run_id": "45584881563"
   },
   "ready": {
     "version": "0.54.0",
