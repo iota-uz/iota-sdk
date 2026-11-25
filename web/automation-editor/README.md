@@ -72,7 +72,7 @@ The host adds `runs`, `run` and, optionally, `version`, `cancelRun`, `retryRun` 
 chunk); a host that passes `runsBody` keeps its own.
 
 - **Runs tab** (RV1–RV2, RV9): a tab in the same toolbar; the draft, its version and Save survive the
-  switch, the canvas tools are hidden. The list searches by subject (`runs({ subject })`, a key prefix),
+  switch, the canvas tools are hidden. The list searches by subject (`runs({ subject })`: a key prefix, or the name the host finds by it),
   filters by state chips, shows the state as a dot and a word, the subject, node, version, time and the
   phrase of a failure; ↑ ↓ Home End move between rows. The list is the open version's history
   (`runs({ version })`); a run of another version still opens by its link. With no run chosen the newest

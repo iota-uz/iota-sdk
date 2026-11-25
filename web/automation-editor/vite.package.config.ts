@@ -9,7 +9,8 @@ const rootDir = path.dirname(fileURLToPath(import.meta.url))
 // @xyflow/system and d3 are bundled into the chunk, as Lens bundles ECharts.
 export default defineConfig({
   plugins: [solid({ hot: false })],
-  resolve: { dedupe: ['solid-js'] },
+  // d3-color is replaced by a stub that never matches a color (src/xy/d3-color.ts).
+  resolve: { alias: { 'd3-color': path.resolve(rootDir, 'src/xy/d3-color.ts') }, dedupe: ['solid-js'] },
   build: {
     outDir: path.resolve(rootDir, 'package-dist'),
     emptyOutDir: true,

@@ -313,7 +313,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       const q = (p.subject ?? '').toLowerCase()
       const items = runs
         .filter((r) => r.run.automation_id === p.automation_id && (!p.version || r.run.version === p.version) && (!p.state || p.state.length === 0 || p.state.includes(r.run.state)))
-        .filter((r) => !q || r.run.subject.key.toLowerCase().startsWith(q))
+        .filter((r) => !q || r.run.subject.key.toLowerCase().startsWith(q) || (r.run.subject.label ?? '').toLowerCase().includes(q))
         .filter((r) => !p.node || r.steps.some((st) => st.node_id === p.node))
         .map((r) => r.run)
       return { items, next_cursor: null }
