@@ -951,3 +951,46 @@ func TestALocatorMustGiveEachSecretItsOwnPathUnderTheRoot(t *testing.T) {
 	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1`, e.tenant).Scan(&n))
 	assert.Zero(t, n, "nothing was written")
 }
+
+// movedLocator is a locator whose prefix moved from test/ to v2/: new values go under the new root, and the
+// old one stays swept (FormerRoots).
+type movedLocator struct{ secrets.Locator }
+
+func (movedLocator) FormerRoots(tenantID uuid.UUID) []secrets.Ref {
+	return []secrets.Ref{secrets.DefaultLocator("test/").Root(tenantID)}
+}
+
+// After a prefix change the old root keeps being swept: a value written under it late (after its secret
+// was deleted and the tombstone retired) is removed, a live secret created before the change keeps its
+// value, and new secrets are created under the new root.
+func TestAFormerRootIsStillSwept(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t) // e.mgr locates under test/
+	old, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "OLD_KEEP", Value: "kept"})
+	require.NoError(t, err)
+	gone, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "OLD_GONE", Value: "v"})
+	require.NoError(t, err)
+	require.NoError(t, e.mgr.Delete(e.ctx, e.tenant, gone.ID))
+	_, err = e.db.Exec(e.ctx, `DELETE FROM automation.secrets WHERE id = $1`, gone.ID) // the tombstone retired
+	require.NoError(t, err)
+
+	moved := secrets.NewManager(e.db, e.store, e.store, movedLocator{Locator: secrets.DefaultLocator("v2/")})
+	fresh, err := moved.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "NEW", Value: "new"})
+	require.NoError(t, err, "a path under the new root passes")
+	assert.Contains(t, fresh.Ref.Path, "v2/tenants/")
+
+	// The write held by the store lands under the old root now.
+	_, err = e.store.Put(e.ctx, secrets.Ref{TenantID: e.tenant, Path: gone.Ref.Path}, map[string]string{secrets.ValueKey: "late"})
+	require.NoError(t, err)
+	_, err = moved.List(e.ctx, e.tenant)
+	require.NoError(t, err)
+	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: gone.Ref.Path})
+	require.ErrorIs(t, err, secrets.ErrNotFound, "swept from the former root")
+	got, err := e.res.Resolve(e.ctx, e.tenant, "OLD_KEEP")
+	require.NoError(t, err)
+	assert.Equal(t, "kept", got)
+	got, err = e.res.Resolve(e.ctx, e.tenant, "NEW")
+	require.NoError(t, err)
+	assert.Equal(t, "new", got)
+	assert.NotEqual(t, old.Ref.Path, fresh.Ref.Path)
+}

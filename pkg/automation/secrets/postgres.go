@@ -64,10 +64,10 @@ type manager struct {
 	meta    MetadataReader
 	locator Locator
 
-	// sweptTo is, per tenant, the last unreferenced path a sweep tried: the next sweep starts after it, so
-	// values that fail to delete never keep the ones behind them waiting.
+	// sweptTo is, per tenant and root, the last unreferenced path a sweep tried: the next sweep starts after
+	// it, so values that fail to delete never keep the ones behind them waiting.
 	mu      sync.Mutex
-	sweptTo map[uuid.UUID]string
+	sweptTo map[string]string
 }
 
 // NewManager administers secrets: the records in automation.secrets and the values through writer. meta
@@ -482,7 +482,31 @@ func (m *manager) purge(ctx context.Context, tenantID uuid.UUID) {
 	cancel()
 	sweep, cancelSweep := cleanupContext(ctx)
 	defer cancelSweep()
-	m.sweep(sweep, tenantID)
+	for _, root := range m.roots(tenantID) {
+		if sweep.Err() != nil {
+			return
+		}
+		m.sweep(sweep, tenantID, root)
+	}
+}
+
+// roots are the roots the sweep covers: the locator's current one and its former ones (FormerRoots), each
+// once, never an empty one or another tenant's.
+func (m *manager) roots(tenantID uuid.UUID) []Ref {
+	all := []Ref{m.locator.Root(tenantID)}
+	if f, ok := m.locator.(FormerRoots); ok {
+		all = append(all, f.FormerRoots(tenantID)...)
+	}
+	seen := map[string]bool{}
+	out := make([]Ref, 0, len(all))
+	for _, r := range all {
+		if r.Path == "" || r.TenantID != tenantID || seen[r.Path] {
+			continue
+		}
+		seen[r.Path] = true
+		out = append(out, r)
+	}
+	return out
 }
 
 // sweepBatch is how many unreferenced values one sweep removes.
@@ -493,8 +517,8 @@ var sweepBatch = 50
 // tombstone retired, however long the store held it — is still listed by the store and removed by a later
 // sweep. The values are listed before the records are read: a create stages its record before it writes,
 // so a value that is listed has its record visible by then, and a live secret's value is never taken.
-func (m *manager) sweep(ctx context.Context, tenantID uuid.UUID) {
-	paths, err := m.writer.List(ctx, m.locator.Root(tenantID))
+func (m *manager) sweep(ctx context.Context, tenantID uuid.UUID, root Ref) {
+	paths, err := m.writer.List(ctx, root)
 	if err != nil || len(paths) == 0 {
 		return
 	}
@@ -527,8 +551,9 @@ func (m *manager) sweep(ctx context.Context, tenantID uuid.UUID) {
 	sort.Strings(orphans)
 	// Start after the path the last sweep stopped at, wrapping around: every orphan gets its turn, however
 	// many before it keep failing.
+	cursor := tenantID.String() + "|" + root.Path
 	m.mu.Lock()
-	after := m.sweptTo[tenantID]
+	after := m.sweptTo[cursor]
 	m.mu.Unlock()
 	start := sort.SearchStrings(orphans, after)
 	if start < len(orphans) && orphans[start] == after {
@@ -542,9 +567,9 @@ func (m *manager) sweep(ctx context.Context, tenantID uuid.UUID) {
 		_ = m.writer.Delete(ctx, Ref{TenantID: tenantID, Path: p})
 		m.mu.Lock()
 		if m.sweptTo == nil {
-			m.sweptTo = map[uuid.UUID]string{}
+			m.sweptTo = map[string]string{}
 		}
-		m.sweptTo[tenantID] = p
+		m.sweptTo[cursor] = p
 		m.mu.Unlock()
 	}
 }

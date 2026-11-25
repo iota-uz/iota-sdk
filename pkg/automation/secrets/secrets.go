@@ -108,6 +108,15 @@ type Locator interface {
 	Root(tenantID uuid.UUID) Ref
 }
 
+// FormerRoots is an optional interface of a Locator whose prefix changed: the roots values were written
+// under before, which the records keep sweeping as they sweep Root (listing the store before reading the
+// records, keeping staged ones). A write the store accepted under an old root and commits late is found
+// there. Keep a former root here as long as a write under it could still commit; when that cannot be
+// established, keep it for good (it costs one listing per cleanup).
+type FormerRoots interface {
+	FormerRoots(tenantID uuid.UUID) []Ref
+}
+
 // DefaultLocator is "<prefix>tenants/<tenant>/automation/secrets/<secret>"; prefix is the environment
 // ("prod/"), may be empty.
 func DefaultLocator(prefix string) Locator { return defaultLocator{prefix: prefix} }
