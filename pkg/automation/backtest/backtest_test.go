@@ -3,6 +3,8 @@ package backtest_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/backtest"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
@@ -127,11 +130,17 @@ type env struct {
 	svc       *backtest.Svc
 	decisions *atomic.Int64
 	sent      *atomic.Int64
+	store     connectors.Store
+	dir       connectors.Directory
 }
 
 var allPerms = []string{engine.PermRead, engine.PermAuthor, engine.PermEnable, engine.PermOperate}
 
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T) *env { return newEnvWith(t, nil) }
+
+// newEnvWith is newEnv whose catalog and backtest configuration extra adjusts (it runs before the
+// runtime is built).
+func newEnvWith(t *testing.T, extra func(e *env, reg catalog.Registry, cfg *backtest.Config)) *env {
 	t.Helper()
 	h := itf.NewHarness(t, itf.HarnessConfig{
 		Name:      "automation_backtest",
@@ -143,7 +152,11 @@ func newEnv(t *testing.T) *env {
 	e.subjects.Grant(1, allPerms...)
 	e.subjects.Grant(2, allPerms...)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	reg := catalog.NewRegistry(nil)
+	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": []byte("0123456789abcdef0123456789abcdef")})
+	require.NoError(t, err)
+	e.store = connectors.NewStore(e.db, keys, nil, nil, nil)
+	reg := catalog.NewRegistry(e.store)
+	e.dir = connectors.NewDirectory(reg)
 	require.NoError(t, reg.RegisterTriggers(engine.Triggers()))
 	require.NoError(t, reg.RegisterTriggers(catalog.FromNativeEvents(nativeEvents{messageEvent})))
 	for _, spec := range append(graph.BuiltinNodes(nil, []string{evMessage}), graph.FlowNodes(nil)...) {
@@ -161,8 +174,12 @@ func newEnv(t *testing.T) *env {
 	rt, err = engine.NewRuntime(engine.Config{DB: e.db, Workflows: wf, Users: e.subjects, Catalog: reg, Logger: logger})
 	require.NoError(t, err)
 	e.rt = rt
-	e.svc, err = backtest.New(backtest.Config{DB: e.db, Automations: rt.Service(), Authoring: rt.Authoring(), Catalog: reg, Users: e.subjects,
-		Logger: logger, LeaseTTL: time.Second})
+	cfg := backtest.Config{DB: e.db, Automations: rt.Service(), Authoring: rt.Authoring(), Catalog: reg, Users: e.subjects,
+		Logger: logger, LeaseTTL: time.Second}
+	if extra != nil {
+		extra(e, reg, &cfg)
+	}
+	e.svc, err = backtest.New(cfg)
 	require.NoError(t, err)
 	return e
 }
@@ -468,4 +485,124 @@ func TestLimitsAndRights(t *testing.T) {
 	other := engine.Actor{TenantID: uuid.New(), UserID: 1, Origin: engine.OriginHuman, Subject: spi.Subject{Permissions: allPerms}}
 	_, err = e.svc.GetDataset(ctx, other, first)
 	require.ErrorIs(t, err, engine.ErrNotFound)
+}
+
+const (
+	kindMail = catalog.ConnectorKind("acmemail")
+	evMail   = "acmemail.received.v1"
+)
+
+// mailConnector is a connector whose history is a list of messages; n more are generated after them.
+type mailConnector struct {
+	history []backtest.Event
+	n       int
+}
+
+func (m *mailConnector) Kind() catalog.ConnectorKind { return kindMail }
+func (m *mailConnector) Descriptor() connectors.Descriptor {
+	return connectors.Descriptor{Kind: kindMail, Title: map[string]string{"en": "Mail"}, Auth: connectors.AuthAPIKey, Inbound: true,
+		Credentials: json.RawMessage(`{"type":"object","properties":{"token":{"type":"string","x-secret":true}},"additionalProperties":false}`)}
+}
+func (m *mailConnector) Test(context.Context, connectors.Credentials) (connectors.Identity, error) {
+	return connectors.Identity{Display: "box"}, nil
+}
+func (m *mailConnector) Nodes() []catalog.NodeType          { return nil }
+func (m *mailConnector) Triggers() []catalog.TriggerSource { return []catalog.TriggerSource{mailEvents{}} }
+
+type mailEvents struct{}
+
+func (mailEvents) Requires() []catalog.ConnectorKind { return nil }
+func (mailEvents) Events() []graph.EventSpec {
+	return []graph.EventSpec{{Key: evMail, Title: "Mail", Subject: graph.SubjectConversation,
+		Payload: expr.Fields{{Name: "text", Field: expr.StringField}}}}
+}
+
+func (m *mailConnector) ImportHistory(ctx context.Context, ref backtest.ConnectionRef, w backtest.TimeWindow, _ json.RawMessage, emit func(backtest.Event) error) error {
+	if ref.Credentials["token"] != "tok" {
+		return errors.New("not opened with its credentials")
+	}
+	for _, ev := range m.history {
+		if err := emit(ev); err != nil {
+			return err
+		}
+	}
+	for i := 0; i < m.n; i++ {
+		if err := emit(backtest.Event{Kind: evMail, Key: fmt.Sprintf("gen-%d", i), Subject: engine.SubjectRef{Entity: graph.SubjectConversation, Key: "c"},
+			Payload: json.RawMessage(`{"text": "generated"}`), OccurredAt: w.From.Add(time.Minute)}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+const mailGraph = `{"name": "Mail", "triggers": [{"id": "m", "event": "acmemail.received.v1"}],
+ "nodes": [{"id": "cls", "type": "acme.classify", "params": {"text": "{{ event.text }}"}}, {"id": "fin", "type": "end", "params": {}}],
+ "edges": [{"from": {"node": "m", "outcome": "fired"}, "to": "cls"},
+  {"from": {"node": "cls", "outcome": "sales"}, "to": "fin"}, {"from": {"node": "cls", "outcome": "support"}, "to": "fin"}, {"from": {"node": "cls", "outcome": "failed"}, "to": "fin"}]}`
+
+// A connection's history is imported through its connector, by the one who may use the connection; an
+// event already in the dataset is not imported twice; past the limit of a dataset the import says how
+// many events were left out.
+func TestConnectionHistoryImport(t *testing.T) {
+	mc := &mailConnector{}
+	e := newEnvWith(t, func(e *env, _ catalog.Registry, cfg *backtest.Config) {
+		require.NoError(t, e.dir.Register(mc))
+		cfg.Connections, cfg.Connectors = e.store, e.dir
+	})
+	ctx := context.Background()
+	a := e.human()
+	conn, err := e.store.Save(ctx, connectors.Connection{TenantID: e.tenant, Kind: kindMail, Name: "box", DisplayName: "Box", CreatedBy: 1},
+		connectors.Credentials{"token": "tok"})
+	require.NoError(t, err)
+	am, _, err := e.rt.Service().Create(ctx, a, engine.CreateInput{Graph: json.RawMessage(mailGraph)})
+	require.NoError(t, err)
+	ds, err := e.svc.CreateDataset(ctx, a, backtest.CreateDatasetInput{AutomationID: am.ID, Name: "Mailbox"})
+	require.NoError(t, err)
+	now := time.Now()
+	mc.history = []backtest.Event{
+		{Kind: evMail, Key: "<1@x>", Title: "Buy", Subject: engine.SubjectRef{Entity: graph.SubjectConversation, Key: "c-1"}, Payload: json.RawMessage(`{"text": "buy", "extra": "dropped"}`), OccurredAt: now.Add(-time.Hour)},
+		{Kind: evMail, Key: "<1@x>", Title: "Buy again", Payload: json.RawMessage(`{"text": "buy"}`), OccurredAt: now.Add(-time.Hour)},
+		{Kind: "acme.unknown.v1", Key: "<2@x>", Payload: json.RawMessage(`{}`)},
+	}
+
+	src, err := e.svc.Sources(ctx, a, am.ID)
+	require.NoError(t, err)
+	require.Len(t, src, 1)
+	assert.Equal(t, backtest.SourceOption{Kind: backtest.ImportConnection, ConnectionID: conn.ID, Title: "Box", ConnectorKind: string(kindMail)}, src[0])
+
+	// Another author without the right to the connection may not import its history.
+	other := e.actor(2, engine.OriginHuman)
+	_, err = e.svc.Import(ctx, other, ds, backtest.ImportSource{Kind: backtest.ImportConnection, ConnectionID: conn.ID, Window: backtest.TimeWindow{From: now.Add(-24 * time.Hour)}})
+	require.ErrorIs(t, err, engine.ErrForbidden)
+	srcOther, err := e.svc.Sources(ctx, other, am.ID)
+	require.NoError(t, err)
+	assert.Empty(t, srcOther)
+
+	job, err := e.svc.Import(ctx, a, ds, backtest.ImportSource{Kind: backtest.ImportConnection, ConnectionID: conn.ID, Window: backtest.TimeWindow{From: now.Add(-24 * time.Hour)}})
+	require.NoError(t, err)
+	e.drain()
+	ij, err := e.svc.ImportStatus(ctx, a, job)
+	require.NoError(t, err)
+	assert.Equal(t, backtest.StatusDone, ij.Status, ij.Error)
+	assert.Equal(t, 1, ij.Imported)
+	assert.Equal(t, 1, ij.Duplicates)
+	assert.Equal(t, 1, ij.Unreadable)
+	page, err := e.svc.Examples(ctx, a, ds, backtest.ExampleFilter{})
+	require.NoError(t, err)
+	require.Len(t, page.Items, 1)
+	assert.Equal(t, backtest.SourceHistory, page.Items[0].Source)
+	assert.JSONEq(t, `{"kind": "acmemail.received.v1", "text": "buy"}`, string(page.Items[0].Event), "undeclared fields are not kept")
+
+	rep := e.run(a, backtest.RunInput{DatasetID: ds})
+	assert.Equal(t, map[string]int{"sales": 1}, classifier(rep, "cls").Distribution)
+
+	// Past MaxExamples the import counts what it left out.
+	mc.history, mc.n = nil, backtest.MaxExamples+2
+	job, err = e.svc.Import(ctx, a, ds, backtest.ImportSource{Kind: backtest.ImportConnection, ConnectionID: conn.ID, Window: backtest.TimeWindow{From: now.Add(-24 * time.Hour)}})
+	require.NoError(t, err)
+	e.drain()
+	ij, err = e.svc.ImportStatus(ctx, a, job)
+	require.NoError(t, err)
+	assert.Equal(t, backtest.MaxExamples-1, ij.Imported)
+	assert.Equal(t, 3, ij.Overflow)
 }

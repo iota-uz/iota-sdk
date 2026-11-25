@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/backtest"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/flow"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
@@ -93,6 +94,41 @@ type unavailableStarter struct{}
 func (unavailableStarter) StartFromStep(context.Context, pgx.Tx, engine.StepContext, engine.StepStart) (engine.RunRef, error) {
 	return engine.RunRef{}, &engine.StepError{Code: flow.CodeUnavailable,
 		Message: "the automation engine does not run in this composition: no workflow engine, subject loader or database"}
+}
+
+// WithHistorySources are the modules' sources of history a backtest's dataset may import from (records
+// of a module as events, #1389).
+func WithHistorySources(sources ...backtest.HistorySource) Option {
+	return func(c *component) { c.historySources = append(c.historySources, sources...) }
+}
+
+// backtestHolder is the composition's backtest service; svc is nil when there is no engine.
+type backtestHolder struct{ svc *backtest.Svc }
+
+// Backtests is the composition's backtest service (datasets, history imports and backtests of #1389)
+// for the application's own wiring (the MCP tools of mcpops.WithBacktests); nil when the composition
+// runs no automation engine.
+func Backtests(container *composition.Container) (backtest.Service, error) {
+	if !composition.Has[*backtestHolder](container) {
+		return nil, nil
+	}
+	h, err := composition.Resolve[*backtestHolder](container)
+	if err != nil || h.svc == nil {
+		return nil, err
+	}
+	return h.svc, nil
+}
+
+// backtests is the composition's backtest service, nil without an engine.
+func (c *component) backtests(container *composition.Container) (*backtest.Svc, error) {
+	if c.noEngine || !composition.Has[*backtestHolder](container) {
+		return nil, nil //nolint:nilnil // no engine: no backtests
+	}
+	h, err := composition.Resolve[*backtestHolder](container)
+	if err != nil {
+		return nil, err
+	}
+	return h.svc, nil
 }
 
 // engineHolder is the composition's engine; rt is nil when the composition cannot run one (the module's
@@ -185,6 +221,36 @@ func (c *component) buildEngine(b *composition.Builder) {
 		}
 		return rt, nil
 	})
+	composition.Provide[*backtestHolder](b, func(container *composition.Container) (*backtestHolder, error) {
+		rt, err := c.runtime(container)
+		if err != nil || rt == nil {
+			return &backtestHolder{}, err
+		}
+		db, err := composition.Resolve[*pgxpool.Pool](container)
+		if err != nil {
+			return nil, err
+		}
+		users, err := composition.Resolve[host.SubjectLoader](container)
+		if err != nil {
+			return nil, err
+		}
+		store, err := composition.Resolve[connectors.ConnectionStore](container)
+		if err != nil {
+			return nil, err
+		}
+		dir, err := composition.Resolve[connectors.Directory](container)
+		if err != nil {
+			return nil, err
+		}
+		svc, err := backtest.New(backtest.Config{
+			DB: db, Automations: rt.Service(), Authoring: rt.Authoring(), Catalog: rt.Catalog(), Users: users, Subjects: rt.Subjects(),
+			Connections: store, Connectors: dir, Sources: c.historySources, Logger: slog.Default(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &backtestHolder{svc: svc}, nil
+	})
 	wiring.ContributeNativeWorkflows(b, func(container *composition.Container) (map[string]workflow.NativeContract, error) {
 		rt, err := c.runtime(container)
 		if err != nil || rt == nil {
@@ -227,13 +293,25 @@ func (c *component) buildEngine(b *composition.Builder) {
 			return nil, err
 		}
 		poller := rt.NewPoller(engine.PollerConfig{Connections: store, Connectors: dir})
+		bt, err := c.backtests(container)
+		if err != nil {
+			return nil, err
+		}
 		return []composition.Hook{{Name: "automations.engine", Start: func(ctx context.Context) (composition.StopFn, error) {
 			ctx, cancel := context.WithCancel(composition.LifecycleContext(ctx))
-			done := make(chan struct{}, 2)
+			done := make(chan struct{}, 3)
 			go func() { rt.Serve(ctx); done <- struct{}{} }()
 			go func() { poller.Serve(ctx); done <- struct{}{} }()
+			// The backtest worker: imports of history and backtests run in the background (#1389).
+			go func() {
+				if bt != nil {
+					bt.Serve(ctx)
+				}
+				done <- struct{}{}
+			}()
 			return func(context.Context) error {
 				cancel()
+				<-done
 				<-done
 				<-done
 				return nil

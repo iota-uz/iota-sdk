@@ -50,6 +50,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/automation/backtest"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/notify"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
@@ -148,6 +149,8 @@ type component struct {
 	noEmail      bool
 	noTelegram   bool
 	subjectNames tasks.SubjectResolver
+	// historySources are the modules' history sources of backtests (WithHistorySources).
+	historySources []backtest.HistorySource
 }
 
 func (c *component) Descriptor() composition.Descriptor {

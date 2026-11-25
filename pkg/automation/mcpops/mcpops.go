@@ -38,6 +38,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/backtest"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -92,6 +93,7 @@ type options struct {
 	subjects  SubjectResolver
 	behaviors *graph.Behaviors
 	memory    engine.Memory
+	backtests backtest.Service
 }
 
 // WithSubjects replaces how the acting user's rights are read.

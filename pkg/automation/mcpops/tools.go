@@ -118,6 +118,7 @@ func Tools(svc engine.Service, auth engine.Authoring, reg catalog.Registry, urls
 		Input: dryRunSchema(), Annotations: readOnly("Dry-run automation"), Policy: AuthorPolicy,
 	}, t.dryRun))
 	t.addState(add, readOnly)
+	t.backtestTools(add)
 	if len(errs) > 0 {
 		return nil, serrors.Wrap(op, errors.Join(errs...))
 	}
