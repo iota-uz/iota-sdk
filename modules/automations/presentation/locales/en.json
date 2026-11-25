@@ -131,6 +131,13 @@
         "LoadLatest": "Load the latest version",
         "Reloaded": "The latest version is loaded. Check the form and save again.",
         "RetryChanged": "The first save may have gone through with the earlier values. Close the form and edit the connection from the list.",
+        "Warnings": {
+          "foreign_webhook": "This bot is already used by another service. After you connect it, that service will stop receiving messages.",
+          "polling_unknown": "We cannot tell whether another service reads this bot's messages (by polling). If one does, it will stop receiving them after you connect."
+        },
+        "ConfirmWarning": "Connect anyway",
+        "ConfirmRequired": "Confirm that you want to connect this bot despite the warnings above.",
+        "BotInUse": "This bot is already reserved: it is connected here as another connection, or it belongs to another account or to the platform. Use a different bot, or ask an administrator. If you manage the existing connection, delete it first (disabling it keeps the bot reserved).",
         "Preset": {
           "custom": "Any server (login and password)",
           "gmail": "Gmail (sign in with Google)",

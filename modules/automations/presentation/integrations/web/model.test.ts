@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  MSG, availablePresets, connectionPreset, knownPresets, presetOptions, changedCredentials, oauthErrorText, reasonText, errorCode, groupByCategory, missingRequired, newCredentials, saveErrorText, schemaFields, slugify,
+  MSG, availablePresets, connectionPreset, knownPresets, presetOptions, changedCredentials, oauthErrorText, reasonText, errorCode, groupByCategory, missingRequired, newCredentials, saveErrorText, schemaFields, slugify, warningText,
   translator, usageHref, usedByText, type ConnectorView,
 } from './model'
 
@@ -93,6 +93,14 @@ describe('model', () => {
   it('links a use to the graph and its node', () => {
     expect(usageHref('/automations/', { automation_id: 'a1', name: 'n', version: 2, enabled: true, node_ids: ['send'] })).toBe('/automations/a1?node=send')
     expect(usageHref('/automations', { automation_id: 'a1', name: 'n', version: 2, enabled: true, node_ids: [] })).toBe('/automations/a1')
+  })
+})
+
+describe('warningText', () => {
+  it('shows the phrase of the code, whatever bot the confirmation is bound to', () => {
+    const t = (key: string) => key
+    expect(warningText(t, 'foreign_webhook')).toBe('Form.Warnings.foreign_webhook')
+    expect(warningText(t, 'polling_unknown@222222')).toBe('Form.Warnings.polling_unknown')
   })
 })
 

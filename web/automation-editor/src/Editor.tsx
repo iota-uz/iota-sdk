@@ -1024,6 +1024,7 @@ function EditorBody(props: EditorProps): JSX.Element {
                   locale={props.locale}
                   readOnly={readOnly()}
                   fieldSlot={props.fieldSlot}
+                  searchOptions={props.api.searchOptions?.bind(props.api)}
                   errors={allErrors()}
                   focusField={focusField()}
                   onChange={(graph, key) => commitGraph(graph, key)}
