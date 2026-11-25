@@ -282,6 +282,20 @@ func (s *Server) Deliver(user, mailbox string, raw []byte) uint32 {
 	return uint32(d.UID)
 }
 
+// DeliverAt puts a message into a mailbox as received by the server at the time (its INTERNALDATE).
+func (s *Server) DeliverAt(user, mailbox string, raw []byte, at time.Time) uint32 {
+	s.t.Helper()
+	u := s.users[user]
+	if u == nil {
+		s.t.Fatalf("emailtest: no account %q", user)
+	}
+	d, err := u.Append(mailbox, &literal{Reader: bytes.NewReader(raw), n: int64(len(raw))}, &imap.AppendOptions{Time: at})
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	return uint32(d.UID)
+}
+
 // Mailbox creates a mailbox.
 func (s *Server) Mailbox(user, name string) {
 	s.t.Helper()

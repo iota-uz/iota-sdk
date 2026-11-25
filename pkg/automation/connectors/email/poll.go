@@ -28,11 +28,14 @@ const (
 // maxRaw is the largest message read whole; a larger one is read by its structure (a variable for tests).
 var maxRaw int64 = defaultMaxRaw
 
-// cursor is where the polling of a mailbox stands: the highest UID read, in the mailbox's UIDVALIDITY.
+// cursor is where the polling of a mailbox stands: the highest UID read, in the mailbox's UIDVALIDITY. A cursor
+// with After and no UIDVALIDITY (which is never 0 on a server) is a mark set before a send without reaching the
+// mailbox: its first poll reads the messages the server received from After on.
 type cursor struct {
-	Mailbox     string `json:"mailbox"`
-	UIDValidity uint32 `json:"uidvalidity"`
-	LastUID     uint32 `json:"last_uid"`
+	Mailbox     string     `json:"mailbox"`
+	UIDValidity uint32     `json:"uidvalidity"`
+	LastUID     uint32     `json:"last_uid"`
+	After       *time.Time `json:"after,omitempty"`
 }
 
 // Interval is how often the connection is polled.
@@ -68,6 +71,15 @@ func (c *imapConnector) Poll(ctx context.Context, conn connectors.Connection, cr
 	var cur cursor
 	if len(raw) > 0 {
 		_ = json.Unmarshal(raw, &cur)
+	}
+	if cur.After != nil && cur.UIDValidity == 0 && cur.Mailbox == a.mailbox {
+		// The mark of a send: the cursor stands before the first message received from then on.
+		if cur, err = cursorAfter(s, a.mailbox, sel, *cur.After); err != nil {
+			return nil, nil, err
+		}
+		if raw, err = json.Marshal(cur); err != nil {
+			return nil, nil, err
+		}
 	}
 	if len(raw) == 0 || cur.Mailbox != a.mailbox || cur.UIDValidity != sel.UIDValidity {
 		next, err := c.initialCursor(s, a.mailbox, sel)
@@ -138,6 +150,43 @@ func (h *hub) noteRefusal(ctx context.Context, conn connectors.Connection, creds
 // that arrives later is after it.
 func (c *imapConnector) initialCursor(s *imapSession, mailbox string, sel *imap.SelectData) (json.RawMessage, error) {
 	return initialCursorOf(s, mailbox, sel)
+}
+
+// cursorAfter is the cursor before the first message of the mailbox the server received at or after the time
+// (INTERNALDATE, to the second), else the cursor at its end.
+func cursorAfter(s *imapSession, mailbox string, sel *imap.SelectData, after time.Time) (cursor, error) {
+	end := func() (cursor, error) {
+		raw, err := initialCursorOf(s, mailbox, sel)
+		if err != nil {
+			return cursor{}, err
+		}
+		var c cursor
+		return c, json.Unmarshal(raw, &c)
+	}
+	// SINCE is a date in the server's zone: a day earlier covers every zone, INTERNALDATE decides.
+	res, err := s.c.UIDSearch(&imap.SearchCriteria{Since: after.Add(-24 * time.Hour)}, nil).Wait()
+	if err != nil {
+		return cursor{}, err
+	}
+	uids := res.AllUIDs()
+	if len(uids) == 0 {
+		return end()
+	}
+	bufs, err := s.c.Fetch(imap.UIDSetNum(uids...), &imap.FetchOptions{UID: true, InternalDate: true}).Collect()
+	if err != nil {
+		return cursor{}, err
+	}
+	from := after.Truncate(time.Second)
+	first := uint32(0)
+	for _, b := range bufs {
+		if !b.InternalDate.Before(from) && (first == 0 || uint32(b.UID) < first) {
+			first = uint32(b.UID)
+		}
+	}
+	if first == 0 {
+		return end()
+	}
+	return cursor{Mailbox: mailbox, UIDValidity: sel.UIDValidity, LastUID: first - 1}, nil
 }
 
 func initialCursorOf(s *imapSession, mailbox string, sel *imap.SelectData) (json.RawMessage, error) {
@@ -349,12 +398,15 @@ func (h *hub) baseline(ctx context.Context, conn connectors.Connection, creds co
 }
 
 // seedBaselines gives the mailboxes a reply to a message will come to (the addresses are the sender's and the
-// Reply-To's) a cursor before the message is sent: the connections to receive of those addresses that have
-// none yet, and those whose address is not known (an IMAP login that is not an address: the reply may come
-// to it). The first poll of a mailbox starts at its end, so one made after the reply arrived would jump over
-// it; a cursor set now is the one that poll would set, so seeding a mailbox the reply does not come to costs
-// one connection and changes nothing. A failure is logged and does not stop the send: the poller baselines
-// the mailbox itself.
+// Reply-To's) a cursor before the message is sent, when they have none yet. The first poll of a mailbox starts at
+// its end, so one made after the reply arrived would jump over it.
+//
+// The mailbox of one of those addresses is baselined with the send's own time: a slow server still gets its
+// cursor before the message goes. A mailbox whose address is unknown (an IMAP login that is not an address) may
+// be where the reply comes, or not: it is not reached at all, it gets the mark of the send (cursor.After), and
+// its first poll reads what the server received from then on — a server that is slow or down at the send loses
+// no reply and holds no send. A failure is logged and does not stop the send: the poller baselines the mailbox
+// itself.
 func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, addresses ...string) {
 	if h.cfg.Connections == nil {
 		return
@@ -364,13 +416,11 @@ func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, addresses ...
 		h.log().Warn("email: the mailboxes of a sender could not be listed", "error", err.Error())
 		return
 	}
-	// The mailboxes whose address is unknown share one budget: baselineTimeout in all, and never more than half
-	// of the time the send has left, so delivery keeps its time however many of them do not answer.
-	// Deadlines are wall-clock time, not the connector's clock.
-	speculative, cancel := context.WithTimeout(ctx, speculativeBudget(ctx, time.Now()))
-	defer cancel()
+	// The mark is the server's time, which INTERNALDATE is, not the connector's clock.
+	mark := time.Now().UTC()
 	for _, c := range list {
-		if c.Status != connectors.StatusConnected || (knownAddress(c.Identity) && !anyFold(c.Identity.External, addresses)) {
+		known := knownAddress(c.Identity)
+		if c.Status != connectors.StatusConnected || (known && !anyFold(c.Identity.External, addresses)) {
 			continue
 		}
 		has, err := engine.HasCursor(ctx, h.cfg.Connections, tenant, c.ID)
@@ -381,19 +431,12 @@ func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, addresses ...
 		if err != nil {
 			continue
 		}
-		// The mailbox of the sender's or Reply-To's address is where the reply comes: it is baselined with the
-		// send's own time, so a slow server still gets its cursor before the message goes. A mailbox whose
-		// address is unknown is seeded only in case the reply comes to it: it has a time of its own, so one that
-		// does not answer neither holds every send of the tenant nor takes the send's time (a server that does
-		// not answer within it cannot be polled for the reply either; the poller baselines it when it answers).
-		bctx := ctx
-		if !knownAddress(c.Identity) {
-			if speculative.Err() != nil {
-				continue // the budget is spent: the poller baselines the mailbox itself
-			}
-			bctx = speculative
+		var cur json.RawMessage
+		if known {
+			cur, err = h.baseline(ctx, conn, creds)
+		} else {
+			cur, err = h.sendMark(creds, mark)
 		}
-		cur, err := h.baseline(bctx, conn, creds)
 		if err != nil {
 			h.log().Warn("email: a mailbox could not be baselined before a send", "connection_id", c.ID.String())
 			continue
@@ -404,18 +447,13 @@ func (h *hub) seedBaselines(ctx context.Context, tenant uuid.UUID, addresses ...
 	}
 }
 
-// baselineTimeout bounds the baselines, before a send, of all the mailboxes whose address is unknown together (a
-// variable for tests).
-var baselineTimeout = 10 * time.Second
-
-// speculativeBudget is the time the baselines of unknown-address mailboxes may take before a send: baselineTimeout,
-// cut to half of what is left of the send's deadline.
-func speculativeBudget(ctx context.Context, now time.Time) time.Duration {
-	budget := baselineTimeout
-	if deadline, ok := ctx.Deadline(); ok {
-		budget = min(budget, deadline.Sub(now)/2)
+// sendMark is the cursor that marks a send at the time, for the mailbox of the credentials.
+func (h *hub) sendMark(creds connectors.Credentials, at time.Time) (json.RawMessage, error) {
+	a, err := h.parseIMAP(creds)
+	if err != nil {
+		return nil, err
 	}
-	return max(budget, 0)
+	return json.Marshal(cursor{Mailbox: a.mailbox, After: &at})
 }
 
 var _ engine.Baseliner = (*imapConnector)(nil)

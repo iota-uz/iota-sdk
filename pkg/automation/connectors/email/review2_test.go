@@ -113,7 +113,7 @@ func TestFirstReplyIsKeptWhenTheIMAPLoginIsNotAnAddress(t *testing.T) {
 	const login = "robot" // a login of the server, not an address
 	f := newFx(t, emailtest.ModeTLS)
 	f.srv.AddAccount(emailtest.Account{User: login, Password: password})
-	f.srv.Deliver(login, "INBOX", mailText("<old@x>", "a@example.org", "old", "before the send"))
+	f.srv.DeliverAt(login, "INBOX", mailText("<old@x>", "a@example.org", "old", "before the send"), time.Now().Add(-time.Hour))
 
 	imapCreds := f.imapCreds()
 	imapCreds["username"] = login
@@ -132,7 +132,7 @@ func TestFirstReplyIsKeptWhenTheIMAPLoginIsNotAnAddress(t *testing.T) {
 	require.Equal(t, "sent", res.Outcome)
 	sentID := res.Output["message_id"].(string)
 
-	require.True(t, hasCursor(f, imapConn), "the mailbox without an address was baselined before the send")
+	require.True(t, hasCursor(f, imapConn), "the mailbox without an address got the mark of the send")
 	assert.False(t, hasCursor(f, other), "a mailbox of another address is left to the poller")
 
 	// The reply arrives before the first poll of the mailbox.
@@ -195,44 +195,41 @@ func addSilent(t *testing.T, f *fx, n int) []connectors.Connection {
 	return out
 }
 
-// Mailboxes that do not answer share one budget before a send, at most half of the time the send has left:
-// however many of them there are, the send is not held for long, keeps time to deliver, and goes out.
-func TestSilentMailboxesDoNotHoldTheSend(t *testing.T) {
-	for name, tc := range map[string]struct {
-		budget, deadline time.Duration
-		silent           int
-	}{
-		"several silent mailboxes share the budget":     {budget: 500 * time.Millisecond, deadline: 30 * time.Second, silent: 4},
-		"a short send deadline keeps half for delivery": {budget: 10 * time.Second, deadline: 3 * time.Second, silent: 3},
-	} {
-		t.Run(name, func(t *testing.T) {
-			old := baselineTimeout
-			baselineTimeout = tc.budget
-			t.Cleanup(func() { baselineTimeout = old })
-			f := newFx(t, emailtest.ModeTLS)
-			silent := addSilent(t, f, tc.silent)
+// A mailbox of unknown address is not reached before a send: one that does not answer then holds no send, however
+// many there are and however short the send's deadline, and it still gets the mark of the send. When it answers
+// again, its first poll publishes the reply that came meanwhile — it is not jumped over.
+func TestSilentMailboxesDoNotHoldTheSendAndKeepTheReply(t *testing.T) {
+	f := newFx(t, emailtest.ModeTLS)
+	silent := addSilent(t, f, 3)
 
-			ctx, cancel := context.WithTimeout(context.Background(), tc.deadline)
-			defer cancel()
-			start := time.Now()
-			res, err := (&sendNode{f.smtp.hub}).Execute(ctx, f.sendInput(params(nil), f.smtpCreds()))
-			require.NoError(t, err)
-			assert.Equal(t, "sent", res.Outcome)
-			assert.Less(t, time.Since(start), min(tc.budget, tc.deadline/2)+2*time.Second, "the silent mailboxes took one budget in all")
-			for _, c := range silent {
-				assert.False(t, hasCursor(f, c))
-			}
-			assert.Len(t, f.srv.Sent(), 1)
-		})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	start := time.Now()
+	res, err := (&sendNode{f.smtp.hub}).Execute(ctx, f.sendInput(params(nil), f.smtpCreds()))
+	require.NoError(t, err)
+	require.Equal(t, "sent", res.Outcome)
+	assert.Less(t, time.Since(start), 2*time.Second, "no silent mailbox is waited for")
+	assert.Len(t, f.srv.Sent(), 1)
+	for _, c := range silent {
+		assert.True(t, hasCursor(f, c), "the mark of the send is kept")
 	}
+
+	// The first mailbox comes back (it is the fake's own server now) with mail from before the send and the reply.
+	sentID := res.Output["message_id"].(string)
+	f.srv.DeliverAt(mailbox, "INBOX", mailText("<before@x>", "a@example.org", "old", "x"), time.Now().Add(-time.Hour))
+	f.srv.DeliverAt(mailbox, "INBOX", mailText("<late-reply@x>", "boss@example.org", "Re: Invoice 42", "Paid.", "In-Reply-To: "+sentID), time.Now().Add(time.Minute))
+	evs, next := f.pollOnce(t, silent[0], f.imapCreds(), seededCursor(t, f, silent[0]))
+	require.Len(t, evs, 1, "the reply is published, the older mail is not")
+	assert.Equal(t, "<late-reply@x>", payloadOf(t, evs[0])["messageId"])
+	var cur cursor
+	require.NoError(t, json.Unmarshal(next, &cur))
+	assert.NotZero(t, cur.UIDValidity, "the mark became a cursor of the mailbox")
+	assert.Nil(t, cur.After)
 }
 
-// The mailbox of the sender's address is where the reply comes: its baseline takes the send's time, not the short
-// one of a mailbox whose address is unknown, so a slow server still gets its cursor before the message goes.
-func TestTheSendersMailboxIsSeededEvenWhenItIsSlow(t *testing.T) {
-	old := baselineTimeout
-	baselineTimeout = time.Nanosecond // a mailbox of unknown address would never make it
-	t.Cleanup(func() { baselineTimeout = old })
+// The mailbox of the sender's address is where the reply comes: it is baselined with the send's time (a cursor of
+// the mailbox, not a mark), so a slow server still gets its cursor before the message goes.
+func TestTheSendersMailboxIsBaselinedBeforeTheSend(t *testing.T) {
 	f := newFx(t, emailtest.ModeTLS)
 	own := f.connection(KindIMAP)
 	own.Identity = connectors.Identity{External: mailbox, Kind: connectors.IdentityEmail}
@@ -240,5 +237,8 @@ func TestTheSendersMailboxIsSeededEvenWhenItIsSlow(t *testing.T) {
 	res, err := (&sendNode{f.smtp.hub}).Execute(context.Background(), f.sendInput(params(nil), f.smtpCreds()))
 	require.NoError(t, err)
 	assert.Equal(t, "sent", res.Outcome)
-	assert.True(t, hasCursor(f, own), "the sender's mailbox is seeded with the send's time")
+	var cur cursor
+	require.NoError(t, json.Unmarshal(seededCursor(t, f, own), &cur))
+	assert.NotZero(t, cur.UIDValidity, "a cursor of the mailbox")
+	assert.Nil(t, cur.After)
 }
