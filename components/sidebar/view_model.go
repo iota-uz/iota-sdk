@@ -22,6 +22,8 @@ type NavNode struct {
 	IsBeta   bool
 	IsActive bool
 	Children []NavNode
+	// Badge is rendered after the text of a leaf.
+	Badge templ.Component
 }
 
 type NavTab struct {
@@ -63,14 +65,18 @@ func buildSidebarNavNodesForActivePath(ctx context.Context, items []Item, onActi
 		isActive := index == activeItemIndex
 		if item.IsLink() {
 			link := asLink(item)
-			nodes = append(nodes, NavNode{
+			node := NavNode{
 				Kind:     NavNodeKindLeaf,
 				Text:     link.Text(),
 				Href:     link.Href(),
 				Icon:     link.Icon(),
 				IsBeta:   link.IsBeta(),
 				IsActive: isActive,
-			})
+			}
+			if b, ok := link.(Badged); ok {
+				node.Badge = b.Badge()
+			}
+			nodes = append(nodes, node)
 			continue
 		}
 

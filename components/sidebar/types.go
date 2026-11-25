@@ -56,6 +56,7 @@ func asGroup(i Item) Group {
 // NewGroup creates a new navigation group with the given text, icon, and child items.
 type itemOptions struct {
 	isBeta bool
+	badge  templ.Component
 }
 
 type ItemOption func(*itemOptions)
@@ -64,6 +65,18 @@ func WithBeta(isBeta bool) ItemOption {
 	return func(opts *itemOptions) {
 		opts.isBeta = isBeta
 	}
+}
+
+// WithBadge renders a component after the link's text (a counter); nil renders none.
+func WithBadge(badge templ.Component) ItemOption {
+	return func(opts *itemOptions) {
+		opts.badge = badge
+	}
+}
+
+// Badged is the optional part of a Link that carries a badge.
+type Badged interface {
+	Badge() templ.Component
 }
 
 func applyOptions(options ...ItemOption) itemOptions {
@@ -154,6 +167,7 @@ func NewLink(href, text string, icon templ.Component, options ...ItemOption) Lin
 		position: 0,
 		icon:     icon,
 		isBeta:   opts.isBeta,
+		badge:    opts.badge,
 	}
 }
 
@@ -163,6 +177,12 @@ type link struct {
 	position int
 	icon     templ.Component
 	isBeta   bool
+	badge    templ.Component
+}
+
+// Badge implements Badged.
+func (l *link) Badge() templ.Component {
+	return l.badge
 }
 
 func (l *link) SetPosition(position int) Link {
@@ -172,6 +192,7 @@ func (l *link) SetPosition(position int) Link {
 		position: position,
 		icon:     l.icon,
 		isBeta:   l.isBeta,
+		badge:    l.badge,
 	}
 }
 
