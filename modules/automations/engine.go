@@ -2,13 +2,14 @@ package automations
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"sort"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/flow"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
@@ -46,9 +47,15 @@ func WithoutBackground() Option {
 	return func(c *component) { c.noBackground = true }
 }
 
-// errNoEngine: the module's engine is on, but no extension core provides what it runs on (the workflow
-// engine, the subject loader, the database).
-var errNoEngine = errors.New("the automation engine does not run in this composition: no workflow engine, subject loader or database")
+// unavailableStarter is the RunStarter of a composition whose module has the engine on but no extension
+// core provides what it runs on (the workflow engine, the subject loader, the database): a start from a
+// step is the node's runs_unavailable failure, never a failure of the application.
+type unavailableStarter struct{}
+
+func (unavailableStarter) StartFromStep(context.Context, pgx.Tx, engine.StepContext, engine.StepStart) (engine.RunRef, error) {
+	return engine.RunRef{}, &engine.StepError{Code: flow.CodeUnavailable,
+		Message: "the automation engine does not run in this composition: no workflow engine, subject loader or database"}
+}
 
 // engineHolder is the composition's engine; rt is nil when the composition cannot run one (the module's
 // engine is turned off, or no extension core provides the workflow engine and the subject loader).
@@ -120,7 +127,7 @@ func (c *component) buildEngine(b *composition.Builder) {
 			return nil, err
 		}
 		if rt == nil {
-			return nil, errNoEngine
+			return unavailableStarter{}, nil
 		}
 		return rt, nil
 	})
