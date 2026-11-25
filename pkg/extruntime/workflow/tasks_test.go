@@ -879,6 +879,44 @@ func TestTasks_ParseTaskCursorSnapshot(t *testing.T) {
 	require.Equal(t, "/"+id.String()+"/100:105:101,103", c.String())
 	_, err = workflow.ParseTaskCursor("/" + id.String() + "/100:105:x');--")
 	require.ErrorIs(t, err, workflow.ErrInvalid)
+	// Shaped like a snapshot but refused by PostgreSQL: an invalid cursor, not a database error.
+	for _, bad := range []string{"200:100:", "0:5:", "100:200:250", "100:200:99", "100:200:160,150", "1:99999999999999999999:"} {
+		_, err = workflow.ParseTaskCursor("/" + id.String() + "/" + bad)
+		require.ErrorIs(t, err, workflow.ErrInvalid, bad)
+	}
+	_, err = workflow.ParseTaskCursor("/" + id.String() + "/100:100:")
+	require.NoError(t, err, "no transaction in progress")
+}
+
+// AuthorizeTask judges the actor by their current rights and the task as it
+// is now, as DecideTask does, and records nothing.
+func TestTasks_AuthorizeTask(t *testing.T) {
+	perm := workflow.TaskAssignee{Kind: workflow.TaskAssignPermission, Ref: "invoices.approve"}
+	s := newTaskStack(t, workflow.TaskSpec{Assignees: []workflow.TaskAssignee{perm}, Timeout: time.Hour})
+	ctx := context.Background()
+	s.env.subjects.Grant(97, "invoices.approve")
+	inst, task := s.startWaiting("auth")
+
+	got, err := s.eng.AuthorizeTask(ctx, s.env.subject(97), task.ID)
+	require.NoError(t, err)
+	require.Equal(t, task.ID, got.ID)
+	require.Empty(t, s.task(inst).Decisions, "nothing is recorded")
+	_, err = s.eng.AuthorizeTask(ctx, s.env.subject(98), task.ID)
+	require.ErrorIs(t, err, workflow.ErrForbidden, "not an assignee")
+
+	s.env.subjects.Grant(97)
+	_, err = s.eng.AuthorizeTask(ctx, s.env.subject(97), task.ID)
+	require.ErrorIs(t, err, workflow.ErrForbidden, "the permission was revoked")
+	s.env.subjects.Grant(97, "invoices.approve")
+	s.env.subjects.Block(97, "left")
+	_, err = s.eng.AuthorizeTask(ctx, s.env.subject(97), task.ID)
+	require.ErrorIs(t, err, workflow.ErrForbidden, "the user was blocked")
+
+	s.env.subjects.Grant(97, "invoices.approve")
+	_, err = s.env.db.Exec(ctx, `UPDATE extruntime.human_tasks SET due_at = now() - interval '1 second' WHERE id = $1`, task.ID)
+	require.NoError(t, err)
+	_, err = s.eng.AuthorizeTask(ctx, s.env.subject(97), task.ID)
+	require.ErrorIs(t, err, workflow.ErrTaskClosed, "past the final deadline")
 }
 
 // The run records the due time an escalation step replaced.

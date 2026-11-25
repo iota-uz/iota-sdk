@@ -205,8 +205,9 @@ type TaskForm interface {
 	// for a form that tells it (FormPreparer, FormIntent), an outcome that is no button or lacks its
 	// comment, fields that break the schema. A form without FormPreparer decides only a task whose
 	// schema constrains no field (ConstrainsFields); otherwise the task shows it unavailable. Right
-	// before Decide the inbox reads the task again and lets it act only while the user may still decide
-	// it; ctx ends at the final deadline (TaskView.Deadline). The action and the vote cannot be one
+	// before Decide the inbox reads the task again and asks the substrate, under the task's lock, whether
+	// the user may still decide it by their current rights (Substrate.AuthorizeTask); ctx ends at the
+	// final deadline that judgement read. The action and the vote cannot be one
 	// transaction: an action that completes just as the deadline passes may find the vote refused
 	// (ErrTaskClosed) and the task expiring; its effect then stands, and a repeat of it is deduplicated.
 	Decide(ctx context.Context, t TaskView, actor user.User, form json.RawMessage) (FormDecision, error)

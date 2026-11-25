@@ -30,6 +30,9 @@ type Substrate interface {
 	Tasks(ctx context.Context, actor spi.Subject, f workflow.TaskFilter) ([]workflow.Task, error)
 	TasksByID(ctx context.Context, tenant uuid.UUID, ids []uuid.UUID) ([]workflow.Task, error)
 	DecideTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID, decision json.RawMessage) error
+	// AuthorizeTask judges, as DecideTask does under the task's lock and after any escalation or
+	// expiration in flight, whether the actor may decide the task now; it records nothing.
+	AuthorizeTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID) (workflow.Task, error)
 	DelegateTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID, to int64, comment string) error
 }
 
@@ -443,17 +446,23 @@ func (s *Service) Decide(ctx context.Context, id uuid.UUID, in DecideInput) erro
 		if err != nil {
 			return serrors.Wrap(op, err)
 		}
-		// The action is authorized by the task as it is now, read right before it starts: an escalation
-		// that set a final deadline, a vote or a delegation may have changed it while the submission was
-		// checked.
+		// The task as the form sees it, read again (an escalation, a vote or a delegation may have changed
+		// it while the submission was checked)...
 		if v, err = s.actionable(ctx, a, id); err != nil {
 			return err
 		}
+		// ...and, last before the action, the substrate's own judgement under the task's lock: the
+		// user's current rights (a permission revoked or the user blocked meanwhile), the task's state
+		// and its final deadline after any escalation or expiration in flight.
+		t, err := s.cfg.Tasks.AuthorizeTask(ctx, a.subject, id)
+		if err != nil {
+			return mapErr(err)
+		}
 		fctx := ctx
-		if v.Deadline != nil {
+		if deadline := finalDeadline(t); deadline != nil {
 			// The action's context ends at the final deadline, as the substrate stops counting votes then.
 			var cancel context.CancelFunc
-			fctx, cancel = context.WithDeadline(ctx, *v.Deadline)
+			fctx, cancel = context.WithDeadline(ctx, *deadline)
 			defer cancel()
 		}
 		fd, err := form.Decide(fctx, v, a.user, in.Form)
@@ -511,6 +520,14 @@ func (s *Service) precheck(ctx context.Context, form TaskForm, v TaskView, actor
 		return nil, err
 	}
 	return nil, checkComment(in.Comment)
+}
+
+// finalDeadline is the final deadline of an open task: its due time once no escalation step is left.
+func finalDeadline(t workflow.Task) *time.Time {
+	if t.Status == "open" && t.DueAt != nil && t.EscalationLevel >= len(t.Escalation) {
+		return t.DueAt
+	}
+	return nil
 }
 
 // actionable is the task read afresh, as long as the user may still decide it now: its final deadline
@@ -918,9 +935,7 @@ func (s *Service) view(ctx context.Context, a actor, t workflow.Task, m TaskMeta
 	// An open task past its final deadline stays open (the run closes it) and overdue, but takes no
 	// decision any more: the substrate's predicate, judged apart from the state shown.
 	v.PastDeadline = t.PastFinalDeadline(now)
-	if t.Status == "open" && t.DueAt != nil && t.EscalationLevel >= len(t.Escalation) {
-		v.Deadline = t.DueAt
-	}
+	v.Deadline = finalDeadline(t)
 	v.CanDecide = t.Status == "open" && v.MyDecision == nil && !v.PastDeadline
 	v.Overdue = t.Status == "open" && t.DueAt != nil && t.DueAt.Before(now)
 	switch t.Status {

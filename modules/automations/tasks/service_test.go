@@ -33,6 +33,27 @@ type fakeSubstrate struct {
 	tasks   []workflow.Task
 	decided atomic.Int32
 	last    json.RawMessage
+	// revoked: the actor's current rights no longer cover the task (AuthorizeTask refuses).
+	revoked    atomic.Bool
+	authorized atomic.Int32
+}
+
+// AuthorizeTask judges the task as it is now, as the substrate does under its lock.
+func (f *fakeSubstrate) AuthorizeTask(_ context.Context, _ spi.Subject, id uuid.UUID) (workflow.Task, error) {
+	f.authorized.Add(1)
+	for _, t := range f.tasks {
+		if t.ID != id {
+			continue
+		}
+		if t.Status != "open" || t.PastFinalDeadline(time.Now()) {
+			return workflow.Task{}, workflow.ErrTaskClosed
+		}
+		if f.revoked.Load() {
+			return workflow.Task{}, workflow.ErrForbidden
+		}
+		return t, nil
+	}
+	return workflow.Task{}, workflow.ErrNotFound
 }
 
 func (f *fakeSubstrate) Tasks(context.Context, spi.Subject, workflow.TaskFilter) ([]workflow.Task, error) {
@@ -388,6 +409,49 @@ func TestDecideReauthorizesAfterPreparation(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, v.Deadline, "no final deadline while the step is pending")
 	require.ErrorIs(t, svc.Decide(userCtx(), task.ID, DecideInput{Form: json.RawMessage(`{}`)}), ErrTaskClosed)
+	assert.Zero(t, f.acted.Load(), "the form did not act")
+	assert.Zero(t, sub.decided.Load())
+}
+
+// The substrate judges the user's current rights right before the action: a permission revoked (or the
+// user blocked) while the submission was prepared stops it, although the actor loaded before still holds
+// the permission.
+func TestDecideStopsWhenRightsAreRevokedDuringPreparation(t *testing.T) {
+	t.Parallel()
+	task := openTask(workflow.TaskAssignee{Kind: workflow.TaskAssignPermission, Ref: "Invoices.Approve"})
+	sub := &fakeSubstrate{tasks: []workflow.Task{task}}
+	f := &testForm{outcome: "approve", fields: `{"amount":1}`}
+	f.onPrepare = func() { sub.revoked.Store(true) }
+	svc := newSvc(t, Config{Tasks: sub, Subjects: subjects("Invoices.Approve"), Store: fakeStore{params: strings.Replace(buttons, "%s", formSchema, 1)}, Forms: NewForms(preparedForm{f})})
+	require.ErrorIs(t, svc.Decide(userCtx(), task.ID, DecideInput{Form: json.RawMessage(`{}`)}), ErrTaskNotFound)
+	assert.Zero(t, f.acted.Load(), "the form did not act")
+	assert.Equal(t, int32(1), sub.authorized.Load())
+	assert.Zero(t, sub.decided.Load())
+}
+
+// The authorization runs after the view is built: a final escalation that applies, and whose deadline
+// passes, while the last view lookup (the subject's name) is in flight stops the action.
+func TestDecideStopsWhenTheDeadlinePassesDuringTheViewLookup(t *testing.T) {
+	t.Parallel()
+	due := time.Now().Add(time.Hour).UTC()
+	task := openTask(userAssignee(me))
+	task.DueAt = &due
+	task.Escalation = []workflow.EscalationStep{{Extend: time.Minute}}
+	task.SubjectEntity, task.SubjectKey = "invoice", "42"
+	sub := &fakeSubstrate{tasks: []workflow.Task{task}}
+	var lookups atomic.Int32
+	names := resolverFunc(func() (string, string, error) {
+		if lookups.Add(1) == 2 {
+			// The view read the task with its step pending; the run applies it now and the deadline passes.
+			past := time.Now().Add(-time.Second).UTC()
+			sub.tasks[0].EscalationLevel, sub.tasks[0].DueAt = 1, &past
+		}
+		return "Invoice 42", "", nil
+	})
+	f := &testForm{outcome: "approve", fields: `{"amount":1}`}
+	svc := newSvc(t, Config{Tasks: sub, SubjectNames: names, Store: fakeStore{params: strings.Replace(buttons, "%s", formSchema, 1)}, Forms: NewForms(preparedForm{f})})
+	require.ErrorIs(t, svc.Decide(userCtx(), task.ID, DecideInput{Form: json.RawMessage(`{}`)}), ErrTaskClosed)
+	assert.Equal(t, int32(2), lookups.Load(), "the escalation landed during the last view lookup")
 	assert.Zero(t, f.acted.Load(), "the form did not act")
 	assert.Zero(t, sub.decided.Load())
 }

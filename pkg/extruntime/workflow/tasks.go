@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"slices"
 	"strconv"
@@ -1108,6 +1109,28 @@ func (e *Engine) currentSubject(ctx context.Context, actor spi.Subject) (spi.Sub
 
 // ---- management ----
 
+// AuthorizeTask judges, as DecideTask does under the task's lock, whether
+// the actor may decide the task now: it is open and not past its final
+// deadline by the database clock, the actor has not decided it, and their
+// current rights (the SubjectLoader asked again; a blocked user is refused)
+// cover them. It waits for a run that is escalating or closing the task to
+// commit, so it judges the task after that transition. It records nothing
+// and returns the task as read under the lock, or the error DecideTask
+// would return. A caller that performs an external effect before
+// DecideTask (a task form's action) asks it right before the effect.
+func (e *Engine) AuthorizeTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID) (Task, error) {
+	var t Task
+	err := e.inTx(ctx, func(tx pgx.Tx) error {
+		var err error
+		t, _, err = e.authorizeLocked(ctx, tx, actor, taskID, "decide")
+		return err
+	})
+	if err != nil {
+		return Task{}, err
+	}
+	return t, nil
+}
+
 // DecideTask records the decision of one assignee. The actor must be
 // covered by an assignee by their CURRENT rights (a user, a permission they
 // hold, a role or group the TaskAudience counts them in), be the user a
@@ -1350,6 +1373,32 @@ type TaskCursor struct {
 // snapshotText is the text of a pg_snapshot: xmin:xmax:xip,...
 var snapshotText = regexp.MustCompile(`^[0-9]{1,20}:[0-9]{1,20}:([0-9]{1,20}(,[0-9]{1,20})*)?$`)
 
+// validSnapshot checks a pg_snapshot text as PostgreSQL reads it: 0 < xmin
+// <= xmax, and each in-progress xid in [xmin, xmax), ascending.
+func validSnapshot(s string) bool {
+	if len(s) > 4096 || !snapshotText.MatchString(s) {
+		return false
+	}
+	parts := strings.SplitN(s, ":", 3)
+	xmin, err1 := strconv.ParseUint(parts[0], 10, 64)
+	xmax, err2 := strconv.ParseUint(parts[1], 10, 64)
+	if err1 != nil || err2 != nil || xmin == 0 || xmin > xmax || xmax > math.MaxInt64 {
+		return false
+	}
+	if parts[2] == "" {
+		return true
+	}
+	last := uint64(0)
+	for _, x := range strings.Split(parts[2], ",") {
+		v, err := strconv.ParseUint(x, 10, 64)
+		if err != nil || v < xmin || v >= xmax || v < last {
+			return false
+		}
+		last = v
+	}
+	return true
+}
+
 // CursorAfter is the cursor after a task of a page: its Position when Tasks
 // returned it, else its current sort key.
 func CursorAfter(t Task) TaskCursor {
@@ -1392,7 +1441,7 @@ func ParseTaskCursor(s string) (TaskCursor, error) {
 		c.DueAt = &t
 	}
 	if len(parts) == 3 {
-		if len(parts[2]) > 4096 || !snapshotText.MatchString(parts[2]) {
+		if !validSnapshot(parts[2]) {
 			return TaskCursor{}, fmt.Errorf("%w: task cursor %q", ErrInvalid, s)
 		}
 		c.Snapshot = parts[2]
