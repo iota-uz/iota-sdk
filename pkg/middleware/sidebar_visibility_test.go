@@ -73,3 +73,22 @@ func TestNavItemsWithInitialState_FollowsEffectivePermissions(t *testing.T) {
 		})
 	}
 }
+
+// A user without any permission keeps the items marked ForEveryone, also inside a folder that is not
+// marked itself; the folder keeps only those items.
+func TestNavItemsWithInitialState_KeepsFoldersOfForEveryoneItems(t *testing.T) {
+	t.Parallel()
+	app := navApp{items: []types.NavigationItem{
+		{Key: "automations", Children: []types.NavigationItem{
+			{Key: "graphs", Href: "/automations/graphs"},
+			{Key: "tasks", Href: "/automations/tasks", ForEveryone: true},
+		}},
+		{Key: "help", Href: "/help"},
+		{Key: "empty", Children: []types.NavigationItem{{Key: "settings", Href: "/settings"}}},
+	}}
+	got := forEveryone(filterItems(app.items, user.New("Test", "User", internet.MustParseEmail("test@example.com"), user.UILanguageEN)))
+	require.Len(t, got, 1)
+	require.Equal(t, "automations", got[0].Key)
+	require.Len(t, got[0].Children, 1)
+	require.Equal(t, "tasks", got[0].Children[0].Key)
+}

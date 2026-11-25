@@ -811,6 +811,60 @@ func TestTasks_InboxCursorKeepsThePageOrder(t *testing.T) {
 	require.ErrorIs(t, err, workflow.ErrNotFound, "an unknown cursor task")
 }
 
+// A task an escalation moves later after a page held it is not listed again
+// on a later page of the same traversal: the pages order tasks by their due
+// time as of the first page. A new traversal sees the current order.
+func TestTasks_InboxCursorSurvivesAnEscalation(t *testing.T) {
+	s := newTaskStack(t, workflow.TaskSpec{Assignees: []workflow.TaskAssignee{userAssignee(92)}, Timeout: time.Hour})
+	ctx := context.Background()
+	_, a := s.startWaiting("esc-a")
+	_, b := s.startWaiting("esc-b")
+	page, err := s.eng.Tasks(ctx, s.env.subject(92), workflow.TaskFilter{Limit: 1})
+	require.NoError(t, err)
+	require.Len(t, page, 1)
+	require.Equal(t, a.ID, page[0].ID, "a is due first")
+	cursor, err := workflow.ParseTaskCursor(workflow.CursorAfter(page[0]).String())
+	require.NoError(t, err)
+	require.NotNil(t, cursor.Since, "the cursor carries the traversal's start")
+
+	// a escalates as the run does it: the step records the due time it replaces.
+	_, err = s.env.db.Exec(ctx, `
+		INSERT INTO extruntime.human_task_escalations (task_id, tenant_id, step, added, applied_at, due_before)
+		SELECT id, tenant_id, 0, '[]', clock_timestamp(), due_at FROM extruntime.human_tasks WHERE id = $1`, a.ID)
+	require.NoError(t, err)
+	_, err = s.env.db.Exec(ctx, `UPDATE extruntime.human_tasks SET due_at = due_at + interval '2 hours', escalation_level = 1 WHERE id = $1`, a.ID)
+	require.NoError(t, err)
+
+	var got []uuid.UUID
+	for range 3 {
+		page, err = s.eng.Tasks(ctx, s.env.subject(92), workflow.TaskFilter{Limit: 1, Cursor: &cursor})
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		got = append(got, page[0].ID)
+		cursor, err = workflow.ParseTaskCursor(workflow.CursorAfter(page[0]).String())
+		require.NoError(t, err)
+	}
+	require.Equal(t, []uuid.UUID{b.ID}, got, "b once, a not again")
+	require.Equal(t, []uuid.UUID{b.ID, a.ID}, s.inbox(92), "a fresh inbox orders by the current due times")
+}
+
+// The run records the due time an escalation step replaced.
+func TestTasks_EscalationRecordsTheReplacedDueTime(t *testing.T) {
+	s := newTaskStack(t, workflow.TaskSpec{
+		Assignees: []workflow.TaskAssignee{userAssignee(93)}, Timeout: 200 * time.Millisecond,
+		Escalation: []workflow.EscalationStep{{Add: []workflow.TaskAssignee{userAssignee(94)}, Extend: time.Hour}},
+	})
+	id, task := s.startWaiting("esc-due")
+	s.env.drainUntil(s.eng, func() bool { return s.task(id).EscalationLevel == 1 }, "the step is applied")
+	var before *time.Time
+	require.NoError(t, s.env.db.QueryRow(context.Background(),
+		`SELECT due_before FROM extruntime.human_task_escalations WHERE task_id = $1 AND step = 0`, task.ID).Scan(&before))
+	require.NotNil(t, before)
+	require.WithinDuration(t, *task.DueAt, *before, time.Millisecond)
+}
+
 // After the final due time no decision is accepted, even before the run
 // closes the task; with an escalation step pending, decisions still count.
 func TestTasks_NoDecisionAfterTheFinalDeadline(t *testing.T) {

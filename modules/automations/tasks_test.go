@@ -393,8 +393,11 @@ func TestInboxMembershipAndDelegation(t *testing.T) {
 	s.GET("/automations/tasks/" + uuid.NewString()).Expect(t).Status(http.StatusNotFound).Contains(`data-testid="automations-task-missing"`)
 
 	s.AsUser(dina)
-	opts := s.GET("/automations/tasks/" + task.String() + "/delegates?q=Ole").Expect(t).Status(http.StatusOK).Body()
+	// "Tester" is the last name of every user: the search matches Dina too, so only the self-exclusion
+	// keeps her out.
+	opts := s.GET("/automations/tasks/" + task.String() + "/delegates?q=Tester").Expect(t).Status(http.StatusOK).Body()
 	assert.Contains(t, opts, fmt.Sprintf(`data-value="%d"`, oleg.ID()))
+	assert.Contains(t, opts, fmt.Sprintf(`data-value="%d"`, gleb.ID()))
 	assert.NotContains(t, opts, fmt.Sprintf(`data-value="%d"`, dina.ID()), "not to oneself")
 	s.POST("/automations/tasks/" + task.String() + "/delegate").HTMX().Form(url.Values{"to": {fmt.Sprint(dina.ID())}}).
 		Expect(t).Status(http.StatusOK).Contains(`data-testid="automations-task-delegate-error"`)

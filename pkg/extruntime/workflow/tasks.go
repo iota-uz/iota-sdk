@@ -196,6 +196,9 @@ type Task struct {
 	Title     manifest.Label
 	CreatedAt time.Time
 	DecidedAt *time.Time
+	// Position is where Tasks listed the task (CursorAfter): its due time as
+	// of the traversal's start, and that start. Zero outside Tasks.
+	Position TaskCursor
 }
 
 // TaskAudience judges membership in role and group assignees by current
@@ -660,9 +663,20 @@ func (e *Engine) TasksByID(ctx context.Context, tenant uuid.UUID, ids []uuid.UUI
 	if len(ids) == 0 {
 		return []Task{}, nil
 	}
-	tasks, err := e.queryTasks(ctx, e.cfg.DB, tenant, `t.id = ANY($2)`, ids)
+	// The task rows and their assignees, delegations and decisions come from
+	// one snapshot: a vote that closes a task between the reads is either
+	// wholly seen (the task decided) or not at all.
+	tx, err := e.cfg.DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return nil, serrors.FromDB(opManage, err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	tasks, err := e.queryTasks(ctx, tx, tenant, `t.id = ANY($2)`, ids)
 	if err != nil {
 		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, serrors.FromDB(opManage, err)
 	}
 	at := make(map[uuid.UUID]Task, len(tasks))
 	for _, t := range tasks {
@@ -786,8 +800,8 @@ func (e *Engine) dueTask(ctx context.Context, tx pgx.Tx, rs *runState, taskID uu
 	if level < len(steps) {
 		step := steps[level]
 		tag, err := tx.Exec(ctx, `
-			INSERT INTO extruntime.human_task_escalations (task_id, tenant_id, step, added, applied_at)
-			VALUES ($1, $2, $3, $4, clock_timestamp()) ON CONFLICT (task_id, step) DO NOTHING`,
+			INSERT INTO extruntime.human_task_escalations (task_id, tenant_id, step, added, applied_at, due_before)
+			VALUES ($1, $2, $3, $4, clock_timestamp(), (SELECT due_at FROM extruntime.human_tasks WHERE id = $1)) ON CONFLICT (task_id, step) DO NOTHING`,
 			taskID, rs.inst.TenantID, level, []byte(marshal(step.Add)))
 		if err != nil {
 			return false, nil, serrors.FromDB(opCall, err)
@@ -1321,41 +1335,70 @@ func lockTask(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID) (string, err
 type TaskCursor struct {
 	DueAt *time.Time
 	ID    uuid.UUID
+	// Since is when the traversal began (its first page). A page after the
+	// cursor orders each task by its due time as it was then: a task an
+	// escalation moved later since keeps its place, so it is neither listed
+	// again after a page that held it nor skipped. Nil: by the current due
+	// times (a cursor of the contract's older form).
+	Since *time.Time
 }
 
-// CursorAfter is the cursor after a task of a page.
-func CursorAfter(t Task) TaskCursor { return TaskCursor{DueAt: t.DueAt, ID: t.ID} }
+// CursorAfter is the cursor after a task of a page: its Position when Tasks
+// returned it, else its current sort key.
+func CursorAfter(t Task) TaskCursor {
+	if t.Position.ID == t.ID && t.ID != uuid.Nil {
+		return t.Position
+	}
+	return TaskCursor{DueAt: t.DueAt, ID: t.ID}
+}
 
-// String encodes the cursor as "<RFC 3339 due time>/<id>" ("/<id>" without a
-// due time).
+// String encodes the cursor as "<RFC 3339 due time>/<id>[/<RFC 3339 since>]"
+// (an empty due time for a task without one).
 func (c TaskCursor) String() string {
 	due := ""
 	if c.DueAt != nil {
 		due = c.DueAt.UTC().Format(time.RFC3339Nano)
 	}
-	return due + "/" + c.ID.String()
+	s := due + "/" + c.ID.String()
+	if c.Since != nil {
+		s += "/" + c.Since.UTC().Format(time.RFC3339Nano)
+	}
+	return s
 }
 
 // ParseTaskCursor reads a TaskCursor.String.
 func ParseTaskCursor(s string) (TaskCursor, error) {
-	due, id, ok := strings.Cut(s, "/")
-	if !ok {
+	parts := strings.Split(s, "/")
+	if len(parts) < 2 || len(parts) > 3 {
 		return TaskCursor{}, fmt.Errorf("%w: task cursor %q", ErrInvalid, s)
 	}
 	var c TaskCursor
 	var err error
-	if c.ID, err = uuid.Parse(id); err != nil {
+	if c.ID, err = uuid.Parse(parts[1]); err != nil {
 		return TaskCursor{}, fmt.Errorf("%w: task cursor %q", ErrInvalid, s)
 	}
-	if due != "" {
-		t, err := time.Parse(time.RFC3339Nano, due)
+	if parts[0] != "" {
+		t, err := time.Parse(time.RFC3339Nano, parts[0])
 		if err != nil {
 			return TaskCursor{}, fmt.Errorf("%w: task cursor %q", ErrInvalid, s)
 		}
 		c.DueAt = &t
 	}
+	if len(parts) == 3 {
+		t, err := time.Parse(time.RFC3339Nano, parts[2])
+		if err != nil {
+			return TaskCursor{}, fmt.Errorf("%w: task cursor %q", ErrInvalid, s)
+		}
+		c.Since = &t
+	}
 	return c, nil
 }
+
+// dueAsOf is the sort key of the inbox ($since is when the traversal began):
+// a task's due time as it was then. An escalation applied since records the
+// due time it replaced (due_before); the earliest such step tells it.
+const dueAsOf = ` CROSS JOIN LATERAL (SELECT COALESCE((SELECT e.due_before FROM extruntime.human_task_escalations e
+		WHERE e.task_id = t.id AND e.applied_at > $13::timestamptz AND e.due_before IS NOT NULL ORDER BY e.step LIMIT 1), t.due_at) AS due) k `
 
 // cursorOf is the cursor after a task of the tenant, from its current sort
 // key; ErrNotFound for an unknown task.
@@ -1427,7 +1470,17 @@ func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, stat
 		}
 		cursor = &c
 	}
+	// The traversal's start: the cursor's, else this read's (the start of its
+	// snapshot).
+	var since time.Time
+	if cursor != nil && cursor.Since != nil {
+		since = *cursor.Since
+	} else if err := tx.QueryRow(ctx, `SELECT now()`).Scan(&since); err != nil {
+		return nil, serrors.FromDB(opManage, err)
+	}
+	since = since.UTC()
 	var ids []uuid.UUID
+	keys := map[uuid.UUID]*time.Time{}
 	for len(ids) < f.Limit {
 		var (
 			hasCursor bool
@@ -1438,23 +1491,23 @@ func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, stat
 			hasCursor, afterDue, afterID = true, cursor.DueAt, cursor.ID
 		}
 		rows, err := tx.Query(ctx, `
-			SELECT t.id, t.due_at,
+			SELECT t.id, k.due,
 				EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id
 					AND ((a.kind = 'user' AND a.user_id = $2) OR (a.kind = 'permission' AND a.ref = ANY($3))))
-			`+taskFrom+`
+			`+taskFrom+dueAsOf+`
 			WHERE t.tenant_id = $1 AND t.status = ANY($4)
 			  AND ($5 = '' OR i.workflow = $5)
 			  AND ($6::boolean IS NULL OR (t.due_at IS NOT NULL AND t.due_at < now()) = $6)
-			  AND (NOT $7 OR (COALESCE(t.due_at, 'infinity'::timestamptz), t.id) > (COALESCE($8::timestamptz, 'infinity'::timestamptz), $9::uuid))
+			  AND (NOT $7 OR (COALESCE(k.due, 'infinity'::timestamptz), t.id) > (COALESCE($8::timestamptz, 'infinity'::timestamptz), $9::uuid))
 			  AND (t.status <> 'open' OR $12 OR NOT `+pastFinalDeadline+`)
 			  AND NOT EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id AND a.delegated_from = $2)
 			  AND (t.status <> 'open' OR NOT EXISTS (SELECT 1 FROM extruntime.human_task_decisions d WHERE d.task_id = t.id AND d.user_id = $2))
 			  AND EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id
 					AND ((a.kind = 'user' AND a.user_id = $2) OR (a.kind = 'permission' AND a.ref = ANY($3))
 					     OR (a.kind IN ('role', 'group') AND a.delegated_from IS NULL AND $10)))
-			ORDER BY COALESCE(t.due_at, 'infinity'::timestamptz), t.id
+			ORDER BY COALESCE(k.due, 'infinity'::timestamptz), t.id
 			LIMIT $11`,
-			current.TenantID, current.UserID, perms, statuses, f.Workflow, f.Overdue, hasCursor, afterDue, afterID, audience, batch, f.PastDeadline)
+			current.TenantID, current.UserID, perms, statuses, f.Workflow, f.Overdue, hasCursor, afterDue, afterID, audience, batch, f.PastDeadline, since)
 		if err != nil {
 			return nil, serrors.FromDB(opManage, err)
 		}
@@ -1489,18 +1542,26 @@ func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, stat
 			}
 			if c.direct || covered[c.id] {
 				ids = append(ids, c.id)
+				keys[c.id] = c.due
 			}
 		}
 		if len(cands) < batch {
 			break
 		}
 		last := cands[len(cands)-1]
-		cursor = &TaskCursor{DueAt: last.due, ID: last.id}
+		cursor = &TaskCursor{DueAt: last.due, ID: last.id, Since: &since}
 	}
 	if len(ids) == 0 {
 		return []Task{}, nil
 	}
-	return e.queryTasks(ctx, tx, current.TenantID, `t.id = ANY($2) ORDER BY COALESCE(t.due_at, 'infinity'::timestamptz), t.id`, ids)
+	tasks, err := e.queryTasks(ctx, tx, current.TenantID, `t.id = ANY($2) ORDER BY array_position($2::uuid[], t.id)`, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range tasks {
+		tasks[i].Position = TaskCursor{DueAt: keys[tasks[i].ID], ID: tasks[i].ID, Since: &since}
+	}
+	return tasks, nil
 }
 
 // coveredByAudience reports which tasks a role or group assignee covers the

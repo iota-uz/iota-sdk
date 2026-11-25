@@ -365,10 +365,18 @@ func (c *Controller) decide(w http.ResponseWriter, r *http.Request) {
 		c.failed(w, r)
 		return
 	}
-	fields, kept := fieldsFromForm(fieldsOf(before.DecisionSchema), r.PostForm)
+	fields, kept, ferr := fieldsFromForm(fieldsOf(before.DecisionSchema), r.PostForm)
 	in := tasks.DecideInput{Outcome: r.PostForm.Get("outcome"), Comment: r.PostForm.Get("comment"), Fields: fields}
 	if raw := strings.TrimSpace(r.PostForm.Get("form")); raw != "" {
 		in.Form = []byte(raw)
+	}
+	if ferr != nil {
+		c.decideFailed(w, r, id, in, kept, fmt.Errorf("%w: fields: %w", tasks.ErrInvalidDecision, ferr))
+		return
+	}
+	if unconfirmed(before, in, r.PostForm.Get("confirm")) {
+		c.decideFailed(w, r, id, in, kept, errUnconfirmed)
+		return
 	}
 	err = c.cfg.Inbox.Decide(ctx, id, in)
 	if err == nil {
@@ -380,6 +388,25 @@ func (c *Controller) decide(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.decideFailed(w, r, id, in, kept, err)
+}
+
+// errUnconfirmed: a danger outcome of the default form sent without its confirmation.
+var errUnconfirmed = errors.New("danger outcome not confirmed")
+
+// unconfirmed reports a danger outcome of the default decision form that did not come from its
+// confirmation panel: the panel sets confirm to the outcome, so a submission without it (Enter in a
+// field submitting the hidden button, a stale page) is shown again with the panel open. A custom
+// form confirms on its own; a task that is no longer open goes to the service, which says why.
+func unconfirmed(v tasks.TaskView, in tasks.DecideInput, confirm string) bool {
+	if v.FormKind != "" || len(in.Form) > 0 || v.State != tasks.StateOpen || v.PastDeadline {
+		return false
+	}
+	for _, o := range v.Outcomes {
+		if o.Value == in.Outcome {
+			return o.Style == tasks.StyleDanger && confirm != o.Value
+		}
+	}
+	return false
 }
 
 // afterDone answers a decision or a delegation that went through: a toast, the counters refresh, and
@@ -454,6 +481,10 @@ func (c *Controller) decideFailed(w http.ResponseWriter, r *http.Request, id uui
 	switch {
 	case errors.Is(err, tasks.ErrTaskClosed), errors.Is(err, tasks.ErrAlreadyDecided):
 		props.Notice = "closed"
+	case errors.Is(err, errUnconfirmed):
+		props.Error = intl.TWithDefault(ctx, "Automations.Tasks.Unconfirmed", "Confirm the decision below: it was not sent.")
+		props.ErrorOutcome = in.Outcome
+		props.Confirm = in.Outcome
 	case errors.Is(err, tasks.ErrInvalidDecision):
 		props.Error = intl.TWithDefault(ctx, "Automations.Tasks.Errors.Invalid", "Check the decision: a required comment or field is missing or wrong.")
 		props.ErrorOutcome = in.Outcome
@@ -560,15 +591,15 @@ func (c *Controller) delegates(w http.ResponseWriter, r *http.Request) {
 
 // ---- badge ----
 
-// badge answers the counter's refresh: nothing (204, no swap and nothing announced) while the count
-// is the one shown (n), else the new count.
+// badge answers the counter's refresh: nothing (204, no swap and nothing announced) while the counter
+// shown (n, its badgeToken: the count and whether it is red) is still right, else the new counter.
 func (c *Controller) badge(w http.ResponseWriter, r *http.Request) {
 	counts, err := c.cfg.Inbox.Counts(r.Context())
 	if err != nil {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	if n, err := strconv.Atoi(r.URL.Query().Get("n")); err == nil && n == counts.Open {
+	if r.URL.Query().Get("n") == badgeToken(counts) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}

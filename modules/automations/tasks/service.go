@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
@@ -52,12 +51,43 @@ type SubjectResolver interface {
 	Subject(ctx context.Context, viewer spi.Subject, entity, key string) (label, url string, err error)
 }
 
+// TaskKey names a human node's task to the Store: the task, its workflow instance and the run's wait
+// that opened it.
+type TaskKey struct {
+	TaskID, InstanceID uuid.UUID
+	WaitID             string
+}
+
+// TaskMeta is the automation side of a task: its run and automation, the node that opened it, the
+// rendered params of the step (Input) and the node's params in the graph version the run is pinned to
+// (Params).
+type TaskMeta struct {
+	RunID, AutomationID uuid.UUID
+	NodeID              string
+	Input, Params       json.RawMessage
+}
+
+// DecidedPosition is a decision of a user: the task and when it was decided.
+type DecidedPosition struct {
+	TaskID uuid.UUID
+	At     time.Time
+}
+
+// Store reads the automation side of tasks; the inbox owns paging and visibility.
+type Store interface {
+	// Metas are the metas of the tasks by task ID; a key of no run's wait is left out.
+	Metas(ctx context.Context, tenant uuid.UUID, keys []TaskKey) (map[uuid.UUID]TaskMeta, error)
+	// Decided are the user's decisions on tasks of the workflow, newest first ((At, TaskID) descending),
+	// strictly after after (nil: from the newest), at most limit.
+	Decided(ctx context.Context, tenant uuid.UUID, userID int64, workflow string, after *DecidedPosition, limit int) ([]DecidedPosition, error)
+}
+
 // Config wires the inbox.
 type Config struct {
 	Tasks Substrate
-	// DB reads the automation side of a task: its run, the wait and the step that opened it, the graph
-	// version the run is pinned to.
-	DB *pgxpool.Pool
+	// Store reads the automation side of a task: its run, the wait and the step that opened it, the graph
+	// version the run is pinned to; and the user's decisions.
+	Store Store
 	// Audience judges role and group assignees by current membership (workflow.TaskAudience).
 	Audience workflow.TaskAudience
 	// Subjects loads the user's current rights.
@@ -67,6 +97,8 @@ type Config struct {
 	// Subjects of tasks; nil: the subject's entity and key without a link.
 	SubjectNames SubjectResolver
 	Now          func() time.Time
+	// Logger records what the inbox degrades on (a subject it could not name); nil: slog.Default().
+	Logger *slog.Logger
 }
 
 // Service is the TaskInbox over the human tasks substrate.
@@ -76,13 +108,16 @@ type Service struct {
 
 var _ TaskInbox = (*Service)(nil)
 
-// NewService builds the inbox; Tasks, DB and Subjects are required.
+// NewService builds the inbox; Tasks, Store and Subjects are required.
 func NewService(cfg Config) (*Service, error) {
-	if cfg.Tasks == nil || cfg.DB == nil || cfg.Subjects == nil {
-		return nil, serrors.New(serrors.Invalid, "automations tasks: Tasks, DB and Subjects are required").WithOp(op)
+	if cfg.Tasks == nil || cfg.Store == nil || cfg.Subjects == nil {
+		return nil, serrors.New(serrors.Invalid, "automations tasks: Tasks, Store and Subjects are required").WithOp(op)
 	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
+	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
 	return &Service{cfg: cfg}, nil
 }
@@ -156,6 +191,7 @@ func (s *Service) listOpen(ctx context.Context, a actor, f TaskFilter, search st
 		wf.Cursor = &c
 	}
 	page := TaskPage{Items: []TaskView{}}
+	var last workflow.Task
 	for {
 		list, err := s.cfg.Tasks.Tasks(ctx, a.subject, wf)
 		if err != nil {
@@ -175,12 +211,13 @@ func (s *Service) listOpen(ctx context.Context, a actor, f TaskFilter, search st
 				continue
 			}
 			if len(page.Items) == f.Limit {
-				// One more matching task exists: the page ends at the last one it holds.
-				last := page.Items[len(page.Items)-1]
-				page.NextCursor = workflow.TaskCursor{DueAt: last.DueAt, ID: last.ID}.String()
+				// One more matching task exists: the page ends at the last one it holds, at the place the
+				// substrate listed it (its due time as of the traversal's start).
+				page.NextCursor = workflow.CursorAfter(last).String()
 				return page, nil
 			}
 			page.Items = append(page.Items, v)
+			last = t
 		}
 		if len(list) < wf.Limit {
 			return page, nil
@@ -213,44 +250,25 @@ func parseDecidedCursor(s string) (time.Time, uuid.UUID, error) {
 
 // listDecided reads the tasks the user decided, newest decision first.
 func (s *Service) listDecided(ctx context.Context, a actor, f TaskFilter, search string) (TaskPage, error) {
-	var after *decidedPos
+	var after *DecidedPosition
 	if f.Cursor != "" {
 		at, id, err := parseDecidedCursor(f.Cursor)
 		if err != nil {
 			return TaskPage{}, serrors.Wrap(op, fmt.Errorf("%w: cursor", ErrInvalidDecision))
 		}
-		after = &decidedPos{id: id, at: at}
+		after = &DecidedPosition{TaskID: id, At: at}
 	}
-	read := func(after *decidedPos, limit int) ([]decidedPos, error) {
-		var (
-			afterAt time.Time
-			afterID uuid.UUID
-		)
-		if after != nil {
-			afterAt, afterID = after.at, after.id
-		}
-		rows, err := s.cfg.DB.Query(ctx, `
-			SELECT d.task_id, d.decided_at FROM extruntime.human_task_decisions d
-			JOIN extruntime.human_tasks t ON t.id = d.task_id AND t.tenant_id = d.tenant_id
-			JOIN extruntime.workflow_instances i ON i.id = t.instance_id AND i.tenant_id = t.tenant_id
-			WHERE d.tenant_id = $1 AND d.user_id = $2 AND i.workflow = $3
-			  AND (NOT $4 OR (d.decided_at, d.task_id) < ($5::timestamptz, $6::uuid))
-			ORDER BY d.decided_at DESC, d.task_id DESC
-			LIMIT $7`, a.subject.TenantID, a.subject.UserID, engine.WorkflowID, after != nil, afterAt, afterID, limit)
+	read := func(after *DecidedPosition, limit int) ([]DecidedPosition, error) {
+		list, err := s.cfg.Store.Decided(ctx, a.subject.TenantID, a.subject.UserID, engine.WorkflowID, after, limit)
 		if err != nil {
-			return nil, serrors.FromDB(op, err)
+			return nil, serrors.Wrap(op, err)
 		}
-		list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (decidedPos, error) {
-			var p decidedPos
-			err := r.Scan(&p.id, &p.at)
-			return p, err
-		})
-		return list, serrors.FromDB(op, err)
+		return list, nil
 	}
-	shown := func(list []decidedPos) (map[uuid.UUID]TaskView, error) {
+	shown := func(list []DecidedPosition) (map[uuid.UUID]TaskView, error) {
 		ids := make([]uuid.UUID, len(list))
 		for i, p := range list {
-			ids[i] = p.id
+			ids[i] = p.TaskID
 		}
 		tasks, err := s.cfg.Tasks.TasksByID(ctx, a.subject.TenantID, ids)
 		if err != nil {
@@ -271,22 +289,16 @@ func (s *Service) listDecided(ctx context.Context, a actor, f TaskFilter, search
 	return fillDecided(f.Limit, decidedBatch, after, read, shown)
 }
 
-// decidedPos is a decision of the user: the task and when it was decided.
-type decidedPos struct {
-	id uuid.UUID
-	at time.Time
-}
-
 // decidedBatch is how many decisions a pass of «Decided by me» reads.
 const decidedBatch = 100
 
 // fillDecided reads the user's decisions batch by batch (read, newest first after a position) and
 // keeps the ones shown (visible and matching) until the page holds limit; when one more is shown,
 // the page's cursor is the position of its last task, whatever batch it came from.
-func fillDecided(limit, batch int, after *decidedPos, read func(after *decidedPos, limit int) ([]decidedPos, error),
-	shown func([]decidedPos) (map[uuid.UUID]TaskView, error)) (TaskPage, error) {
+func fillDecided(limit, batch int, after *DecidedPosition, read func(after *DecidedPosition, limit int) ([]DecidedPosition, error),
+	shown func([]DecidedPosition) (map[uuid.UUID]TaskView, error)) (TaskPage, error) {
 	page := TaskPage{Items: []TaskView{}}
-	var last decidedPos
+	var last DecidedPosition
 	for {
 		list, err := read(after, batch)
 		if err != nil {
@@ -297,12 +309,12 @@ func fillDecided(limit, batch int, after *decidedPos, read func(after *decidedPo
 			return TaskPage{}, err
 		}
 		for _, p := range list {
-			v, ok := byID[p.id]
+			v, ok := byID[p.TaskID]
 			if !ok {
 				continue
 			}
 			if len(page.Items) == limit {
-				page.NextCursor = decidedCursor(last.at, last.id)
+				page.NextCursor = decidedCursor(last.At, last.TaskID)
 				return page, nil
 			}
 			page.Items = append(page.Items, v)
@@ -426,7 +438,22 @@ func (s *Service) Decide(ctx context.Context, id uuid.UUID, in DecideInput) erro
 		if !ok {
 			return serrors.Wrap(op, ErrFormUnavailable)
 		}
-		fd, err := form.Decide(ctx, v, a.user, in.Form)
+		// What the task would refuse is refused before the form performs its action.
+		if err := s.precheck(ctx, form, v, a.user, in); err != nil {
+			return serrors.Wrap(op, err)
+		}
+		fctx := ctx
+		if v.Deadline != nil {
+			// The final deadline, judged afresh as the action starts; the action's context ends at it, as
+			// the substrate stops counting votes then.
+			if !s.cfg.Now().Before(*v.Deadline) {
+				return serrors.Wrap(op, ErrTaskClosed)
+			}
+			var cancel context.CancelFunc
+			fctx, cancel = context.WithDeadline(ctx, *v.Deadline)
+			defer cancel()
+		}
+		fd, err := form.Decide(fctx, v, a.user, in.Form)
 		if err != nil {
 			return serrors.Wrap(op, err)
 		}
@@ -457,19 +484,59 @@ func (s *Service) form(kind string) (TaskForm, bool, error) {
 	return s.cfg.Forms.Form(kind)
 }
 
-// decisionOf is the decision a human node's task takes: {outcome, comment, fields}, checked against the
-// node's buttons and form.
-func decisionOf(v TaskView, outcome, comment string, fields json.RawMessage) (json.RawMessage, error) {
+// precheck judges a task form's submission before the form acts: the decision its FormPreparer
+// prepares in full, else the outcome its FormIntent asks for, else the comment alone.
+func (s *Service) precheck(ctx context.Context, form TaskForm, v TaskView, actor user.User, in DecideInput) error {
+	if p, ok := form.(FormPreparer); ok {
+		fd, err := p.Prepare(ctx, v, actor, in.Form)
+		if err != nil {
+			return err
+		}
+		_, err = decisionOf(v, fd.Outcome, in.Comment, fd.Fields)
+		return err
+	}
+	if fi, ok := form.(FormIntent); ok {
+		outcome, err := fi.Intent(ctx, v, in.Form)
+		if err != nil {
+			return errors.Join(ErrInvalidDecision, err)
+		}
+		_, err = checkOutcome(v, outcome, in.Comment)
+		return err
+	}
+	return checkComment(in.Comment)
+}
+
+// checkComment bounds a comment's length.
+func checkComment(comment string) error {
+	if len([]rune(strings.TrimSpace(comment))) > MaxCommentLength {
+		return fmt.Errorf("%w: a comment has at most %d characters", ErrInvalidDecision, MaxCommentLength)
+	}
+	return nil
+}
+
+// checkOutcome checks an outcome against the node's buttons and the comment it needs; it returns the
+// trimmed comment.
+func checkOutcome(v TaskView, outcome, comment string) (string, error) {
 	i := slices.IndexFunc(v.Outcomes, func(o OutcomeOption) bool { return o.Value == outcome })
 	if i < 0 {
-		return nil, fmt.Errorf("%w: outcome %q is not a button of the task", ErrInvalidDecision, outcome)
+		return "", fmt.Errorf("%w: outcome %q is not a button of the task", ErrInvalidDecision, outcome)
 	}
 	comment = strings.TrimSpace(comment)
 	if v.Outcomes[i].CommentRequired && comment == "" {
-		return nil, fmt.Errorf("%w: %s needs a comment", ErrInvalidDecision, outcome)
+		return "", fmt.Errorf("%w: %s needs a comment", ErrInvalidDecision, outcome)
 	}
-	if len([]rune(comment)) > MaxCommentLength {
-		return nil, fmt.Errorf("%w: a comment has at most %d characters", ErrInvalidDecision, MaxCommentLength)
+	if err := checkComment(comment); err != nil {
+		return "", err
+	}
+	return comment, nil
+}
+
+// decisionOf is the decision a human node's task takes: {outcome, comment, fields}, checked against the
+// node's buttons and form.
+func decisionOf(v TaskView, outcome, comment string, fields json.RawMessage) (json.RawMessage, error) {
+	comment, err := checkOutcome(v, outcome, comment)
+	if err != nil {
+		return nil, err
 	}
 	if f := strings.TrimSpace(string(fields)); f == "" || f == "null" {
 		fields = nil
@@ -579,13 +646,6 @@ func mapErr(err error) error {
 
 // ---- views ----
 
-// taskMeta is the automation side of a task.
-type taskMeta struct {
-	runID, automationID uuid.UUID
-	nodeID              string
-	input, params       json.RawMessage // the rendered params of the step; the node's params in the version
-}
-
 // waitIDOf is the wait of a human node's task ("task:<wait id>").
 func waitIDOf(t workflow.Task) (string, bool) {
 	if t.Workflow != engine.WorkflowID || !strings.HasPrefix(t.Name, "task:") {
@@ -594,46 +654,21 @@ func waitIDOf(t workflow.Task) (string, bool) {
 	return strings.TrimPrefix(t.Name, "task:"), true
 }
 
-func (s *Service) metas(ctx context.Context, tenant uuid.UUID, list []workflow.Task) (map[uuid.UUID]taskMeta, error) {
-	var (
-		instances []uuid.UUID
-		waits     []string
-		ids       []uuid.UUID
-	)
+func (s *Service) metas(ctx context.Context, tenant uuid.UUID, list []workflow.Task) (map[uuid.UUID]TaskMeta, error) {
+	var keys []TaskKey
 	for _, t := range list {
 		if w, ok := waitIDOf(t); ok {
-			instances, waits, ids = append(instances, t.InstanceID), append(waits, w), append(ids, t.ID)
+			keys = append(keys, TaskKey{TaskID: t.ID, InstanceID: t.InstanceID, WaitID: w})
 		}
 	}
-	out := map[uuid.UUID]taskMeta{}
-	if len(ids) == 0 {
-		return out, nil
+	if len(keys) == 0 {
+		return map[uuid.UUID]TaskMeta{}, nil
 	}
-	rows, err := s.cfg.DB.Query(ctx, `
-		SELECT k.task_id, r.id, r.automation_id, w.node_id, s.input,
-			(SELECT n->'params' FROM jsonb_array_elements(v.graph->'nodes') n WHERE n->>'id' = w.node_id LIMIT 1)
-		FROM unnest($2::uuid[], $3::uuid[], $4::text[]) AS k(task_id, instance_id, wait_id)
-		JOIN automation.runs r ON r.tenant_id = $1 AND r.instance_id = k.instance_id
-		JOIN automation.waits w ON w.tenant_id = r.tenant_id AND w.run_id = r.id AND w.wait_id = k.wait_id
-		LEFT JOIN automation.steps s ON s.tenant_id = w.tenant_id AND s.run_id = w.run_id AND s.token_id = w.token_id
-			AND s.seq = (w.spec->>'seq')::int
-		LEFT JOIN automation.versions v ON v.tenant_id = r.tenant_id AND v.automation_id = r.automation_id AND v.version = r.version`,
-		tenant, ids, instances, waits)
+	out, err := s.cfg.Store.Metas(ctx, tenant, keys)
 	if err != nil {
-		return nil, serrors.FromDB(op, err)
+		return nil, serrors.Wrap(op, err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var (
-			id uuid.UUID
-			m  taskMeta
-		)
-		if err := rows.Scan(&id, &m.runID, &m.automationID, &m.nodeID, &m.input, &m.params); err != nil {
-			return nil, serrors.FromDB(op, err)
-		}
-		out[id] = m
-	}
-	return out, serrors.FromDB(op, rows.Err())
+	return out, nil
 }
 
 // nodeParams are the params of a human node as the inbox reads them.
@@ -651,10 +686,10 @@ type nodeParams struct {
 }
 
 // paramsOf are the rendered params of the step, else (a pruned step) the node's params in the version.
-func paramsOf(m taskMeta) (nodeParams, nodeParams) {
+func paramsOf(m TaskMeta) (nodeParams, nodeParams) {
 	var rendered, pinned nodeParams
-	_ = json.Unmarshal(m.params, &pinned)
-	if err := json.Unmarshal(m.input, &rendered); err != nil || len(rendered.Buttons) == 0 {
+	_ = json.Unmarshal(m.Params, &pinned)
+	if err := json.Unmarshal(m.Input, &rendered); err != nil || len(rendered.Buttons) == 0 {
 		return pinned, pinned
 	}
 	return rendered, pinned
@@ -739,6 +774,7 @@ func (s *Service) via(ctx context.Context, a actor, t workflow.Task) (string, er
 			}
 		}
 	}
+	var lookupErr error
 	if s.cfg.Audience != nil {
 		for _, kind := range []string{workflow.TaskAssignRole, workflow.TaskAssignGroup} {
 			for _, as := range t.Assignees {
@@ -747,7 +783,9 @@ func (s *Service) via(ctx context.Context, a actor, t workflow.Task) (string, er
 				}
 				ok, err := s.cfg.Audience.IsMember(ctx, a.subject.TenantID, a.subject.UserID, as)
 				if err != nil {
-					return "", serrors.Wrap(op, err)
+					// Another assignee may still cover the user; a failed lookup proves nothing either way.
+					lookupErr = errors.Join(lookupErr, err)
+					continue
 				}
 				if ok {
 					return kind, nil
@@ -755,14 +793,31 @@ func (s *Service) via(ctx context.Context, a actor, t workflow.Task) (string, er
 			}
 		}
 	}
+	// A permission the user holds covers them whatever a membership lookup said; without one, an
+	// unverified membership is an error, not a denial.
+	if found == "" && lookupErr != nil {
+		return "", serrors.Wrap(op, lookupErr)
+	}
 	return found, nil
 }
 
-func (s *Service) view(ctx context.Context, a actor, t workflow.Task, m taskMeta, names map[int64]string, now time.Time) (TaskView, bool, error) {
+// agreeing is the progress of a quorum as the substrate closes a task: the most decisions that agree on
+// one outcome (a split vote does not reach it).
+func agreeing(list []workflow.TaskDecision) int {
+	by := map[string]int{}
+	most := 0
+	for _, d := range list {
+		by[d.Choice]++
+		most = max(most, by[d.Choice])
+	}
+	return most
+}
+
+func (s *Service) view(ctx context.Context, a actor, t workflow.Task, m TaskMeta, names map[int64]string, now time.Time) (TaskView, bool, error) {
 	me := a.subject.UserID
 	v := TaskView{
-		ID: t.ID, RunID: m.runID, AutomationID: m.automationID, NodeID: m.nodeID,
-		Quorum: Quorum{Required: max(t.Required, 1), Decided: len(t.Decisions)},
+		ID: t.ID, RunID: m.RunID, AutomationID: m.AutomationID, NodeID: m.NodeID,
+		Quorum: Quorum{Required: max(t.Required, 1), Decided: agreeing(t.Decisions)},
 		DueAt:  t.DueAt, Escalated: t.EscalationLevel > 0, State: t.Status, CreatedAt: t.CreatedAt,
 		AllowDelegation: t.AllowDelegation,
 	}
@@ -812,6 +867,9 @@ func (s *Service) view(ctx context.Context, a actor, t workflow.Task, m taskMeta
 	// An open task past its final deadline stays open (the run closes it) and overdue, but takes no
 	// decision any more: the substrate's predicate, judged apart from the state shown.
 	v.PastDeadline = t.PastFinalDeadline(now)
+	if t.Status == "open" && t.DueAt != nil && t.EscalationLevel >= len(t.Escalation) {
+		v.Deadline = t.DueAt
+	}
 	v.CanDecide = t.Status == "open" && v.MyDecision == nil && !v.PastDeadline
 	v.Overdue = t.Status == "open" && t.DueAt != nil && t.DueAt.Before(now)
 	switch t.Status {
@@ -859,9 +917,12 @@ func (s *Service) view(ctx context.Context, a actor, t workflow.Task, m taskMeta
 		if s.cfg.SubjectNames != nil {
 			label, link, err := s.cfg.SubjectNames.Subject(ctx, a.subject, t.SubjectEntity, t.SubjectKey)
 			if err != nil {
-				return TaskView{}, false, serrors.Wrap(op, err)
+				// The task stays usable: a neutral label (the entity) and no link.
+				s.cfg.Logger.WarnContext(ctx, "automations tasks: subject name lookup failed",
+					"task_id", t.ID, "entity", t.SubjectEntity, "error", err)
+			} else {
+				ref.Label, ref.URL = label, link
 			}
-			ref.Label, ref.URL = label, link
 		}
 		if ref.Label == "" {
 			ref.Label = t.SubjectEntity

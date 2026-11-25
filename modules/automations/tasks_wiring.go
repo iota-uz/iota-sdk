@@ -135,7 +135,7 @@ func (c *component) buildTasks(b *composition.Builder) {
 			names = entitySubjects{names: records.Of(container), natives: natives, links: h.links}
 		}
 		svc, err := tasks.NewService(tasks.Config{
-			Tasks: wf, DB: db, Audience: audience, Subjects: subjects, Users: userDirectory{names: persistence.NewUserNames(db)},
+			Tasks: wf, Store: persistence.NewTaskStore(db), Audience: audience, Subjects: subjects, Users: userDirectory{names: persistence.NewUserNames(db)},
 			Forms: forms, SubjectNames: names,
 		})
 		if err != nil {

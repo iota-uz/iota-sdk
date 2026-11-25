@@ -42,21 +42,21 @@ test.describe('automations: my tasks screen states', () => {
 	test('states at 1440 and 390 px, light and dark, with axe (Q1, S1, A1, H7)', async ({ page, browser, baseURL }) => {
 		const { role, members: [vera, otto] } = await people(['Vera', 'Otto']);
 		await login(page, ADMIN, PASSWORD);
-		await startTask(page, 'Approve the supplier invoice', {
+		const invoiceRun = await startTask(page, 'Approve the supplier invoice', {
 			body: 'Invoice for **November** delivery.\n\n- Check the amount\n- Reject with a reason if it does not match',
 			assignees: [{ kind: 'user', user_id: vera.id }], form: FORM, allow_delegate: true,
 		});
-		await startTask(page, 'Sign the warehouse act', { assignees: [{ kind: 'user', user_id: vera.id }] });
+		const actRun = await startTask(page, 'Sign the warehouse act', { assignees: [{ kind: 'user', user_id: vera.id }] });
 		await removeForm('Sign the warehouse act');
-		await startTask(page, 'Confirm the vacation', { assignees: [{ kind: 'role', ref: String(role) }] });
-		const invoice = await taskIDOf('Approve the supplier invoice');
-		const act = await taskIDOf('Sign the warehouse act');
-		const vacation = await taskIDOf('Confirm the vacation');
+		const vacationRun = await startTask(page, 'Confirm the vacation', { assignees: [{ kind: 'role', ref: String(role) }] });
+		const invoice = await taskIDOf(invoiceRun);
+		const act = await taskIDOf(actRun);
+		const vacation = await taskIDOf(vacationRun);
 		// Otto's own tasks: one Vera may not open, one that cannot be read (its stored escalation is damaged).
-		await startTask(page, 'Otto private approval', { assignees: [{ kind: 'user', user_id: otto.id }] });
-		await startTask(page, 'Otto damaged approval', { assignees: [{ kind: 'user', user_id: otto.id }] });
-		const foreign = await taskIDOf('Otto private approval');
-		const damaged = await taskIDOf('Otto damaged approval');
+		const foreignRun = await startTask(page, 'Otto private approval', { assignees: [{ kind: 'user', user_id: otto.id }] });
+		const damagedRun = await startTask(page, 'Otto damaged approval', { assignees: [{ kind: 'user', user_id: otto.id }] });
+		const foreign = await taskIDOf(foreignRun);
+		const damaged = await taskIDOf(damagedRun);
 		await withDatabase(async (db) => {
 			await db.query(`UPDATE extruntime.human_tasks SET escalation = '"damaged"'::jsonb WHERE id = $1`, [damaged]);
 		});
@@ -68,7 +68,8 @@ test.describe('automations: my tasks screen states', () => {
 		await v.page.goto(`/automations/tasks/${act}`);
 		await expect(v.page.getByTestId('automations-task-form-unavailable')).toContainText('Form unavailable');
 		await expect(v.page.getByTestId('automations-task-outcomes')).toHaveCount(0);
-		await expect(v.page.getByTestId('automations-task-run-link')).toHaveCount(0, { timeout: 1000 }); // Vera cannot read runs
+		// Vera cannot read runs: the panel that links the run for a reader has no link for her.
+		await expect(v.page.getByTestId('automations-task-form-unavailable').getByRole('link', { name: 'Open the run' })).toHaveCount(0);
 		await withDatabase(async (db) => {
 			const { rows: [admin] } = await db.query('SELECT id FROM users WHERE email = $1', [ADMIN]);
 			await db.query(`INSERT INTO extruntime.human_task_assignees (task_id, tenant_id, kind, user_id, ref, added_at)
@@ -118,12 +119,21 @@ test.describe('automations: my tasks screen states', () => {
 			{ name: 'task-offline', open: async (p) => {
 				await p.goto(`/automations/tasks/${invoice}`);
 				await p.context().setOffline(true);
+				// The decision's send fails (htmx:sendError); the global toast handler runs on that same event,
+				// so once it has fired and the next frame is painted, a toast would already be in the container.
+				await p.evaluate(() => {
+					const w = window as unknown as { decisionSendFailed?: boolean };
+					w.decisionSendFailed = false;
+					document.addEventListener('htmx:sendError', () => requestAnimationFrame(() => { w.decisionSendFailed = true; }), { once: true });
+				});
+				const failed = p.waitForEvent('requestfailed', (r) => r.method() === 'POST' && new URL(r.url()).pathname.endsWith('/decide'));
 				await p.getByTestId('automations-task-outcome-approve').click();
+				await failed;
+				await p.waitForFunction(() => (window as unknown as { decisionSendFailed?: boolean }).decisionSendFailed === true);
 				await expect(p.getByTestId('automations-tasks-offline')).toBeVisible();
 				await expect(p.getByTestId('automations-tasks-offline')).toBeInViewport({ ratio: 1 });
 				// The banner is the signal: no global toast over the decision buttons (F6).
-				await p.waitForTimeout(500);
-				await expect(p.getByText('Check your connection and try again.')).toBeHidden();
+				await expect(p.locator('[data-toast-container]').getByText('Check your connection and try again.')).toHaveCount(0);
 				await p.context().setOffline(false);
 			} },
 		];
@@ -166,7 +176,9 @@ test.describe('automations: my tasks screen states', () => {
 
 		// WebKit as an iPad, portrait and landscape.
 		const ws = process.env.PLAYWRIGHT_WEBKIT_WS;
-		const wk: Browser = ws ? await webkit.connect(ws) : await webkit.launch();
+		// A remote browser server (another container) resolves a loopback app URL inside itself: forward the
+		// loopback network of this host to it then. A non-loopback app URL must be reachable from there.
+		const wk: Browser = ws ? await webkit.connect(ws, isLoopback(baseURL) ? { exposeNetwork: '<loopback>' } : {}) : await webkit.launch();
 		try {
 			for (const [title, device] of [['iPad portrait approval', devices['iPad Pro 11']], ['iPad landscape approval', devices['iPad Pro 11 landscape']]] as const) {
 				const ipad = await sessionOf(wk, baseURL, pia, device.viewport, { ...device, viewport: device.viewport });
@@ -193,4 +205,11 @@ async function tapDecide(page: Page, title: string) {
 	expect(small, 'every touch target is at least 44 px').toEqual([]);
 	await page.getByTestId('automations-task-outcome-approve').tap();
 	await expect(page.getByText('Decision recorded').first()).toBeVisible();
+}
+
+/** Whether the app URL points at this host's loopback (localhost, 127.0.0.0/8, ::1). */
+function isLoopback(url: string | undefined): boolean {
+	if (!url) return false;
+	const host = new URL(url).hostname.replace(/^\[|\]$/g, '');
+	return host === 'localhost' || host.endsWith('.localhost') || host === '::1' || /^127\./.test(host);
 }

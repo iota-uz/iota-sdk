@@ -473,119 +473,119 @@
       "Misc": "Outros"
     },
     "Tasks": {
-      "Title": "My tasks",
-      "Intro": "Decisions automations are waiting for from you: assigned to you, your roles and groups, or passed to you.",
+      "Title": "Minhas tarefas",
+      "Intro": "Decisões que as automações aguardam de você: atribuídas a você, às suas funções e grupos, ou repassadas a você.",
       "Tabs": {
-        "Label": "Task lists",
-        "Mine": "Mine",
-        "Overdue": "Overdue",
-        "Decided": "Decided by me"
+        "Label": "Listas de tarefas",
+        "Mine": "Minhas",
+        "Overdue": "Atrasadas",
+        "Decided": "Decididas por mim"
       },
       "Search": {
-        "Label": "Search tasks",
-        "Placeholder": "Search by task or record"
+        "Label": "Pesquisar tarefas",
+        "Placeholder": "Pesquisar por tarefa ou registro"
       },
       "Empty": {
-        "Mine": "No tasks waiting for you",
-        "MineHint": "When an automation asks you, your role or your group to decide, the task appears here and you get a notification.",
-        "Overdue": "Nothing is overdue",
-        "OverdueHint": "Open tasks past their due time appear here.",
-        "Decided": "You have not decided any task yet",
-        "DecidedHint": "Tasks you decide stay here, with how they ended.",
-        "Filtered": "Nothing found for «{{.Query}}»",
-        "Reset": "Reset filters",
-        "ToMine": "Open my tasks"
+        "Mine": "Nenhuma tarefa aguardando você",
+        "MineHint": "Quando uma automação pedir uma decisão a você, à sua função ou ao seu grupo, a tarefa aparecerá aqui.",
+        "Overdue": "Nada está atrasado",
+        "OverdueHint": "Tarefas abertas com prazo vencido aparecem aqui.",
+        "Decided": "Você ainda não decidiu nenhuma tarefa",
+        "DecidedHint": "As tarefas que você decidir ficam aqui, com o resultado.",
+        "Filtered": "Nada encontrado para «{{.Query}}»",
+        "Reset": "Limpar filtros",
+        "ToMine": "Abrir minhas tarefas"
       },
-      "More": "Show more",
-      "Retry": "Retry",
-      "Back": "My tasks",
-      "Overdue": "Overdue",
-      "Escalated": "Escalated",
+      "More": "Mostrar mais",
+      "Retry": "Tentar novamente",
+      "Back": "Minhas tarefas",
+      "Overdue": "Atrasada",
+      "Escalated": "Escalada",
       "Via": {
-        "User": "Assigned to you",
-        "Role": "Your role",
-        "Group": "Your group",
-        "Permission": "Your permission",
-        "Delegated": "Passed to you",
-        "DelegatedBy": "Passed from {{.Name}}"
+        "User": "Atribuída a você",
+        "Role": "Sua função",
+        "Group": "Seu grupo",
+        "Permission": "Sua permissão",
+        "Delegated": "Repassada a você",
+        "DelegatedBy": "Repassada por {{.Name}}"
       },
-      "Quorum": "{{.Decided}} of {{.Required}}",
-      "MyDecision": "You decided: {{.Outcome}}",
+      "Quorum": "{{.Decided}} de {{.Required}}",
+      "MyDecision": "Sua decisão: {{.Outcome}}",
       "Closed": {
-        "DecidedBy": "Already decided by {{.Name}} at {{.At}}: {{.Outcome}}",
-        "Decided": "Decided: {{.Outcome}}",
-        "Expired": "The due time passed: the task closed without a decision",
-        "Cancelled": "The automation was stopped: the task is cancelled",
-        "Changed": "The task changed while you were deciding. Here is how it stands now.",
-        "PastDeadline": "The due time passed: decisions are no longer taken."
+        "DecidedBy": "Já decidida por {{.Name}} em {{.At}}: {{.Outcome}}",
+        "Decided": "Decidida: {{.Outcome}}",
+        "Expired": "O prazo venceu: a tarefa foi encerrada sem decisão",
+        "Cancelled": "A automação foi interrompida: a tarefa foi cancelada",
+        "Changed": "A tarefa mudou enquanto você decidia. Veja como ela está agora.",
+        "PastDeadline": "O prazo venceu: decisões não são mais aceitas."
       },
       "Decision": {
-        "Heading": "Decision"
+        "Heading": "Decisão"
       },
       "Comment": {
-        "Label": "Comment",
-        "Required": "required",
-        "RequiredFor": "(required for {{.Outcomes}})",
-        "Hint": "Visible to the automation and the other assignees.",
-        "Missing": "Write a comment: this decision needs one.",
+        "Label": "Comentário",
+        "Required": "obrigatório",
+        "RequiredFor": "(obrigatório para {{.Outcomes}})",
+        "Hint": "Visível para a automação e os demais responsáveis.",
+        "Missing": "Escreva um comentário: esta decisão exige um.",
         "Shortcut": "⌘/Ctrl+Enter — «{{.Outcome}}»."
       },
       "Confirm": {
-        "Label": "Confirm {{.Outcome}}",
-        "Question": "Decide «{{.Outcome}}»?",
-        "Hint": "The decision cannot be changed once it is recorded.",
-        "Cancel": "Cancel"
+        "Label": "Confirmar {{.Outcome}}",
+        "Question": "Decidir «{{.Outcome}}»?",
+        "Hint": "A decisão não pode ser alterada depois de registrada.",
+        "Cancel": "Cancelar"
       },
-      "Submitting": "Confirming…",
-      "Slow": "Still waiting for the server. The decision will not be recorded twice.",
+      "Submitting": "Confirmando…",
+      "Slow": "Ainda aguardando o servidor. A decisão não será registrada duas vezes.",
       "Form": {
-        "Unavailable": "Form unavailable",
-        "UnavailableHint": "This task is decided with a form this application does not have. Ask the automation's owner to fix the step; until then it cannot be decided here."
+        "Unavailable": "Formulário indisponível",
+        "UnavailableHint": "Esta tarefa é decidida com um formulário que este aplicativo não tem. Peça ao responsável pela automação que corrija a etapa; até lá, ela não pode ser decidida aqui."
       },
       "Delegate": {
-        "Open": "Pass to a colleague",
-        "To": "Colleague",
-        "Search": "Find by name or email",
-        "NotFound": "No one matches",
-        "Comment": "Comment for the colleague",
-        "Submit": "Pass the task",
-        "Submitting": "Passing…",
-        "NothingFor": "No one matches «{{.Query}}»"
+        "Open": "Repassar a um colega",
+        "To": "Colega",
+        "Search": "Buscar por nome ou e-mail",
+        "NotFound": "Ninguém corresponde",
+        "Comment": "Comentário para o colega",
+        "Submit": "Repassar a tarefa",
+        "Submitting": "Repassando…",
+        "NothingFor": "Ninguém corresponde a «{{.Query}}»"
       },
-      "OpenRun": "Open the run",
-      "Copy": "Copy",
-      "Copied": "Copied",
+      "OpenRun": "Abrir a execução",
+      "Copy": "Copiar",
+      "Copied": "Copiado",
       "Missing": {
-        "Title": "This task is not available",
-        "Hint": "It was assigned to someone else, passed on, or you are no longer among its assignees.",
-        "Back": "Back to my tasks"
+        "Title": "Esta tarefa não está disponível",
+        "Hint": "Ela foi atribuída a outra pessoa, repassada, ou você não está mais entre os responsáveis.",
+        "Back": "Voltar para minhas tarefas"
       },
       "Errors": {
-        "ListFailed": "Could not load the tasks",
-        "ListFailedHint": "Check the connection and retry.",
-        "TaskFailed": "Could not open the task",
-        "Invalid": "Check the decision: a required comment or field is missing or wrong.",
-        "DecideFailed": "Could not record the decision. Try again in a minute.",
-        "DelegationDenied": "This task cannot be passed to that person. Pick another colleague.",
-        "DelegateFailed": "Could not pass the task on. Try again in a minute.",
-        "HumanRequired": "Only a person decides a task, in their own session.",
-        "MoreFailed": "Could not load more tasks."
+        "ListFailed": "Não foi possível carregar as tarefas",
+        "ListFailedHint": "Verifique a conexão e tente novamente.",
+        "TaskFailed": "Não foi possível abrir a tarefa",
+        "Invalid": "Verifique a decisão: falta um comentário ou campo obrigatório, ou ele está incorreto.",
+        "DecideFailed": "Não foi possível registrar a decisão. Tente novamente em um minuto.",
+        "DelegationDenied": "Esta tarefa não pode ser repassada a essa pessoa. Escolha outro colega.",
+        "DelegateFailed": "Não foi possível repassar a tarefa. Tente novamente em um minuto.",
+        "HumanRequired": "Somente uma pessoa decide uma tarefa, na própria sessão.",
+        "MoreFailed": "Não foi possível carregar mais tarefas."
       },
       "Toast": {
-        "Decided": "Decision recorded",
-        "Delegated": "Passed on",
-        "DelegatedTo": "Passed to {{.Name}}"
+        "Decided": "Decisão registrada",
+        "Delegated": "Repassada",
+        "DelegatedTo": "Repassada a {{.Name}}"
       },
       "Badge": {
         "Open": {
-          "one": "{{.Count}} open task",
-          "other": "{{.Count}} open tasks"
+          "one": "{{.Count}} tarefa aberta",
+          "other": "{{.Count}} tarefas abertas"
         }
       },
       "Time": {
-        "Now": "now",
-        "In": "in {{.Span}}",
-        "Ago": "{{.Span}} ago",
+        "Now": "agora",
+        "In": "em {{.Span}}",
+        "Ago": "há {{.Span}}",
         "Minutes": {
           "one": "{{.Count}} min",
           "other": "{{.Count}} min"
@@ -595,17 +595,24 @@
           "other": "{{.Count}} h"
         },
         "Days": {
-          "one": "{{.Count}} day",
-          "other": "{{.Count}} days"
+          "one": "{{.Count}} dia",
+          "other": "{{.Count}} dias"
         },
-        "Months": "Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec"
+        "Months": "jan,fev,mar,abr,mai,jun,jul,ago,set,out,nov,dez"
       },
       "Offline": {
-        "Text": "No connection to the server. What you typed stays here."
+        "Text": "Sem conexão com o servidor. O que você digitou fica aqui."
       },
       "Field": {
-        "Null": "Empty (null)"
-      }
+        "Null": "Vazio (null)",
+        "Yes": "Sim",
+        "No": "Não",
+        "Document": "Campos da decisão (JSON)",
+        "DocumentHint": "Informe os campos da decisão como um objeto JSON; eles são verificados pelo formulário da tarefa."
+      },
+      "Unconfirmed": "Confirme a decisão abaixo: ela não foi enviada.",
+      "RetryChooseColleague": "Escolha um colega novamente e pressione «Repassar a tarefa».",
+      "CopyFailed": "Não foi possível copiar. Selecione o ID e copie:"
     }
   }
 }

@@ -14,30 +14,30 @@ import (
 func TestFillDecidedAcrossBatches(t *testing.T) {
 	t.Parallel()
 	base := time.Date(2026, 11, 24, 12, 0, 0, 0, time.UTC)
-	all := make([]decidedPos, 5)
+	all := make([]DecidedPosition, 5)
 	for i := range all {
-		all[i] = decidedPos{id: uuid.New(), at: base.Add(-time.Duration(i) * time.Minute)}
+		all[i] = DecidedPosition{TaskID: uuid.New(), At: base.Add(-time.Duration(i) * time.Minute)}
 	}
-	read := func(after *decidedPos, limit int) ([]decidedPos, error) {
+	read := func(after *DecidedPosition, limit int) ([]DecidedPosition, error) {
 		start := 0
 		if after != nil {
 			for i, p := range all {
-				if p.id == after.id {
+				if p.TaskID == after.TaskID {
 					start = i + 1
 				}
 			}
 		}
 		return all[start:min(start+limit, len(all))], nil
 	}
-	shown := func(list []decidedPos) (map[uuid.UUID]TaskView, error) {
+	shown := func(list []DecidedPosition) (map[uuid.UUID]TaskView, error) {
 		out := map[uuid.UUID]TaskView{}
 		for _, p := range list {
-			out[p.id] = TaskView{ID: p.id}
+			out[p.TaskID] = TaskView{ID: p.TaskID}
 		}
 		return out, nil
 	}
 	var got []uuid.UUID
-	var after *decidedPos
+	var after *DecidedPosition
 	for range 5 {
 		page, err := fillDecided(2, 2, after, read, shown)
 		require.NoError(t, err)
@@ -49,12 +49,18 @@ func TestFillDecidedAcrossBatches(t *testing.T) {
 		}
 		at, id, err := parseDecidedCursor(page.NextCursor)
 		require.NoError(t, err)
-		require.False(t, at.IsZero(), "the cursor carries the time of the page's last task")
-		after = &decidedPos{id: id, at: at}
+		lastID := page.Items[len(page.Items)-1].ID
+		require.Equal(t, lastID, id, "the cursor is after the page's last task")
+		for _, p := range all {
+			if p.TaskID == lastID {
+				require.True(t, p.At.Equal(at), "the cursor carries the exact time of the page's last task")
+			}
+		}
+		after = &DecidedPosition{TaskID: id, At: at}
 	}
 	want := make([]uuid.UUID, len(all))
 	for i, p := range all {
-		want[i] = p.id
+		want[i] = p.TaskID
 	}
 	assert.Equal(t, want, got, "every decision once, in order")
 }
