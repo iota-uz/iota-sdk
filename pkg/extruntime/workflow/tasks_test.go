@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -31,6 +32,8 @@ type fakeAudience struct {
 	tenant  uuid.UUID
 	// slow, when set, runs before every IsMember answer (outside the lock).
 	slow func()
+	// fail are the assignees whose lookups fail.
+	fail map[workflow.TaskAssignee]error
 }
 
 func newFakeAudience(tenant uuid.UUID) *fakeAudience {
@@ -55,6 +58,9 @@ func (f *fakeAudience) IsMember(_ context.Context, tenant uuid.UUID, user int64,
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if err := f.fail[a]; err != nil {
+		return false, err
+	}
 	return tenant == f.tenant && f.members[a][user], nil
 }
 
@@ -887,6 +893,17 @@ func TestTasks_ParseTaskCursorSnapshot(t *testing.T) {
 	}
 	_, err = workflow.ParseTaskCursor("/" + id.String() + "/100:100:")
 	require.NoError(t, err, "no transaction in progress")
+
+	// A snapshot of many concurrent transactions is read whole, however long.
+	xips := make([]string, 0, 600)
+	for i := range 600 {
+		xips = append(xips, fmt.Sprint(1_000_000_000+i))
+	}
+	long := "1000000000:1000000600:" + strings.Join(xips, ",")
+	require.Greater(t, len(long), 4096)
+	c, err = workflow.ParseTaskCursor("/" + id.String() + "/" + long)
+	require.NoError(t, err)
+	require.Equal(t, long, c.Snapshot)
 }
 
 // AuthorizeTask judges the actor by their current rights and the task as it
@@ -957,6 +974,30 @@ func TestTasks_AuthorizeTaskJudgesTheDeadlineAfterTheRightsLookup(t *testing.T) 
 	subjects.delay.Store(int64(700 * time.Millisecond))
 	_, err = eng.AuthorizeTask(ctx, env.subject(99), task.ID)
 	require.ErrorIs(t, err, workflow.ErrTaskClosed, "the deadline passed during the rights lookup")
+}
+
+// A failed membership lookup of one assignee does not hide another that
+// covers the user, in the inbox and for a decision; with none covering, the
+// failure is the answer.
+func TestTasks_MembershipLookupFailureFallsThrough(t *testing.T) {
+	broken := workflow.TaskAssignee{Kind: workflow.TaskAssignRole, Ref: "7"}
+	down := errors.New("roles: timeout")
+	s := newTaskStack(t, workflow.TaskSpec{Assignees: []workflow.TaskAssignee{broken, reviewers}, Timeout: time.Hour})
+	s.audience.set(reviewers, 31, true)
+	s.audience.mu.Lock()
+	s.audience.fail = map[workflow.TaskAssignee]error{broken: down}
+	s.audience.mu.Unlock()
+	ctx := context.Background()
+	_, task := s.startWaiting("fallthrough")
+
+	require.Equal(t, []uuid.UUID{task.ID}, s.inbox(31), "the group covers the user")
+	_, err := s.eng.AuthorizeTask(ctx, s.env.subject(31), task.ID)
+	require.NoError(t, err)
+
+	_, err = s.eng.AuthorizeTask(ctx, s.env.subject(32), task.ID)
+	require.ErrorIs(t, err, down, "no assignee covers the user: the lookup failure is the answer")
+	_, err = s.eng.Tasks(ctx, s.env.subject(32), workflow.TaskFilter{})
+	require.ErrorIs(t, err, down)
 }
 
 // The run records the due time an escalation step replaced.

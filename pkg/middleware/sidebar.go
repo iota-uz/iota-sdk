@@ -95,15 +95,16 @@ func filterItems(items []types.NavigationItem, user user.User) []types.Navigatio
 }
 
 // forEveryone keeps the items marked ForEveryone and the folders that contain one, with only those
-// descendants; other leaves are dropped.
+// descendants; other leaves are dropped. The mark is not inherited: a marked folder keeps only its
+// marked descendants, and a marked folder left with none is dropped like any empty folder (a marked
+// leaf is kept).
 func forEveryone(items []types.NavigationItem) []types.NavigationItem {
 	out := make([]types.NavigationItem, 0, len(items))
 	for _, item := range items {
-		if item.ForEveryone {
-			out = append(out, item)
-			continue
-		}
 		if len(item.Children) == 0 {
+			if item.ForEveryone {
+				out = append(out, item)
+			}
 			continue
 		}
 		if children := forEveryone(item.Children); len(children) > 0 {

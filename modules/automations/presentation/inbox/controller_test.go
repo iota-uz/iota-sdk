@@ -91,6 +91,7 @@ func TestUnconfirmedDangerOutcome(t *testing.T) {
 	assert.False(t, unconfirmed(v, tasks.DecideInput{Outcome: "reject"}, "reject"))
 	assert.False(t, unconfirmed(v, tasks.DecideInput{Outcome: "approve"}, ""), "a normal outcome needs no confirmation")
 	assert.False(t, unconfirmed(v, tasks.DecideInput{Outcome: "nope"}, ""), "an unknown outcome is the service's to refuse")
+	assert.True(t, unconfirmed(v, tasks.DecideInput{Outcome: "reject", Form: []byte(`{}`)}, ""), "a form parameter does not confirm a default-form task")
 	custom := v
 	custom.FormKind = "signature"
 	assert.False(t, unconfirmed(custom, tasks.DecideInput{Outcome: "reject"}, ""), "a custom form confirms on its own")

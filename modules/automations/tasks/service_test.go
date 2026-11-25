@@ -372,6 +372,10 @@ func TestFormsWithoutPrepareDoNotActOnConstrainedSchemas(t *testing.T) {
 		})
 	}
 	assert.False(t, ConstrainsFields(json.RawMessage(`{"type":"object","x-iota-form":"a","title":"T","additionalProperties":true}`)))
+	assert.False(t, ConstrainsFields(json.RawMessage(`{"type":"object","x-iota-form":"a","additionalProperties":{}}`)), "an empty subschema is open")
+	assert.False(t, ConstrainsFields(json.RawMessage(`{"type":"object","additionalProperties":{"description":"any"}}`)))
+	assert.True(t, ConstrainsFields(json.RawMessage(`{"type":"object","additionalProperties":false}`)))
+	assert.True(t, ConstrainsFields(json.RawMessage(`{"type":"object","additionalProperties":{"type":"string"}}`)))
 	assert.True(t, ConstrainsFields(json.RawMessage(`{"type":"object","x-iota-form":"a","minProperties":1}`)))
 }
 
@@ -392,6 +396,24 @@ func TestPreparedDecisionIsRecordedWhenTheActionDisagrees(t *testing.T) {
 	svc = newSvc(t, Config{Tasks: sub, Store: fakeStore{params: strings.Replace(buttons, "%s", formSchema, 1)}, Forms: NewForms(preparedForm{f})})
 	require.NoError(t, svc.Decide(userCtx(), task.ID, DecideInput{Form: json.RawMessage(`{}`)}))
 	assert.JSONEq(t, `{"outcome":"approve","fields":{"amount":4}}`, string(sub.last), "a valid result of the action")
+
+	// The action decides another outcome, valid on its own (reject has its comment): the prepared one is
+	// recorded, so outcome equality is checked, not only validity.
+	f = &testForm{outcome: "approve", prepared: `{"amount":3}`, fields: `{"amount":3}`}
+	sub = &fakeSubstrate{tasks: []workflow.Task{task}}
+	svc = newSvc(t, Config{Tasks: sub, Store: fakeStore{params: strings.Replace(buttons, "%s", formSchema, 1)}, Forms: NewForms(rejectingForm{preparedForm{f}})})
+	require.NoError(t, svc.Decide(userCtx(), task.ID, DecideInput{Comment: "checked", Form: json.RawMessage(`{}`)}))
+	assert.Equal(t, int32(1), f.acted.Load())
+	assert.JSONEq(t, `{"outcome":"approve","comment":"checked","fields":{"amount":3}}`, string(sub.last))
+}
+
+// rejectingForm prepares as its preparedForm does but its action decides reject.
+type rejectingForm struct{ preparedForm }
+
+func (f rejectingForm) Decide(ctx context.Context, v TaskView, u user.User, form json.RawMessage) (FormDecision, error) {
+	fd, err := f.preparedForm.Decide(ctx, v, u, form)
+	fd.Outcome = "reject"
+	return fd, err
 }
 
 // The action is authorized by the task as it is when it starts: an escalation that applies its last

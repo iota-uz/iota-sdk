@@ -92,3 +92,22 @@ func TestNavItemsWithInitialState_KeepsFoldersOfForEveryoneItems(t *testing.T) {
 	require.Len(t, got[0].Children, 1)
 	require.Equal(t, "tasks", got[0].Children[0].Key)
 }
+
+// A marked folder keeps only its marked descendants, also nested under an unmarked folder; a marked
+// folder left with none is dropped.
+func TestForEveryonePrunesTheChildrenOfAMarkedFolder(t *testing.T) {
+	t.Parallel()
+	items := []types.NavigationItem{
+		{Key: "work", Children: []types.NavigationItem{
+			{Key: "inbox", ForEveryone: true, Children: []types.NavigationItem{
+				{Key: "mine", Href: "/inbox/mine", ForEveryone: true},
+				{Key: "admin", Href: "/inbox/admin"},
+			}},
+			{Key: "hollow", ForEveryone: true, Children: []types.NavigationItem{{Key: "settings", Href: "/settings"}}},
+		}},
+	}
+	got := forEveryone(items)
+	require.Len(t, got, 1)
+	require.Equal(t, []string{"inbox"}, keysOf(got[0].Children))
+	require.Equal(t, []string{"mine"}, keysOf(got[0].Children[0].Children))
+}

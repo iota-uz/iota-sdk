@@ -1071,17 +1071,25 @@ func (e *Engine) assigned(ctx context.Context, subj spi.Subject, list []TaskAssi
 	if e.cfg.TaskAudience == nil {
 		return false, nil
 	}
+	// A failed lookup proves nothing either way: the other role and group
+	// assignees are still asked, and the failure is the answer only when none
+	// of them covers the user.
+	var lookupErr error
 	for _, a := range list {
 		if a.Kind != TaskAssignRole && a.Kind != TaskAssignGroup {
 			continue
 		}
 		ok, err := e.cfg.TaskAudience.IsMember(ctx, subj.TenantID, subj.UserID, a)
 		if err != nil {
-			return false, serrors.Wrap(opManage, err)
+			lookupErr = errors.Join(lookupErr, err)
+			continue
 		}
 		if ok {
 			return true, nil
 		}
+	}
+	if lookupErr != nil {
+		return false, serrors.Wrap(opManage, lookupErr)
 	}
 	return false, nil
 }
@@ -1387,9 +1395,12 @@ type TaskCursor struct {
 var snapshotText = regexp.MustCompile(`^[0-9]{1,20}:[0-9]{1,20}:([0-9]{1,20}(,[0-9]{1,20})*)?$`)
 
 // validSnapshot checks a pg_snapshot text as PostgreSQL reads it: 0 < xmin
-// <= xmax, and each in-progress xid in [xmin, xmax), ascending.
+// <= xmax, and each in-progress xid in [xmin, xmax), ascending. Its length is
+// not capped: the inbox writes the whole snapshot (every in-progress xid) into
+// its cursors, and a shortened one would change what counts as seen; the
+// request carrying it is bounded by the HTTP server.
 func validSnapshot(s string) bool {
-	if len(s) > 4096 || !snapshotText.MatchString(s) {
+	if !snapshotText.MatchString(s) {
 		return false
 	}
 	parts := strings.SplitN(s, ":", 3)
@@ -1655,18 +1666,33 @@ func (e *Engine) coveredByAudience(ctx context.Context, q taskQueryer, subj spi.
 	if err != nil {
 		return nil, serrors.FromDB(opManage, err)
 	}
+	// A failed lookup fails only a task no other of its assignees covers the
+	// subject in.
 	member := map[TaskAssignee]bool{}
+	lookupErr := map[TaskAssignee]error{}
 	out := map[uuid.UUID]bool{}
+	failed := map[uuid.UUID]error{}
 	for _, r := range refs {
 		ok, seen := member[r.a]
-		if !seen {
-			if ok, err = e.cfg.TaskAudience.IsMember(ctx, subj.TenantID, subj.UserID, r.a); err != nil {
-				return nil, serrors.Wrap(opManage, err)
+		ferr, errSeen := lookupErr[r.a]
+		if !seen && !errSeen {
+			ok, ferr = e.cfg.TaskAudience.IsMember(ctx, subj.TenantID, subj.UserID, r.a)
+			if ferr != nil {
+				lookupErr[r.a] = ferr
+			} else {
+				member[r.a] = ok
 			}
-			member[r.a] = ok
 		}
-		if ok {
+		switch {
+		case ferr != nil:
+			failed[r.task] = errors.Join(failed[r.task], ferr)
+		case ok:
 			out[r.task] = true
+		}
+	}
+	for task, ferr := range failed {
+		if !out[task] {
+			return nil, serrors.Wrap(opManage, ferr)
 		}
 	}
 	return out, nil

@@ -143,6 +143,23 @@ var openKeys = map[string]bool{
 	"examples": true, "default": true, "readOnly": true, "writeOnly": true, "deprecated": true,
 }
 
+// openSubschema is a subschema every value passes: true, or {} (annotations aside).
+func openSubschema(raw json.RawMessage) bool {
+	if strings.TrimSpace(string(raw)) == "true" {
+		return true
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return false
+	}
+	for k := range doc {
+		if !strings.HasPrefix(k, "x-") && (!openKeys[k] || k == "type") {
+			return false
+		}
+	}
+	return true
+}
+
 // ConstrainsFields reports a human node's form schema that constrains the decision's fields: anything
 // beyond an object type and annotations. A TaskForm without FormPreparer decides only a task whose
 // schema does not, as its action runs before its fields can be checked.
@@ -162,7 +179,7 @@ func ConstrainsFields(schema json.RawMessage) bool {
 			if err := json.Unmarshal(raw, &typ); err != nil || typ != "object" {
 				return true
 			}
-		case k == "additionalProperties" && strings.TrimSpace(string(raw)) == "true":
+		case k == "additionalProperties" && openSubschema(raw):
 		default:
 			return true
 		}

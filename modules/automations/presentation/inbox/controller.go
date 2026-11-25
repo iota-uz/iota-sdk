@@ -398,7 +398,7 @@ var errUnconfirmed = errors.New("danger outcome not confirmed")
 // field submitting the hidden button, a stale page) is shown again with the panel open. A custom
 // form confirms on its own; a task that is no longer open goes to the service, which says why.
 func unconfirmed(v tasks.TaskView, in tasks.DecideInput, confirm string) bool {
-	if v.FormKind != "" || len(in.Form) > 0 || v.State != tasks.StateOpen || v.PastDeadline {
+	if v.FormKind != "" || v.State != tasks.StateOpen || v.PastDeadline {
 		return false
 	}
 	for _, o := range v.Outcomes {
