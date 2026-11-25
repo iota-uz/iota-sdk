@@ -429,6 +429,7 @@ func keepField(x any, f expr.Field) any {
 			out[k] = keepField(e, *f.Elem)
 		}
 		return out
+	case expr.String, expr.Int, expr.Double, expr.Bool, expr.Enum, expr.Optional, expr.Timestamp:
 	}
 	switch x.(type) {
 	case map[string]any, []any:

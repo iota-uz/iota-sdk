@@ -1081,7 +1081,8 @@ func (x *callExec) recordOf(ctx, callCtx context.Context, cn catalog.CallNode, i
 	}
 	out, err := json.Marshal(nonNilMap(res.Output))
 	if err != nil {
-		return callRecord{Kind: "failed", Code: graph.FailInvalidAnswer, Message: "the output of " + req.NodeID + " is not JSON"}, nil
+		// An output that is not JSON is the step's recorded failure, not an error of the engine.
+		return callRecord{Kind: "failed", Code: graph.FailInvalidAnswer, Message: "the output of " + req.NodeID + " is not JSON"}, nil //nolint:nilerr // recorded as the step's failure
 	}
 	rec := callRecord{Kind: "result", Outcome: res.Outcome, Output: withoutNUL(masker.MaskJSON(out))}
 	if asker, ok := cn.(Asker); ok && token != "" {

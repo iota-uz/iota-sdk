@@ -130,16 +130,18 @@ type TestNodeInput struct {
 }
 
 // TestNodeResult is what the node did.
+//
+// The JSON names are the Go field names: automation.node_tests.result stores a result in this form.
 type TestNodeResult struct {
-	Outcome string
-	Output  json.RawMessage
-	Logs    []string
+	Outcome string          `json:"Outcome"`
+	Output  json.RawMessage `json:"Output"`
+	Logs    []string        `json:"Logs"`
 	// Request is the rendered params of the call the node made (its prompt, its input), as JSON with the
 	// connection's secrets masked; the credentials themselves are never in it. Empty for a node that
 	// makes no call.
-	Request    json.RawMessage
-	DurationMS int64
-	Error      *StepError // reason: exception | timeout | network_blocked | connection_unavailable | ...
+	Request    json.RawMessage `json:"Request"`
+	DurationMS int64           `json:"DurationMS"`
+	Error      *StepError      `json:"Error"` // reason: exception | timeout | network_blocked | connection_unavailable | ...
 }
 
 // SubjectOption is a subject an author may pick.
