@@ -32,8 +32,18 @@ const nodes: CatalogNode[] = [
     outcomes: ['done'], outcome_rule: { fixed: ['done'] }, expressions: [], templates: [], output: null,
   },
   {
-    type: 'end', title: 'End', description: 'Ends the run.', group: 'Logic', behavior: 'end',
-    params: { type: 'object', additionalProperties: false, properties: { reason: { type: 'string', maxLength: 500 } } },
+    type: 'end', title: 'End', description: 'Ends the run; its output, when set, is the run\'s output (a run_automation reads it).', group: 'Logic', behavior: 'end',
+    params: {
+      type: 'object', additionalProperties: false,
+      properties: {
+        reason: { type: 'string', maxLength: 500 },
+        output: {
+          type: 'object', maxProperties: 50, propertyNames: { pattern: '^[a-z_][a-zA-Z0-9_]{0,63}$' },
+          additionalProperties: { type: 'string', minLength: 1, maxLength: 2000, description: 'CEL' },
+          description: 'the run\'s output: name → CEL; by the graph\'s output_schema when it has one',
+        },
+      },
+    },
     outcomes: [], outcome_rule: { fixed: [] }, expressions: [], templates: [], output: null,
   },
   {

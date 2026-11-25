@@ -269,10 +269,23 @@ type endBehavior struct{}
 func (endBehavior) Behavior() Behavior                               { return BehaviorEnd }
 func (endBehavior) OutcomeRule(NodeSpec) OutcomeRule                 { return OutcomeRule{Fixed: []string{}} }
 func (endBehavior) Validate(*GraphView, Node, NodeSpec) []GraphError { return nil }
-func (endBehavior) Start(s *StepContext, node Node, _ NodeSpec) Step {
-	params := s.Params(node)
+func (endBehavior) Start(s *StepContext, node Node, spec NodeSpec) Step {
+	// The output's expressions are the type's Values: rendered as an effect's are.
+	e, stop := s.Effect(node, spec)
+	if stop != nil {
+		return *stop
+	}
+	params := e.Params
 	if params == nil {
 		params = map[string]any{}
+	}
+	out, ok, stop := s.endOutput(params)
+	if stop != nil {
+		return *stop
+	}
+	if ok {
+		params = copyMap(params)
+		params["output"] = out
 	}
 	return Step{Kind: StepEnd, End: params}
 }
