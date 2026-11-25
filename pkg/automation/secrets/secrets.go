@@ -72,6 +72,10 @@ type Writer interface {
 	// Prune removes the versions before keepFrom (KV v2: destroy them), once a later version is published;
 	// pruning what is not there is not an error.
 	Prune(ctx context.Context, ref Ref, keepFrom int) error
+	// List is the paths that hold a value (any version) under root.Path, a prefix, in root's tenant (KV v2:
+	// LIST on the metadata). The records sweep it: a value no record names is removed, whenever it was
+	// written, so a write that commits after its secret was deleted never stays without a way to find it.
+	List(ctx context.Context, root Ref) ([]string, error)
 }
 
 // Reader reads values: what resolving a secret for a node needs.
@@ -96,19 +100,25 @@ type Store interface {
 // owner (an OpenBao policy is written against it).
 type Locator interface {
 	Locate(tenantID, secretID uuid.UUID) Ref
+	// Root is the prefix every value Locate gives the tenant lies under: the records sweep it, and remove
+	// a value there that no record names. Nothing else may be stored under it.
+	Root(tenantID uuid.UUID) Ref
 }
-
-// LocatorFunc adapts a function to a Locator.
-type LocatorFunc func(tenantID, secretID uuid.UUID) Ref
-
-func (f LocatorFunc) Locate(tenantID, secretID uuid.UUID) Ref { return f(tenantID, secretID) }
 
 // DefaultLocator is "<prefix>tenants/<tenant>/automation/secrets/<secret>"; prefix is the environment
 // ("prod/"), may be empty.
-func DefaultLocator(prefix string) Locator {
-	return LocatorFunc(func(tenantID, secretID uuid.UUID) Ref {
-		return Ref{TenantID: tenantID, Path: prefix + "tenants/" + tenantID.String() + "/automation/secrets/" + secretID.String()}
-	})
+func DefaultLocator(prefix string) Locator { return defaultLocator{prefix: prefix} }
+
+type defaultLocator struct{ prefix string }
+
+func (l defaultLocator) Root(tenantID uuid.UUID) Ref {
+	return Ref{TenantID: tenantID, Path: l.prefix + "tenants/" + tenantID.String() + "/automation/secrets/"}
+}
+
+func (l defaultLocator) Locate(tenantID, secretID uuid.UUID) Ref {
+	root := l.Root(tenantID)
+	root.Path += secretID.String()
+	return root
 }
 
 // ValueKey is the key of a secret's value in Value.Data.

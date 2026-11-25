@@ -459,6 +459,50 @@ func (m *manager) purge(ctx context.Context, tenantID uuid.UUID) {
 		}
 		m.removeValue(batch, tenantID, l.id, l.path)
 	}
+	m.sweep(batch, tenantID)
+}
+
+// sweepBatch is how many unreferenced values one sweep removes.
+const sweepBatch = 50
+
+// sweep removes the values under the tenant's root that no live or staged record names. It is what makes
+// cleanup independent of timing: a write the store commits late — after its secret was deleted and its
+// tombstone retired, however long the store held it — is still listed by the store and removed by a later
+// sweep. The values are listed before the records are read: a create stages its record before it writes,
+// so a value that is listed has its record visible by then, and a live secret's value is never taken.
+func (m *manager) sweep(ctx context.Context, tenantID uuid.UUID) {
+	paths, err := m.writer.List(ctx, m.locator.Root(tenantID))
+	if err != nil || len(paths) == 0 {
+		return
+	}
+	rows, err := m.db.Query(ctx, `SELECT ref_path FROM automation.secrets WHERE tenant_id = $1 AND deleted_at IS NULL`, tenantID)
+	if err != nil {
+		return
+	}
+	named := map[string]bool{}
+	for rows.Next() {
+		var p string
+		if rows.Scan(&p) != nil {
+			rows.Close()
+			return
+		}
+		named[p] = true
+	}
+	rows.Close()
+	if rows.Err() != nil {
+		return
+	}
+	removed := 0
+	for _, p := range paths {
+		if named[p] {
+			continue
+		}
+		if ctx.Err() != nil || removed >= sweepBatch {
+			return
+		}
+		_ = m.writer.Delete(ctx, Ref{TenantID: tenantID, Path: p})
+		removed++
+	}
 }
 
 type resolver struct {

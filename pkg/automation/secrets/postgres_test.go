@@ -771,3 +771,63 @@ func TestCleanupIsBoundedAcrossTheBatch(t *testing.T) {
 	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secrets WHERE tenant_id = $1 AND deleted_at IS NOT NULL`, e.tenant).Scan(&tombs))
 	assert.Equal(t, 4, tombs, "unfinished tombstones wait for the next cleanup")
 }
+
+// A write that began before its fence and commits only after the secret was deleted and its tombstone
+// retired (the store held it, however long): no record names the value any more, and the next sweep of the
+// store's listing removes it. The live secrets under the same root are left as they are.
+func TestAWriteCommittedAfterRetirementIsSwept(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	keep, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "KEEP", Value: "kept"})
+	require.NoError(t, err)
+	s, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
+	require.NoError(t, err)
+	var claim time.Time
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT value_write_at FROM automation.secrets WHERE id = $1`, s.ID).Scan(&claim))
+	fence := claim.Add(secrets.WriteWindow() / 2) // the fence a rotation claimed now would carry
+
+	require.NoError(t, e.mgr.Delete(e.ctx, e.tenant, s.ID))
+	_, err = e.db.Exec(e.ctx, `UPDATE automation.secrets SET value_write_at = value_write_at - interval '1 day' WHERE id = $1`, s.ID)
+	require.NoError(t, err)
+	_, err = e.mgr.List(e.ctx, e.tenant)
+	require.NoError(t, err)
+	var rows int
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secrets WHERE id = $1`, s.ID).Scan(&rows))
+	require.Zero(t, rows, "the tombstone is retired")
+
+	// The delayed write commits now: inside its fence, after the retirement.
+	_, err = e.store.Put(e.ctx, secrets.Ref{TenantID: e.tenant, Path: s.Ref.Path, NotAfter: fence}, map[string]string{secrets.ValueKey: "late"})
+	require.NoError(t, err)
+	values := func(path string) int {
+		var n int
+		require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`, e.tenant, path).Scan(&n))
+		return n
+	}
+	require.Equal(t, 1, values(s.Ref.Path))
+
+	_, err = e.mgr.List(e.ctx, e.tenant)
+	require.NoError(t, err)
+	assert.Zero(t, values(s.Ref.Path), "the sweep found the value through the store's listing")
+	assert.Equal(t, 1, values(keep.Ref.Path), "a value a live record names is kept")
+	got, err := e.res.Resolve(e.ctx, e.tenant, "KEEP")
+	require.NoError(t, err)
+	assert.Equal(t, "kept", got)
+}
+
+// The sweep lists the store before it reads the records: a create in flight (staged, value written) keeps
+// its value.
+func TestTheSweepKeepsAStagedCreatesValue(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	id := uuid.New()
+	ref := secrets.DefaultLocator("test/").Locate(e.tenant, id)
+	_, err := e.db.Exec(e.ctx, `INSERT INTO automation.secrets (id, tenant_id, name, ref_path, value_version, value_write_at)
+		VALUES ($1, $2, 'API_KEY', $3, 0, now())`, id, e.tenant, ref.Path)
+	require.NoError(t, err)
+	_, err = e.store.Put(e.ctx, ref, map[string]string{secrets.ValueKey: "in flight"})
+	require.NoError(t, err)
+	_, err = e.mgr.List(e.ctx, e.tenant)
+	require.NoError(t, err)
+	_, err = e.store.Read(e.ctx, ref)
+	require.NoError(t, err, "a staged record names its value")
+}

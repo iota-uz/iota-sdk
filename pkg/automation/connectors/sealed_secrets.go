@@ -131,6 +131,30 @@ func (s *sealedSecrets) Delete(ctx context.Context, ref secrets.Ref) error {
 	return nil
 }
 
+func (s *sealedSecrets) List(ctx context.Context, root secrets.Ref) ([]string, error) {
+	if err := s.check(root); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(ctx, `SELECT DISTINCT path FROM automation.secret_values WHERE tenant_id = $1 AND starts_with(path, $2) ORDER BY path`,
+		root.TenantID, root.Path)
+	if err != nil {
+		return nil, unavailableSecret(err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, unavailableSecret(err)
+		}
+		out = append(out, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, unavailableSecret(err)
+	}
+	return out, nil
+}
+
 func (s *sealedSecrets) Prune(ctx context.Context, ref secrets.Ref, keepFrom int) error {
 	if err := s.check(ref); err != nil {
 		return err
