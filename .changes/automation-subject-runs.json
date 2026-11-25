@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Automations: engine.SubjectRuns (Runtime.SubjectRuns, automations.SubjectRunsOf) lets the module that owns a record list the live runs about it and cancel them when the record goes away, cancelling their open human tasks."}

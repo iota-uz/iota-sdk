@@ -105,6 +105,23 @@ type engineHolder struct {
 	links engine.Links
 }
 
+// SubjectRunsOf is what the module that owns a record does with the automation runs about it: which
+// runs are still live, and cancelling them when the record goes away (engine.SubjectRuns). ok is false
+// when the composition runs no automation engine.
+func SubjectRunsOf(container *composition.Container) (engine.SubjectRuns, bool, error) {
+	if !composition.Has[*engineHolder](container) {
+		return nil, false, nil
+	}
+	h, err := composition.Resolve[*engineHolder](container)
+	if err != nil {
+		return nil, false, err
+	}
+	if h.rt == nil {
+		return nil, false, nil
+	}
+	return h.rt.SubjectRuns(), true, nil
+}
+
 // runtime is the composition's engine, nil when it cannot run one.
 func (c *component) runtime(container *composition.Container) (*engine.Runtime, error) {
 	if c.noEngine || !composition.Has[*engineHolder](container) {

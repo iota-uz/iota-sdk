@@ -38,6 +38,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/wiring"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
@@ -674,4 +675,45 @@ func TestInboxSubjectNames(t *testing.T) {
 	assert.NotContains(t, body, fmt.Sprintf(`href="/hrm/employees/%d"`, employee))
 	s.AsUser(rita)
 	s.GET("/automations/tasks?q=karimov").Expect(t).Contains(fmt.Sprintf(`href="/hrm/employees/%d"`, employee))
+}
+
+// The module of a record finds the live run about it and cancels it: the run's open task closes as
+// cancelled. A run about another record stays.
+// Falsely green if: the lookup ignored the subject — the second run would be cancelled too and Live of
+// the first subject would list two runs.
+func TestSubjectRunsOfCancelsTheRunsOfARecord(t *testing.T) {
+	s, container := tasksApp(t)
+	env := s.Env()
+	pp := people{t: t, db: env.Pool, tenant: env.Tenant.ID}
+	anna, boris := pp.user("Anna"), pp.user("Boris")
+	g := humanTaskGraph("Sign the contract", map[string]any{
+		"assignees": []any{map[string]any{"kind": "user", "user_id": anna.ID()}},
+	})
+	about := engine.SubjectRef{Entity: "core.user", Key: strconv.FormatUint(uint64(anna.ID()), 10)}
+	task, run := openTaskAbout(t, s, container, g, map[string]any{"entity": about.Entity, "key": about.Key})
+	_, otherRun := openTaskAbout(t, s, container, g, map[string]any{"entity": "core.user", "key": strconv.FormatUint(uint64(boris.ID()), 10)})
+
+	runs, ok, err := automations.SubjectRunsOf(container)
+	require.NoError(t, err)
+	require.True(t, ok)
+	ctx := context.Background()
+	live, err := runs.Live(ctx, env.Tenant.ID, about)
+	require.NoError(t, err)
+	require.Len(t, live, 1)
+	assert.Equal(t, run, live[0].RunID)
+
+	n, err := runs.Cancel(ctx, env.Tenant.ID, about)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+	waitFor(t, container, func(db *pgxpool.Pool) bool {
+		var status string
+		return db.QueryRow(ctx, `SELECT status FROM extruntime.human_tasks WHERE id = $1`, task).Scan(&status) == nil && status == "cancelled"
+	}, "the task of the cancelled run closes")
+	live, err = runs.Live(ctx, env.Tenant.ID, about)
+	require.NoError(t, err)
+	assert.Empty(t, live)
+	assert.NotEqual(t, "cancelled", runStatus(t, container, otherRun), "the run about another record stays")
+
+	_, err = runs.Live(ctx, env.Tenant.ID, engine.SubjectRef{})
+	assert.Equal(t, serrors.Invalid, serrors.CodeOf(err), "a subject of nothing is refused")
 }
