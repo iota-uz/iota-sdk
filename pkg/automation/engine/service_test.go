@@ -3,6 +3,7 @@ package engine_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -524,4 +525,52 @@ func TestJoinedCallsReadTheCallersTransaction(t *testing.T) {
 	require.NoError(t, tx.Rollback(ctx))
 	_, err = p.rt.Service().Get(ctx, e.human(), am.ID)
 	require.ErrorIs(t, err, engine.ErrNotFound, "rolled back with the caller's transaction")
+}
+
+// ListVersions in a caller's READ COMMITTED transaction, while a person saves versions that become the
+// enabled one, lists exactly one enabled version, the latest it lists: the versions and the enabled one
+// are one snapshot (two statements would see a version enabled after the first one read the list).
+func TestListVersionsIsOneSnapshotInReadCommitted(t *testing.T) {
+	e := newEnv(t)
+	p := e.proc()
+	ctx := context.Background()
+	human := e.human()
+	am := e.create(p, human, noteGraph("v1"))
+
+	const saves = 25
+	done := make(chan error, 1)
+	go func() {
+		for v := 1; v <= saves; v++ {
+			if _, err := p.rt.Service().SaveVersion(ctx, human, am.ID, engine.SaveInput{BaseVersion: v, Graph: json.RawMessage(noteGraph(fmt.Sprintf("v%d", v+1)))}); err != nil {
+				done <- err
+				return
+			}
+		}
+		done <- nil
+	}()
+	tx, err := e.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(ctx) }()
+	joined := engine.WithTx(ctx, tx)
+	for reads, finished := 0, false; !finished || reads < 50; reads++ {
+		select {
+		case err := <-done:
+			require.NoError(t, err)
+			finished = true
+		default:
+		}
+		versions, err := p.rt.Service().ListVersions(joined, human, am.ID)
+		require.NoError(t, err)
+		enabled := 0
+		for _, v := range versions {
+			if v.Enabled {
+				enabled++
+			}
+		}
+		require.Equal(t, 1, enabled, "read %d: one enabled version in %+v", reads, versions)
+		require.True(t, versions[0].Enabled, "read %d: the latest listed version is the enabled one", reads)
+	}
+	versions, err := p.rt.Service().ListVersions(joined, human, am.ID)
+	require.NoError(t, err)
+	assert.Len(t, versions, saves+1)
 }

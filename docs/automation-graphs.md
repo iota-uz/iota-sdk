@@ -685,6 +685,16 @@ of `pkg/mcp` (#1084) and are reached through `lookup` / `execute` (#1314). Every
   about the operation or by `DispatchEffects` (`changes.Config.Auditor`).
 - A receipt item's `result` is shown on a retried `apply_changes` and on `operation_get` only
   while the caller still passes the kind's policy; otherwise only status, ids and revisions.
+- Composition: `pkg/mcp/mcpwiring.NewComponent` is the application's MCP composition. It is on
+  when the application passes its `Registry` (and then requires `Authorizer`, an
+  `mcp.ConfirmingAuditor` as `Auditor`, and `ApprovalURL`; no environment flag). At start it
+  registers the tools modules contribute (`mcpwiring.ContributeTools`) and the changes tools
+  over the contributed kinds (`mcpwiring.ContributeKinds`) with `changes.Config.Auditor` set, and,
+  in a process with the API or worker capability, calls `DispatchEffects` every
+  `DispatchInterval` (5s). The automations module contributes the `mcpops` tools and kinds with
+  its pages under `http.origin` as URLs, and its engine runs with `Config.Links` =
+  `engine.NewLinks(origin, "<automations path>/%s/runs/%s")` (`WithEngineConfig` may replace it).
+  The gateway is built over the registry after `composition.Start`.
 - `HUMAN_REQUIRED` is the shared failure `approval_required` / `open_approval` with an issue of
   code `HUMAN_REQUIRED` and the URL of the page where the person acts. The engine marks
   `automation.run` and `automation.call` human-only (`workflow.NativeContract.HumanOnly`), so the

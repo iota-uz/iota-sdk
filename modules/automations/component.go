@@ -321,6 +321,7 @@ func (c *component) Build(b *composition.Builder) error {
 	})
 	c.buildEngine(b)
 	c.buildTasks(b)
+	c.contributeMCP(b, c.pages(cfg.origin))
 	composition.ProvideDefault[connectors.Directory](b, func(container *composition.Container) (connectors.Directory, error) {
 		reg, err := composition.Resolve[catalog.Registry](container)
 		if err != nil {
