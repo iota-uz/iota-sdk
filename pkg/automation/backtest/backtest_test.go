@@ -611,3 +611,94 @@ func TestConnectionHistoryImport(t *testing.T) {
 	assert.Equal(t, backtest.MaxExamples-1, ij.Imported)
 	assert.Equal(t, 3, ij.Overflow)
 }
+
+// A worker whose lease expired loses the backtest to the one that claims it next: it runs no live
+// example any more (nothing is paid twice) and its heartbeat stops it.
+func TestExpiredLeaseIsTakenOver(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	a := e.human()
+	am, _, err := e.rt.Service().Create(ctx, a, engine.CreateInput{Graph: json.RawMessage(graphV1)})
+	require.NoError(t, err)
+	ds, err := e.svc.CreateDataset(ctx, a, backtest.CreateDatasetInput{AutomationID: am.ID, Name: "d"})
+	require.NoError(t, err)
+	_, err = e.svc.AddSynthetic(ctx, a, ds, backtest.SyntheticEvent{Kind: evMessage, Payload: json.RawMessage(`{"text": "buy"}`)})
+	require.NoError(t, err)
+	_, err = e.svc.Run(ctx, a, backtest.RunInput{DatasetID: ds, Decisions: backtest.DecisionsLive})
+	require.NoError(t, err)
+
+	id, first, ok, err := e.svc.ClaimBacktest(ctx)
+	require.NoError(t, err)
+	require.True(t, ok)
+	holds, err := e.svc.StillHolds(ctx, e.tenant, id, first)
+	require.NoError(t, err)
+	assert.True(t, holds)
+	_, _, ok, err = e.svc.ClaimBacktest(ctx)
+	require.NoError(t, err)
+	assert.False(t, ok, "a held lease is not claimed again")
+
+	// The first worker stalls past its lease.
+	_, err = e.db.Exec(ctx, `UPDATE automation.backtests SET heartbeat_at = now() - interval '1 hour' WHERE id = $1`, id)
+	require.NoError(t, err)
+	again, second, ok, err := e.svc.ClaimBacktest(ctx)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, id, again)
+	assert.NotEqual(t, first, second)
+	holds, err = e.svc.StillHolds(ctx, e.tenant, id, first)
+	require.NoError(t, err)
+	assert.False(t, holds, "the stalled worker stops")
+	holds, err = e.svc.StillHolds(ctx, e.tenant, id, second)
+	require.NoError(t, err)
+	assert.True(t, holds)
+}
+
+// Results filters and pages in SQL: the total is the whole filtered set on every page.
+func TestResultsPagesKeepTheirTotal(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	a := e.human()
+	am, _, err := e.rt.Service().Create(ctx, a, engine.CreateInput{Graph: json.RawMessage(graphV1)})
+	require.NoError(t, err)
+	ds, err := e.svc.CreateDataset(ctx, a, backtest.CreateDatasetInput{AutomationID: am.ID, Name: "d"})
+	require.NoError(t, err)
+	for i, text := range []string{"buy a", "help b", "buy c", "help d", "buy e"} {
+		want := map[string]string{"cls": "support"} // the buys are mismatches
+		if i == 4 {
+			want = nil
+		}
+		_, err := e.svc.AddSynthetic(ctx, a, ds, backtest.SyntheticEvent{Kind: evMessage, Payload: json.RawMessage(`{"text": "` + text + `"}`),
+			Subject: engine.SubjectRef{Entity: "acme.client", Key: "c"}, Expected: want, OccurredAt: time.Now().Add(time.Duration(i-10) * time.Minute)})
+		require.NoError(t, err)
+	}
+	rep := e.run(a, backtest.RunInput{DatasetID: ds})
+	seen := 0
+	cursor := ""
+	for page := 0; page < 5; page++ {
+		res, err := e.svc.Results(ctx, a, rep.Backtest.ID, backtest.ResultFilter{Node: "cls", Limit: 1, Cursor: cursor})
+		require.NoError(t, err)
+		assert.Equal(t, 4, res.Total, "page %d", page)
+		seen += len(res.Items)
+		if res.NextCursor == "" {
+			break
+		}
+		cursor = res.NextCursor
+	}
+	assert.Equal(t, 4, seen)
+	res, err := e.svc.Results(ctx, a, rep.Backtest.ID, backtest.ResultFilter{Mismatch: true})
+	require.NoError(t, err)
+	assert.Equal(t, 2, res.Total)
+	for _, r := range res.Items {
+		assert.Equal(t, []string{"cls"}, r.Mismatches)
+	}
+	all, err := e.svc.Results(ctx, a, rep.Backtest.ID, backtest.ResultFilter{})
+	require.NoError(t, err)
+	assert.Equal(t, 5, all.Total)
+	require.NotEmpty(t, all.Items[0].Trace, "a page's rows carry their traces")
+
+	// Count checks the automation like every read.
+	other := a
+	other.TenantID = uuid.New()
+	_, err = e.svc.Count(ctx, other, am.ID)
+	require.ErrorIs(t, err, engine.ErrNotFound)
+}

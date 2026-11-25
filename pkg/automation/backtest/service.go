@@ -1029,6 +1029,9 @@ func (s *Svc) Count(ctx context.Context, a Actor, automationID uuid.UUID) (int, 
 	if err := s.authorize(a); err != nil {
 		return 0, err
 	}
+	if _, err := s.automation(ctx, a, automationID); err != nil {
+		return 0, err
+	}
 	var n int
 	err := s.cfg.DB.QueryRow(ctx, `SELECT count(*) FROM automation.backtests WHERE tenant_id = $1 AND automation_id = $2`, a.TenantID, automationID).Scan(&n)
 	return n, dbErr(err)
@@ -1119,22 +1122,52 @@ func (s *Svc) Results(ctx context.Context, a Actor, id BacktestID, f ResultFilte
 		return Page[Result]{}, err
 	}
 	limit := pageLimit(f.Limit, 50, 200)
-	// The filters on labels and mismatches are computed: the page is read in batches until it fills.
-	args := []any{a.TenantID, id}
-	where := ""
+	// The filters are SQL over the labels in force (a manual label wins over the expected one): the
+	// total counts the whole filtered set, the page reads its own rows only, traces included.
+	args := []any{a.TenantID, id, sortedKeys(nodes)}
+	arg := func(v any) string {
+		args = append(args, v)
+		return "$" + strconv.Itoa(len(args))
+	}
+	// A labeled node whose outcome is not its label; a decision node whose decision is missing from the
+	// cache is undecided, not a mismatch.
+	mismatch := func(node string) string {
+		return `lbl.outcome IS DISTINCT FROM r.outcomes->>lbl.node_id AND NOT (lbl.node_id = ANY($3)
+			AND r.decisions @> jsonb_build_array(jsonb_build_object('node', lbl.node_id, 'status', 'missing')))` + node
+	}
+	filter := ""
 	if f.End != "" {
-		args = append(args, f.End)
-		where += ` AND r.end_kind = $` + strconv.Itoa(len(args))
+		filter += ` AND r.end_kind = ` + arg(f.End)
 	}
-	if c != nil {
-		args = append(args, c.At, c.ID)
-		where += ` AND (e.occurred_at, e.id) > ($` + strconv.Itoa(len(args)-1) + `, $` + strconv.Itoa(len(args)) + `)`
+	switch {
+	case f.Node != "" && f.Mismatch:
+		filter += ` AND EXISTS (SELECT 1 FROM labels lbl WHERE lbl.example_id = r.example_id AND lbl.node_id = ` + arg(f.Node) + ` AND ` + mismatch("") + `)`
+	case f.Node != "":
+		filter += ` AND EXISTS (SELECT 1 FROM labels lbl WHERE lbl.example_id = r.example_id AND lbl.node_id = ` + arg(f.Node) + `)`
+	case f.Mismatch:
+		filter += ` AND EXISTS (SELECT 1 FROM labels lbl WHERE lbl.example_id = r.example_id AND ` + mismatch("") + `)`
 	}
-	rows, err := s.cfg.DB.Query(ctx, `
-		SELECT `+exampleColumns+`, r.end_kind, r.outcomes, r.decisions, r.effects, r.trace, r.error, r.live_calls
+	from := `
+		WITH labels AS (
+			SELECT DISTINCT ON (l.example_id, l.node_id) l.example_id, l.node_id, l.outcome
+			FROM automation.dataset_labels l
+			JOIN automation.backtest_results br ON br.tenant_id = l.tenant_id AND br.backtest_id = $2 AND br.example_id = l.example_id
+			WHERE l.tenant_id = $1
+			ORDER BY l.example_id, l.node_id, (l.source = 'manual') DESC)
+		SELECT %s
 		FROM automation.backtest_results r
 		JOIN automation.dataset_examples e ON e.tenant_id = r.tenant_id AND e.id = r.example_id
-		WHERE r.tenant_id = $1 AND r.backtest_id = $2`+where+` ORDER BY e.occurred_at, e.id`, args...)
+		WHERE r.tenant_id = $1 AND r.backtest_id = $2 AND cardinality($3::text[]) >= 0` + filter
+	page := Page[Result]{Items: []Result{}}
+	if err := s.cfg.DB.QueryRow(ctx, fmt.Sprintf(from, "count(*)"), args...).Scan(&page.Total); err != nil {
+		return Page[Result]{}, dbErr(err)
+	}
+	where := ""
+	if c != nil {
+		where = ` AND (e.occurred_at, e.id) > (` + arg(c.At) + `, ` + arg(c.ID) + `)`
+	}
+	rows, err := s.cfg.DB.Query(ctx, fmt.Sprintf(from, exampleColumns+`, r.end_kind, r.outcomes, r.decisions, r.effects, r.trace, r.error, r.live_calls`)+
+		where+` ORDER BY e.occurred_at, e.id LIMIT `+arg(limit+1), args...)
 	if err != nil {
 		return Page[Result]{}, dbErr(err)
 	}
@@ -1162,6 +1195,11 @@ func (s *Svc) Results(ctx context.Context, a Actor, id BacktestID, f ResultFilte
 	if err != nil {
 		return Page[Result]{}, dbErr(err)
 	}
+	if len(all) > limit {
+		all = all[:limit]
+		last := all[limit-1]
+		page.NextCursor = encodeCursor(last.Example.OccurredAt, last.Example.ID)
+	}
 	ids := make([]uuid.UUID, len(all))
 	for i := range all {
 		ids[i] = all[i].Example.ID
@@ -1170,41 +1208,15 @@ func (s *Svc) Results(ctx context.Context, a Actor, id BacktestID, f ResultFilte
 	if err != nil {
 		return Page[Result]{}, err
 	}
-	page := Page[Result]{Items: []Result{}}
 	for _, x := range all {
 		x.Example.Labels = labels[x.Example.ID]
 		if x.Example.Labels == nil {
 			x.Example.Labels = map[string]Label{}
 		}
 		x.Mismatches = mismatchesOf(scored{outcomes: x.Outcomes, decisions: x.Decisions, labels: x.Example.Labels}, nodes)
-		if f.Node != "" {
-			if _, ok := x.Example.Labels[f.Node]; !ok {
-				continue
-			}
-			if f.Mismatch && !contains(x.Mismatches, f.Node) {
-				continue
-			}
-		} else if f.Mismatch && len(x.Mismatches) == 0 {
-			continue
-		}
-		page.Total++
-		if len(page.Items) < limit {
-			page.Items = append(page.Items, x)
-		} else if page.NextCursor == "" {
-			last := page.Items[limit-1]
-			page.NextCursor = encodeCursor(last.Example.OccurredAt, last.Example.ID)
-		}
+		page.Items = append(page.Items, x)
 	}
 	return page, nil
-}
-
-func contains(list []string, s string) bool {
-	for _, x := range list {
-		if x == s {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *Svc) Compare(ctx context.Context, a Actor, a1, a2 BacktestID) (Comparison, error) {

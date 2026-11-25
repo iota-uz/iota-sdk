@@ -82,6 +82,9 @@ CREATE TABLE automation.dataset_imports (
     started_at timestamp with time zone,
     finished_at timestamp with time zone,
     heartbeat_at timestamp with time zone,
+    -- lease is the claim of the worker that runs the job: a new claim replaces it, which stops the
+    -- worker whose lease expired.
+    lease uuid,
     PRIMARY KEY (tenant_id, id),
     FOREIGN KEY (tenant_id, dataset_id) REFERENCES automation.datasets (tenant_id, id) ON DELETE CASCADE
 );
@@ -111,6 +114,7 @@ CREATE TABLE automation.backtests (
     started_at timestamp with time zone,
     finished_at timestamp with time zone,
     heartbeat_at timestamp with time zone,
+    lease uuid,
     PRIMARY KEY (tenant_id, id),
     FOREIGN KEY (tenant_id, dataset_id) REFERENCES automation.datasets (tenant_id, id) ON DELETE CASCADE,
     FOREIGN KEY (tenant_id, automation_id) REFERENCES automation.automations (tenant_id, id) ON DELETE CASCADE

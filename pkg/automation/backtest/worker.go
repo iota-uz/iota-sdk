@@ -92,6 +92,7 @@ func publicError(err error) string {
 type importJob struct {
 	tenant  uuid.UUID
 	id      uuid.UUID
+	lease   uuid.UUID
 	dataset uuid.UUID
 	source  ImportSource
 	user    int64
@@ -102,13 +103,13 @@ func (s *Svc) claimImport(ctx context.Context) (importJob, bool, error) {
 	var j importJob
 	var src []byte
 	err := s.cfg.DB.QueryRow(ctx, `
-		UPDATE automation.dataset_imports SET status = 'running', started_at = COALESCE(started_at, now()), heartbeat_at = now()
+		UPDATE automation.dataset_imports SET status = 'running', started_at = COALESCE(started_at, now()), heartbeat_at = now(), lease = gen_random_uuid()
 		WHERE (tenant_id, id) = (
 			SELECT tenant_id, id FROM automation.dataset_imports
 			WHERE status = 'queued' OR (status = 'running' AND heartbeat_at < now() - $1::interval)
 			ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
-		RETURNING tenant_id, id, dataset_id, source, created_by, created_origin`, s.leaseInterval()).
-		Scan(&j.tenant, &j.id, &j.dataset, &src, &j.user, &j.origin)
+		RETURNING tenant_id, id, lease, dataset_id, source, created_by, created_origin`, s.leaseInterval()).
+		Scan(&j.tenant, &j.id, &j.lease, &j.dataset, &src, &j.user, &j.origin)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return j, false, nil
 	}
@@ -134,7 +135,7 @@ func (s *Svc) finishImport(ctx context.Context, j importJob, c importCounts, err
 	if _, e := s.cfg.DB.Exec(context.WithoutCancel(ctx), `
 		UPDATE automation.dataset_imports SET status = $3, imported = $4, duplicates = $5, overflow = $6, unreadable = $7, error = $8,
 			finished_at = now(), heartbeat_at = now()
-		WHERE tenant_id = $1 AND id = $2`, j.tenant, j.id, status, c.imported, c.duplicates, c.overflow, c.unreadable, msg); e != nil {
+		WHERE tenant_id = $1 AND id = $2 AND lease = $9`, j.tenant, j.id, status, c.imported, c.duplicates, c.overflow, c.unreadable, msg, j.lease); e != nil {
 		s.cfg.Logger.Warn("automation backtest: an import's end was not recorded", "error", e)
 	}
 }
@@ -231,10 +232,16 @@ func (im *importer) flush() error {
 	}
 	if time.Since(im.beat) > im.s.heartbeatEvery() {
 		im.beat = time.Now()
-		_, err = im.s.cfg.DB.Exec(im.ctx, `UPDATE automation.dataset_imports SET heartbeat_at = now(), imported = $3, duplicates = $4, overflow = $5, unreadable = $6
-			WHERE tenant_id = $1 AND id = $2`, im.job.tenant, im.job.id, im.counts.imported, im.counts.duplicates, im.counts.overflow, im.counts.unreadable)
+		tag, err := im.s.cfg.DB.Exec(im.ctx, `UPDATE automation.dataset_imports SET heartbeat_at = now(), imported = $3, duplicates = $4, overflow = $5, unreadable = $6
+			WHERE tenant_id = $1 AND id = $2 AND lease = $7`, im.job.tenant, im.job.id, im.counts.imported, im.counts.duplicates, im.counts.overflow, im.counts.unreadable, im.job.lease)
+		if err != nil {
+			return dbErr(err)
+		}
+		if tag.RowsAffected() == 0 {
+			return errCancelled // another worker took the import after this one's lease expired
+		}
 	}
-	return dbErr(err)
+	return nil
 }
 
 func (s *Svc) runImport(ctx context.Context, j importJob) {
@@ -243,8 +250,9 @@ func (s *Svc) runImport(ctx context.Context, j importJob) {
 	if err == nil {
 		err = im.flush()
 	}
-	if ctx.Err() != nil {
-		return // the process stops: the lease expires and another worker imports again (duplicates are skipped)
+	if ctx.Err() != nil || errors.Is(err, errCancelled) {
+		// The process stops, or another worker holds the import now: it imports again (duplicates are skipped).
+		return
 	}
 	s.finishImport(ctx, j, im.counts, err)
 }
@@ -370,6 +378,7 @@ func (s *Svc) importJournal(ctx context.Context, im *importer, kinds []string, w
 type backtestJob struct {
 	tenant     uuid.UUID
 	id         uuid.UUID
+	lease      uuid.UUID
 	automation uuid.UUID
 	dataset    uuid.UUID
 	version    int
@@ -382,13 +391,13 @@ type backtestJob struct {
 func (s *Svc) claimBacktest(ctx context.Context) (backtestJob, bool, error) {
 	var j backtestJob
 	err := s.cfg.DB.QueryRow(ctx, `
-		UPDATE automation.backtests SET status = 'running', started_at = COALESCE(started_at, now()), heartbeat_at = now()
+		UPDATE automation.backtests SET status = 'running', started_at = COALESCE(started_at, now()), heartbeat_at = now(), lease = gen_random_uuid()
 		WHERE (tenant_id, id) = (
 			SELECT tenant_id, id FROM automation.backtests
 			WHERE status = 'queued' OR (status = 'running' AND heartbeat_at < now() - $1::interval)
 			ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED)
-		RETURNING tenant_id, id, automation_id, dataset_id, version, decisions, created_by, created_origin, created_at`, s.leaseInterval()).
-		Scan(&j.tenant, &j.id, &j.automation, &j.dataset, &j.version, &j.decisions, &j.user, &j.origin, &j.createdAt)
+		RETURNING tenant_id, id, lease, automation_id, dataset_id, version, decisions, created_by, created_origin, created_at`, s.leaseInterval()).
+		Scan(&j.tenant, &j.id, &j.lease, &j.automation, &j.dataset, &j.version, &j.decisions, &j.user, &j.origin, &j.createdAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return j, false, nil
 	}
@@ -402,7 +411,7 @@ func (s *Svc) finishBacktest(ctx context.Context, j backtestJob, err error) {
 	}
 	if _, e := s.cfg.DB.Exec(context.WithoutCancel(ctx), `
 		UPDATE automation.backtests SET status = $3, error = $4, finished_at = now(), heartbeat_at = now()
-		WHERE tenant_id = $1 AND id = $2 AND status = 'running'`, j.tenant, j.id, status, msg); e != nil {
+		WHERE tenant_id = $1 AND id = $2 AND status = 'running' AND lease = $5`, j.tenant, j.id, status, msg, j.lease); e != nil {
 		s.cfg.Logger.Warn("automation backtest: a backtest's end was not recorded", "error", e)
 	}
 }
@@ -501,7 +510,7 @@ func (s *Svc) execute(ctx context.Context, j backtestJob) error {
 	heartbeat := func() error {
 		n := live.Load()
 		tag, err := s.cfg.DB.Exec(context.WithoutCancel(ctx), `UPDATE automation.backtests SET heartbeat_at = now(), live_calls = live_calls + $3
-			WHERE tenant_id = $1 AND id = $2 AND status = 'running'`, j.tenant, j.id, n-reported)
+			WHERE tenant_id = $1 AND id = $2 AND status = 'running' AND lease = $4`, j.tenant, j.id, n-reported, j.lease)
 		if err != nil {
 			return dbErr(err)
 		}
@@ -549,6 +558,18 @@ feed:
 // providers. An error of the example (an event the graph refuses) is its result; an error of the
 // backtest (rights lost, the version gone) is returned.
 func (s *Svc) runExample(ctx context.Context, a Actor, j backtestJob, g json.RawMessage, nodes map[string]bool, realCalls string, ex Example) (int, error) {
+	if j.decisions == DecisionsLive {
+		// A live decision is paid: the example runs only while this worker still holds the backtest (a
+		// worker whose lease another one took stops before it calls a provider again).
+		var holds bool
+		if err := s.cfg.DB.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM automation.backtests WHERE tenant_id = $1 AND id = $2 AND status = 'running' AND lease = $3)`,
+			j.tenant, j.id, j.lease).Scan(&holds); err != nil {
+			return 0, dbErr(err)
+		}
+		if !holds {
+			return 0, errCancelled
+		}
+	}
 	vars := json.RawMessage(`{}`)
 	if len(ex.Snapshot) > 0 {
 		vars = ex.Snapshot
