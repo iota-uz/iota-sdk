@@ -271,7 +271,7 @@ the deleted parent.
 | `core/NotificationDispatchService.Send`, `core/NotificationDispatchService.SendTx` | Queues a notice and its dispatch job for an audience inside the caller's transaction; the caller's own mutation carries the business event, technical |
 | `core/NotificationChannelService.RegisterDevice`, `core/NotificationChannelService.RevokeDevice` | A user's push device (delivery address of a browser or app installation), technical like sessions |
 | `core/TenantService.Create`, `core/TenantService.Update`, `core/TenantService.Delete` | Tenant administration in the superadmin console |
-| `core/UploadService.Create`, `core/UploadService.CreateMany`, `core/UploadService.CreatePrivate`, `core/UploadService.Delete` | File storage; attaching a file to a business object is recorded by its owner |
+| `core/UploadService.Create`, `core/UploadService.CreateKeeping`, `core/UploadService.CreateMany`, `core/UploadService.CreatePrivate`, `core/UploadService.Delete` | File storage; attaching a file to a business object is recorded by its owner |
 | `core/ProjectService.Create`, `core/ProjectService.Update`, `core/ProjectService.Delete`, `core/ProjectService.Save` | Legacy service that no component provides; projects are recorded by `projects/ProjectService` |
 | `core/UserService.UpdateLastLogin`, `core/UserService.UpdateLastAction` | Activity timestamps |
 | `core/UserService.ReserveTemporaryPasswordAttempt`, `core/UserService.ReleaseTemporaryPasswordAttempt`, `core/UserService.LockCredentials` | Sign-in attempt bookkeeping and row locks before authentication |
