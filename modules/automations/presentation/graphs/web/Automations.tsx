@@ -25,12 +25,11 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
   const init = props.route.initial
   const lang = host.locale.language
   const client = new RPCClient(new FetchRPCTransport(props.route.services?.rpc ?? `${init.basePath}/rpc`, host.session))
-  const call: Call = (method, params) => {
+  const call: Call = (method, params, signal = new AbortController().signal) => {
     const contract = rpcContracts[method]
-    const ctrl = new AbortController()
     return contract.kind === 'query'
-      ? client.query(contract, params, ctrl.signal)
-      : client.mutate(contract, params, ctrl.signal)
+      ? client.query(contract, params, signal)
+      : client.mutate(contract, params, signal)
   }
   const [now, setNow] = createSignal(new Date())
   const timer = setInterval(() => setNow(new Date()), 60_000)

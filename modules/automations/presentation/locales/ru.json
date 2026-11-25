@@ -306,6 +306,7 @@
         "OnlyConnection": "Единственное: {name}",
         "OpenIntegrations": "Открыть интеграции",
         "OpenLatest": "Открыть текущую версию v{version}",
+        "OpeningVersion": "Открывается v{version}: изменения отброшены",
         "PendingVersion": "Версия v{version} сохранена и ждёт проверки.",
         "PickConnection": "Выберите подключение",
         "ReviewAndEnable": "Проверить и включить v{version}",

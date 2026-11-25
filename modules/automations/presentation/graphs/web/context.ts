@@ -3,7 +3,8 @@ import type { ToastController } from '@iota-uz/sdk/solid-ui'
 import type { Props, RPC } from './Automations.solid.generated'
 import type { Translator } from './model'
 
-export type Call = <K extends keyof RPC>(method: K, params: RPC[K]['params']) => Promise<RPC[K]['result']>
+/** An RPC; `signal` cancels it (a superseded request whose answer is no longer wanted). */
+export type Call = <K extends keyof RPC>(method: K, params: RPC[K]['params'], signal?: AbortSignal) => Promise<RPC[K]['result']>
 
 /** What every part of the screens shares: strings, the RPC, the route's props and the clock. */
 export interface Ctx {

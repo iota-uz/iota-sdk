@@ -306,6 +306,7 @@
         "OnlyConnection": "Yagonasi: {name}",
         "OpenIntegrations": "Integratsiyalarni ochish",
         "OpenLatest": "Joriy v{version} versiyani ochish",
+        "OpeningVersion": "v{version} ochilmoqda: oʻzgarishlar bekor qilindi",
         "PendingVersion": "v{version} versiya saqlandi va tekshiruvni kutmoqda.",
         "PickConnection": "Ulanishni tanlang",
         "ReviewAndEnable": "Tekshirish va v{version} ni yoqish",
