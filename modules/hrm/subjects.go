@@ -19,7 +19,6 @@ func contributeSubjectNames(b *composition.Builder) {
 			Label: `concat_ws(' ', r.first_name, r.last_name)`, ReadPermission: permissions.EmployeeRead.Name(),
 			Path: func(key string) string { return "/hrm/employees/" + key }}},
 	} {
-		n := n
 		subjects.Contribute(b, n.entity, func(c *composition.Container) (subjects.Namer, error) {
 			db, err := composition.Resolve[*pgxpool.Pool](c)
 			if err != nil {

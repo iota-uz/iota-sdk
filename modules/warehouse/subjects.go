@@ -19,7 +19,6 @@ func contributeSubjectNames(b *composition.Builder) {
 			Label: `'#' || r.id`, ReadPermission: permissions.OrderRead.Name(),
 			Path: func(key string) string { return "/warehouse/orders/" + key }}},
 	} {
-		n := n
 		subjects.Contribute(b, n.entity, func(c *composition.Container) (subjects.Namer, error) {
 			db, err := composition.Resolve[*pgxpool.Pool](c)
 			if err != nil {

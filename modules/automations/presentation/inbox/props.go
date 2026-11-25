@@ -211,11 +211,6 @@ func (p *TaskProps) allCommentRequired() bool {
 	return true
 }
 
-// readOnly: the screen shows the task without its form.
-func (p *TaskProps) readOnly() bool {
-	return !p.Task.CanDecide || p.Notice == "closed"
-}
-
 // via is where the task came from in words.
 func via(ctx context.Context, v tasks.TaskView) string {
 	switch v.AssignedVia {

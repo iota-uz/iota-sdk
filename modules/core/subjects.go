@@ -21,7 +21,6 @@ func contributeSubjectNames(b *composition.Builder) {
 		{"core.group", subjects.TableNamer{Table: "user_groups", KeyColumn: "id", TenantColumn: "tenant_id", Label: `r.name`,
 			ReadPermission: permissions.GroupRead.Name(), Path: func(key string) string { return "/groups/" + key }}},
 	} {
-		n := n
 		subjects.Contribute(b, n.entity, func(c *composition.Container) (subjects.Namer, error) {
 			db, err := composition.Resolve[*pgxpool.Pool](c)
 			if err != nil {

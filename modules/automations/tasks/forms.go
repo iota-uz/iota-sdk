@@ -117,7 +117,7 @@ func (f *Forms) Kinds() []string {
 
 // FormKindOf reads the annotation x-iota-form of a human node's form (a JSON Schema): "" when there is
 // none; ok is false for an annotation that is not a non-empty string.
-func FormKindOf(form json.RawMessage) (kind string, ok bool) {
+func FormKindOf(form json.RawMessage) (string, bool) {
 	if len(form) == 0 {
 		return "", true
 	}
@@ -129,6 +129,7 @@ func FormKindOf(form json.RawMessage) (kind string, ok bool) {
 	if !present {
 		return "", true
 	}
+	var kind string
 	if err := json.Unmarshal(raw, &kind); err != nil || strings.TrimSpace(kind) == "" {
 		return "", false
 	}

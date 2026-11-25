@@ -92,8 +92,8 @@ func NotificationDefinition(cfg NotificationConfig) notifications.Definition {
 	}
 	if cfg.Reader != nil {
 		opts = append(opts, notifications.WithGuard(func(ctx context.Context, e notifications.Event, u user.User) (bool, error) {
-			id, err := uuid.Parse(e.Data["task_id"])
-			if err != nil {
+			id, ok := taskID(e.Data["task_id"])
+			if !ok {
 				return false, nil
 			}
 			return cfg.Reader.CanRead(ctx, e.TenantID, u, id)
@@ -194,8 +194,8 @@ func (s *Service) CanRead(ctx context.Context, tenantID uuid.UUID, u user.User, 
 func SubjectAccess(r Reader, next notifications.SubjectAccess) notifications.SubjectAccess {
 	return notifications.SubjectAccessFunc(func(ctx context.Context, tenantID uuid.UUID, u user.User, subject notifications.ObjectRef) (bool, error) {
 		if subject.Entity == engine.SubjectTask {
-			id, err := uuid.Parse(subject.Key)
-			if err != nil {
+			id, ok := taskID(subject.Key)
+			if !ok {
 				return false, nil
 			}
 			return r.CanRead(ctx, tenantID, u, id)
@@ -205,4 +205,10 @@ func SubjectAccess(r Reader, next notifications.SubjectAccess) notifications.Sub
 		}
 		return next.CanAccess(ctx, tenantID, u, subject)
 	})
+}
+
+// taskID parses a task's key; a key that is not a UUID names no task anybody may read.
+func taskID(key string) (uuid.UUID, bool) {
+	id, err := uuid.Parse(key)
+	return id, err == nil
 }

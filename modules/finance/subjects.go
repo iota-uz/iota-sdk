@@ -23,7 +23,6 @@ func contributeSubjectNames(b *composition.Builder) {
 			Label: `''`, ReadPermission: permissions.ExpenseRead.Name(),
 			Path: func(key string) string { return "/finance/expenses/" + key }}},
 	} {
-		n := n
 		subjects.Contribute(b, n.entity, func(c *composition.Container) (subjects.Namer, error) {
 			db, err := composition.Resolve[*pgxpool.Pool](c)
 			if err != nil {

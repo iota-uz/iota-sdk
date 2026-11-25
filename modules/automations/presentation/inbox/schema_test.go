@@ -17,7 +17,7 @@ func TestFieldsOfKeepsOrderAndKinds(t *testing.T) {
 		"note":{"type":"string","maxLength":100},"amount":{"type":"number","title":"Amount"},"count":{"type":"integer"},
 		"urgent":{"type":"boolean"},"priority":{"type":"string","enum":["low","high"]},"extra":{"type":"object"},"text":{"type":"string"}}}`))
 	require.Len(t, fields, 7)
-	var names, kinds []string
+	names, kinds := make([]string, 0, len(fields)), make([]string, 0, len(fields))
 	for _, f := range fields {
 		names, kinds = append(names, f.Name), append(kinds, f.Kind)
 	}
