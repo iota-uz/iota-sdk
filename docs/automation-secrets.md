@@ -193,11 +193,12 @@ composition.Provide[secrets.Store](b, func(c *composition.Container) (secrets.St
 - **Истечение.** Действует наименьшая ненулевая из `delete_version_after` mount и пути, поэтому `0` на пути не
   отключает срок mount. Нужно `delete_version_after = 0` **и** в конфигурации mount (`secret/config`), **и** в
   метаданных пути (адаптер ставит при первой записи).
-- **Защита настроек.** CAS не защищает настройки хранения. Роли записи и чтения не получают `update` на
-  `secret/config` и на настройки метаданных (`max_versions`, `delete_version_after` пишет только адаптер при
-  создании пути), а адаптер перед каждой записью сверяет их по тому же чтению метаданных пути (`max_versions`,
-  `delete_version_after`) и периодически — `GET secret/config` mount; при расхождении он отказывает в записи
-  (`ErrUnavailable`) вместо того, чтобы писать в хранилище, которое может удалить опубликованную версию.
+- **Защита настроек.** CAS не защищает настройки хранения. `secret/config` mount не может менять ни одна из
+  ролей приложения (только оператор); настройки метаданных пути (`max_versions`, `delete_version_after`) пишет
+  только адаптер под ролью записи при создании пути, роль чтения их менять не может. Кроме того, адаптер перед
+  каждой записью сверяет их по тому же чтению метаданных пути, а `delete_version_after` mount — по
+  `GET secret/config` (при старте и периодически); при расхождении он отказывает в записи (`ErrUnavailable`)
+  вместо того, чтобы писать в хранилище, которое может удалить опубликованную версию.
 
 Политики разделены. В OpenBao `*` допустим только в конце пути, `+` — один сегмент; если в `ref.Path` есть
 префикс окружения (`DefaultLocator("prod/")`), он входит в путь политики:
@@ -205,7 +206,8 @@ composition.Provide[secrets.Store](b, func(c *composition.Container) (secrets.St
 ```hcl
 # роль записи (управление секретами): без права читать значения
 path "secret/data/prod/tenants/+/automation/secrets/*"     { capabilities = ["create", "update"] }
-path "secret/metadata/prod/tenants/+/automation/secrets/*" { capabilities = ["read", "list", "delete"] } # current_version для CAS, List, Delete
+path "secret/metadata/prod/tenants/+/automation/secrets/*" { capabilities = ["create", "update", "read", "list", "delete"] } # настройки пути при создании, current_version/versions для CAS и проверки, List, Delete
+path "secret/config"                                       { capabilities = ["read"] }                   # сверка delete_version_after mount
 path "secret/metadata/prod/tenants/+/automation/secrets/"  { capabilities = ["list"] }                   # корень для List/подметания
 path "secret/destroy/prod/tenants/+/automation/secrets/*"  { capabilities = ["update"] }                 # Prune
 
