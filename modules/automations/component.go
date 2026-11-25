@@ -54,6 +54,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/mcp"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/openai"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/sms"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/telegram"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
@@ -138,6 +139,8 @@ type component struct {
 	noEngine     bool
 	noBackground bool
 	noMCP        bool
+	// telegram configures the Telegram connector of WithTelegram (nil: none).
+	telegram *telegram.Config
 }
 
 func (c *component) Descriptor() composition.Descriptor {
@@ -298,6 +301,12 @@ func (c *component) Build(b *composition.Builder) error {
 			}
 			registered[conn.Kind()] = true
 		}
+		if c.telegram != nil && !registered[telegram.Kind] {
+			if err := dir.Register(c.newTelegram(container, cfg.origin)); err != nil {
+				return nil, err
+			}
+			registered[telegram.Kind] = true
+		}
 		// The SDK's own AI and SMS connectors, unless the application registered its own of the kind.
 		status := lazyStatus{container: container}
 		sdk := []connectors.Connector{
@@ -441,6 +450,7 @@ func (c *component) Build(b *composition.Builder) error {
 	})
 
 	c.contributeNotifyNodes(b, cfg.origin)
+	c.contributeTelegramChannel(b, cfg.origin)
 
 	if !b.Context().HasCapability(composition.CapabilityAPI) {
 		return nil
@@ -501,7 +511,13 @@ func (c *component) contributeNotifyNodes(b *composition.Builder, origin string)
 		if err != nil {
 			return nil, err
 		}
-		return nil, notify.Register(reg, notify.Config{Sender: sender, Catalog: definitions, Pool: db, BaseURL: origin})
+		var channels notifications.ChannelRegistry
+		if composition.Has[notifications.ChannelRegistry](container) {
+			if channels, err = composition.Resolve[notifications.ChannelRegistry](container); err != nil {
+				return nil, err
+			}
+		}
+		return nil, notify.Register(reg, notify.Config{Sender: sender, Catalog: definitions, Pool: db, BaseURL: origin, Channels: channels})
 	})
 }
 

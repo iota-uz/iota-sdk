@@ -65,6 +65,16 @@ func (s *NotificationChannelService) resolveOne(ctx context.Context, d notificat
 	if err != nil {
 		return settle(resolveProblem{code: notifications.ErrorCodeResolutionFailed, transient: true})
 	}
+	// A channel the tenant has no connection for any more ends here, visibly.
+	if spec, _, ok := s.registry.Lookup(d.Channel); ok {
+		connected, err := s.connected(ctx, spec, d.TenantID)
+		if err != nil {
+			return settle(resolveProblem{code: notifications.ErrorCodeResolutionFailed, transient: true})
+		}
+		if !connected {
+			return settle(resolveProblem{status: notifications.DeliverySkipped, code: notifications.ErrorCodeChannelNotConfigured})
+		}
+	}
 	targets, language, problem := s.targets(ctx, d)
 	if problem != nil {
 		return settle(*problem)
@@ -110,7 +120,7 @@ func (s *NotificationChannelService) resolveOne(ctx context.Context, d notificat
 		if _, err := notification.New(1, "validation", "", notification.WithActionURL(content.ActionURL)); err != nil {
 			return settle(resolveProblem{status: notifications.DeliveryFailed, code: notifications.ErrorCodeResolutionBadContent})
 		}
-		title, body := content.Summary(d.Channel)
+		title, body := notifications.SummaryFor(s.registry, d.Channel, content)
 		for i := range rows {
 			if rows[i].Status != notifications.DeliveryPending {
 				continue
@@ -170,6 +180,19 @@ func (s *NotificationChannelService) targets(ctx context.Context, d notification
 		return nil, language, &resolveProblem{status: notifications.DeliveryFailed, code: notifications.ErrorCodeResolutionFailed}
 	}
 	var found []notifications.Target
+	if spec, _, ok := s.registry.Lookup(d.Channel); ok && spec.Address == notifications.AddressLinked {
+		if s.links == nil {
+			return nil, language, nil
+		}
+		link, err := s.links.Get(ctx, d.UserID, d.Channel)
+		switch {
+		case errors.Is(err, notifications.ErrNoAddress):
+			return nil, language, nil
+		case err != nil:
+			return nil, language, transient
+		}
+		return []notifications.Target{{Channel: d.Channel, Address: link.Address}}, language, nil
+	}
 	if d.Channel == notifications.ChannelPush && s.platform != nil && s.platform.Devices != nil {
 		devices, err := s.platform.Devices.Active(ctx, d.UserID)
 		if err != nil {

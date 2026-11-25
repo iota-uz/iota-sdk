@@ -186,7 +186,7 @@ func (n *contactNode) PreviewEffect(ctx context.Context, run engine.StepContext,
 // request is the audience request of a rendered effect and its channel.
 func (n *contactNode) request(run engine.StepContext, node graph.Node, params map[string]any) (notifications.AudienceRequest, notifications.Channel, error) {
 	channel := notifications.Channel(text(params, "channel"))
-	if !channel.External() {
+	if !channel.External() || !n.cfg.known(channel) {
 		return notifications.AudienceRequest{}, "", invalid("channel %q is not an external channel of the application", string(channel))
 	}
 	ref, err := recordOf(run, params["record"])
@@ -240,7 +240,7 @@ func (n *contactNode) CheckNode(g graph.Graph, index int, _ catalog.View) []grap
 	if !ok {
 		return nil
 	}
-	if !notifications.Channel(s).External() {
+	if c := notifications.Channel(s); !c.External() || !n.cfg.known(c) {
 		return []graph.GraphError{{Path: fmt.Sprintf("nodes[%d].params.channel", index), Code: graph.CodeParams,
 			Message: fmt.Sprintf("%q is not a channel a record can be reached on", s)}}
 	}

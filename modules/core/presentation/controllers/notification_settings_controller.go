@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/filterq"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
@@ -46,10 +47,82 @@ func (c *NotificationSettingsController) Register(r *mux.Router) {
 	router.HandleFunc("/test", di.H(c.Test)).Methods(http.MethodPost)
 	router.HandleFunc("/users", di.H(c.UserChannels)).Methods(http.MethodGet)
 	router.HandleFunc("/users/{id:[0-9]+}", di.H(c.SaveUserChannels)).Methods(http.MethodPost)
+	router.HandleFunc("/channels/{channel}/connection", di.H(c.SaveConnection)).Methods(http.MethodPost)
+}
+
+// resolveFromRequest resolves an optional service of the request's container.
+func resolveFromRequest[T any](r *http.Request) (T, bool) {
+	var zero T
+	container, err := composition.UseContainer(r.Context())
+	if err != nil || !composition.Has[T](container) {
+		return zero, false
+	}
+	v, err := composition.Resolve[T](container)
+	if err != nil {
+		return zero, false
+	}
+	return v, true
+}
+
+// channelLabels names the registered channels in the page's language.
+func channelLabels(r *http.Request, registry notifications.ChannelRegistry) map[notifications.Channel]string {
+	labels := map[notifications.Channel]string{}
+	if registry == nil {
+		return labels
+	}
+	lang := composables.UsePageCtx(r.Context()).GetLocale().String()
+	for _, spec := range registry.All() {
+		labels[spec.Channel] = spec.LabelFor(lang)
+	}
+	return labels
+}
+
+// channelConnections lists the connection pickers of the connector-backed channels.
+func channelConnections(r *http.Request, labels map[notifications.Channel]string) ([]settings.ChannelConnection, error) {
+	conns, ok := resolveFromRequest[*services.NotificationChannelConnectionService](r)
+	if !ok {
+		return nil, nil
+	}
+	options, err := conns.Options(r.Context())
+	if err != nil {
+		return nil, err
+	}
+	pageCtx := composables.UsePageCtx(r.Context())
+	out := make([]settings.ChannelConnection, 0, len(options))
+	for _, o := range options {
+		view := settings.ChannelConnection{Channel: o.Spec.Channel, Label: labels[o.Spec.Channel], Linked: o.Spec.Address == notifications.AddressLinked}
+		if o.EffectiveOK {
+			view.Current = o.Effective
+		}
+		for _, c := range o.Connections {
+			label := c.Name
+			if c.Platform {
+				label = pageCtx.T("NotificationSettings.Connection.Platform")
+				if c.Name != "" {
+					label += " · " + c.Name
+				}
+			}
+			view.Options = append(view.Options, settings.ConnectionOption{Value: c.ID, Label: label, Platform: c.Platform})
+		}
+		out = append(out, view)
+	}
+	return out, nil
 }
 func (c *NotificationSettingsController) render(w http.ResponseWriter, r *http.Request, s *services.NotificationRoutingService, message string, delivered int) {
-	props := &settings.Props{Channels: s.Channels(), CanManage: composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) == nil, MessageKey: message, Delivered: delivered}
-	var err error
+	channels, err := s.Channels(r.Context())
+	if err != nil {
+		composables.UseLogger(r.Context()).WithError(err).Error("failed to load notification channels")
+		http.Error(w, "Unable to load notification channels", http.StatusInternalServerError)
+		return
+	}
+	labels := channelLabels(r, s.ChannelRegistry())
+	props := &settings.Props{Channels: channels, Labels: labels, CanManage: composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) == nil, MessageKey: message, Delivered: delivered}
+	props.Connections, err = channelConnections(r, labels)
+	if err != nil {
+		composables.UseLogger(r.Context()).WithError(err).Error("failed to load notification channel connections")
+		http.Error(w, "Unable to load notification channels", http.StatusInternalServerError)
+		return
+	}
 	props.Groups, err = s.Groups(r.Context())
 	if err != nil {
 		http.Error(w, "Unable to load groups", http.StatusInternalServerError)
@@ -196,7 +269,12 @@ func (c *NotificationSettingsController) Save(w http.ResponseWriter, r *http.Req
 	}
 	// With a channel picker on the page, an empty selection must not silently
 	// fall back to in-app (for example after an adapter was removed).
-	if len(s.Channels()) > 1 && len(rule.Channels) == 0 {
+	available, err := s.Channels(r.Context())
+	if err != nil {
+		http.Error(w, "Unable to load notification channels", http.StatusInternalServerError)
+		return
+	}
+	if len(available) > 1 && len(rule.Channels) == 0 {
 		c.render(w, r, s, "InvalidRule", 0)
 		return
 	}
@@ -319,8 +397,13 @@ func (c *NotificationSettingsController) renderUserChannels(w http.ResponseWrite
 	if err != nil || offset < 0 {
 		offset = 0
 	}
-	channels := s.Channels()
-	registry := c.userChannelFilterRegistry(r, s, channels)
+	channels, err := s.Channels(r.Context())
+	if err != nil {
+		http.Error(w, "Unable to load notification channels", http.StatusInternalServerError)
+		return
+	}
+	labels := channelLabels(r, s.ChannelRegistry())
+	registry := c.userChannelFilterRegistry(r, s, channels, labels)
 	conditions := registry.Decode(r.Form)
 	page, err := s.FilterRecipients(r.Context(), search, recipientFilters(conditions, channels), offset)
 	if err != nil {
@@ -338,7 +421,7 @@ func (c *NotificationSettingsController) renderUserChannels(w http.ResponseWrite
 		return
 	}
 	props := &settings.UserChannelsProps{
-		Channels: channels, Search: search, MessageKey: message,
+		Channels: channels, Labels: labels, Search: search, MessageKey: message,
 		CanManage: composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) == nil,
 		Filters: filterbuilder.Props{
 			Registry: registry, Filters: conditions, ID: "user-channel-filters", ShowResetAlways: true,
@@ -346,8 +429,36 @@ func (c *NotificationSettingsController) renderUserChannels(w http.ResponseWrite
 		Offset:  offset,
 		HasMore: page.HasMore,
 	}
+	var linked []notifications.Channel
+	if reg := s.ChannelRegistry(); reg != nil {
+		for _, c := range channels {
+			if spec, _, ok := reg.Lookup(c); ok && spec.Address == notifications.AddressLinked {
+				linked = append(linked, c)
+			}
+		}
+	}
+	links, hasLinks := resolveFromRequest[*services.NotificationChannelLinkService](r)
 	for _, item := range page.Items {
-		props.Rows = append(props.Rows, settings.UserChannelRow{Recipient: settings.Recipient{ID: item.ID, Name: item.Name, Hint: item.Hint}, Disabled: disabled[item.ID]})
+		row := settings.UserChannelRow{Recipient: settings.Recipient{ID: item.ID, Name: item.Name, Hint: item.Hint}, Disabled: disabled[item.ID]}
+		if hasLinks && len(linked) > 0 {
+			row.Links = map[notifications.Channel]string{}
+			for _, c := range linked {
+				status, err := links.StatusOf(r.Context(), item.ID, c)
+				if err != nil {
+					http.Error(w, "Unable to load channel settings", http.StatusInternalServerError)
+					return
+				}
+				switch {
+				case status.Linked:
+					row.Links[c] = "linked"
+				case status.Revoked != "":
+					row.Links[c] = "gone"
+				default:
+					row.Links[c] = "not_linked"
+				}
+			}
+		}
+		props.Rows = append(props.Rows, row)
 	}
 	component := settings.UserChannels(props)
 	// A history restore ("Back" to a pushed chip URL) needs the whole page.
@@ -367,7 +478,7 @@ func (c *NotificationSettingsController) renderUserChannels(w http.ResponseWrite
 // userChannelFilterRegistry describes the chips of the channels-per-person
 // list: the person's roles and groups, and the channels they turned off
 // (offered only when there is more than the in-app channel to turn off).
-func (c *NotificationSettingsController) userChannelFilterRegistry(r *http.Request, s *services.NotificationRoutingService, channels []notifications.Channel) *filterbuilder.Registry {
+func (c *NotificationSettingsController) userChannelFilterRegistry(r *http.Request, s *services.NotificationRoutingService, channels []notifications.Channel, labels map[notifications.Channel]string) *filterbuilder.Registry {
 	pageCtx := composables.UsePageCtx(r.Context())
 	var fields []filterbuilder.FieldDef
 	if roles, err := s.Roles(r.Context()); err != nil {
@@ -397,7 +508,7 @@ func (c *NotificationSettingsController) userChannelFilterRegistry(r *http.Reque
 	if len(channels) > 1 {
 		options := make([]filterbuilder.Option, 0, len(channels))
 		for _, channel := range channels {
-			options = append(options, filterbuilder.Opt(string(channel), pageCtx.T(settings.ChannelLabelKey(channel))))
+			options = append(options, filterbuilder.Opt(string(channel), settings.ChannelLabel(pageCtx, labels, channel)))
 		}
 		fields = append(fields, filterbuilder.FieldDef{
 			Key: notifications.RecipientFilterOptedOut, Type: filterq.FieldTypeReference,
@@ -456,4 +567,34 @@ func (c *NotificationSettingsController) SaveUserChannels(w http.ResponseWriter,
 		return
 	}
 	c.renderUserChannels(w, r, s, "UserChannelsSaved")
+}
+
+// SaveConnection chooses the connection a connector-backed channel sends
+// through. Changing it removes the users' links of a linked channel.
+func (c *NotificationSettingsController) SaveConnection(w http.ResponseWriter, r *http.Request, s *services.NotificationRoutingService, conns *services.NotificationChannelConnectionService) {
+	if composables.CanUserStrict(r.Context(), permissions.NotificationRulesManage) != nil {
+		RenderForbidden(w, r)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form", http.StatusBadRequest)
+		return
+	}
+	channel := notifications.Channel(mux.Vars(r)["channel"])
+	connection := r.FormValue("connection_id")
+	removed, err := conns.Set(r.Context(), channel, connection)
+	if err != nil {
+		if serrors.CodeOf(err) != serrors.Invalid {
+			composables.UseLogger(r.Context()).WithError(err).Error("failed to save a notification channel connection")
+			http.Error(w, "Unable to save the connection", http.StatusInternalServerError)
+			return
+		}
+		c.render(w, r, s, "ConnectionInvalid", 0)
+		return
+	}
+	message := "ConnectionSaved"
+	if removed {
+		message = "ConnectionSavedLinksRemoved"
+	}
+	c.render(w, r, s, message, 0)
 }

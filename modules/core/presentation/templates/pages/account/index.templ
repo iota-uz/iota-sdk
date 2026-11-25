@@ -21,6 +21,8 @@ type ProfilePageProps struct {
 	Errors    map[string]string
 	PostPath  string
 	Languages []intl.SupportedLanguage
+	// ShowNotifications loads the «Notifications» section (the notification stack is composed).
+	ShowNotifications bool
 }
 
 templ ProfileForm(props *ProfilePageProps) {
@@ -203,6 +205,9 @@ templ Index(props *ProfilePageProps) {
 		<div class="flex flex-col">
 			<h1 class="px-4 pt-4 text-2xl font-bold text-100 md:px-6 md:pt-6">{ pageCtx.T("Account.Meta.Index.Title") }</h1>
 			@ProfileForm(props)
+			if props.ShowNotifications {
+				@NotificationsPlaceholder()
+			}
 			@PasswordForm(props.PostPath+"/password", map[string]string{})
 		</div>
 	}

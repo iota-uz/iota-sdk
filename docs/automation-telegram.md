@@ -182,3 +182,16 @@ CONTRACT_TARGET=live TELEGRAM_CONTRACT_TOKEN=… TELEGRAM_CONTRACT_CHAT=… go t
 ```
 
 Сценарии с движком и базой — `pkg/automation/engine/telegram_test.go`.
+
+## Канал уведомлений и привязка пользователей (#1349)
+
+Коннектор, зарегистрированный в модуле `automations` (`automations.WithTelegram(cfg)` или `WithConnectors(tg)`),
+автоматически становится каналом уведомлений `telegram` (`modules/core/notifications/telegramchannel`), а модуль
+регистрирует в нём `StartHandler` с префиксом `u_`, который привязывает личный чат пользователя по одноразовой
+ссылке из профиля. Подробности — в `docs/notifications-mvp.md`, раздел «Telegram».
+
+Локальная проверка без настоящего Telegram: `node scripts/fake-telegram.mjs 3260` поднимает фейковый Bot API, а
+`cmd/server` с `TELEGRAM_APIURL=http://127.0.0.1:3260`, `TELEGRAM_PLATFORMTOKEN=<id>:<токен>` и
+`EXTRUNTIME_ENABLED=true` регистрирует коннектор с ботом платформы. `POST /_fake/start {chat_id, username, payload}`
+фейка присылает приложению `/start <payload>`, `POST /_fake/block {chat_id}` имитирует заблокированного бота,
+`GET /_fake/sent` показывает отправленные сообщения.

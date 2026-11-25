@@ -241,7 +241,9 @@ func TestNotificationChannels_RejectsUnavailableChannels(t *testing.T) {
 	dispatch := itf.GetService[services.NotificationDispatchService](f)
 	_, err = dispatch.EnqueueAddressed(f.Ctx, services.AddressedRequest{Event: notifications.Event{Key: notifications.TestEventKey, ID: uuid.NewString(), TenantID: f.TenantID()}, RecipientIDs: []uint{1}, Channels: []notifications.Channel{notifications.ChannelPush}})
 	require.Error(t, err)
-	require.Equal(t, []notifications.Channel{notifications.ChannelInApp}, router.Channels())
+	available, err := router.Channels(f.Ctx)
+	require.NoError(t, err)
+	require.Equal(t, []notifications.Channel{notifications.ChannelInApp}, available)
 }
 
 func TestNotificationChannels_ExhaustedLeaseFailsWithoutAnotherProviderCall(t *testing.T) {

@@ -30,11 +30,38 @@ const (
 type NotificationChannelService struct {
 	repo     notifications.DeliveryRepository
 	prefs    notifications.PreferenceRepository
-	adapters map[notifications.Channel]notifications.ChannelAdapter
+	registry notifications.ChannelRegistry
+	links    notifications.ChannelLinkRepository
+	conns    notifications.ChannelConnections
 	resolver notifications.AddressResolver
 	platform *NotificationPlatform
 	logger   *logrus.Logger
 }
+
+// WithRegistry replaces the channel registry built from the constructor's
+// adapters: the application's registry, with contributed channels.
+func (s *NotificationChannelService) WithRegistry(registry notifications.ChannelRegistry) *NotificationChannelService {
+	if registry != nil {
+		s.registry = registry
+	}
+	return s
+}
+
+// WithLinks installs the store of linked channel addresses (telegram).
+func (s *NotificationChannelService) WithLinks(links notifications.ChannelLinkRepository) *NotificationChannelService {
+	s.links = links
+	return s
+}
+
+// WithConnections installs how connector-backed channels find the tenant's
+// connection at sending time.
+func (s *NotificationChannelService) WithConnections(conns notifications.ChannelConnections) *NotificationChannelService {
+	s.conns = conns
+	return s
+}
+
+// Registry is the channel registry the service sends through.
+func (s *NotificationChannelService) Registry() notifications.ChannelRegistry { return s.registry }
 
 // WithPlatform installs the notice store, renderers, contact resolvers, device
 // registry and policies the worker needs to turn recipients into targets.
@@ -44,33 +71,71 @@ func (s *NotificationChannelService) WithPlatform(platform *NotificationPlatform
 }
 
 func NewNotificationChannelService(repo notifications.DeliveryRepository, prefs notifications.PreferenceRepository, adapters []notifications.ChannelAdapter, resolver notifications.AddressResolver, logger *logrus.Logger) *NotificationChannelService {
-	index := make(map[notifications.Channel]notifications.ChannelAdapter, len(adapters))
+	var external []notifications.ChannelAdapter
 	for _, a := range adapters {
 		if a != nil && a.Channel().External() {
-			index[a.Channel()] = a
+			external = append(external, a)
 		}
 	}
-	return &NotificationChannelService{repo: repo, prefs: prefs, adapters: index, resolver: resolver, logger: logger}
-}
-
-// Available lists the channels a rule can select: in-app and every installed adapter.
-func (s *NotificationChannelService) Available() []notifications.Channel {
-	result := []notifications.Channel{notifications.ChannelInApp}
-	for _, c := range notifications.Channels() {
-		if _, ok := s.adapters[c]; ok {
-			result = append(result, c)
+	registry, err := notifications.NewChannelRegistry(external...)
+	if err != nil {
+		// Two adapters for one channel: the first wins, as before the registry.
+		registry, _ = notifications.NewChannelRegistry()
+		seen := map[notifications.Channel]bool{}
+		for _, a := range external {
+			if !seen[a.Channel()] {
+				seen[a.Channel()] = true
+				_ = registry.Register(notifications.ChannelSpec{Channel: a.Channel()}, a)
+			}
 		}
 	}
-	return result
+	return &NotificationChannelService{repo: repo, prefs: prefs, registry: registry, resolver: resolver, logger: logger}
 }
 
-// Validate rejects unknown, duplicated or not installed channels.
-func (s *NotificationChannelService) Validate(channels []notifications.Channel) error {
+// Available lists the channels the tenant in ctx can select: in-app, every
+// installed adapter and the connector-backed channels the tenant has a
+// connection for.
+func (s *NotificationChannelService) Available(ctx context.Context) ([]notifications.Channel, error) {
+	specs, err := s.AvailableSpecs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]notifications.Channel, 0, len(specs))
+	for _, spec := range specs {
+		out = append(out, spec.Channel)
+	}
+	return out, nil
+}
+
+// AvailableSpecs is Available with the channels' specs.
+func (s *NotificationChannelService) AvailableSpecs(ctx context.Context) ([]notifications.ChannelSpec, error) {
+	const op serrors.Op = "NotificationChannelService.AvailableSpecs"
+	tenant, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	specs, err := s.registry.ForTenant(ctx, tenant)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
+	}
+	return specs, nil
+}
+
+// Validate rejects malformed, unregistered, duplicated or unavailable channels.
+func (s *NotificationChannelService) Validate(ctx context.Context, channels []notifications.Channel) error {
 	const op serrors.Op = "NotificationChannelService.Validate"
-	available := s.Available()
+	for _, c := range channels {
+		if _, _, ok := s.registry.Lookup(c); !c.Valid() || !ok {
+			return serrors.New(serrors.Invalid, "invalid or unavailable notification channel").WithOp(op)
+		}
+	}
+	available, err := s.Available(ctx)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
 	seen := map[notifications.Channel]bool{}
 	for _, c := range channels {
-		if !c.Valid() || seen[c] || !slices.Contains(available, c) {
+		if seen[c] || !slices.Contains(available, c) {
 			return serrors.New(serrors.Invalid, "invalid or unavailable notification channel").WithOp(op)
 		}
 		seen[c] = true
@@ -83,19 +148,22 @@ func (s *NotificationChannelService) Disabled(ctx context.Context, userIDs []uin
 	return s.prefs.Disabled(ctx, userIDs)
 }
 
-// SetEnabled stores which of the available channels a user wants. Opt-outs for
-// channels without an installed adapter are kept, so installing one later does
-// not override an earlier choice.
+// SetEnabled stores which of the available channels a user wants. Choices for
+// channels the tenant cannot use now are kept, so installing or connecting one
+// later does not override an earlier choice.
 func (s *NotificationChannelService) SetEnabled(ctx context.Context, userID uint, enabled []notifications.Channel) error {
 	const op serrors.Op = "NotificationChannelService.SetEnabled"
-	if err := s.Validate(enabled); err != nil {
+	if err := s.Validate(ctx, enabled); err != nil {
 		return serrors.Wrap(op, err)
 	}
 	current, err := s.prefs.Disabled(ctx, []uint{userID})
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
-	available := s.Available()
+	available, err := s.Available(ctx)
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
 	var disabled []notifications.Channel
 	for _, c := range current[userID] {
 		if !slices.Contains(available, c) {
@@ -106,6 +174,24 @@ func (s *NotificationChannelService) SetEnabled(ctx context.Context, userID uint
 		if !slices.Contains(enabled, c) {
 			disabled = append(disabled, c)
 		}
+	}
+	return s.prefs.SetDisabled(ctx, userID, disabled)
+}
+
+// SetChannelEnabled turns one available channel on or off for a user, keeping
+// the other choices.
+func (s *NotificationChannelService) SetChannelEnabled(ctx context.Context, userID uint, channel notifications.Channel, enabled bool) error {
+	const op serrors.Op = "NotificationChannelService.SetChannelEnabled"
+	if err := s.Validate(ctx, []notifications.Channel{channel}); err != nil {
+		return serrors.Wrap(op, err)
+	}
+	current, err := s.prefs.Disabled(ctx, []uint{userID})
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	disabled := slices.DeleteFunc(slices.Clone(current[userID]), func(c notifications.Channel) bool { return c == channel })
+	if !enabled {
+		disabled = append(disabled, channel)
 	}
 	return s.prefs.SetDisabled(ctx, userID, disabled)
 }
@@ -122,6 +208,15 @@ func (s *NotificationChannelService) Retry(ctx context.Context, id uuid.UUID) er
 
 func (s *NotificationChannelService) Deliveries(ctx context.Context, eventKey, eventID string) ([]notifications.Delivery, error) {
 	return s.repo.ForEvent(ctx, eventKey, eventID)
+}
+
+// NoticeDeliveries lists the deliveries of one notice.
+func (s *NotificationChannelService) NoticeDeliveries(ctx context.Context, noticeID uuid.UUID) ([]notifications.Delivery, error) {
+	notice, err := s.notice(ctx, noticeID, map[uuid.UUID]notifications.Notice{})
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.ForEvent(ctx, notice.EventKey, notice.EventID)
 }
 
 func (s *NotificationChannelService) Stats(ctx context.Context) ([]notifications.DeliveryStats, error) {
@@ -227,10 +322,33 @@ func (s *NotificationChannelService) failedAttempt(d notifications.Delivery, cod
 	return notifications.AttemptResult{Outcome: notifications.AttemptFailed, Status: notifications.DeliveryPending, ErrorCode: code, RetryIn: retryBackoff(d.Attempts)}
 }
 
+// notConfigured is the outcome of a delivery on a channel the tenant has no
+// connection for any more.
+var notConfigured = notifications.AttemptResult{Outcome: notifications.AttemptPermanent, Status: notifications.DeliverySkipped, ErrorCode: notifications.ErrorCodeChannelNotConfigured}
+
+// connected reports whether a connector-backed channel has a connection for
+// the delivery's tenant now; other channels always do.
+func (s *NotificationChannelService) connected(ctx context.Context, spec notifications.ChannelSpec, tenantID uuid.UUID) (bool, error) {
+	if spec.ConnectorKind == "" {
+		return true, nil
+	}
+	if s.conns == nil {
+		return false, nil
+	}
+	_, ok, err := s.conns.Connection(ctx, tenantID, spec)
+	return ok, err
+}
+
 func (s *NotificationChannelService) send(ctx context.Context, d notifications.Delivery, notices map[uuid.UUID]notifications.Notice) notifications.AttemptResult {
-	adapter, ok := s.adapters[d.Channel]
-	if !ok {
+	spec, adapter, ok := s.registry.Lookup(d.Channel)
+	if !ok || adapter == nil {
 		return s.failedAttempt(d, notifications.ErrorCodeAdapterMissing)
+	}
+	switch connected, err := s.connected(ctx, spec, d.TenantID); {
+	case err != nil:
+		return s.failedAttempt(d, notifications.ErrorCodeProviderFailure)
+	case !connected:
+		return notConfigured
 	}
 	notice, err := s.notice(ctx, d.NoticeID, notices)
 	if err != nil {
@@ -250,12 +368,25 @@ func (s *NotificationChannelService) send(ctx context.Context, d notifications.D
 		message.Recipient = *d.Record
 	}
 	receipt, err := adapter.Send(sendCtx, message)
+	var later *notifications.RetryAfterError
 	switch {
 	case err == nil:
 		return notifications.AttemptResult{Outcome: notifications.AttemptSent, Status: notifications.DeliverySent, Receipt: receipt.ProviderMessageID}
+	case errors.Is(err, notifications.ErrChannelUnavailable):
+		return notConfigured
+	case errors.As(err, &later):
+		result := s.failedAttempt(d, notifications.ErrorCodeProviderFailure)
+		if result.Status == notifications.DeliveryPending && later.After > 0 {
+			result.RetryIn = later.After
+		}
+		return result
 	case errors.Is(err, notifications.ErrPermanent):
 		if errors.Is(err, notifications.ErrTargetGone) {
-			s.revokeGoneDevice(ctx, d)
+			if spec.Address == notifications.AddressLinked {
+				s.revokeGoneLink(ctx, spec, d)
+			} else {
+				s.revokeGoneDevice(ctx, d)
+			}
 		}
 		return notifications.AttemptResult{Outcome: notifications.AttemptPermanent, Status: notifications.DeliveryFailed, ErrorCode: notifications.ErrorCodeProviderRejected}
 	case errors.Is(err, notifications.ErrAmbiguous) || errors.Is(err, context.DeadlineExceeded):
@@ -277,5 +408,25 @@ func (s *NotificationChannelService) revokeGoneDevice(ctx context.Context, d not
 	defer cancel()
 	if err := s.platform.Devices.Revoke(revoke, d.UserID, d.TargetDeviceID); err != nil && s.logger != nil {
 		s.logger.WithError(err).Warn("failed to revoke a push device its provider reported as gone")
+	}
+}
+
+// revokeGoneLink ends the link of an address its provider reported gone (the
+// user blocked the bot): later notices find no address, and the user sees why
+// in the profile.
+func (s *NotificationChannelService) revokeGoneLink(ctx context.Context, spec notifications.ChannelSpec, d notifications.Delivery) {
+	if s.links == nil || d.TargetAddress == "" {
+		return
+	}
+	revoke, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	connection := ""
+	if s.conns != nil {
+		if id, ok, err := s.conns.Connection(revoke, d.TenantID, spec); err == nil && ok {
+			connection = id
+		}
+	}
+	if err := s.links.DeleteByAddress(revoke, d.Channel, connection, d.TargetAddress); err != nil && s.logger != nil {
+		s.logger.WithError(err).Warn("failed to remove a channel link its provider reported as gone")
 	}
 }

@@ -209,7 +209,105 @@ func (c *component) Build(builder *composition.Builder) error {
 	})
 	composition.ProvideFunc(builder, func(service *services.NotificationService) services.NotificationDelivery { return service })
 	composition.ProvideFunc(builder, persistence.NewNotificationDeliveryRepository)
-	composition.ProvideFunc(builder, persistence.NewNotificationPreferenceRepository)
+	// The channel registry: the built-in channels with the configured provider
+	// adapters, and the channels other components contribute (telegram).
+	composition.Provide[*notifications.Registry](builder, func(container *composition.Container) (*notifications.Registry, error) {
+		var external []notifications.ChannelAdapter
+		for _, a := range channelAdapters {
+			if a != nil && a.Channel().External() {
+				external = append(external, a)
+			}
+		}
+		registry, err := notifications.NewChannelRegistry(external...)
+		if err != nil {
+			return nil, err
+		}
+		conns, err := composition.Resolve[*services.NotificationChannelConnectionService](container)
+		if err != nil {
+			return nil, err
+		}
+		return registry.WithConnections(conns).WithSource(func() ([]notifications.ChannelContribution, error) {
+			return composition.Contributions[notifications.ChannelContribution](container)
+		}), nil
+	})
+	composition.ProvideFunc(builder, func(registry *notifications.Registry) notifications.ChannelRegistry { return registry })
+	composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
+		registry, err := composition.Resolve[*notifications.Registry](container)
+		if err != nil {
+			return nil, err
+		}
+		// A channel contributed twice fails the start, not the first send.
+		return []composition.Hook{{Name: "notification-channels", Start: func(context.Context) (composition.StopFn, error) {
+			return nil, registry.Load()
+		}}}, nil
+	})
+	composition.ProvideFunc(builder, func(registry *notifications.Registry) notifications.PreferenceRepository {
+		return persistence.NewNotificationPreferenceRepository(persistence.WithOptInChannels(registry.OptInChannels))
+	})
+	composition.ProvideFunc(builder, persistence.NewNotificationChannelLinkRepository)
+	composition.ProvideFunc(builder, persistence.NewNotificationLinkTokenRepository)
+	composition.ProvideFunc(builder, persistence.NewNotificationChannelConnectionRepository)
+	composition.Provide[*services.NotificationChannelConnectionService](builder, func(container *composition.Container) (*services.NotificationChannelConnectionService, error) {
+		repo, err := composition.Resolve[notifications.ChannelConnectionRepository](container)
+		if err != nil {
+			return nil, err
+		}
+		links, err := composition.Resolve[notifications.ChannelLinkRepository](container)
+		if err != nil {
+			return nil, err
+		}
+		pool, err := composition.Resolve[*pgxpool.Pool](container)
+		if err != nil {
+			return nil, err
+		}
+		registry := func() notifications.ChannelRegistry {
+			r, err := composition.Resolve[*notifications.Registry](container)
+			if err != nil {
+				return nil
+			}
+			return r
+		}
+		// The connector connections come from the automations module, when it is composed.
+		connectors := func() notifications.ConnectorConnections {
+			if !composition.Has[notifications.ConnectorConnections](container) {
+				return nil
+			}
+			c, err := composition.Resolve[notifications.ConnectorConnections](container)
+			if err != nil {
+				return nil
+			}
+			return c
+		}
+		return services.NewNotificationChannelConnectionService(repo, links, registry, connectors).WithPool(pool), nil
+	})
+	composition.ProvideFunc(builder, func(svc *services.NotificationChannelConnectionService) notifications.ChannelConnections { return svc })
+	composition.Provide[*services.NotificationChannelLinkService](builder, func(container *composition.Container) (*services.NotificationChannelLinkService, error) {
+		conns, err := composition.Resolve[*services.NotificationChannelConnectionService](container)
+		if err != nil {
+			return nil, err
+		}
+		links, err := composition.Resolve[notifications.ChannelLinkRepository](container)
+		if err != nil {
+			return nil, err
+		}
+		tokens, err := composition.Resolve[notifications.LinkTokenRepository](container)
+		if err != nil {
+			return nil, err
+		}
+		pool, err := composition.Resolve[*pgxpool.Pool](container)
+		if err != nil {
+			return nil, err
+		}
+		registry := func() notifications.ChannelRegistry {
+			r, err := composition.Resolve[*notifications.Registry](container)
+			if err != nil {
+				return nil
+			}
+			return r
+		}
+		return services.NewNotificationChannelLinkService(registry, conns, links, tokens).WithPool(pool), nil
+	})
+	composition.ProvideFunc(builder, func(svc *services.NotificationChannelLinkService) notifications.ChannelLinkService { return svc })
 	composition.ProvideFunc(builder, persistence.NewNotificationNoticeRepository)
 	composition.ProvideFunc(builder, persistence.NewNotificationPushDeviceRepository)
 	composition.ProvideFunc(builder, notifications.NewContentRenderers)
@@ -230,8 +328,9 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, func(notices notifications.NoticeRepository, renderers *notifications.ContentRenderers, contacts *notifications.ContactResolvers, devices notifications.PushDeviceRepository, policies *notifications.DeliveryPolicies) *services.NotificationPlatform {
 		return &services.NotificationPlatform{Notices: notices, Renderers: renderers, Contacts: contacts, Devices: devices, SubjectAccess: c.options.NotificationSubjectAccess, Policy: policies}
 	})
-	composition.ProvideFunc(builder, func(repo notifications.DeliveryRepository, prefs notifications.PreferenceRepository, platform *services.NotificationPlatform, logger *logrus.Logger) *services.NotificationChannelService {
-		return services.NewNotificationChannelService(repo, prefs, channelAdapters, c.options.NotificationAddressResolver, logger).WithPlatform(platform)
+	composition.ProvideFunc(builder, func(repo notifications.DeliveryRepository, prefs notifications.PreferenceRepository, platform *services.NotificationPlatform, logger *logrus.Logger, registry *notifications.Registry, links notifications.ChannelLinkRepository, conns *services.NotificationChannelConnectionService) *services.NotificationChannelService {
+		return services.NewNotificationChannelService(repo, prefs, nil, c.options.NotificationAddressResolver, logger).
+			WithPlatform(platform).WithRegistry(registry).WithLinks(links).WithConnections(conns)
 	})
 	composition.ProvideFunc(builder, func(catalog *notifications.Catalog, rules notifications.RuleRepository, users user.Repository, delivery services.NotificationDelivery, audience notifications.AudienceRepository, directory notifications.RecipientDirectory, channels *services.NotificationChannelService, platform *services.NotificationPlatform) *services.NotificationRoutingService {
 		return services.NewNotificationRoutingService(catalog, rules, users, delivery, audience, directory).WithChannels(channels).WithPlatform(platform)
@@ -433,6 +532,7 @@ func (c *component) Build(builder *composition.Builder) error {
 				controllers.NewTwoFactorSetupController(twoFactorService, sessionService, userService, httpCfg, sessionCfg, browserSessions),
 				controllers.NewTwoFactorVerifyController(twoFactorService, sessionService, userService, httpCfg, sessionCfg, browserSessions),
 				controllers.NewAccountController(app, userService, tenantService, uploadService, sessionService, cookiesCfg),
+				controllers.NewAccountNotificationsController(),
 				controllers.NewLogoutController(httpCfg, browserSessions),
 				controllers.NewOnboardingController(app, userService, uploadService, browserSessions),
 				controllers.NewUploadController(uploadService, uploadsCfg),

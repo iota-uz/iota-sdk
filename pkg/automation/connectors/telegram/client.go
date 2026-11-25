@@ -77,6 +77,19 @@ func (c *Connector) Send(ctx context.Context, _ catalog.ConnectionInfo, creds ca
 
 var _ Client = (*Connector)(nil)
 
+// NotSent reports whether an error of Send says the message was not sent, so sending it again cannot
+// duplicate it: the Bot API answered with a server error (5xx), or the connection to it was never made. Any
+// other error that is neither a *catalog.CallError nor a *RetryAfterError leaves the outcome unknown (a
+// timeout or a cut connection after the request went out).
+func NotSent(err error) bool {
+	var api *apiError
+	if errors.As(err, &api) {
+		return api.Code >= 500
+	}
+	var tr *transportError
+	return errors.As(err, &tr) && tr.dial
+}
+
 // outgoing is a message the connector sends: text or the caption of files, a keyboard, a topic.
 type outgoing struct {
 	Text      string

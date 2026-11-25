@@ -121,8 +121,9 @@ for managers. Event payloads are not displayed in diagnostics.
 
 ## Delivery channels
 
-Rules select channels (`Rule.Channels`: `in_app`, `email`, `sms`, `push`); an empty
-selection keeps the previous in-app-only behaviour. The settings page shows the
+Rules select channels (`Rule.Channels`: `in_app`, `email`, `sms`, `push` and every
+channel a component registers, such as `telegram`); an empty selection keeps the
+previous in-app-only behaviour. The settings page shows the
 picker once an adapter is installed. Install providers in the application:
 
 ```go
@@ -166,15 +167,72 @@ in-app dispatch. Eligibility is checked when content is rendered; a recipient wh
 loses access afterwards can still receive the already rendered message until it
 is sent.
 
+### Channel registry
+
+The set of channels is open. `notifications.ChannelRegistry` holds the built-in
+channels and every channel a component contributes with
+`notifications.ContributeChannel(builder, spec, adapter)` (or
+`ContributeChannels` for an adapter built from the container); a channel
+registered twice fails the start. `ChannelSpec` names the channel (a name matching
+`^[a-z][a-z0-9_]{1,31}$`, which is also the database CHECK), its labels per
+language, its order in pickers, where the user's address comes from
+(`AddressSource`: email, phone, push devices, a linked account, none), whether it
+is opt-in, the connector kind whose connection it sends through, and what the
+delivery's title and body columns keep. `Channel.Valid` is a format check; the
+application refuses an unregistered channel before anything is written.
+
+A connector-backed channel (`ConnectorKind` set) has one adapter per application.
+On every send the adapter picks the tenant's connection: the one chosen on
+`/settings/notifications` (`core.notification_channel_connections`: a connection
+UUID or `platform:<kind>`), else the platform credential enabled for the tenant.
+A tenant with neither does not see the channel in rules, in the notify node or
+in the profile, and a delivery queued before is `skipped` with
+`channel_not_configured`. Changing the connection of a linked channel removes the
+users' links: an address of one bot means nothing to another.
+
+An opt-in channel (`ChannelSpec.OptIn`) is off for a person until they turn it on.
+In `core.notification_channel_preferences` a row of an ordinary channel means
+"off" and a row of an opt-in channel means "on";
+`PreferenceRepository.Disabled` returns the effective off channels either way.
+
+### Telegram
+
+`modules/core/notifications/telegramchannel` is the Telegram channel
+(`Address = linked`, `ConnectorKind = telegram_bot`). A person links their chat
+in the profile («Notifications» → «Connect Telegram»): the application issues a
+one-use token (15 minutes, bound to the tenant, the person and the connection;
+only its SHA-256 is stored) and opens `https://t.me/<bot>?start=u_<token>`. The
+bot's `/start u_<token>` reaches `telegramchannel.NewTelegramStartHandler`, which
+completes the link only in a private chat and only through the connection the
+token names; a used, expired or foreign token is answered «The link has expired»
+in the person's language and changes nothing. A chat linked by another person of
+the tenant moves to the new one. Messages are a bold title, the body and an
+«Open» button with the notice's link, in HTML parse mode, cut to 4096
+characters. A 429 is retried after `retry_after`, a 5xx or a connection never
+made is retried, a timeout after the request is `ambiguous`, and a blocked bot
+or a missing chat fails the delivery for good and ends the link (the profile
+says the bot is blocked).
+
+The automations module contributes the channel and registers the start handler
+whenever the Telegram connector is in its directory; `automations.WithTelegram`
+builds that connector with the module's engine inbound and connection store:
+
+```go
+automations.NewComponent(automations.WithTelegram(telegram.Config{PlatformToken: token}))
+```
+
 ### Personal channel choices
 
 Under **Channels per person** (`/settings/notifications/users`) a manager turns a
 channel on or off for one person. A channel switched off is skipped for that
 person in every event, rule-based or addressed; their other channels and other
 recipients are unaffected, and a person with every channel off gets nothing.
-Choices are stored as opt-outs in `core.notification_channel_preferences`
-(tenant-scoped), so people without a row keep everything the rule selects, and an
-opt-out for a channel whose adapter is not installed is kept. The page needs
+Choices are stored in `core.notification_channel_preferences` (tenant-scoped; see
+opt-in channels above), so people without a row keep every ordinary channel the
+rule selects, and a choice for a channel the tenant cannot use now is kept. The
+list shows the state of each person's linked accounts in words. People switch
+their own channels, link Telegram and send themselves a test notification in the
+profile (`/account/notifications`, the «Notifications» section of `/account`). The page needs
 `NotificationRules.Read`; saving needs `NotificationRules.Manage`.
 
 ## Validation

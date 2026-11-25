@@ -47,6 +47,51 @@
     }
   },
   "Account": {
+      "Notifications": {
+        "Title": "Notifications",
+        "Intro": "Choose where you receive notifications.",
+        "Channels": "Notification channels",
+        "NeedsLink": "Connect {{.Channel}} below to receive notifications there.",
+        "Linked": "{{.Channel}} is connected as {{.Account}}.",
+        "Waiting": "Waiting for confirmation in {{.Channel}}…",
+        "ExpiresIn": "· the link works",
+        "Expired": "The link has expired.",
+        "Gone": "{{.Channel}} is disconnected: the bot is blocked in {{.Channel}}.",
+        "NotLinked": "{{.Channel}} is not connected.",
+        "Link": "Connect {{.Channel}}",
+        "LinkAgain": "Connect again",
+        "GetNewLink": "Get a new link",
+        "OpenAgain": "Open {{.Channel}} again",
+        "Cancel": "Cancel",
+        "Unlink": "Disconnect {{.Channel}}",
+        "UnlinkHeading": "Disconnect {{.Channel}}?",
+        "UnlinkText": "Notifications will stop arriving in {{.Account}}. To get them again you will need a new link.",
+        "UnlinkConfirm": "Disconnect",
+        "SendTest": "Send a test notification",
+        "Errors": {
+          "Toggle": "Could not save the setting. Try again in a minute.",
+          "Unavailable": "Connecting is not available now: the administrator has not set up the bot.",
+          "Unlink": "Could not disconnect. Try again in a minute."
+        },
+        "Toast": {
+          "LinkedTitle": "{{.Channel}} connected",
+          "Linked": "{{.Channel}} is connected as {{.Account}}.",
+          "UnlinkedTitle": "{{.Channel}} disconnected"
+        },
+        "Test": {
+          "Starting": "Sending…",
+          "Sending": "Sending the test notification to {{.Channel}}…",
+          "StillWaiting": "Still waiting for {{.Channel}} to accept the message. It will not be sent twice.",
+          "Sent": "The test notification was delivered to {{.Channel}}.",
+          "Failed": {
+            "NoAddress": "Nothing was sent: {{.Channel}} is not connected.",
+            "Gone": "{{.Channel}} refused the message: the bot may be blocked. Connect again.",
+            "Disabled": "Nothing was sent: {{.Channel}} is turned off above.",
+            "Unavailable": "Nothing was sent: {{.Channel}} is not set up for your organization.",
+            "Unknown": "Could not send the test notification to {{.Channel}}. Try again in a minute."
+          }
+        }
+      },
     "Meta": {
       "Index": {
         "Title": "Account"
@@ -1777,6 +1822,28 @@
     "Configure": "Settings"
   },
   "NotificationSettings": {
+      "Connection": {
+        "Title": "{{.Channel}} bot",
+        "Hint": "Notifications to {{.Channel}} are sent by this bot; people connect their accounts to it.",
+        "None": "There is no {{.Channel}} bot yet: connect one on the",
+        "Integrations": "Integrations page",
+        "Unavailable": "The chosen bot does not work now, so {{.Channel}} notifications are not sent. Choose another bot.",
+        "Label": "Bot",
+        "NotFound": "No bot matches",
+        "Platform": "Platform bot",
+        "Saving": "Saving…",
+        "ConfirmHeading": "Change the {{.Channel}} bot?",
+        "ConfirmText": "Everyone's connected {{.Channel}} accounts will be removed: a chat with one bot does not work with another. People will need to connect {{.Channel}} again.",
+        "ConfirmButton": "Change the bot"
+      },
+      "ConnectionSaved": "The bot is saved.",
+      "ConnectionSavedLinksRemoved": "The bot is saved. People's connected accounts were removed; they need to connect again.",
+      "ConnectionInvalid": "This bot cannot be chosen now. Pick another one.",
+      "LinkState": {
+        "Linked": "connected",
+        "NotLinked": "not connected",
+        "Gone": "disconnected: bot blocked"
+      },
     "AudienceHint": "Someone who is in a group and also listed individually gets one notification.",
     "UnavailableRecipients": "Some recipients are no longer available and will not receive notifications.",
     "Title": "Notification settings",

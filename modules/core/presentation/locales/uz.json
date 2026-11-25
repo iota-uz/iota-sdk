@@ -47,6 +47,51 @@
     }
   },
   "Account": {
+      "Notifications": {
+        "Title": "Bildirishnomalar",
+        "Intro": "Bildirishnomalar qayerga kelishini tanlang.",
+        "Channels": "Bildirishnoma kanallari",
+        "NeedsLink": "U yerga bildirishnoma olish uchun quyida {{.Channel}}ni ulang.",
+        "Linked": "{{.Channel}} {{.Account}} sifatida ulangan.",
+        "Waiting": "{{.Channel}}da tasdiqlashni kutyapmiz…",
+        "ExpiresIn": "· havola amal qiladi",
+        "Expired": "Havola eskirgan.",
+        "Gone": "{{.Channel}} uzildi: bot {{.Channel}}da bloklangan.",
+        "NotLinked": "{{.Channel}} ulanmagan.",
+        "Link": "{{.Channel}}ni ulash",
+        "LinkAgain": "Qayta ulash",
+        "GetNewLink": "Yangi havola olish",
+        "OpenAgain": "{{.Channel}}ni qayta ochish",
+        "Cancel": "Bekor qilish",
+        "Unlink": "{{.Channel}}ni uzish",
+        "UnlinkHeading": "{{.Channel}} uzilsinmi?",
+        "UnlinkText": "Bildirishnomalar {{.Account}}ga kelmay qoladi. Qaytarish uchun yangi havola kerak bo‘ladi.",
+        "UnlinkConfirm": "Uzish",
+        "SendTest": "Sinov bildirishnomasini yuborish",
+        "Errors": {
+          "Toggle": "Sozlamani saqlab bo‘lmadi. Bir daqiqadan so‘ng qayta urinib ko‘ring.",
+          "Unavailable": "Hozir ulash mumkin emas: administrator botni sozlamagan.",
+          "Unlink": "Uzib bo‘lmadi. Bir daqiqadan so‘ng qayta urinib ko‘ring."
+        },
+        "Toast": {
+          "LinkedTitle": "{{.Channel}} ulandi",
+          "Linked": "{{.Channel}} {{.Account}} sifatida ulandi.",
+          "UnlinkedTitle": "{{.Channel}} uzildi"
+        },
+        "Test": {
+          "Starting": "Yuborilmoqda…",
+          "Sending": "Sinov bildirishnomasi {{.Channel}}ga yuborilmoqda…",
+          "StillWaiting": "{{.Channel}} xabarni qabul qilishini kutyapmiz. U ikki marta yuborilmaydi.",
+          "Sent": "Sinov bildirishnomasi {{.Channel}}ga yetkazildi.",
+          "Failed": {
+            "NoAddress": "Hech narsa yuborilmadi: {{.Channel}} ulanmagan.",
+            "Gone": "{{.Channel}} xabarni qabul qilmadi: bot bloklangan bo‘lishi mumkin. Qayta ulang.",
+            "Disabled": "Hech narsa yuborilmadi: {{.Channel}} yuqorida o‘chirilgan.",
+            "Unavailable": "Hech narsa yuborilmadi: {{.Channel}} tashkilotda sozlanmagan.",
+            "Unknown": "Sinov bildirishnomasini {{.Channel}}ga yuborib bo‘lmadi. Bir daqiqadan so‘ng qayta urinib ko‘ring."
+          }
+        }
+      },
     "Meta": {
       "Index": {
         "Title": "Profil"
@@ -1776,6 +1821,28 @@
     "Configure": "Sozlash"
   },
   "NotificationSettings": {
+      "Connection": {
+        "Title": "{{.Channel}} boti",
+        "Hint": "{{.Channel}}ga bildirishnomalarni shu bot yuboradi, xodimlar o‘z akkauntlarini unga ulaydi.",
+        "None": "Hozircha {{.Channel}} boti yo‘q: uni sahifada ulang:",
+        "Integrations": "«Integratsiyalar»",
+        "Unavailable": "Tanlangan bot hozir ishlamayapti, {{.Channel}}ga bildirishnomalar yuborilmaydi. Boshqa botni tanlang.",
+        "Label": "Bot",
+        "NotFound": "Hech narsa topilmadi",
+        "Platform": "Platforma boti",
+        "Saving": "Saqlanmoqda…",
+        "ConfirmHeading": "{{.Channel}} boti almashtirilsinmi?",
+        "ConfirmText": "Xodimlarning barcha {{.Channel}} ulanishlari o‘chiriladi: bitta bot bilan chat boshqasi bilan ishlamaydi. Xodimlar {{.Channel}}ni qayta ulashi kerak bo‘ladi.",
+        "ConfirmButton": "Botni almashtirish"
+      },
+      "ConnectionSaved": "Bot saqlandi.",
+      "ConnectionSavedLinksRemoved": "Bot saqlandi. Xodimlarning ulanishlari o‘chirildi, ular qayta ulanishi kerak.",
+      "ConnectionInvalid": "Bu botni hozir tanlab bo‘lmaydi. Boshqasini tanlang.",
+      "LinkState": {
+        "Linked": "ulangan",
+        "NotLinked": "ulanmagan",
+        "Gone": "uzilgan: bot bloklangan"
+      },
     "AudienceHint": "Guruhda ham, ro‘yxatda ham bo‘lgan odam bitta xabar oladi.",
     "UnavailableRecipients": "Ba’zi oluvchilar endi mavjud emas va xabar olmaydi.",
     "Title": "Bildirishnoma sozlamalari",

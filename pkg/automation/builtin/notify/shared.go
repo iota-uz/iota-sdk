@@ -74,6 +74,21 @@ type Config struct {
 	// BaseURL is the address of the application (https://erp.example.com): a link of a notice may be an
 	// absolute path or a URL on this host. Empty: absolute paths only.
 	BaseURL string
+	// Channels is the application's channel registry: a node may name its channels. Nil: the built-in
+	// channels only.
+	Channels notifications.ChannelRegistry
+}
+
+// known reports whether c is a channel of the application.
+func (c Config) known(channel notifications.Channel) bool {
+	if !channel.Valid() {
+		return false
+	}
+	if c.Channels == nil {
+		return channel.Builtin()
+	}
+	_, _, ok := c.Channels.Lookup(channel)
+	return ok
 }
 
 // validate refuses a configuration the nodes could not work with, so it fails when the nodes are registered
@@ -359,13 +374,13 @@ func internalPath(path string) (string, string) {
 // params
 
 // channelsOf reads the channels param: empty is the in-app channel.
-func channelsOf(params map[string]any) ([]notifications.Channel, error) {
+func (b base) channelsOf(params map[string]any) ([]notifications.Channel, error) {
 	raw, _ := params["channels"].([]any)
 	out := make([]notifications.Channel, 0, len(raw))
 	for _, v := range raw {
 		s, _ := v.(string)
 		c := notifications.Channel(s)
-		if !c.Valid() {
+		if !b.cfg.known(c) {
 			return nil, invalid("channel %q is not a channel of the application", s)
 		}
 		out = append(out, c)

@@ -184,7 +184,7 @@ func (n *notifyNode) request(run engine.StepContext, node graph.Node, params map
 	if err != nil {
 		return notifications.AudienceRequest{}, err
 	}
-	channels, err := channelsOf(params)
+	channels, err := n.channelsOf(params)
 	if err != nil {
 		return notifications.AudienceRequest{}, err
 	}
@@ -237,7 +237,7 @@ func (n *notifyNode) CheckNode(g graph.Graph, index int, _ catalog.View) []graph
 	node := g.Nodes[index]
 	at := fmt.Sprintf("nodes[%d].params", index)
 	var out []graph.GraphError
-	out = append(out, checkChannels(node.Params, at)...)
+	out = append(out, n.checkChannels(node.Params, at)...)
 	if s, ok := node.Params["action_url"].(string); ok {
 		if reason := checkActionURL(s, n.host); reason != "" {
 			out = append(out, graph.GraphError{Path: at + ".action_url", Code: graph.CodeParams, Message: "action_url " + reason})
@@ -307,13 +307,13 @@ func triggersReaching(g graph.Graph, nodeID string) []graph.Trigger {
 	return out
 }
 
-// checkChannels refuses a channel the SDK does not know.
-func checkChannels(params map[string]any, at string) []graph.GraphError {
+// checkChannels refuses a channel the application does not know.
+func (b base) checkChannels(params map[string]any, at string) []graph.GraphError {
 	var out []graph.GraphError
 	list, _ := params["channels"].([]any)
 	for i, v := range list {
 		s, _ := v.(string)
-		if !notifications.Channel(s).Valid() {
+		if !b.cfg.known(notifications.Channel(s)) {
 			out = append(out, graph.GraphError{Path: fmt.Sprintf("%s.channels[%d]", at, i), Code: graph.CodeParams,
 				Message: fmt.Sprintf("%q is not a notification channel", s)})
 		}

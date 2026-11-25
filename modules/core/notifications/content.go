@@ -37,7 +37,7 @@ func (c ChannelContent) Summary(channel Channel) (string, string) {
 		return firstNonEmpty(c.Subject, c.Title), firstNonEmpty(c.Text, c.Body)
 	case ChannelSMS:
 		return "", firstNonEmpty(c.Text, c.Body)
-	case ChannelInApp, ChannelPush:
+	case ChannelInApp, ChannelPush, ChannelTelegram:
 		return c.Title, c.Body
 	}
 	return c.Title, c.Body
@@ -170,7 +170,7 @@ func contentForChannel(channel Channel, rendered Content) ChannelContent {
 		content.HTML = "<p>" + html.EscapeString(rendered.Body) + "</p>"
 	case ChannelSMS:
 		content.Text = strings.TrimSpace(rendered.Title + "\n" + rendered.Body)
-	case ChannelInApp, ChannelPush:
+	case ChannelInApp, ChannelPush, ChannelTelegram:
 		// Title and body already carry everything these channels show.
 	}
 	return content
