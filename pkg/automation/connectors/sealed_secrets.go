@@ -31,6 +31,9 @@ func NewSealedSecrets(db *pgxpool.Pool, keys Keyring) secrets.Store {
 
 const putAttempts = 8
 
+// errWriteFenced: a Put that reached the store after its ref's NotAfter; nothing was written.
+var errWriteFenced = errors.New("the write's deadline has passed")
+
 func secretAAD(tenantID uuid.UUID, path string, version int) []byte {
 	return []byte(fmt.Sprintf("secret|%s|%s|%d", tenantID, path, version))
 }
@@ -65,6 +68,10 @@ func (s *sealedSecrets) Put(ctx context.Context, ref secrets.Ref, data map[strin
 		return secrets.Metadata{}, fmt.Errorf("%w: value", secrets.ErrInvalid)
 	}
 	keyID, key := s.keys.Active()
+	var fence *time.Time
+	if !ref.NotAfter.IsZero() {
+		fence = &ref.NotAfter
+	}
 	for range putAttempts {
 		var latest int
 		if err := s.db.QueryRow(ctx, `SELECT COALESCE(max(version), 0) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`,
@@ -78,10 +85,13 @@ func (s *sealedSecrets) Put(ctx context.Context, ref secrets.Ref, data map[strin
 		}
 		// The next version is a row of its own: the earlier ones stay readable until they are pruned, and a
 		// concurrent Put of the same version makes this one conflict and start again from the new latest.
+		// The fence is checked by the database's clock in the inserting statement itself, which commits as it
+		// ends: a version is never written after ref.NotAfter, however late this call runs.
 		var at time.Time
 		err = s.db.QueryRow(ctx, `INSERT INTO automation.secret_values (tenant_id, path, version, key_id, nonce, ciphertext)
-			VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING created_at`,
-			ref.TenantID, ref.Path, next, keyID, nonce, ct).Scan(&at)
+			SELECT $1, $2, $3, $4, $5, $6 WHERE $7::timestamptz IS NULL OR clock_timestamp() < $7::timestamptz
+			ON CONFLICT DO NOTHING RETURNING created_at`,
+			ref.TenantID, ref.Path, next, keyID, nonce, ct, fence).Scan(&at)
 		switch {
 		case err == nil:
 			// The version this call inserted, never the latest: a concurrent Put may already have added a
@@ -94,6 +104,15 @@ func (s *sealedSecrets) Put(ctx context.Context, ref secrets.Ref, data map[strin
 			}
 			return md, nil
 		case errors.Is(err, pgx.ErrNoRows):
+			if fence != nil {
+				var passed bool
+				if err := s.db.QueryRow(ctx, `SELECT clock_timestamp() >= $1::timestamptz`, fence).Scan(&passed); err != nil {
+					return secrets.Metadata{}, unavailableSecret(err)
+				}
+				if passed {
+					return secrets.Metadata{}, unavailableSecret(errWriteFenced)
+				}
+			}
 			continue
 		default:
 			return secrets.Metadata{}, unavailableSecret(err)

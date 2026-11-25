@@ -635,3 +635,91 @@ func TestAGivenUpCreateKeepsItsReferenceAcrossAStoreOutage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "v2", got)
 }
+
+// A fenced Put commits only before its NotAfter, by the database's clock.
+func TestTheSealedStoreRefusesAWritePastItsFence(t *testing.T) {
+	t.Parallel()
+	e := newEnv(t)
+	past := secrets.Ref{TenantID: e.tenant, Path: "p/fenced", NotAfter: time.Now().Add(-time.Second)}
+	_, err := e.store.Put(e.ctx, past, map[string]string{secrets.ValueKey: "late"})
+	require.ErrorIs(t, err, secrets.ErrUnavailable)
+	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: "p/fenced"})
+	require.ErrorIs(t, err, secrets.ErrNotFound, "nothing was written")
+
+	future := secrets.Ref{TenantID: e.tenant, Path: "p/fenced", NotAfter: time.Now().Add(time.Minute)}
+	md, err := e.store.Put(e.ctx, future, map[string]string{secrets.ValueKey: "in time"})
+	require.NoError(t, err)
+	assert.Equal(t, 1, md.Version)
+}
+
+// fenceSpy records the fence of every Put and can stall its first Delete until a deadline has passed (and
+// fail the ones after it: the store goes down, so only the first cleanup's decision counts).
+type fenceSpy struct {
+	secrets.Writer
+	fences     *[]time.Time
+	stallUntil *time.Time
+	deletes    *int
+}
+
+func (f fenceSpy) Put(ctx context.Context, ref secrets.Ref, data map[string]string) (secrets.Metadata, error) {
+	*f.fences = append(*f.fences, ref.NotAfter)
+	return f.Writer.Put(ctx, ref, data)
+}
+
+func (f fenceSpy) Delete(ctx context.Context, ref secrets.Ref) error {
+	if f.stallUntil != nil {
+		*f.deletes++
+		if *f.deletes > 1 {
+			return secrets.ErrUnavailable
+		}
+		time.Sleep(time.Until(*f.stallUntil))
+	}
+	return f.Writer.Delete(ctx, ref)
+}
+
+// The expiration boundary of a tombstone: a claim that is live when the cleanup decides keeps the tombstone
+// even if it expires while the value is deleted; a write claimed before then is fenced to commit before the
+// claim expires (so the delete that follows the expiry removes it), and is refused after its fence. Only a
+// cleanup that decided on an expired claim retires the tombstone, and nothing is left behind.
+func TestATombstoneOutlivesEveryWriteClaimedBeforeItsRetirement(t *testing.T) {
+	restore := secrets.SetWriteWindow(2 * time.Second)
+	defer restore()
+	e := newEnv(t)
+	var fences []time.Time
+	m := secrets.NewManager(e.db, fenceSpy{Writer: e.store, fences: &fences}, e.store, secrets.DefaultLocator("test/"))
+	before := time.Now()
+	s, err := m.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
+	require.NoError(t, err)
+	_, err = m.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "v2"})
+	require.NoError(t, err)
+	require.Len(t, fences, 2)
+	for _, f := range fences {
+		assert.False(t, f.IsZero(), "every Put of the manager is fenced")
+		assert.WithinDuration(t, before.Add(time.Second), f, 2*time.Second, "the fence is half the window after the claim")
+	}
+	var claim time.Time
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT value_write_at FROM automation.secrets WHERE id = $1`, s.ID).Scan(&claim))
+
+	// The delete's cleanup decides while the claim is live, and its store delete is stalled past the expiry.
+	expiry := claim.Add(2*time.Second + 200*time.Millisecond)
+	deletes := 0
+	stalled := secrets.NewManager(e.db, fenceSpy{Writer: e.store, fences: &fences, stallUntil: &expiry, deletes: &deletes}, e.store, secrets.DefaultLocator("test/"))
+	require.NoError(t, stalled.Delete(e.ctx, e.tenant, s.ID))
+	require.True(t, time.Now().After(expiry))
+	var tombs int
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secrets WHERE id = $1 AND deleted_at IS NOT NULL`, s.ID).Scan(&tombs))
+	assert.Equal(t, 1, tombs, "decided on a live claim: the tombstone stays though the claim expired meanwhile")
+
+	// The rotation claimed before the delete writes late: past its fence the store refuses it.
+	_, err = e.store.Put(e.ctx, secrets.Ref{TenantID: e.tenant, Path: s.Ref.Path, NotAfter: claim.Add(time.Second)}, map[string]string{secrets.ValueKey: "late"})
+	require.ErrorIs(t, err, secrets.ErrUnavailable)
+
+	// The next cleanup decides on the expired claim: it removes the value and retires the tombstone.
+	_, err = m.List(e.ctx, e.tenant)
+	require.NoError(t, err)
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secrets WHERE id = $1`, s.ID).Scan(&tombs))
+	assert.Zero(t, tombs)
+	var values int
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`, e.tenant, s.Ref.Path).Scan(&values))
+	assert.Zero(t, values)
+}

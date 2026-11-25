@@ -27,11 +27,12 @@ const (
 const secretColumns = `id, tenant_id, name, description, ref_path, version, value_version, created_by,
 	created_at, updated_at, rotated_at, last_used_at, deleted_at`
 
-func scanSecret(row pgx.Row) (Secret, error) {
+func scanSecret(row pgx.Row, extra ...any) (Secret, error) {
 	var s Secret
 	var path string
-	if err := row.Scan(&s.ID, &s.TenantID, &s.Name, &s.Description, &path, &s.Version, &s.ValueVersion, &s.CreatedBy,
-		&s.CreatedAt, &s.UpdatedAt, &s.RotatedAt, &s.LastUsedAt, &s.DeletedAt); err != nil {
+	dest := append([]any{&s.ID, &s.TenantID, &s.Name, &s.Description, &path, &s.Version, &s.ValueVersion, &s.CreatedBy,
+		&s.CreatedAt, &s.UpdatedAt, &s.RotatedAt, &s.LastUsedAt, &s.DeletedAt}, extra...)
+	if err := row.Scan(dest...); err != nil {
 		return Secret{}, err
 	}
 	s.Ref = Ref{TenantID: s.TenantID, Path: path}
@@ -107,7 +108,7 @@ func validateName(n string) error {
 //   - tombstone: deleted_at set. The name is free; the value is being removed.
 //
 // A write of a value is claimed on the record first (value_write_at, one statement before the store is
-// called). A tombstone stays, and its value is deleted again by every purge, until its last claim is older
+// called) and fenced: the store may commit it only until the claim plus writeFence (Ref.NotAfter). A tombstone stays, and its value is deleted again by every purge, until its last claim is older
 // than writeWindow: a write that lands after the value was deleted (a rotation racing a delete, a create's
 // value written late) is still found and removed, never left without a record.
 //
@@ -120,12 +121,19 @@ const (
 	live = `deleted_at IS NULL AND value_version > 0`
 	// stagedFor is how long a staged record may wait for its value before purge gives it up.
 	stagedFor = 10 * time.Minute
-	// writeWindow is how long after its claim a value write may still land: a tombstone is kept that long.
-	writeWindow = 10 * time.Minute
+
 	// readAttempts bounds how often Resolve follows a rotation that moved past the version it looked up.
 	readAttempts = 3
 	// cleanupTimeout bounds the best-effort steps that run after the caller's context is done.
 	cleanupTimeout = 5 * time.Second
+)
+
+// writeWindow is how long after its claim a tombstone is kept. A claimed write is fenced to commit by
+// writeFence after its claim (Ref.NotAfter, on the database's clock), well inside the window. Variables only
+// so a test can shorten them.
+var (
+	writeWindow = 10 * time.Minute
+	writeFence  = writeWindow / 2
 )
 
 // publishHook runs after a record's publishing statement (tests: a COMMIT whose reply is lost).
@@ -187,15 +195,18 @@ func (m *manager) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 		return Secret{}, ErrForbidden
 	}
 	ref.Version = 0
-	if _, err := m.db.Exec(ctx, `INSERT INTO automation.secrets (id, tenant_id, name, description, ref_path, value_version, created_by, value_write_at)
-		VALUES ($1, $2, $3, $4, $5, 0, $6, now())`, id, tenantID, in.Name, in.Description, ref.Path, in.CreatedBy); err != nil {
+	var claim time.Time
+	if err := m.db.QueryRow(ctx, `INSERT INTO automation.secrets (id, tenant_id, name, description, ref_path, value_version, created_by, value_write_at)
+		VALUES ($1, $2, $3, $4, $5, 0, $6, now()) RETURNING value_write_at`, id, tenantID, in.Name, in.Description, ref.Path, in.CreatedBy).Scan(&claim); err != nil {
 		if isUnique(err) {
 			return Secret{}, ErrNameTaken
 		}
 		// A lost reply may hide a staged row: purge removes it once it is stale.
 		return Secret{}, unavailable(err)
 	}
+	ref.NotAfter = claim.Add(writeFence)
 	md, err := m.writer.Put(ctx, ref, map[string]string{ValueKey: in.Value})
+	ref.NotAfter = time.Time{}
 	if err != nil {
 		m.settleCreate(ctx, tenantID, id, ref)
 		return Secret{}, unavailable(err)
@@ -306,8 +317,9 @@ func (m *manager) Rotate(ctx context.Context, tenantID uuid.UUID, in RotateInput
 	m.purge(ctx, tenantID)
 	// The claim of the write, before the store is called: a delete that overtakes this rotation keeps its
 	// tombstone until the value written here can no longer land, and removes it then.
+	var claim time.Time
 	cur, err := scanSecret(m.db.QueryRow(ctx, `UPDATE automation.secrets SET value_write_at = now()
-		WHERE tenant_id = $1 AND id = $2 AND `+live+` RETURNING `+secretColumns, tenantID, in.ID))
+		WHERE tenant_id = $1 AND id = $2 AND `+live+` RETURNING `+secretColumns+`, value_write_at`, tenantID, in.ID), &claim)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return Secret{}, ErrNotFound
@@ -317,7 +329,7 @@ func (m *manager) Rotate(ctx context.Context, tenantID uuid.UUID, in RotateInput
 		return Secret{}, ErrVersionConflict
 	}
 	ref := Ref{TenantID: tenantID, Path: cur.Ref.Path}
-	md, err := m.writer.Put(ctx, ref, map[string]string{ValueKey: in.Value})
+	md, err := m.writer.Put(ctx, Ref{TenantID: tenantID, Path: cur.Ref.Path, NotAfter: claim.Add(writeFence)}, map[string]string{ValueKey: in.Value})
 	if err != nil {
 		return Secret{}, unavailable(err)
 	}
@@ -373,14 +385,29 @@ func (m *manager) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 
 // removeValue deletes a tombstone's value, then the tombstone once no claimed write can still land; a
 // failure, or a recent claim, leaves the tombstone for purge, which deletes the value again.
+//
+// Whether the tombstone may go is decided before the value is deleted: only when its last claim had
+// already expired then (older than writeWindow, so past its fence of writeFence), and the claim is still
+// the same when the row is deleted. Every write claimed before that instant was fenced to commit before
+// it, so the delete that follows removed whatever it wrote; a claim that expires during the delete keeps
+// the tombstone for the next purge.
 func (m *manager) removeValue(ctx context.Context, tenantID, id uuid.UUID, path string) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
-	if err := m.writer.Delete(ctx, Ref{TenantID: tenantID, Path: path}); err != nil {
+	var (
+		claim   *time.Time
+		expired bool
+	)
+	if err := m.db.QueryRow(ctx, `SELECT value_write_at, value_write_at IS NULL OR value_write_at < now() - make_interval(secs => $3)
+		FROM automation.secrets WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NOT NULL`,
+		tenantID, id, writeWindow.Seconds()).Scan(&claim, &expired); err != nil {
+		return
+	}
+	if err := m.writer.Delete(ctx, Ref{TenantID: tenantID, Path: path}); err != nil || !expired {
 		return
 	}
 	_, _ = m.db.Exec(ctx, `DELETE FROM automation.secrets WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NOT NULL
-		AND (value_write_at IS NULL OR value_write_at < now() - make_interval(secs => $3))`, tenantID, id, writeWindow.Seconds())
+		AND value_write_at IS NOT DISTINCT FROM $3`, tenantID, id, claim)
 }
 
 // purgeBatch is how many records one call of the manager settles.

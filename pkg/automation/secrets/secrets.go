@@ -40,6 +40,12 @@ type Ref struct {
 	TenantID uuid.UUID
 	Path     string
 	Version  int
+	// NotAfter fences a Put (zero: none): the adapter must not commit a version after this instant. It
+	// refuses to start a write past it (ErrUnavailable), and bounds the write so it cannot commit later (a
+	// server-side condition, a request deadline that ends before it). The records claim a write before
+	// calling Put and give the store until NotAfter to land it, so a deleted secret's tombstone is retired
+	// only when no claimed write can still create its value.
+	NotAfter time.Time
 }
 
 // Value is one version of a secret's value, read whole.
