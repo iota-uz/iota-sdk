@@ -699,6 +699,13 @@ func ExpandParam(params map[string]any, path string) []ParamPath {
 			}
 			return
 		}
+		if items, isList := cur.([]any); isList {
+			// A concrete item of a list ("items.0.label"): present when the number is within the list.
+			if i, err := strconv.Atoi(rest[0]); err == nil && i >= 0 && i < len(items) && rest[0] == strconv.Itoa(i) {
+				walk(items[i], append(at, itemKey(i)), rest[1:])
+			}
+			return
+		}
 		m, ok := cur.(map[string]any)
 		if !ok {
 			return

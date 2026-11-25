@@ -3,13 +3,16 @@ package automations
 import (
 	"context"
 	"log/slog"
+	"net/url"
 	"sort"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/email"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine/ownernotice"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
@@ -33,6 +36,44 @@ func WithEngineConfig(tune func(*engine.Config)) Option {
 	}
 }
 
+// WithSubjectLink gives the page of a subject entity's record (its key → a path or an absolute URL): the
+// run view's «Open <subject>» and a run context's subject.url. core.user links to /users/<id> unless
+// replaced.
+func WithSubjectLink(entity string, resolve engine.SubjectURLResolver) Option {
+	return func(c *component) {
+		if entity == "" || resolve == nil {
+			return
+		}
+		if c.subjectLinks == nil {
+			c.subjectLinks = map[string]engine.SubjectURLResolver{}
+		}
+		c.subjectLinks[entity] = resolve
+	}
+}
+
+// newLinks is the link registry of runs and subjects under origin (an empty origin keeps links relative).
+func (c *component) newLinks(origin string) (*engine.LinkRegistry, error) {
+	path := c.automationsPath
+	if path == "" {
+		path = "/automations"
+	}
+	links := engine.NewLinks(origin, strings.TrimRight(path, "/")+"/%s/runs/%s")
+	resolvers := map[string]engine.SubjectURLResolver{
+		"core.user": func(_ context.Context, _ uuid.UUID, key string) (string, error) {
+			return "/users/" + url.PathEscape(key), nil
+		},
+	}
+	for entity, r := range c.subjectLinks {
+		resolvers[entity] = r
+	}
+	for entity, r := range resolvers {
+		if err := links.Register(entity, r); err != nil {
+			return nil, err
+		}
+	}
+	return links, nil
+}
+
 // WithoutEngine leaves the automation engine out: no runs execute in this process and the automations
 // pages are not mounted (the integrations page still is).
 func WithoutEngine() Option {
@@ -47,7 +88,10 @@ func WithoutBackground() Option {
 
 // engineHolder is the composition's engine; rt is nil when the composition cannot run one (the module's
 // engine is turned off, or no extension core provides the workflow engine and the subject loader).
-type engineHolder struct{ rt *engine.Runtime }
+type engineHolder struct {
+	rt    *engine.Runtime
+	links engine.Links
+}
 
 // runtime is the composition's engine, nil when it cannot run one.
 func (c *component) runtime(container *composition.Container) (*engine.Runtime, error) {
@@ -62,13 +106,14 @@ func (c *component) runtime(container *composition.Container) (*engine.Runtime, 
 }
 
 // defaultEngineConfig is the engine's configuration before the application's tuning: it records what
-// calls spend (the SMS nodes' units, for one) in automation.connector_usage, and knows the connectors'
-// descriptors, so only the secret fields of a connection are masked in a call's output and errors (a
-// server URL or an auth kind a tool echoes stays as the node checked it).
+// calls spend (the SMS nodes' units, for one) in automation.connector_usage, matches the triggers of
+// the SDK's connectors (the email connector's subject_contains), and knows the connectors' descriptors,
+// so only the secret fields of a connection are masked in a call's output and errors (a server URL or an
+// auth kind a tool echoes stays as the node checked it).
 func defaultEngineConfig(db *pgxpool.Pool, wf *workflow.Engine, users host.SubjectLoader, reg catalog.Registry, creds connectors.CredentialSource, dir connectors.Directory) engine.Config {
 	return engine.Config{
 		DB: db, Workflows: wf, Users: users, Catalog: reg, Credentials: creds, Connectors: dir, Logger: slog.Default(),
-		Usage: connectors.NewUsageRecorder(db),
+		Usage: connectors.NewUsageRecorder(db), MatchHooks: email.MatchHooks(),
 	}
 }
 
@@ -101,14 +146,21 @@ func (c *component) buildEngine(b *composition.Builder) {
 		}
 		// The store's usage index is the engine's: the credentials are resolved when a call first opens one.
 		cfg := containerEngineConfig(container, db, wf, users, reg)
+		if c.links != nil {
+			cfg.Links = c.links
+		}
 		for _, tune := range c.engineTune {
 			tune(&cfg)
+		}
+		// Human nodes open tasks of the workflow engine unless the application gave its own bridge.
+		if cfg.Tasks == nil {
+			cfg.Tasks = engine.NewHumanBridge(cfg.Limits.WaitMax)
 		}
 		rt, err := engine.NewRuntime(cfg)
 		if err != nil {
 			return nil, err
 		}
-		return &engineHolder{rt: rt}, nil
+		return &engineHolder{rt: rt, links: cfg.Links}, nil
 	})
 	wiring.ContributeNativeWorkflows(b, func(container *composition.Container) (map[string]workflow.NativeContract, error) {
 		rt, err := c.runtime(container)

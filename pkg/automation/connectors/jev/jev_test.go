@@ -404,6 +404,49 @@ func TestOpenRouterNonNumericWireValuesAreInvalid(t *testing.T) {
 	}
 }
 
+// Metadata of a Decisions answer of another type (a model or a provider that is not a string, a usage that
+// is not an object) neither hides the tokens of the answer nor makes the node repeat the call: a usable
+// decision is taken, an unusable one is one invalid request, and the reported tokens are recorded either way.
+func TestOpenRouterMalformedMetadataKeepsTheUsageAndIsNotRepeated(t *testing.T) {
+	answer := `"answers":{"decision":{"type":"choice","choice":"refund","probabilities":{"refund":0.9,"exchange":0.05,"other":0.05},"confidence":0.9}}`
+	usage := `"usage":{"input_tokens":9,"output_tokens":1}`
+	for name, tc := range map[string]struct {
+		body    string
+		ok      bool
+		in, out int64
+	}{
+		"model is a number":       {`{"model":7,"provider":"TypeSafe",` + answer + `,` + usage + `}`, true, 9, 1},
+		"provider is an object":   {`{"model":"m","provider":{"name":"x"},` + answer + `,` + usage + `}`, true, 9, 1},
+		"metadata is null":        {`{"model":null,"provider":null,` + answer + `,` + usage + `}`, true, 9, 1},
+		"usage is a list":         {`{"model":"m",` + answer + `,"usage":[9,1]}`, true, 0, 0},
+		"usage figure is text":    {`{"model":"m",` + answer + `,"usage":{"input_tokens":"nine","output_tokens":1}}`, true, 0, 1},
+		"bad metadata and answer": {`{"model":false,"provider":[],"answers":"none",` + usage + `}`, false, 9, 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := aitest.New(t, aitest.Reply{Body: tc.body})
+			n := openrouterNode(t, srv)
+			rec := &aitest.Usage{}
+			in := aitest.Input(jev.Kind, srv, creds("openrouter"), base(t, n, nil), rec)
+			in.Params["model"] = "typesafe/jev-1.14"
+			res, err := n.Execute(context.Background(), in)
+			if tc.ok {
+				require.NoError(t, err)
+				assert.Equal(t, "refund", res.Outcome)
+				if !strings.Contains(tc.body, `"model":"m"`) {
+					assert.Equal(t, "typesafe/jev-1.14", res.Output["model"], "a model that is not a string is the one asked for")
+				}
+			} else {
+				ce := callErr(t, err)
+				assert.Equal(t, catalog.CallInvalidRequest, ce.Code)
+				assert.False(t, ce.Retryable, "not repeated")
+			}
+			assert.Len(t, srv.Requests(), 1, "exactly one request")
+			assert.Equal(t, tc.in, rec.Total("token_in"))
+			assert.Equal(t, tc.out, rec.Total("token_out"))
+		})
+	}
+}
+
 // A call whose params name no model (a test of a node before it is saved) uses the default of the provider
 // of its connection.
 func TestMissingModelFallsBackToTheProvidersDefault(t *testing.T) {
@@ -614,6 +657,36 @@ func TestOpenAIAnswersOutsideTheChoicesAreOneInvalidRequest(t *testing.T) {
 			assert.False(t, ce.Retryable)
 			assert.Len(t, srv.Requests(), 1, "exactly one request")
 			assert.Positive(t, usage.Total("token_in"), "the tokens were spent")
+		})
+	}
+}
+
+// Malformed choices of a Chat Completions answer (the openai provider) are one invalid request, not repeated,
+// and the tokens the answer reports are recorded.
+func TestOpenAIMalformedChoicesKeepTheUsageAndAreNotRepeated(t *testing.T) {
+	usage := `"usage":{"prompt_tokens":10,"completion_tokens":2}`
+	for name, body := range map[string]string{
+		"choices is an object":   `{` + usage + `,"choices":{"a":1}}`,
+		"choices is text":        `{` + usage + `,"choices":"refund"}`,
+		"choices is null":        `{` + usage + `,"choices":null}`,
+		"no choices":             `{` + usage + `,"choices":[]}`,
+		"choice is a list":       `{` + usage + `,"choices":[[]]}`,
+		"message is a list":      `{` + usage + `,"choices":[{"finish_reason":"stop","message":[]}]}`,
+		"finish reason a number": `{` + usage + `,"choices":[{"finish_reason":1,"message":{"content":"{}"}}]}`,
+		"content is a number":    `{` + usage + `,"choices":[{"finish_reason":"stop","message":{"content":5}}]}`,
+		"model is not a string":  `{"model":{},` + usage + `,"choices":[]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := aitest.New(t, aitest.Reply{Body: body})
+			n := openaiNode(t, srv)
+			rec := &aitest.Usage{}
+			_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, nil), rec))
+			ce := callErr(t, err)
+			assert.Equal(t, catalog.CallInvalidRequest, ce.Code)
+			assert.False(t, ce.Retryable, "not repeated")
+			assert.Len(t, srv.Requests(), 1, "exactly one request")
+			assert.EqualValues(t, 10, rec.Total("token_in"), "the tokens were spent")
+			assert.EqualValues(t, 2, rec.Total("token_out"))
 		})
 	}
 }

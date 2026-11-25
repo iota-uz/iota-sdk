@@ -60,6 +60,27 @@ func TestTemplatesAndValuesInsideAList(t *testing.T) {
 	}
 }
 
+// A concrete path through a list names itself when the item is there; "[]" names every item.
+func TestExpandParamConcreteListItems(t *testing.T) {
+	params := map[string]any{"items": []any{map[string]any{"label": "a"}, map[string]any{"label": "b"}}}
+	paths := func(path string) []string {
+		var out []string
+		for _, p := range graph.ExpandParam(params, path) {
+			out = append(out, p.String())
+		}
+		return out
+	}
+	if got := paths("items.0.label"); len(got) != 1 || got[0] != "items[0].label" {
+		t.Fatalf("items.0.label: %v", got)
+	}
+	if got := paths("items.2.label"); len(got) != 0 {
+		t.Fatalf("an item that is not there: %v", got)
+	}
+	if got := paths("items[].label"); len(got) != 2 || got[1] != "items[1].label" {
+		t.Fatalf("items[].label: %v", got)
+	}
+}
+
 // A list's [] may be written after a name or as a segment of its own; both name the same paths.
 func TestExpandParamListItemsSpellings(t *testing.T) {
 	t.Parallel()

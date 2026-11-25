@@ -74,3 +74,6 @@
   .ae-form-link, .ae-form-icon, .ae-form-segment, .ae-form-completion { min-height: 44px; }
   .ae-form-icon { min-width: 44px; }
 }
+
+/* Text for assistive technology only: the visible label of a field is its own row. */
+.ae-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

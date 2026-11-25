@@ -349,7 +349,8 @@ func (c *PaymentsController) Update(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		categoryEntity = paymentcategory.New("Uncategorized")
+		// The zero ID stands for "no category", as the repository reads it back.
+		categoryEntity = paymentcategory.New("Uncategorized", paymentcategory.WithID(uuid.Nil))
 	}
 
 	existing, err := c.paymentService.GetByID(r.Context(), id)

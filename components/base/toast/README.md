@@ -86,8 +86,10 @@ A global listener turns `htmx:responseError`, `htmx:sendError` and `htmx:timeout
 into an error toast, so a 4xx/5xx after a save is never silent. The toast shows
 the plain-text or JSON (`message`/`error`/`detail`) body when there is one, and a
 generic "Could not save changes" / "Could not load data" title otherwise. Opt a
-request out with `data-htmx-error-toast="off"` on the element or an ancestor, or
-call `event.preventDefault()` from an earlier listener.
+background read out with `data-htmx-error-toast="off"` on the element or an
+ancestor (writes are still reported). A screen that shows every failure itself,
+reads and writes, in its own banner with Retry sets `data-htmx-error-toast="banner"`
+on its root, so the toast does not repeat it (and cover its buttons on a phone).
 
 ### 5. Refreshing only the changed region
 

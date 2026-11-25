@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -30,6 +32,8 @@ type fakeAudience struct {
 	tenant  uuid.UUID
 	// slow, when set, runs before every IsMember answer (outside the lock).
 	slow func()
+	// fail are the assignees whose lookups fail.
+	fail map[workflow.TaskAssignee]error
 }
 
 func newFakeAudience(tenant uuid.UUID) *fakeAudience {
@@ -54,6 +58,9 @@ func (f *fakeAudience) IsMember(_ context.Context, tenant uuid.UUID, user int64,
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if err := f.fail[a]; err != nil {
+		return false, err
+	}
 	return tenant == f.tenant && f.members[a][user], nil
 }
 
@@ -809,6 +816,224 @@ func TestTasks_InboxCursorKeepsThePageOrder(t *testing.T) {
 	require.Equal(t, a.ID, page[0].ID)
 	_, err = s.eng.Tasks(ctx, s.env.subject(91), workflow.TaskFilter{After: new(uuid.UUID)})
 	require.ErrorIs(t, err, workflow.ErrNotFound, "an unknown cursor task")
+}
+
+// A task an escalation moves later after a page held it is not listed again
+// on a later page of the same traversal: the pages order tasks by their due
+// time as the first page's snapshot saw it. That holds also for an escalation
+// whose transaction began (and set applied_at) before the first page but
+// committed after it. A new traversal sees the current order.
+func TestTasks_InboxCursorSurvivesAnEscalation(t *testing.T) {
+	for _, overlap := range []bool{false, true} {
+		t.Run(fmt.Sprintf("overlapping=%v", overlap), func(t *testing.T) {
+			s := newTaskStack(t, workflow.TaskSpec{Assignees: []workflow.TaskAssignee{userAssignee(92)}, Timeout: time.Hour})
+			ctx := context.Background()
+			_, a := s.startWaiting("esc-a")
+			_, b := s.startWaiting("esc-b")
+
+			// a escalates as the run does it: the step records the due time it
+			// replaces, its transaction (by default) and applied_at.
+			escalate := func() pgx.Tx {
+				tx, err := s.env.db.Begin(ctx)
+				require.NoError(t, err)
+				_, err = tx.Exec(ctx, `
+					INSERT INTO extruntime.human_task_escalations (task_id, tenant_id, step, added, applied_at, due_before)
+					SELECT id, tenant_id, 0, '[]', clock_timestamp(), due_at FROM extruntime.human_tasks WHERE id = $1`, a.ID)
+				require.NoError(t, err)
+				_, err = tx.Exec(ctx, `UPDATE extruntime.human_tasks SET due_at = due_at + interval '2 hours', escalation_level = 1 WHERE id = $1`, a.ID)
+				require.NoError(t, err)
+				return tx
+			}
+			var pending pgx.Tx
+			if overlap {
+				pending = escalate()
+			}
+			page, err := s.eng.Tasks(ctx, s.env.subject(92), workflow.TaskFilter{Limit: 1})
+			require.NoError(t, err)
+			require.Len(t, page, 1)
+			require.Equal(t, a.ID, page[0].ID, "a is due first")
+			cursor, err := workflow.ParseTaskCursor(workflow.CursorAfter(page[0]).String())
+			require.NoError(t, err)
+			require.NotEmpty(t, cursor.Snapshot, "the cursor carries the first page's snapshot")
+			if overlap {
+				require.NoError(t, pending.Commit(ctx))
+			} else {
+				require.NoError(t, escalate().Commit(ctx))
+			}
+
+			var got []uuid.UUID
+			for range 3 {
+				page, err = s.eng.Tasks(ctx, s.env.subject(92), workflow.TaskFilter{Limit: 1, Cursor: &cursor})
+				require.NoError(t, err)
+				if len(page) == 0 {
+					break
+				}
+				got = append(got, page[0].ID)
+				cursor, err = workflow.ParseTaskCursor(workflow.CursorAfter(page[0]).String())
+				require.NoError(t, err)
+			}
+			require.Equal(t, []uuid.UUID{b.ID}, got, "b once, a not again")
+			require.Equal(t, []uuid.UUID{b.ID, a.ID}, s.inbox(92), "a fresh inbox orders by the current due times")
+		})
+	}
+}
+
+func TestTasks_ParseTaskCursorSnapshot(t *testing.T) {
+	id := uuid.New()
+	c, err := workflow.ParseTaskCursor("/" + id.String() + "/100:105:101,103")
+	require.NoError(t, err)
+	require.Equal(t, "100:105:101,103", c.Snapshot)
+	require.Equal(t, "/"+id.String()+"/100:105:101,103", c.String())
+	_, err = workflow.ParseTaskCursor("/" + id.String() + "/100:105:x');--")
+	require.ErrorIs(t, err, workflow.ErrInvalid)
+	// Shaped like a snapshot but refused by PostgreSQL: an invalid cursor, not a database error.
+	for _, bad := range []string{"200:100:", "0:5:", "100:200:250", "100:200:99", "100:200:160,150", "1:99999999999999999999:"} {
+		_, err = workflow.ParseTaskCursor("/" + id.String() + "/" + bad)
+		require.ErrorIs(t, err, workflow.ErrInvalid, bad)
+	}
+	_, err = workflow.ParseTaskCursor("/" + id.String() + "/100:100:")
+	require.NoError(t, err, "no transaction in progress")
+
+	// A snapshot of many concurrent transactions is read whole, however long.
+	xips := make([]string, 0, 600)
+	for i := range 600 {
+		xips = append(xips, fmt.Sprint(1_000_000_000+i))
+	}
+	long := "1000000000:1000000600:" + strings.Join(xips, ",")
+	require.Greater(t, len(long), 4096)
+	c, err = workflow.ParseTaskCursor("/" + id.String() + "/" + long)
+	require.NoError(t, err)
+	require.Equal(t, long, c.Snapshot)
+}
+
+// AuthorizeTask judges the actor by their current rights and the task as it
+// is now, as DecideTask does, and records nothing.
+func TestTasks_AuthorizeTask(t *testing.T) {
+	perm := workflow.TaskAssignee{Kind: workflow.TaskAssignPermission, Ref: "invoices.approve"}
+	s := newTaskStack(t, workflow.TaskSpec{Assignees: []workflow.TaskAssignee{perm}, Timeout: time.Hour})
+	ctx := context.Background()
+	s.env.subjects.Grant(97, "invoices.approve")
+	inst, task := s.startWaiting("auth")
+
+	got, err := s.eng.AuthorizeTask(ctx, s.env.subject(97), task.ID)
+	require.NoError(t, err)
+	require.Equal(t, task.ID, got.ID)
+	require.Empty(t, s.task(inst).Decisions, "nothing is recorded")
+	_, err = s.eng.AuthorizeTask(ctx, s.env.subject(98), task.ID)
+	require.ErrorIs(t, err, workflow.ErrForbidden, "not an assignee")
+
+	s.env.subjects.Grant(97)
+	_, err = s.eng.AuthorizeTask(ctx, s.env.subject(97), task.ID)
+	require.ErrorIs(t, err, workflow.ErrForbidden, "the permission was revoked")
+	s.env.subjects.Grant(97, "invoices.approve")
+	s.env.subjects.Block(97, "left")
+	_, err = s.eng.AuthorizeTask(ctx, s.env.subject(97), task.ID)
+	require.ErrorIs(t, err, workflow.ErrForbidden, "the user was blocked")
+
+	s.env.subjects.Grant(97, "invoices.approve")
+	_, err = s.env.db.Exec(ctx, `UPDATE extruntime.human_tasks SET due_at = now() - interval '1 second' WHERE id = $1`, task.ID)
+	require.NoError(t, err)
+	_, err = s.eng.AuthorizeTask(ctx, s.env.subject(97), task.ID)
+	require.ErrorIs(t, err, workflow.ErrTaskClosed, "past the final deadline")
+}
+
+// lingeringSubjects runs hook, when set, inside every LoadSubject and counts
+// the lookups that ran it: a rights lookup that takes its time.
+type lingeringSubjects struct {
+	*hosttest.Subjects
+	hook    atomic.Pointer[func()]
+	entered atomic.Int32
+}
+
+func (s *lingeringSubjects) LoadSubject(ctx context.Context, tenant uuid.UUID, user int64, kind spi.SubjectKind) (spi.Subject, error) {
+	if h := s.hook.Load(); h != nil {
+		s.entered.Add(1)
+		(*h)()
+	}
+	return s.Subjects.LoadSubject(ctx, tenant, user, kind)
+}
+
+// A final deadline that passes while AuthorizeTask looks the actor's rights
+// up is judged after the lookup: the answer is ErrTaskClosed. The lookup runs
+// (the initial deadline check let the call through) and returns only once the
+// database clock is past the deadline.
+func TestTasks_AuthorizeTaskJudgesTheDeadlineAfterTheRightsLookup(t *testing.T) {
+	env := newNativeEnv(t)
+	subjects := &lingeringSubjects{Subjects: env.subjects}
+	eng := env.engine(map[string]workflow.NativeContract{
+		"test.review": {Runner: taskFlow(workflow.TaskSpec{Assignees: []workflow.TaskAssignee{userAssignee(99)}, Timeout: time.Hour})},
+	}, func(c *workflow.Config) { c.Subjects = subjects })
+	ctx := context.Background()
+	id := env.start(eng, "test.review", "late-auth", `{}`)
+	env.drainUntil(eng, func() bool { return env.inst(eng, id).Status == workflow.StatusWaiting }, "the task is open")
+	h, err := eng.Get(ctx, env.tenant, id)
+	require.NoError(t, err)
+	require.Len(t, h.Tasks, 1)
+	task := h.Tasks[0]
+
+	_, err = eng.AuthorizeTask(ctx, env.subject(99), task.ID)
+	require.NoError(t, err)
+	// The deadline is far enough ahead for the initial check to pass; the
+	// lookup then waits until the database clock is past it.
+	var due time.Time
+	require.NoError(t, env.db.QueryRow(ctx,
+		`UPDATE extruntime.human_tasks SET due_at = clock_timestamp() + interval '2 seconds' WHERE id = $1 RETURNING due_at`, task.ID).Scan(&due))
+	waitPast := func() {
+		for {
+			var past bool
+			if err := env.db.QueryRow(ctx, `SELECT clock_timestamp() > $1`, due).Scan(&past); err != nil || past {
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
+	subjects.hook.Store(&waitPast)
+	_, err = eng.AuthorizeTask(ctx, env.subject(99), task.ID)
+	require.Equal(t, int32(1), subjects.entered.Load(), "the rights lookup ran: the initial deadline check let the call through")
+	require.ErrorIs(t, err, workflow.ErrTaskClosed, "the deadline passed during the rights lookup")
+}
+
+// A failed membership lookup of one assignee does not hide another that
+// covers the user, in the inbox and for a decision; with none covering, the
+// failure is the answer.
+func TestTasks_MembershipLookupFailureFallsThrough(t *testing.T) {
+	broken := workflow.TaskAssignee{Kind: workflow.TaskAssignRole, Ref: "7"}
+	down := errors.New("roles: timeout")
+	s := newTaskStack(t, workflow.TaskSpec{Assignees: []workflow.TaskAssignee{broken, reviewers}, Timeout: time.Hour})
+	s.audience.set(reviewers, 31, true)
+	s.audience.mu.Lock()
+	s.audience.fail = map[workflow.TaskAssignee]error{broken: down}
+	s.audience.mu.Unlock()
+	ctx := context.Background()
+	_, task := s.startWaiting("fallthrough")
+
+	require.Equal(t, []uuid.UUID{task.ID}, s.inbox(31), "the group covers the user")
+	_, err := s.eng.AuthorizeTask(ctx, s.env.subject(31), task.ID)
+	require.NoError(t, err)
+
+	_, err = s.eng.AuthorizeTask(ctx, s.env.subject(32), task.ID)
+	require.ErrorIs(t, err, down, "no assignee covers the user: the lookup failure is the answer")
+	_, err = s.eng.Tasks(ctx, s.env.subject(32), workflow.TaskFilter{})
+	require.ErrorIs(t, err, down)
+}
+
+// The run records the due time an escalation step replaced.
+func TestTasks_EscalationRecordsTheReplacedDueTime(t *testing.T) {
+	s := newTaskStack(t, workflow.TaskSpec{
+		Assignees: []workflow.TaskAssignee{userAssignee(93)}, Timeout: 200 * time.Millisecond,
+		Escalation: []workflow.EscalationStep{{Add: []workflow.TaskAssignee{userAssignee(94)}, Extend: time.Hour}},
+	})
+	id, task := s.startWaiting("esc-due")
+	s.env.drainUntil(s.eng, func() bool { return s.task(id).EscalationLevel == 1 }, "the step is applied")
+	var (
+		before *time.Time
+		xact   *string
+	)
+	require.NoError(t, s.env.db.QueryRow(context.Background(),
+		`SELECT due_before, applied_xact::text FROM extruntime.human_task_escalations WHERE task_id = $1 AND step = 0`, task.ID).Scan(&before, &xact))
+	require.NotNil(t, before)
+	require.NotNil(t, xact, "the step records its transaction")
+	require.WithinDuration(t, *task.DueAt, *before, time.Millisecond)
 }
 
 // After the final due time no decision is accepted, even before the run

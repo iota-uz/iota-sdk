@@ -47,6 +47,7 @@ func (c *component) LocaleFS() []*embed.FS {
 
 func (c *component) Build(builder *composition.Builder) error {
 	composition.AddNavNodes(builder, CRMLink)
+	contributeSubjectNames(builder)
 	composition.ContributeSpotlightProviders(builder, func(container *composition.Container) ([]spotlight.SearchProvider, error) {
 		pool, err := composition.Resolve[*pgxpool.Pool](container)
 		if err != nil {

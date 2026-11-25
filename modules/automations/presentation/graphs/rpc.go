@@ -64,6 +64,7 @@ func (c *Controller) bindings() []solid.Binding {
 		bind(MethodRunRetry, c.runRetry),
 		bind(MethodRunRestart, c.runRestart),
 		bind(MethodMCPTools, c.mcpTools),
+		bind(MethodSearchOptions, c.searchOptions),
 	}
 }
 
@@ -380,7 +381,7 @@ func (c *Controller) get(ctx context.Context, req GetRequest) (GetResponse, erro
 		Graph: v.Graph, Version: v.Version,
 		SavedBy:     SavedBy{Name: nameOf(names, v.SavedBy), Origin: Origin(v.SavedOrigin)},
 		Versions:    make([]VersionEntry, 0, len(versions)),
-		Catalog:     editorCatalog(ctx, view, c.cfg.Behaviors),
+		Catalog:     editorCatalog(ctx, view, c.cfg.Behaviors, c.cfg.Catalog),
 		Connections: connectionOptions(view),
 		Can:         canOf(a.Subject, agent),
 	}
@@ -421,7 +422,7 @@ func (c *Controller) catalog(ctx context.Context, _ CatalogRequest) (CatalogResp
 	if err != nil {
 		return CatalogResponse{}, err
 	}
-	return CatalogResponse{Catalog: editorCatalog(ctx, view, c.cfg.Behaviors), Connections: connectionOptions(view), Can: canOf(a.Subject, a.Origin != engine.OriginHuman)}, nil
+	return CatalogResponse{Catalog: editorCatalog(ctx, view, c.cfg.Behaviors, c.cfg.Catalog), Connections: connectionOptions(view), Can: canOf(a.Subject, a.Origin != engine.OriginHuman)}, nil
 }
 
 // saveResult turns a refusal of create or save into the editor's SaveResult; other errors are RPC
@@ -736,7 +737,7 @@ func (c *Controller) dryRun(ctx context.Context, req DryRunRequest) (DryRunRespo
 	if err != nil {
 		return DryRunResponse{}, mapErr(err)
 	}
-	out := DryRunResponse{Trace: make([]TraceStep, 0, len(res.Trace))}
+	out := DryRunResponse{Trace: make([]TraceStep, 0, len(res.Trace)), LiveCalls: res.LiveCalls}
 	for _, s := range res.Trace {
 		out.Trace = append(out.Trace, TraceStep{Node: s.Node, Token: s.Token, Kind: s.Kind, Outcome: s.Outcome, Path: s.Path, Message: s.Message, Status: s.Status, Effects: s.Effects, Output: s.Output})
 	}
@@ -748,7 +749,7 @@ func (c *Controller) testNode(ctx context.Context, req TestNodeRequest) (TestNod
 	if err != nil {
 		return TestNodeResponse{}, err
 	}
-	res, err := c.cfg.Engine.Authoring.TestNode(ctx, a, engine.TestNodeInput{Graph: req.Graph, NodeID: req.NodeID, Subject: subjectRef(req.Subject), Context: req.Context})
+	res, err := c.cfg.Engine.Authoring.TestNode(ctx, a, engine.TestNodeInput{Graph: req.Graph, NodeID: req.NodeID, Subject: subjectRef(req.Subject), Context: req.Context, Key: req.IdempotencyKey})
 	if err != nil {
 		return TestNodeResponse{}, mapErr(err)
 	}
@@ -868,7 +869,7 @@ func (c *Controller) runs(ctx context.Context, req RunsRequest) (RunsResponse, e
 	if _, err := c.cfg.Engine.Service.Get(ctx, a, id); err != nil {
 		return RunsResponse{}, mapErr(err)
 	}
-	page, err := c.cfg.Engine.Service.ListRuns(ctx, a, engine.RunFilter{AutomationID: &id, Version: req.Version, Status: statusesOf(req.State), Cursor: req.Cursor, Limit: limit})
+	page, err := c.cfg.Engine.Service.ListRuns(ctx, a, engine.RunFilter{AutomationID: &id, Version: req.Version, Status: statusesOf(req.State), SubjectQuery: strings.TrimSpace(req.Subject), Node: req.Node, Cursor: req.Cursor, Limit: limit})
 	if err != nil {
 		return RunsResponse{}, mapErr(err)
 	}
@@ -908,11 +909,22 @@ func (c *Controller) run(ctx context.Context, req RunRequest) (RunData, error) {
 	if err != nil {
 		return RunData{}, err
 	}
-	d, err := c.cfg.Engine.Service.GetRun(ctx, a, id)
+	var opts []engine.RunDetailOption
+	if len(req.Nodes) > 0 {
+		opts = append(opts, engine.StepsOf(req.Nodes...))
+	}
+	d, err := c.cfg.Engine.Service.GetRun(ctx, a, id, opts...)
 	if err != nil {
 		return RunData{}, mapErr(err)
 	}
-	out := RunData{Run: runSummary(d.RunSummary), Tokens: []TokenView{}, Steps: []StepView{}, Waits: []WaitView{}}
+	out := RunData{Run: runSummary(d.RunSummary), Event: d.Event, Tokens: []TokenView{}, Steps: []StepView{}, Waits: []WaitView{}}
+	if c.cfg.Links != nil && d.Subject.Entity != "" && d.Subject.Entity != graph.SubjectNone {
+		if link, err := c.cfg.Links.SubjectURL(ctx, a.TenantID, d.Subject); err == nil {
+			out.Run.SubjectURL = link
+		} else {
+			c.log.DebugContext(ctx, "automations: no link for the run's subject", "entity", d.Subject.Entity, "error", err)
+		}
+	}
 	for _, t := range d.Tokens {
 		tv := TokenView{ID: t.ID.String(), NodeID: t.NodeID, Status: t.Status, Branch: t.Branch, ForeachIndex: t.ForeachIndex}
 		if t.Parent != nil {
@@ -924,11 +936,11 @@ func (c *Controller) run(ctx context.Context, req RunRequest) (RunData, error) {
 	for _, s := range d.Steps {
 		out.Steps = append(out.Steps, StepView{
 			TokenID: s.TokenID.String(), Seq: s.Seq, NodeID: s.NodeID, Attempt: s.Attempt, Input: s.Input, Output: s.Output, Outcome: s.Outcome,
-			Error: stepError(s.Error), StartedAt: stamp(s.StartedAt), EndedAt: optStamp(s.EndedAt), Warnings: s.Warnings, Hidden: s.Hidden,
+			Error: stepError(s.Error), StartedAt: stamp(s.StartedAt), EndedAt: optStamp(s.EndedAt), Warnings: s.Warnings, Logs: s.Logs, Hidden: s.Hidden,
 		})
 	}
 	for _, w := range d.Waits {
-		out.Waits = append(out.Waits, WaitView{TokenID: w.TokenID.String(), WaitID: w.WaitID, Kind: w.Kind, EventKind: w.EventKind, TimeoutAt: optStamp(w.TimeoutAt), Status: w.Status})
+		out.Waits = append(out.Waits, WaitView{TokenID: w.TokenID.String(), NodeID: w.NodeID, WaitID: w.WaitID, Kind: w.Kind, EventKind: w.EventKind, TimeoutAt: optStamp(w.TimeoutAt), Status: w.Status})
 	}
 	return out, nil
 }
@@ -1047,6 +1059,39 @@ func (c *Controller) mcpTools(ctx context.Context, req MCPToolsRequest) (MCPTool
 	for _, t := range tools {
 		out.Tools = append(out.Tools, MCPTool{Name: t.Name, Title: t.Title, Description: t.Description,
 			InputSchema: t.InputSchema, OutputSchema: t.OutputSchema, ReadOnly: t.ReadOnly})
+	}
+	return out, nil
+}
+
+// maxOptionQuery bounds the text a picker searches with.
+const maxOptionQuery = 200
+
+// searchOptions serves the pickers of the editor's param fields with x-options-source (the chat of a Telegram
+// node): an author chooses among the chats the step's connection knows. A connection that is not one of the
+// tenant's own (a platform credential, none chosen) offers none.
+func (c *Controller) searchOptions(ctx context.Context, req SearchOptionsRequest) (SearchOptionsResponse, error) {
+	a, err := actor(ctx, permAuthor)
+	if err != nil {
+		return SearchOptionsResponse{}, err
+	}
+	out := SearchOptionsResponse{Options: []OptionView{}}
+	id, perr := uuid.Parse(strings.TrimSpace(req.Connection))
+	if c.cfg.Options == nil || perr != nil || strings.TrimSpace(req.Source) == "" {
+		return out, nil //nolint:nilerr // a connection that is not a tenant's own (a platform credential) offers none
+	}
+	query := strings.TrimSpace(req.Query)
+	if len(query) > maxOptionQuery {
+		query = query[:maxOptionQuery]
+	}
+	opts, err := c.cfg.Options.Options(ctx, a.TenantID, id, req.Source, query)
+	switch {
+	case errors.Is(err, connectors.ErrNotFound):
+		return SearchOptionsResponse{}, notFound()
+	case err != nil:
+		return SearchOptionsResponse{}, mapErr(err)
+	}
+	for _, o := range opts {
+		out.Options = append(out.Options, OptionView{Value: o.Value, Label: o.Label, Group: o.Group})
 	}
 	return out, nil
 }

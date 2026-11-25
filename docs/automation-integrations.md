@@ -19,10 +19,13 @@ components := slices.DeleteFunc(modules.Components(), func(c composition.Compone
     return c.Descriptor().Name == "automations"
 })
 components = append(components, automations.NewComponent(
-    automations.WithConnectors(telegram.New(), smtp.New()),
+    automations.WithConnectors(myConnector),
     // automations.WithUsageIndex(engine.Usage) — подключает #1339
 ))
 ```
+
+Коннекторы OpenAI, Jev, SMS (Eskiz, Twilio), MCP, Email (smtp, imap) и Telegram bot модуль регистрирует сам, если приложение не
+зарегистрировало свой коннектор того же вида (`WithoutMCP`, `WithoutEmail`, `WithoutTelegram` их убирают).
 
 Без `WithUsageIndex` модуль берёт `connectors.UsageIndex` из контейнера, если его
 кто-то предоставил; иначе «Используется в» пусто, и удаление не блокируется.
@@ -38,6 +41,16 @@ components = append(components, automations.NewComponent(
 раньше без `Options.Secrets` вызов `secrets.get` был недоступен. Приложение, которое
 не хочет отдавать секреты подключений пакетам, задаёт `wiring.Options.Secrets` явно
 (в том числе резолвер, который всегда отвечает «не найдено»).
+
+## Жизненный цикл подключения у провайдера
+
+Коннектор может настраивать свою сторону подключения (webhook): `connectors.Provisioner` вызывается при
+сохранении подключения (создание, новые креды, повторное включение; отказ провайдера отменяет сохранение) и
+после удаления, отключения или замены кредов (ошибка не мешает). `connectors.Advisor` сообщает, что подключение
+изменит чужое (`ConfirmationRequiredError`): форма показывает предупреждение и повторяет запрос с `confirm`.
+`connectors.OptionSource` отдаёт выбор для поля ноды (RPC `automations.connections.options`),
+`connectors.PlatformProvider`/`PlatformStarter` — платформенный credential и его настройку при старте. Пример —
+[коннектор Telegram](automation-telegram.md).
 
 ## Конфигурация
 

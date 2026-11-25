@@ -68,6 +68,9 @@ const (
 	ErrUnavailable     ErrorCode = "unavailable"
 	// ErrInProgress: a request with the same idempotency key is still running; retry with the key.
 	ErrInProgress ErrorCode = "in_progress"
+	// ErrConfirmationRequired: the connector warns that connecting these credentials changes something
+	// elsewhere (a bot another service uses); the screen shows Warnings and resends with them in Confirm.
+	ErrConfirmationRequired ErrorCode = "confirmation_required"
 )
 
 // Props are the initial props of the screen.
@@ -166,6 +169,8 @@ type CreateRequest struct {
 	Credentials map[string]any `json:"credentials"`
 	// IdempotencyKey identifies the intent: «Retry» resends the same key.
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
+	// Confirm are the codes of the warnings the person confirmed (SaveResponse.Warnings).
+	Confirm []string `json:"confirm,omitempty"`
 }
 
 // UpdateRequest changes a connection; credentials absent keep them.
@@ -175,6 +180,8 @@ type UpdateRequest struct {
 	DisplayName    *string        `json:"display_name,omitempty"`
 	Credentials    map[string]any `json:"credentials,omitempty"`
 	IdempotencyKey string         `json:"idempotency_key,omitempty"`
+	// Confirm are the codes of the warnings the person confirmed (SaveResponse.Warnings).
+	Confirm []string `json:"confirm,omitempty"`
 }
 
 // SaveResponse is the result of create and update: ok with the connection, or the refusal.
@@ -184,6 +191,8 @@ type SaveResponse struct {
 	Error      ErrorCode         `json:"error,omitempty"`
 	Reason     Reason            `json:"reason,omitempty"`
 	Fields     map[string]string `json:"fields,omitempty"`
+	// Warnings are the codes the person has to confirm (Error is confirmation_required).
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // OAuthStartRequest begins an OAuth2 authorization; ConnectionID re-authorizes that connection.
@@ -214,11 +223,17 @@ type TestResponse struct {
 type SetDisabledRequest struct {
 	ID       string `json:"id"`
 	Disabled bool   `json:"disabled"`
+	// Confirm are the codes of the warnings the person confirmed when enabling (ConnectionResponse.Warnings).
+	Confirm []string `json:"confirm,omitempty"`
 }
 
 // ConnectionResponse is a connection after an action.
 type ConnectionResponse struct {
-	Connection ConnectionView `json:"connection"`
+	Connection *ConnectionView `json:"connection,omitempty"`
+	// Error is confirmation_required (Warnings are the codes to confirm) or invalid_input (the bot belongs
+	// to another connection); the connection is then as it was.
+	Error    ErrorCode `json:"error,omitempty"`
+	Warnings []string  `json:"warnings,omitempty"`
 }
 
 // DeleteResponse is ok, or CONNECTION_IN_USE with the uses.
@@ -237,4 +252,24 @@ type PlatformRequest struct {
 // OKResponse is a plain success.
 type OKResponse struct {
 	OK bool `json:"ok"`
+}
+
+// OptionsRequest asks a connection's connector for the choices of a node's param field (the chats of a
+// bot): Source is the field's x-options-source, Query narrows them.
+type OptionsRequest struct {
+	ConnectionID string `json:"connection_id"`
+	Source       string `json:"source"`
+	Query        string `json:"query,omitempty"`
+}
+
+// OptionView is one choice; Group is a key (private, group) the picker names.
+type OptionView struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+	Group string `json:"group,omitempty"`
+}
+
+// OptionsResponse is the choices.
+type OptionsResponse struct {
+	Options []OptionView `json:"options"`
 }

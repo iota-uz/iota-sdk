@@ -17,3 +17,9 @@ func DefaultEngineUsage(db *pgxpool.Pool) catalog.UsageRecorder {
 func EngineConnectors(container *composition.Container) connectors.Directory {
 	return containerEngineConfig(container, nil, nil, nil, nil).Connectors
 }
+
+// StartPlatformConnectors is the start hook of the platform credentials of the connectors.
+var StartPlatformConnectors = startPlatformConnectors
+
+// RenewPlatformConnectors is one renewal of the platform reservations' leases.
+var RenewPlatformConnectors = renewPlatformConnectors

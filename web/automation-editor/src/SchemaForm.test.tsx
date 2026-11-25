@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@solidjs/testing-library'
 import { createSignal } from 'solid-js'
 import { describe, expect, it, vi } from 'vitest'
 import type { CompletionPath } from './completion'
-import { humanize, parseDuration, SchemaForm, type SchemaFormProps } from './SchemaForm'
+import { chatOfSelection, humanize, selectionOf, literalOfSelection, manualText, manualValue, optionOf, parseDuration, SchemaForm, sourceModeOf, type SchemaFormProps } from './SchemaForm'
 import { offeredParticipants } from './graph'
 import type { AutomationGraph, CatalogEvent, JsonSchema } from './types'
 
@@ -182,5 +182,191 @@ describe('participants of a notify node', () => {
 
   it('shows everything when the host passes no events', () => {
     expect(shown(mount(schema, {}, { graph: triggered('acme.policy.deleted.v1') }).container)).toBe(true)
+  })
+})
+
+describe('a field with an options source (a chat)', () => {
+  const schema: JsonSchema = {
+    type: 'object',
+    properties: { chat_id: { 'x-options-source': 'telegram.chats', oneOf: [{ type: 'integer' }, { type: 'string' }] } },
+  }
+
+  it('reads a stored value into its mode and writes the typed forms', () => {
+    expect(sourceModeOf(700)).toBe('list')
+    expect(sourceModeOf(undefined)).toBe('list')
+    expect(sourceModeOf('"@salesteam"')).toBe('manual')
+    expect(sourceModeOf('event.chatId')).toBe('expr')
+    expect(manualValue(' -1001234567890 ')).toBe(-1001234567890)
+    expect(manualValue('@salesteam')).toBe('"@salesteam"')
+    expect(manualValue('')).toBeUndefined()
+    expect(manualText('"@salesteam"')).toBe('@salesteam')
+    expect(manualText(-100)).toBe('-100')
+  })
+
+  it('offers the known chats grouped, picks one as a number', async () => {
+    const searchOptions = vi.fn(async () => [
+      { value: '700', label: 'Alice', group: 'private' },
+      { value: '-1001', label: 'Sales team (@salesteam)', group: 'group' },
+    ])
+    const { onChange, container } = mount(schema, {}, { searchOptions })
+    const field = container.querySelector('[data-param="chat_id"]')!
+    expect(screen.getByRole('radio', { name: 'From chats' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(field.querySelector('[role="combobox"], input') as HTMLElement)
+    expect(await screen.findByText('Private')).toBeInTheDocument()
+    expect(screen.getByText('Groups')).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('option', { name: 'Sales team (@salesteam)' }))
+    expect(onChange).toHaveBeenLastCalledWith({ chat_id: -1001 })
+    expect(searchOptions).toHaveBeenCalledWith('telegram.chats', '', { nodeType: 't', params: {} })
+  })
+
+  it('takes an id, a username or an expression by hand', () => {
+    const { onChange, container } = mount(schema, {}, { searchOptions: async () => [] })
+    fireEvent.click(screen.getByRole('radio', { name: 'Id or @username' }))
+    const input = container.querySelector('[data-param="chat_id"] input') as HTMLInputElement
+    fireEvent.input(input, { target: { value: '12345' } })
+    expect(onChange).toHaveBeenLastCalledWith({ chat_id: 12345 })
+    fireEvent.input(input, { target: { value: '@salesteam' } })
+    expect(onChange).toHaveBeenLastCalledWith({ chat_id: '"@salesteam"' })
+    fireEvent.click(screen.getByRole('radio', { name: 'Expression' }))
+    expect(container.querySelector('[data-param="chat_id"] textarea')).not.toBeNull()
+  })
+
+  it('without a host list says so and still takes an id', () => {
+    mount(schema, {})
+    expect(screen.getByText(/list is not available here/)).toBeInTheDocument()
+  })
+
+  it('follows the stored value when it changes from outside, and keeps the mode while the field types', () => {
+    const [value, setValue] = createSignal<Record<string, unknown>>({ chat_id: 700 })
+    const { container } = render(() => (
+      <SchemaForm
+        schema={schema} value={value()} onChange={setValue} readOnly={false} locale="en" nodeType="t" nodeId="n" graph={graph}
+        expressions={[]} templates={[]} completions={() => []} searchOptions={async () => []}
+      />
+    ))
+    fireEvent.click(screen.getByRole('radio', { name: 'Expression' }))
+    fireEvent.input(container.querySelector('[data-param="chat_id"] textarea') as HTMLTextAreaElement, { target: { value: 'event.chatId' } })
+    expect(value().chat_id).toBe('event.chatId')
+    // Undo puts the id back: the stored value is an id, not an expression, so the field reads as a list again.
+    setValue({ chat_id: 700 })
+    expect(screen.getByRole('radio', { name: 'From chats' })).toHaveAttribute('aria-checked', 'true')
+    // While an id is typed by hand the mode stays manual.
+    fireEvent.click(screen.getByRole('radio', { name: 'Id or @username' }))
+    const input = () => container.querySelector('[data-param="chat_id"] input') as HTMLInputElement
+    fireEvent.input(input(), { target: { value: '12' } })
+    fireEvent.input(input(), { target: { value: '123' } })
+    expect(input().value).toBe('123')
+    expect(screen.getByRole('radio', { name: 'Id or @username' })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('keeps the manual mode while a negative id or a username is typed one character at a time', () => {
+    const [value, setValue] = createSignal<Record<string, unknown>>({})
+    const { container } = render(() => (
+      <SchemaForm
+        schema={schema} value={value()} onChange={setValue} readOnly={false} locale="en" nodeType="t" nodeId="n" graph={graph}
+        expressions={[]} templates={[]} completions={() => []} searchOptions={async () => []}
+      />
+    ))
+    fireEvent.click(screen.getByRole('radio', { name: 'Id or @username' }))
+    const input = () => container.querySelector('[data-param="chat_id"] input') as HTMLInputElement
+    for (const text of ['-', '-1', '-10', '-1001']) fireEvent.input(input(), { target: { value: text } })
+    expect(value().chat_id).toBe(-1001)
+    expect(input().value).toBe('-1001')
+    for (const text of ['@', '@s', '@sa', '@sales', '@salesteam']) {
+      fireEvent.input(input(), { target: { value: text } })
+      expect(screen.getByRole('radio', { name: 'Id or @username' })).toHaveAttribute('aria-checked', 'true')
+      expect(input().value).toBe(text)
+    }
+    expect(value().chat_id).toBe('"@salesteam"')
+  })
+
+  it('reads a selection of the chat picker: an id, nothing when it was removed', () => {
+    expect(chatOfSelection('-1001')).toBe(-1001)
+    expect(chatOfSelection(['700'])).toBe(700)
+    expect(chatOfSelection('')).toBeUndefined()
+    expect(chatOfSelection(undefined)).toBeUndefined()
+    expect(chatOfSelection('group:private')).toBeNull()
+    expect(literalOfSelection('sales')).toBe('"sales"')
+    expect(optionOf('"sales"')).toBe('sales')
+    expect(sourceModeOf('"sales"')).toBe('list')
+    expect(optionOf(700)).toBe('700')
+    expect(optionOf(literalOfSelection('sales "west"'))).toBe('sales "west"')
+    expect(sourceModeOf(literalOfSelection('sales "west"'))).toBe('list')
+    expect(optionOf('"@salesteam"')).toBe('')
+    expect(optionOf('event.chatId')).toBe('')
+    expect(literalOfSelection('group:private')).toBeUndefined()
+    expect(literalOfSelection('')).toBeUndefined()
+    // The converter follows the source: numeric-looking ids of another source keep their form.
+    expect(selectionOf('telegram.chats', '700')).toEqual({ value: 700 })
+    expect(selectionOf('crm.accounts', '00123')).toEqual({ value: '"00123"' })
+    expect(selectionOf('crm.accounts', 'sales')).toEqual({ value: '"sales"' })
+    expect(selectionOf('telegram.chats', '')).toEqual({ value: undefined })
+    expect(selectionOf('crm.accounts', [])).toEqual({ value: undefined })
+    expect(selectionOf('crm.accounts', 'group:private')).toBeNull()
+    expect(selectionOf('telegram.chats', 'abc')).toBeNull()
+  })
+
+  it('asks again when the connection of the step changes, and keeps the first connection\'s chats out of the second', async () => {
+    const chats: Record<string, Record<string, { value: string; label: string; group: string }[]>> = {
+      one: { '': [{ value: '1', label: 'Alice', group: 'private' }], al: [{ value: '3', label: 'Alfred', group: 'private' }] },
+      two: { '': [{ value: '2', label: 'Bob', group: 'private' }] },
+    }
+    const searchOptions = vi.fn(async (_source: string, query: string, ctx: { params: Record<string, unknown> }) => chats[String(ctx.params.connection)]?.[query] ?? [])
+    const [value, setValue] = createSignal<Record<string, unknown>>({ connection: 'one' })
+    render(() => (
+      <SchemaForm
+        schema={{ type: 'object', properties: { chat_id: (schema.properties as Record<string, JsonSchema>).chat_id! } }} value={value()} onChange={setValue}
+        readOnly={false} locale="en" nodeType="t" nodeId="n" graph={graph} expressions={[]} templates={[]} completions={() => []} searchOptions={searchOptions}
+      />
+    ))
+    await vi.waitFor(() => expect(searchOptions).toHaveBeenCalledTimes(1))
+    // A search of the first connection's picker, finished: its result is in that picker.
+    const picker = document.querySelector('[role="combobox"], [data-param="chat_id"] input') as HTMLElement
+    fireEvent.click(picker)
+    fireEvent.input(picker, { target: { value: 'al' } })
+    await vi.waitFor(() => expect(searchOptions).toHaveBeenCalledWith('telegram.chats', 'al', { nodeType: 't', params: { connection: 'one' } }))
+    expect(await screen.findByRole('option', { name: 'Alfred' })).toBeInTheDocument()
+
+    setValue({ connection: 'two' })
+    await vi.waitFor(() => expect(searchOptions).toHaveBeenLastCalledWith('telegram.chats', '', { nodeType: 't', params: { connection: 'two' } }))
+    // The picker is a new one: none of the first connection's results, cached or typed, is offered for the second.
+    const next = document.querySelector('[role="combobox"], [data-param="chat_id"] input') as HTMLElement
+    expect(next).not.toBe(picker)
+    fireEvent.click(next)
+    expect(await screen.findByRole('option', { name: 'Bob' })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Alfred' })).toBeNull()
+    expect(screen.queryByRole('option', { name: 'Alice' })).toBeNull()
+  })
+
+  // A search of the first connection that is still on the way when the connection changes is for a picker that is gone:
+  // when it ends, the second connection's options stay as they were.
+  it('ignores a search of the previous connection that ends after the connection changed', async () => {
+    let finishA!: (o: { value: string; label: string; group: string }[]) => void
+    const searchOptions = vi.fn(async (_source: string, query: string, ctx: { params: Record<string, unknown> }) => {
+      if (ctx.params.connection === 'one' && query === 'al') return new Promise<{ value: string; label: string; group: string }[]>((resolve) => { finishA = resolve })
+      return ctx.params.connection === 'two' ? [{ value: '2', label: 'Bob', group: 'private' }] : [{ value: '1', label: 'Alice', group: 'private' }]
+    })
+    const [value, setValue] = createSignal<Record<string, unknown>>({ connection: 'one' })
+    render(() => (
+      <SchemaForm
+        schema={{ type: 'object', properties: { chat_id: (schema.properties as Record<string, JsonSchema>).chat_id! } }} value={value()} onChange={setValue}
+        readOnly={false} locale="en" nodeType="t" nodeId="n" graph={graph} expressions={[]} templates={[]} completions={() => []} searchOptions={searchOptions}
+      />
+    ))
+    await vi.waitFor(() => expect(searchOptions).toHaveBeenCalledTimes(1))
+    const picker = document.querySelector('[role="combobox"], [data-param="chat_id"] input') as HTMLElement
+    fireEvent.click(picker)
+    fireEvent.input(picker, { target: { value: 'al' } })
+    await vi.waitFor(() => expect(searchOptions).toHaveBeenCalledWith('telegram.chats', 'al', { nodeType: 't', params: { connection: 'one' } }))
+    // The connection changes while that search has not answered.
+    setValue({ connection: 'two' })
+    await vi.waitFor(() => expect(searchOptions).toHaveBeenLastCalledWith('telegram.chats', '', { nodeType: 't', params: { connection: 'two' } }))
+    fireEvent.click(document.querySelector('[role="combobox"], [data-param="chat_id"] input') as HTMLElement)
+    expect(await screen.findByRole('option', { name: 'Bob' })).toBeInTheDocument()
+    // Now the first connection's search ends.
+    finishA([{ value: '3', label: 'Alfred', group: 'private' }])
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(screen.queryByRole('option', { name: 'Alfred' })).toBeNull()
+    expect(screen.getByRole('option', { name: 'Bob' })).toBeInTheDocument()
   })
 })
