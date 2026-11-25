@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -197,7 +198,8 @@ type Task struct {
 	CreatedAt time.Time
 	DecidedAt *time.Time
 	// Position is where Tasks listed the task (CursorAfter): its due time as
-	// of the traversal's start, and that start. Zero outside Tasks.
+	// the traversal's first snapshot saw it, and that snapshot. Zero outside
+	// Tasks.
 	Position TaskCursor
 }
 
@@ -1335,13 +1337,18 @@ func lockTask(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID) (string, err
 type TaskCursor struct {
 	DueAt *time.Time
 	ID    uuid.UUID
-	// Since is when the traversal began (its first page). A page after the
-	// cursor orders each task by its due time as it was then: a task an
-	// escalation moved later since keeps its place, so it is neither listed
-	// again after a page that held it nor skipped. Nil: by the current due
-	// times (a cursor of the contract's older form).
-	Since *time.Time
+	// Snapshot is the PostgreSQL snapshot (pg_snapshot text) of the
+	// traversal's first page. A page after the cursor orders each task by its
+	// due time as that snapshot saw it: an escalation it did not see (applied
+	// later, or still uncommitted then) counts with the due time it replaced,
+	// so a task it moved is neither listed again after a page that held it
+	// nor skipped. Empty: by the current due times (a cursor of the
+	// contract's older form).
+	Snapshot string
 }
+
+// snapshotText is the text of a pg_snapshot: xmin:xmax:xip,...
+var snapshotText = regexp.MustCompile(`^[0-9]{1,20}:[0-9]{1,20}:([0-9]{1,20}(,[0-9]{1,20})*)?$`)
 
 // CursorAfter is the cursor after a task of a page: its Position when Tasks
 // returned it, else its current sort key.
@@ -1352,7 +1359,7 @@ func CursorAfter(t Task) TaskCursor {
 	return TaskCursor{DueAt: t.DueAt, ID: t.ID}
 }
 
-// String encodes the cursor as "<RFC 3339 due time>/<id>[/<RFC 3339 since>]"
+// String encodes the cursor as "<RFC 3339 due time>/<id>[/<snapshot>]"
 // (an empty due time for a task without one).
 func (c TaskCursor) String() string {
 	due := ""
@@ -1360,8 +1367,8 @@ func (c TaskCursor) String() string {
 		due = c.DueAt.UTC().Format(time.RFC3339Nano)
 	}
 	s := due + "/" + c.ID.String()
-	if c.Since != nil {
-		s += "/" + c.Since.UTC().Format(time.RFC3339Nano)
+	if c.Snapshot != "" {
+		s += "/" + c.Snapshot
 	}
 	return s
 }
@@ -1385,20 +1392,23 @@ func ParseTaskCursor(s string) (TaskCursor, error) {
 		c.DueAt = &t
 	}
 	if len(parts) == 3 {
-		t, err := time.Parse(time.RFC3339Nano, parts[2])
-		if err != nil {
+		if len(parts[2]) > 4096 || !snapshotText.MatchString(parts[2]) {
 			return TaskCursor{}, fmt.Errorf("%w: task cursor %q", ErrInvalid, s)
 		}
-		c.Since = &t
+		c.Snapshot = parts[2]
 	}
 	return c, nil
 }
 
-// dueAsOf is the sort key of the inbox ($since is when the traversal began):
-// a task's due time as it was then. An escalation applied since records the
-// due time it replaced (due_before); the earliest such step tells it.
+// dueAsOf is the sort key of the inbox ($13 is the snapshot of the
+// traversal's first page): a task's due time as that snapshot saw it. Each
+// escalation records the transaction that applied it (applied_xact) and the
+// due time it replaced (due_before); the earliest step the snapshot did not
+// see tells the due time it saw. A step recorded before applied_xact existed
+// counts as seen.
 const dueAsOf = ` CROSS JOIN LATERAL (SELECT COALESCE((SELECT e.due_before FROM extruntime.human_task_escalations e
-		WHERE e.task_id = t.id AND e.applied_at > $13::timestamptz AND e.due_before IS NOT NULL ORDER BY e.step LIMIT 1), t.due_at) AS due) k `
+		WHERE e.task_id = t.id AND e.applied_xact IS NOT NULL AND e.due_before IS NOT NULL
+		  AND NOT pg_visible_in_snapshot(e.applied_xact, $13::pg_snapshot) ORDER BY e.step LIMIT 1), t.due_at) AS due) k `
 
 // cursorOf is the cursor after a task of the tenant, from its current sort
 // key; ErrNotFound for an unknown task.
@@ -1470,15 +1480,13 @@ func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, stat
 		}
 		cursor = &c
 	}
-	// The traversal's start: the cursor's, else this read's (the start of its
-	// snapshot).
-	var since time.Time
-	if cursor != nil && cursor.Since != nil {
-		since = *cursor.Since
-	} else if err := tx.QueryRow(ctx, `SELECT now()`).Scan(&since); err != nil {
+	// The traversal's snapshot: the cursor's, else this read's.
+	var snapshot string
+	if cursor != nil && cursor.Snapshot != "" {
+		snapshot = cursor.Snapshot
+	} else if err := tx.QueryRow(ctx, `SELECT pg_current_snapshot()::text`).Scan(&snapshot); err != nil {
 		return nil, serrors.FromDB(opManage, err)
 	}
-	since = since.UTC()
 	var ids []uuid.UUID
 	keys := map[uuid.UUID]*time.Time{}
 	for len(ids) < f.Limit {
@@ -1507,7 +1515,7 @@ func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, stat
 					     OR (a.kind IN ('role', 'group') AND a.delegated_from IS NULL AND $10)))
 			ORDER BY COALESCE(k.due, 'infinity'::timestamptz), t.id
 			LIMIT $11`,
-			current.TenantID, current.UserID, perms, statuses, f.Workflow, f.Overdue, hasCursor, afterDue, afterID, audience, batch, f.PastDeadline, since)
+			current.TenantID, current.UserID, perms, statuses, f.Workflow, f.Overdue, hasCursor, afterDue, afterID, audience, batch, f.PastDeadline, snapshot)
 		if err != nil {
 			return nil, serrors.FromDB(opManage, err)
 		}
@@ -1549,7 +1557,7 @@ func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, stat
 			break
 		}
 		last := cands[len(cands)-1]
-		cursor = &TaskCursor{DueAt: last.due, ID: last.id, Since: &since}
+		cursor = &TaskCursor{DueAt: last.due, ID: last.id, Snapshot: snapshot}
 	}
 	if len(ids) == 0 {
 		return []Task{}, nil
@@ -1559,7 +1567,7 @@ func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, stat
 		return nil, err
 	}
 	for i := range tasks {
-		tasks[i].Position = TaskCursor{DueAt: keys[tasks[i].ID], ID: tasks[i].ID, Since: &since}
+		tasks[i].Position = TaskCursor{DueAt: keys[tasks[i].ID], ID: tasks[i].ID, Snapshot: snapshot}
 	}
 	return tasks, nil
 }

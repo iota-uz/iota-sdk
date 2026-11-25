@@ -196,3 +196,21 @@ func TestSchemaWithoutPropertiesGetsADocumentControl(t *testing.T) {
 	assert.Len(t, fieldsOf(json.RawMessage(`{"type":"object","properties":{"a":{"type":"string"}},"allOf":[{}]}`)), 1,
 		"a schema with properties keeps its controls")
 }
+
+// A mixed schema of a named property and dynamic keys: the property controls alone cannot meet it (the
+// only submission they make is refused), the whole-document control can.
+func TestMixedNamedAndDynamicKeysGetADocumentControl(t *testing.T) {
+	t.Parallel()
+	schema := json.RawMessage(`{"type":"object","properties":{"note":{"type":"string"}},"patternProperties":{"^detail_":{"type":"string"}},"additionalProperties":false,"minProperties":2}`)
+	require.Error(t, graph.ValidateJSON(schema, json.RawMessage(`{"note":"ok"}`)), "what the note control alone submits")
+	fields := fieldsOf(schema)
+	require.Len(t, fields, 1)
+	assert.Equal(t, KindDocument, fields[0].Kind)
+	raw, _, err := fieldsFromForm(fields, url.Values{"fields": {`{"note":"ok","detail_a":"ok"}`}})
+	require.NoError(t, err)
+	require.NoError(t, graph.ValidateJSON(schema, raw))
+
+	// Named properties only, with additionalProperties and dependentRequired, keep their controls.
+	plain := json.RawMessage(`{"type":"object","properties":{"a":{"type":"string"},"b":{"type":"string"}},"additionalProperties":false,"dependentRequired":{"a":["b"]},"x-iota-hint":"h"}`)
+	require.Len(t, fieldsOf(plain), 2)
+}

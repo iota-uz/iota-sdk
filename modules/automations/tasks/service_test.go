@@ -32,6 +32,7 @@ var tenant = uuid.MustParse("0b6f2a4c-6a51-4a39-9d3e-2f1d1f6c0a11")
 type fakeSubstrate struct {
 	tasks   []workflow.Task
 	decided atomic.Int32
+	last    json.RawMessage
 }
 
 func (f *fakeSubstrate) Tasks(context.Context, spi.Subject, workflow.TaskFilter) ([]workflow.Task, error) {
@@ -50,8 +51,9 @@ func (f *fakeSubstrate) TasksByID(_ context.Context, _ uuid.UUID, ids []uuid.UUI
 	return out, nil
 }
 
-func (f *fakeSubstrate) DecideTask(context.Context, spi.Subject, uuid.UUID, json.RawMessage) error {
+func (f *fakeSubstrate) DecideTask(_ context.Context, _ spi.Subject, _ uuid.UUID, d json.RawMessage) error {
 	f.decided.Add(1)
+	f.last = d
 	return nil
 }
 
@@ -233,6 +235,9 @@ type testForm struct {
 	outcome string
 	fields  string
 	ctxDue  atomic.Pointer[time.Time]
+	// prepared are the fields Prepare returns when set (else fields); onPrepare runs inside Prepare.
+	prepared  string
+	onPrepare func()
 }
 
 func (*testForm) Kind() string                                     { return "acme.test" }
@@ -248,7 +253,14 @@ func (f *testForm) Decide(ctx context.Context, _ TaskView, _ user.User, _ json.R
 type preparedForm struct{ *testForm }
 
 func (f preparedForm) Prepare(context.Context, TaskView, user.User, json.RawMessage) (FormDecision, error) {
-	return FormDecision{Outcome: f.outcome, Fields: json.RawMessage(f.fields)}, nil
+	if f.onPrepare != nil {
+		f.onPrepare()
+	}
+	fields := f.fields
+	if f.prepared != "" {
+		fields = f.prepared
+	}
+	return FormDecision{Outcome: f.outcome, Fields: json.RawMessage(fields)}, nil
 }
 
 type intentForm struct{ *testForm }
@@ -259,20 +271,24 @@ func (f intentForm) Intent(context.Context, TaskView, json.RawMessage) (string, 
 
 const formSchema = `,"form":{"type":"object","x-iota-form":"acme.test","properties":{"amount":{"type":"integer"}},"required":["amount"]}`
 
+// openSchema names the form and constrains no field.
+const openSchema = `,"form":{"type":"object","x-iota-form":"acme.test"}`
+
 // A submission the task would refuse never reaches the form's action: a comment too long, an outcome
 // that lacks its comment (FormIntent), fields that break the schema (FormPreparer).
 func TestDecideValidatesBeforeTheFormActs(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name string
-		form func(*testForm) TaskForm
-		in   DecideInput
-		out  string
-		flds string
+		name   string
+		form   func(*testForm) TaskForm
+		schema string
+		in     DecideInput
+		out    string
+		flds   string
 	}{
-		{"comment too long, plain form", func(f *testForm) TaskForm { return f }, DecideInput{Comment: strings.Repeat("я", MaxCommentLength+1)}, "approve", `{"amount":1}`},
-		{"reject without its comment, FormIntent", func(f *testForm) TaskForm { return intentForm{f} }, DecideInput{}, "reject", `{"amount":1}`},
-		{"fields break the schema, FormPreparer", func(f *testForm) TaskForm { return preparedForm{f} }, DecideInput{}, "approve", `{"amount":"many"}`},
+		{"comment too long, plain form", func(f *testForm) TaskForm { return f }, openSchema, DecideInput{Comment: strings.Repeat("я", MaxCommentLength+1)}, "approve", `{}`},
+		{"reject without its comment, FormIntent", func(f *testForm) TaskForm { return intentForm{f} }, openSchema, DecideInput{}, "reject", `{}`},
+		{"fields break the schema, FormPreparer", func(f *testForm) TaskForm { return preparedForm{f} }, formSchema, DecideInput{}, "approve", `{"amount":"many"}`},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -280,7 +296,7 @@ func TestDecideValidatesBeforeTheFormActs(t *testing.T) {
 			f := &testForm{outcome: c.out, fields: c.flds}
 			task := openTask(userAssignee(me))
 			sub := &fakeSubstrate{tasks: []workflow.Task{task}}
-			svc := newSvc(t, Config{Tasks: sub, Store: fakeStore{params: strings.Replace(buttons, "%s", formSchema, 1)}, Forms: NewForms(c.form(f))})
+			svc := newSvc(t, Config{Tasks: sub, Store: fakeStore{params: strings.Replace(buttons, "%s", c.schema, 1)}, Forms: NewForms(c.form(f))})
 			in := c.in
 			in.Form = json.RawMessage(`{}`)
 			err := svc.Decide(userCtx(), task.ID, in)
@@ -298,6 +314,82 @@ func TestDecideValidatesBeforeTheFormActs(t *testing.T) {
 	require.NoError(t, svc.Decide(userCtx(), task.ID, DecideInput{Form: json.RawMessage(`{}`)}))
 	assert.Equal(t, int32(1), f.acted.Load())
 	assert.Equal(t, int32(1), sub.decided.Load())
+}
+
+// A form that acts before its fields are known (no FormPreparer) cannot decide a task whose schema
+// constrains them: its fields could break the schema after its action. It still decides an open one.
+func TestFormsWithoutPrepareDoNotActOnConstrainedSchemas(t *testing.T) {
+	t.Parallel()
+	for name, form := range map[string]func(*testForm) TaskForm{
+		"plain":      func(f *testForm) TaskForm { return f },
+		"FormIntent": func(f *testForm) TaskForm { return intentForm{f} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := &testForm{outcome: "approve", fields: `{"amount":"many"}`}
+			task := openTask(userAssignee(me))
+			sub := &fakeSubstrate{tasks: []workflow.Task{task}}
+			svc := newSvc(t, Config{Tasks: sub, Store: fakeStore{params: strings.Replace(buttons, "%s", formSchema, 1)}, Forms: NewForms(form(f))})
+			v, err := svc.Get(userCtx(), task.ID)
+			require.NoError(t, err)
+			assert.True(t, v.FormUnavailable)
+			require.ErrorIs(t, svc.Decide(userCtx(), task.ID, DecideInput{Form: json.RawMessage(`{}`)}), ErrFormUnavailable)
+			assert.Zero(t, f.acted.Load(), "the form did not act")
+			assert.Zero(t, sub.decided.Load())
+
+			f = &testForm{outcome: "approve", fields: `{"signed":true}`}
+			sub = &fakeSubstrate{tasks: []workflow.Task{task}}
+			svc = newSvc(t, Config{Tasks: sub, Store: fakeStore{params: strings.Replace(buttons, "%s", openSchema, 1)}, Forms: NewForms(form(f))})
+			require.NoError(t, svc.Decide(userCtx(), task.ID, DecideInput{Form: json.RawMessage(`{}`)}))
+			assert.Equal(t, int32(1), f.acted.Load())
+			assert.JSONEq(t, `{"outcome":"approve","fields":{"signed":true}}`, string(sub.last))
+		})
+	}
+	assert.False(t, ConstrainsFields(json.RawMessage(`{"type":"object","x-iota-form":"a","title":"T","additionalProperties":true}`)))
+	assert.True(t, ConstrainsFields(json.RawMessage(`{"type":"object","x-iota-form":"a","minProperties":1}`)))
+}
+
+// Once a prepared decision has passed, the action's result is recorded only when it agrees with it and
+// passes too; otherwise the prepared decision is, so an action that ran always has a recorded decision.
+func TestPreparedDecisionIsRecordedWhenTheActionDisagrees(t *testing.T) {
+	t.Parallel()
+	f := &testForm{outcome: "approve", prepared: `{"amount":3}`, fields: `{"amount":"many"}`}
+	task := openTask(userAssignee(me))
+	sub := &fakeSubstrate{tasks: []workflow.Task{task}}
+	svc := newSvc(t, Config{Tasks: sub, Store: fakeStore{params: strings.Replace(buttons, "%s", formSchema, 1)}, Forms: NewForms(preparedForm{f})})
+	require.NoError(t, svc.Decide(userCtx(), task.ID, DecideInput{Form: json.RawMessage(`{}`)}))
+	assert.Equal(t, int32(1), f.acted.Load())
+	assert.JSONEq(t, `{"outcome":"approve","fields":{"amount":3}}`, string(sub.last))
+
+	f = &testForm{outcome: "approve", prepared: `{"amount":3}`, fields: `{"amount":4}`}
+	sub = &fakeSubstrate{tasks: []workflow.Task{task}}
+	svc = newSvc(t, Config{Tasks: sub, Store: fakeStore{params: strings.Replace(buttons, "%s", formSchema, 1)}, Forms: NewForms(preparedForm{f})})
+	require.NoError(t, svc.Decide(userCtx(), task.ID, DecideInput{Form: json.RawMessage(`{}`)}))
+	assert.JSONEq(t, `{"outcome":"approve","fields":{"amount":4}}`, string(sub.last), "a valid result of the action")
+}
+
+// The action is authorized by the task as it is when it starts: an escalation that applies its last
+// step while the submission is prepared, and whose new final deadline passes, stops it.
+func TestDecideReauthorizesAfterPreparation(t *testing.T) {
+	t.Parallel()
+	due := time.Now().Add(time.Hour).UTC()
+	task := openTask(userAssignee(me))
+	task.DueAt = &due
+	task.Escalation = []workflow.EscalationStep{{Extend: time.Minute}}
+	sub := &fakeSubstrate{tasks: []workflow.Task{task}}
+	f := &testForm{outcome: "approve", fields: `{"amount":1}`}
+	f.onPrepare = func() {
+		// The run applies the last step meanwhile, and its deadline passes.
+		past := time.Now().Add(-time.Second).UTC()
+		sub.tasks[0].EscalationLevel, sub.tasks[0].DueAt = 1, &past
+	}
+	svc := newSvc(t, Config{Tasks: sub, Store: fakeStore{params: strings.Replace(buttons, "%s", formSchema, 1)}, Forms: NewForms(preparedForm{f})})
+	v, err := svc.Get(userCtx(), task.ID)
+	require.NoError(t, err)
+	require.Nil(t, v.Deadline, "no final deadline while the step is pending")
+	require.ErrorIs(t, svc.Decide(userCtx(), task.ID, DecideInput{Form: json.RawMessage(`{}`)}), ErrTaskClosed)
+	assert.Zero(t, f.acted.Load(), "the form did not act")
+	assert.Zero(t, sub.decided.Load())
 }
 
 // The final deadline is judged afresh as the form's action starts, and the action's context ends at it.
@@ -318,14 +410,14 @@ func TestDecideEnforcesTheFinalDeadlineAtTheFormAction(t *testing.T) {
 	}
 	f := &testForm{outcome: "approve", fields: `{"amount":1}`}
 	sub := &fakeSubstrate{tasks: []workflow.Task{task}}
-	svc := newSvc(t, Config{Tasks: sub, Store: fakeStore{params: params}, Forms: NewForms(f), Now: now})
+	svc := newSvc(t, Config{Tasks: sub, Store: fakeStore{params: params}, Forms: NewForms(preparedForm{f}), Now: now})
 	err := svc.Decide(userCtx(), task.ID, DecideInput{Form: json.RawMessage(`{}`)})
 	require.ErrorIs(t, err, ErrTaskClosed)
 	assert.Zero(t, f.acted.Load(), "the form did not act past the deadline")
 
 	// Before it, the action runs with the deadline on its context.
 	f = &testForm{outcome: "approve", fields: `{"amount":1}`}
-	svc = newSvc(t, Config{Tasks: sub, Store: fakeStore{params: params}, Forms: NewForms(f)})
+	svc = newSvc(t, Config{Tasks: sub, Store: fakeStore{params: params}, Forms: NewForms(preparedForm{f})})
 	require.NoError(t, svc.Decide(userCtx(), task.ID, DecideInput{Form: json.RawMessage(`{}`)}))
 	require.Equal(t, int32(1), f.acted.Load())
 	got := f.ctxDue.Load()

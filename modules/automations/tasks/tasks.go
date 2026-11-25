@@ -203,17 +203,20 @@ type TaskForm interface {
 	//
 	// Before Decide runs, the inbox refuses a submission the task would refuse: a comment too long, and,
 	// for a form that tells it (FormPreparer, FormIntent), an outcome that is no button or lacks its
-	// comment, fields that break the schema. For a task with a final deadline (TaskView.Deadline) Decide
-	// starts only before it, and ctx ends at it. The action and the vote cannot be one transaction: an
-	// action that completes just as the deadline passes may find the vote refused (ErrTaskClosed) and
-	// the task expiring; its effect then stands, and a repeat of it is deduplicated.
+	// comment, fields that break the schema. A form without FormPreparer decides only a task whose
+	// schema constrains no field (ConstrainsFields); otherwise the task shows it unavailable. Right
+	// before Decide the inbox reads the task again and lets it act only while the user may still decide
+	// it; ctx ends at the final deadline (TaskView.Deadline). The action and the vote cannot be one
+	// transaction: an action that completes just as the deadline passes may find the vote refused
+	// (ErrTaskClosed) and the task expiring; its effect then stands, and a repeat of it is deduplicated.
 	Decide(ctx context.Context, t TaskView, actor user.User, form json.RawMessage) (FormDecision, error)
 }
 
 // FormPreparer is an optional interface of a TaskForm: the decision its data asks for, prepared without
 // the form's action (no external effect). The inbox validates it as the decision (the outcome among the
 // buttons, the comment, the fields against the node's schema) before Decide performs the action; Decide
-// must decide as Prepare did.
+// must decide as Prepare did: a result with another outcome, or one that breaks the schema, is not
+// recorded; the prepared decision is.
 type FormPreparer interface {
 	Prepare(ctx context.Context, t TaskView, actor user.User, form json.RawMessage) (FormDecision, error)
 }

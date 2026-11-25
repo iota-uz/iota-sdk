@@ -135,3 +135,37 @@ func FormKindOf(form json.RawMessage) (string, bool) {
 	}
 	return strings.TrimSpace(kind), true
 }
+
+// openKeys are the keywords of a form schema that constrain no field: an object schema of only these
+// (and annotations, "x-…") accepts any fields object.
+var openKeys = map[string]bool{
+	"type": true, "title": true, "description": true, "$schema": true, "$id": true, "$comment": true,
+	"examples": true, "default": true, "readOnly": true, "writeOnly": true, "deprecated": true,
+}
+
+// ConstrainsFields reports a human node's form schema that constrains the decision's fields: anything
+// beyond an object type and annotations. A TaskForm without FormPreparer decides only a task whose
+// schema does not, as its action runs before its fields can be checked.
+func ConstrainsFields(schema json.RawMessage) bool {
+	if len(schema) == 0 {
+		return false
+	}
+	var doc map[string]json.RawMessage
+	if err := json.Unmarshal(schema, &doc); err != nil {
+		return true
+	}
+	for k, raw := range doc {
+		switch {
+		case strings.HasPrefix(k, "x-"), openKeys[k] && k != "type":
+		case k == "type":
+			var typ string
+			if err := json.Unmarshal(raw, &typ); err != nil || typ != "object" {
+				return true
+			}
+		case k == "additionalProperties" && strings.TrimSpace(string(raw)) == "true":
+		default:
+			return true
+		}
+	}
+	return false
+}

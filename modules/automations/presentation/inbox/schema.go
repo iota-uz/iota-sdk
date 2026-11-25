@@ -132,24 +132,37 @@ var plainKeys = map[string]bool{
 	"readOnly": true, "writeOnly": true, "deprecated": true,
 }
 
-// composedKeys are the keywords of an object schema that can constrain fields beside its own properties
-// (dependentRequired only names properties: the controls can meet it).
-var composedKeys = []string{"$ref", "$dynamicRef", "allOf", "anyOf", "oneOf", "not", "if", "then", "else",
-	"dependentSchemas", "dependencies"}
+// listedKeys are the keywords of an object schema the property controls can meet: with only these (and
+// annotations, "x-…"), a submission of its own properties is all the schema can ask for. Any other
+// keyword (allOf, $ref, if, patternProperties, propertyNames, minProperties, unevaluatedProperties...)
+// can require keys or shapes the controls do not offer.
+var listedKeys = map[string]bool{
+	"dependentRequired": true, "maxProperties": true, "$defs": true, "definitions": true,
+}
 
-// listable reports a schema whose fields are exactly its own properties: no composition keyword and no
-// required name without a property.
+// listable reports a schema whose fields are exactly its own properties: only plainKeys and listedKeys,
+// and every name it requires (also through dependentRequired) a property.
 func listable(schema json.RawMessage, required []string, props map[string]json.RawMessage) bool {
 	var keys map[string]json.RawMessage
 	if err := json.Unmarshal(schema, &keys); err != nil {
 		return true
 	}
-	for _, k := range composedKeys {
-		if _, ok := keys[k]; ok {
+	for k := range keys {
+		if !plainKeys[k] && !listedKeys[k] && !strings.HasPrefix(k, "x-") {
 			return false
 		}
 	}
-	for _, name := range required {
+	names := slices.Clone(required)
+	if raw, ok := keys["dependentRequired"]; ok {
+		var deps map[string][]string
+		if err := json.Unmarshal(raw, &deps); err != nil {
+			return false
+		}
+		for _, list := range deps {
+			names = append(names, list...)
+		}
+	}
+	for _, name := range names {
 		if _, ok := props[name]; !ok {
 			return false
 		}

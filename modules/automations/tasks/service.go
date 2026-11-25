@@ -439,16 +439,19 @@ func (s *Service) Decide(ctx context.Context, id uuid.UUID, in DecideInput) erro
 			return serrors.Wrap(op, ErrFormUnavailable)
 		}
 		// What the task would refuse is refused before the form performs its action.
-		if err := s.precheck(ctx, form, v, a.user, in); err != nil {
+		prepared, err := s.precheck(ctx, form, v, a.user, in)
+		if err != nil {
 			return serrors.Wrap(op, err)
+		}
+		// The action is authorized by the task as it is now, read right before it starts: an escalation
+		// that set a final deadline, a vote or a delegation may have changed it while the submission was
+		// checked.
+		if v, err = s.actionable(ctx, a, id); err != nil {
+			return err
 		}
 		fctx := ctx
 		if v.Deadline != nil {
-			// The final deadline, judged afresh as the action starts; the action's context ends at it, as
-			// the substrate stops counting votes then.
-			if !s.cfg.Now().Before(*v.Deadline) {
-				return serrors.Wrap(op, ErrTaskClosed)
-			}
+			// The action's context ends at the final deadline, as the substrate stops counting votes then.
 			var cancel context.CancelFunc
 			fctx, cancel = context.WithDeadline(ctx, *v.Deadline)
 			defer cancel()
@@ -457,7 +460,7 @@ func (s *Service) Decide(ctx context.Context, id uuid.UUID, in DecideInput) erro
 		if err != nil {
 			return serrors.Wrap(op, err)
 		}
-		outcome, fields = fd.Outcome, fd.Fields
+		outcome, fields = s.recorded(ctx, v, in.Comment, prepared, fd)
 	}
 	decision, err := decisionOf(v, outcome, in.Comment, fields)
 	if err != nil {
@@ -485,25 +488,73 @@ func (s *Service) form(kind string) (TaskForm, bool, error) {
 }
 
 // precheck judges a task form's submission before the form acts: the decision its FormPreparer
-// prepares in full, else the outcome its FormIntent asks for, else the comment alone.
-func (s *Service) precheck(ctx context.Context, form TaskForm, v TaskView, actor user.User, in DecideInput) error {
+// prepares in full (returned), else the outcome its FormIntent asks for, else the comment alone. A form
+// without FormPreparer decides only a task whose schema constrains no field (FormUnavailable otherwise),
+// so what it returns cannot break the schema.
+func (s *Service) precheck(ctx context.Context, form TaskForm, v TaskView, actor user.User, in DecideInput) (*FormDecision, error) {
 	if p, ok := form.(FormPreparer); ok {
 		fd, err := p.Prepare(ctx, v, actor, in.Form)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		_, err = decisionOf(v, fd.Outcome, in.Comment, fd.Fields)
-		return err
+		if _, err := decisionOf(v, fd.Outcome, in.Comment, fd.Fields); err != nil {
+			return nil, err
+		}
+		return &fd, nil
 	}
 	if fi, ok := form.(FormIntent); ok {
 		outcome, err := fi.Intent(ctx, v, in.Form)
 		if err != nil {
-			return errors.Join(ErrInvalidDecision, err)
+			return nil, errors.Join(ErrInvalidDecision, err)
 		}
 		_, err = checkOutcome(v, outcome, in.Comment)
-		return err
+		return nil, err
 	}
-	return checkComment(in.Comment)
+	return nil, checkComment(in.Comment)
+}
+
+// actionable is the task read afresh, as long as the user may still decide it now: its final deadline
+// is judged by the current clock.
+func (s *Service) actionable(ctx context.Context, a actor, id uuid.UUID) (TaskView, error) {
+	v, err := s.get(ctx, a, id)
+	switch {
+	case err != nil:
+		return TaskView{}, err
+	case v.MyDecision != nil:
+		return TaskView{}, serrors.Wrap(op, ErrAlreadyDecided)
+	case v.State != StateOpen || v.PastDeadline || (v.Deadline != nil && !s.cfg.Now().Before(*v.Deadline)):
+		return TaskView{}, serrors.Wrap(op, ErrTaskClosed)
+	case v.FormUnavailable:
+		return TaskView{}, serrors.Wrap(op, ErrFormUnavailable)
+	case !v.CanDecide:
+		return TaskView{}, serrors.Wrap(op, fmt.Errorf("%w: %s", ErrTaskNotFound, id))
+	}
+	return v, nil
+}
+
+// recorded is the outcome and fields a form's action is recorded with. The action has run, so the
+// decision must not fail validation now: a prepared decision stands unless the action's own result has
+// its outcome and passes too; without one, fields the task refuses are left out (the schema constrains
+// none, see precheck) and the form's fault is logged.
+func (s *Service) recorded(ctx context.Context, v TaskView, comment string, prepared *FormDecision, fd FormDecision) (string, json.RawMessage) {
+	if prepared != nil {
+		if fd.Outcome == prepared.Outcome {
+			if _, err := decisionOf(v, fd.Outcome, comment, fd.Fields); err == nil {
+				return fd.Outcome, fd.Fields
+			}
+		}
+		s.cfg.Logger.ErrorContext(ctx, "automations tasks: a form decided other than it prepared; the prepared decision is recorded",
+			"task_id", v.ID, "form", v.FormKind, "prepared", prepared.Outcome, "decided", fd.Outcome)
+		return prepared.Outcome, prepared.Fields
+	}
+	if _, err := decisionOf(v, fd.Outcome, comment, fd.Fields); err != nil {
+		if _, err := decisionOf(v, fd.Outcome, comment, nil); err == nil {
+			s.cfg.Logger.ErrorContext(ctx, "automations tasks: a form returned fields the task refuses; they are left out",
+				"task_id", v.ID, "form", v.FormKind, "error", err)
+			return fd.Outcome, nil
+		}
+	}
+	return fd.Outcome, fd.Fields
 }
 
 // checkComment bounds a comment's length.
@@ -907,8 +958,13 @@ func (s *Service) view(ctx context.Context, a actor, t workflow.Task, m TaskMeta
 	// The form's kind is read from the version the run is pinned to.
 	if kind, ok := FormKindOf(pinned.Form); ok && kind != "" {
 		v.FormKind = kind
-		_, found, err := s.form(kind)
+		form, found, err := s.form(kind)
 		v.FormUnavailable = err != nil || !found
+		if !v.FormUnavailable {
+			// A form that acts before its fields are known decides only what the schema leaves open.
+			_, prepares := form.(FormPreparer)
+			v.FormUnavailable = !prepares && ConstrainsFields(v.DecisionSchema)
+		}
 	} else if !ok {
 		v.FormKind, v.FormUnavailable = "invalid", true
 	}

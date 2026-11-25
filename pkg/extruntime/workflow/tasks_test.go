@@ -813,41 +813,72 @@ func TestTasks_InboxCursorKeepsThePageOrder(t *testing.T) {
 
 // A task an escalation moves later after a page held it is not listed again
 // on a later page of the same traversal: the pages order tasks by their due
-// time as of the first page. A new traversal sees the current order.
+// time as the first page's snapshot saw it. That holds also for an escalation
+// whose transaction began (and set applied_at) before the first page but
+// committed after it. A new traversal sees the current order.
 func TestTasks_InboxCursorSurvivesAnEscalation(t *testing.T) {
-	s := newTaskStack(t, workflow.TaskSpec{Assignees: []workflow.TaskAssignee{userAssignee(92)}, Timeout: time.Hour})
-	ctx := context.Background()
-	_, a := s.startWaiting("esc-a")
-	_, b := s.startWaiting("esc-b")
-	page, err := s.eng.Tasks(ctx, s.env.subject(92), workflow.TaskFilter{Limit: 1})
-	require.NoError(t, err)
-	require.Len(t, page, 1)
-	require.Equal(t, a.ID, page[0].ID, "a is due first")
-	cursor, err := workflow.ParseTaskCursor(workflow.CursorAfter(page[0]).String())
-	require.NoError(t, err)
-	require.NotNil(t, cursor.Since, "the cursor carries the traversal's start")
+	for _, overlap := range []bool{false, true} {
+		t.Run(fmt.Sprintf("overlapping=%v", overlap), func(t *testing.T) {
+			s := newTaskStack(t, workflow.TaskSpec{Assignees: []workflow.TaskAssignee{userAssignee(92)}, Timeout: time.Hour})
+			ctx := context.Background()
+			_, a := s.startWaiting("esc-a")
+			_, b := s.startWaiting("esc-b")
 
-	// a escalates as the run does it: the step records the due time it replaces.
-	_, err = s.env.db.Exec(ctx, `
-		INSERT INTO extruntime.human_task_escalations (task_id, tenant_id, step, added, applied_at, due_before)
-		SELECT id, tenant_id, 0, '[]', clock_timestamp(), due_at FROM extruntime.human_tasks WHERE id = $1`, a.ID)
-	require.NoError(t, err)
-	_, err = s.env.db.Exec(ctx, `UPDATE extruntime.human_tasks SET due_at = due_at + interval '2 hours', escalation_level = 1 WHERE id = $1`, a.ID)
-	require.NoError(t, err)
+			// a escalates as the run does it: the step records the due time it
+			// replaces, its transaction (by default) and applied_at.
+			escalate := func() pgx.Tx {
+				tx, err := s.env.db.Begin(ctx)
+				require.NoError(t, err)
+				_, err = tx.Exec(ctx, `
+					INSERT INTO extruntime.human_task_escalations (task_id, tenant_id, step, added, applied_at, due_before)
+					SELECT id, tenant_id, 0, '[]', clock_timestamp(), due_at FROM extruntime.human_tasks WHERE id = $1`, a.ID)
+				require.NoError(t, err)
+				_, err = tx.Exec(ctx, `UPDATE extruntime.human_tasks SET due_at = due_at + interval '2 hours', escalation_level = 1 WHERE id = $1`, a.ID)
+				require.NoError(t, err)
+				return tx
+			}
+			var pending pgx.Tx
+			if overlap {
+				pending = escalate()
+			}
+			page, err := s.eng.Tasks(ctx, s.env.subject(92), workflow.TaskFilter{Limit: 1})
+			require.NoError(t, err)
+			require.Len(t, page, 1)
+			require.Equal(t, a.ID, page[0].ID, "a is due first")
+			cursor, err := workflow.ParseTaskCursor(workflow.CursorAfter(page[0]).String())
+			require.NoError(t, err)
+			require.NotEmpty(t, cursor.Snapshot, "the cursor carries the first page's snapshot")
+			if overlap {
+				require.NoError(t, pending.Commit(ctx))
+			} else {
+				require.NoError(t, escalate().Commit(ctx))
+			}
 
-	var got []uuid.UUID
-	for range 3 {
-		page, err = s.eng.Tasks(ctx, s.env.subject(92), workflow.TaskFilter{Limit: 1, Cursor: &cursor})
-		require.NoError(t, err)
-		if len(page) == 0 {
-			break
-		}
-		got = append(got, page[0].ID)
-		cursor, err = workflow.ParseTaskCursor(workflow.CursorAfter(page[0]).String())
-		require.NoError(t, err)
+			var got []uuid.UUID
+			for range 3 {
+				page, err = s.eng.Tasks(ctx, s.env.subject(92), workflow.TaskFilter{Limit: 1, Cursor: &cursor})
+				require.NoError(t, err)
+				if len(page) == 0 {
+					break
+				}
+				got = append(got, page[0].ID)
+				cursor, err = workflow.ParseTaskCursor(workflow.CursorAfter(page[0]).String())
+				require.NoError(t, err)
+			}
+			require.Equal(t, []uuid.UUID{b.ID}, got, "b once, a not again")
+			require.Equal(t, []uuid.UUID{b.ID, a.ID}, s.inbox(92), "a fresh inbox orders by the current due times")
+		})
 	}
-	require.Equal(t, []uuid.UUID{b.ID}, got, "b once, a not again")
-	require.Equal(t, []uuid.UUID{b.ID, a.ID}, s.inbox(92), "a fresh inbox orders by the current due times")
+}
+
+func TestTasks_ParseTaskCursorSnapshot(t *testing.T) {
+	id := uuid.New()
+	c, err := workflow.ParseTaskCursor("/" + id.String() + "/100:105:101,103")
+	require.NoError(t, err)
+	require.Equal(t, "100:105:101,103", c.Snapshot)
+	require.Equal(t, "/"+id.String()+"/100:105:101,103", c.String())
+	_, err = workflow.ParseTaskCursor("/" + id.String() + "/100:105:x');--")
+	require.ErrorIs(t, err, workflow.ErrInvalid)
 }
 
 // The run records the due time an escalation step replaced.
@@ -858,10 +889,14 @@ func TestTasks_EscalationRecordsTheReplacedDueTime(t *testing.T) {
 	})
 	id, task := s.startWaiting("esc-due")
 	s.env.drainUntil(s.eng, func() bool { return s.task(id).EscalationLevel == 1 }, "the step is applied")
-	var before *time.Time
+	var (
+		before *time.Time
+		xact   *string
+	)
 	require.NoError(t, s.env.db.QueryRow(context.Background(),
-		`SELECT due_before FROM extruntime.human_task_escalations WHERE task_id = $1 AND step = 0`, task.ID).Scan(&before))
+		`SELECT due_before, applied_xact::text FROM extruntime.human_task_escalations WHERE task_id = $1 AND step = 0`, task.ID).Scan(&before, &xact))
 	require.NotNil(t, before)
+	require.NotNil(t, xact, "the step records its transaction")
 	require.WithinDuration(t, *task.DueAt, *before, time.Millisecond)
 }
 

@@ -633,7 +633,7 @@ func (a *API) taskInbox(_ http.ResponseWriter, r *http.Request, actor spi.Subjec
 		f.Limit = n
 	}
 	// after is a task ID (the cursor of the contract) or the stable
-	// `<dueAt>/<id>[/<since>]` cursor of workflow.CursorAfter.
+	// `<dueAt>/<id>[/<snapshot>]` cursor of workflow.CursorAfter.
 	if v := q.Get("after"); v != "" {
 		if id, err := uuid.Parse(v); err == nil {
 			f.After = &id
