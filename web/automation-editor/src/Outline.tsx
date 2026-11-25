@@ -1,6 +1,7 @@
 // Read-only outline for phones (< 768 px): triggers and steps in order of reachability, with their
 // outcomes and the run overlay's states and badges (icon and text, never colour alone).
 import { createMemo, For, Show, type JSX } from 'solid-js'
+import { Dynamic } from 'solid-js/web'
 import { catalogNode, findItem, IGNORE, itemOutcomes, reachabilityOrder } from './graph'
 import { Icon } from './icons'
 import { describeItem } from './names'
@@ -43,8 +44,10 @@ export function Outline(props: OutlineProps): JSX.Element {
               const badge = () => props.overlay?.badges.get(id)
               const icon = () => name().icon ?? (ref()?.kind === 'trigger' ? 'event' : catalogNode(props.catalog, (ref()?.item as { type?: string }).type ?? '')?.behavior ?? 'node')
               return (
-                <li class="ae-outline__item" classList={{ 'ae-outline__item--trigger': ref()?.kind === 'trigger' }} role="group" aria-label={name().title}>
-                  <div class="ae-outline__head">
+                <li class="ae-outline__item" classList={{ 'ae-outline__item--trigger': ref()?.kind === 'trigger' }}>
+                  <div role="group" aria-label={name().title}>
+                  <Dynamic component={props.onPick ? 'button' : 'div'} class="ae-outline__head" classList={{ 'ae-outline__head--pick': Boolean(props.onPick) }}
+                    {...(props.onPick ? { type: 'button', onClick: () => props.onPick?.(id), 'data-pick': id } : {})}>
                     <Icon name={icon()} />
                     <span class="ae-outline__title">{name().title}</span>
                     <Show when={state()}>
@@ -56,7 +59,8 @@ export function Outline(props: OutlineProps): JSX.Element {
                       )}
                     </Show>
                     <Show when={badge()}>{(b) => <span class="ae-badge">{b()}</span>}</Show>
-                  </div>
+                  </Dynamic>
+                  <Show when={props.overlay?.notes?.get(id)}>{(note) => <p class="ae-outline__note ae-danger">{note()}</p>}</Show>
                   <Show when={name().subtitle}>
                     <p class="ae-outline__sub">{name().subtitle}</p>
                   </Show>
@@ -72,6 +76,7 @@ export function Outline(props: OutlineProps): JSX.Element {
                       )}
                     </For>
                   </ul>
+                  </div>
                 </li>
               )
             }}

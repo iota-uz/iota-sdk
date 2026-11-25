@@ -137,7 +137,16 @@
         },
         "ConfirmWarning": "Conectar mesmo assim",
         "ConfirmRequired": "Confirme que deseja conectar este bot apesar dos avisos acima.",
-        "BotInUse": "Este bot já está reservado: ele está conectado aqui como outra conexão, ou pertence a outra conta ou à plataforma. Use outro bot ou peça a um administrador. Se você gerencia a conexão existente, exclua-a primeiro (desativá-la mantém o bot reservado)."
+        "BotInUse": "Este bot já está reservado: ele está conectado aqui como outra conexão, ou pertence a outra conta ou à plataforma. Use outro bot ou peça a um administrador. Se você gerencia a conexão existente, exclua-a primeiro (desativá-la mantém o bot reservado).",
+        "Preset": {
+          "custom": "Qualquer servidor (login e senha)",
+          "gmail": "Gmail (entrar com o Google)",
+          "m365": "Microsoft 365 (entrar com a Microsoft)"
+        },
+        "PresetProvider": {
+          "gmail": "Google",
+          "m365": "Microsoft"
+        }
       },
       "Test": {
         "Running": "Verificando…",
@@ -423,9 +432,9 @@
         "Waiting": "Aguardando"
       },
       "Runs": {
-        "Empty": "Nenhuma execução ainda.",
-        "NoSteps": "Nenhuma etapa ainda.",
-        "Steps": "Etapas da execução"
+        "NotFound": "Execução não encontrada",
+        "NotFoundText": "Ela foi excluída ou pertence a outro espaço de trabalho.",
+        "Opening": "Abrindo a execução…"
       },
       "Status": {
         "Disabled": "Desativada",

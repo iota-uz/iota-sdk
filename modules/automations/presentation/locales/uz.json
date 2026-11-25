@@ -137,7 +137,16 @@
         },
         "ConfirmWarning": "Baribir ulash",
         "ConfirmRequired": "Yuqoridagi ogohlantirishlarga qaramay botni ulashni xohlashingizni tasdiqlang.",
-        "BotInUse": "Bu bot allaqachon band: u bu yerda boshqa ulanish sifatida ulangan yoki boshqa tashkilot yoki platformaga tegishli. Boshqa botdan foydalaning yoki administratorga murojaat qiling. Agar mavjud ulanishni siz boshqarsangiz, avval uni o‘chiring (faqat o‘chirib qo‘yish botni band qoldiradi)."
+        "BotInUse": "Bu bot allaqachon band: u bu yerda boshqa ulanish sifatida ulangan yoki boshqa tashkilot yoki platformaga tegishli. Boshqa botdan foydalaning yoki administratorga murojaat qiling. Agar mavjud ulanishni siz boshqarsangiz, avval uni o‘chiring (faqat o‘chirib qo‘yish botni band qoldiradi).",
+        "Preset": {
+          "custom": "Istalgan server (login va parol)",
+          "gmail": "Gmail (Google orqali kirish)",
+          "m365": "Microsoft 365 (Microsoft orqali kirish)"
+        },
+        "PresetProvider": {
+          "gmail": "Google",
+          "m365": "Microsoft"
+        }
       },
       "Test": {
         "Running": "Tekshiryapmiz…",
@@ -423,9 +432,9 @@
         "Waiting": "Kutmoqda"
       },
       "Runs": {
-        "Empty": "Hali ishga tushirilmagan.",
-        "NoSteps": "Hali qadamlar yoʻq.",
-        "Steps": "Ishga tushirish qadamlari"
+        "NotFound": "Ishga tushirish topilmadi",
+        "NotFoundText": "U oʻchirilgan yoki boshqa ish maydoniga tegishli.",
+        "Opening": "Ishga tushirish ochilmoqda…"
       },
       "Status": {
         "Disabled": "Oʻchirilgan",

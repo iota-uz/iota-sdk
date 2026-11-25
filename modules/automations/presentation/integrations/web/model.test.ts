@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  MSG, changedCredentials, oauthErrorText, reasonText, errorCode, groupByCategory, missingRequired, newCredentials, saveErrorText, schemaFields, slugify, warningText,
+  MSG, availablePresets, connectionPreset, knownPresets, presetOptions, changedCredentials, oauthErrorText, reasonText, errorCode, groupByCategory, missingRequired, newCredentials, saveErrorText, schemaFields, slugify, warningText,
   translator, usageHref, usedByText, type ConnectorView,
 } from './model'
 
@@ -101,5 +101,26 @@ describe('warningText', () => {
     const t = (key: string) => key
     expect(warningText(t, 'foreign_webhook')).toBe('Form.Warnings.foreign_webhook')
     expect(warningText(t, 'polling_unknown@222222')).toBe('Form.Warnings.polling_unknown')
+  })
+})
+
+describe('sign-in presets of a connector with a form', () => {
+  const connector = {
+    kind: 'imap', oauth_presets: ['gmail'],
+    credential_schema: { type: 'object', properties: { preset: { type: 'string', enum: ['custom', 'gmail', 'm365'], 'x-oauth-client': { gmail: 'google_oauth', m365: 'microsoft_oauth' } } } },
+  } as unknown as ConnectorView
+
+  it('knows the providers, and offers only those the application has', () => {
+    expect(knownPresets(connector)).toEqual(['gmail', 'm365'])
+    expect(availablePresets(connector)).toEqual(['gmail'])
+    expect(presetOptions(connector, ['custom', 'gmail', 'm365'])).toEqual(['custom', 'gmail'])
+    expect(presetOptions({ ...connector, oauth_presets: [] } as ConnectorView, ['custom', 'gmail', 'm365'])).toEqual(['custom'])
+  })
+
+  it('tells a sign-in connection by its preset, even when its provider is not offered now', () => {
+    expect(connectionPreset(connector, { fields: { preset: 'm365' } })).toBe('m365')
+    expect(connectionPreset(connector, { fields: { preset: 'custom' } })).toBeUndefined()
+    expect(connectionPreset(connector, { fields: {} })).toBeUndefined()
+    expect(connectionPreset({ kind: 'x', credential_schema: {} } as unknown as ConnectorView, { fields: { preset: 'gmail' } })).toBeUndefined()
   })
 })

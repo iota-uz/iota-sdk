@@ -119,6 +119,9 @@ func app(t *testing.T, perms ...permission.Permission) (*itf.Suite, *composition
 	if _, ok := reg.Node("acme.code"); !ok {
 		require.NoError(t, reg.RegisterNode(codeNode{}))
 	}
+	if _, ok := reg.Node("acme.decide"); !ok {
+		require.NoError(t, reg.RegisterNode(decideNode{}))
+	}
 	return mountAll(t, s), container
 }
 
@@ -186,6 +189,9 @@ func TestAutomationsPages(t *testing.T) {
 	s.GET("/automations/new").Expect(t).Status(http.StatusOK).Contains(`"view":"new"`)
 	id := uuid.NewString()
 	s.GET("/automations/" + id).Expect(t).Status(http.StatusOK).Contains(`"view":"editor"`).Contains(id)
+	// A link with a run's id alone: the screen finds the run's graph (RV6).
+	run := uuid.NewString()
+	s.GET("/automations/runs/" + run).Expect(t).Status(http.StatusOK).Contains(`"view":"run"`).Contains(run)
 
 	reader, _ := app(t, permissions.AutomationsRead)
 	reader.GET("/automations/new").Expect(t).Status(http.StatusForbidden)
@@ -278,7 +284,21 @@ func TestCodeReviewBeforeEnabling(t *testing.T) {
 	require.Len(t, runs.Items, 1)
 	require.Nil(t, rpc(t, s, graphs.MethodRuns, map[string]any{"automation_id": id, "version": 3}, &runs).Error)
 	assert.Empty(t, runs.Items)
-	r := rpc(t, s, graphs.MethodRuns, map[string]any{"automation_id": uuid.NewString()}, nil)
+	// The subject search keeps runs whose subject key starts with the text; LIKE wildcards are literal.
+	require.Nil(t, rpc(t, s, graphs.MethodRuns, map[string]any{"automation_id": id, "subject": "%"}, &runs).Error)
+	assert.Empty(t, runs.Items)
+	require.Nil(t, rpc(t, s, graphs.MethodRuns, map[string]any{"automation_id": id, "subject": "  "}, &runs).Error)
+	assert.Len(t, runs.Items, 1)
+	var data graphs.RunData
+	require.Nil(t, rpc(t, s, graphs.MethodRun, map[string]any{"run_id": started.RunID}, &data).Error)
+	for _, w := range data.Waits {
+		assert.NotEmpty(t, w.NodeID, "a wait names the node its token stands on")
+	}
+	// A dry run takes a known decision mode only.
+	r := rpc(t, s, graphs.MethodDryRun, map[string]any{"graph": codeGraph("Daily digest", "return 3"), "subject": map[string]any{"entity": "none", "key": ""}, "events": []any{}, "decisions": "sometimes"}, nil)
+	require.NotNil(t, r.Error)
+	assert.Equal(t, "invalid_input", r.Error.Code)
+	r = rpc(t, s, graphs.MethodRuns, map[string]any{"automation_id": uuid.NewString()}, nil)
 	require.NotNil(t, r.Error)
 	assert.Equal(t, "not_found", r.Error.Code)
 

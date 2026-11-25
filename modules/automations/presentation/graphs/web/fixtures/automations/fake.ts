@@ -18,6 +18,8 @@ export interface FakeOptions {
   conflictOnce: boolean
   /** The first count of live runs fails (the confirmation offers a retry). */
   liveFailsOnce: boolean
+  /** The answer of the first node test is lost after the test ran (the retry must not run it again). */
+  testLostOnce: boolean
   /** The review after a digest refusal fails once (a network error). */
   reviewFailsAfterChange: boolean
   /** Delay of automations.get for an old version (ms): a request still on the way when Back is pressed. */
@@ -127,6 +129,40 @@ function seed(): Stored[] {
   ]
 }
 
+type RunData = RPC['automations.run']['result']
+type WireState = RunData['run']['state']
+
+function wireRun(id: string, automation: string, version: number, state: WireState, o: { trigger?: string; nodes?: string[]; subject?: { entity: string; key: string }; error?: string; at?: string } = {}): RunData {
+  return {
+    run: {
+      run_id: id, automation_id: automation, version, state, status: state, trigger_kind: 'schedule', trigger_id: o.trigger ?? 'every_day',
+      subject: o.subject ?? { entity: 'crm.client', key: 'c-7' }, current_nodes: o.nodes ?? [],
+      error: o.error ? { code: 'effect_failed', message: o.error } : null, created_at: o.at ?? now, updated_at: o.at ?? now,
+    },
+    tokens: [{ id: 'tk-1', parent: null, node_id: o.nodes?.[0] ?? 'fin', status: state === 'running' ? 'running' : state === 'blocked' || state === 'waiting' ? 'waiting' : 'done', foreach_index: null }],
+    steps: [],
+    waits: [],
+  }
+}
+
+/** Runs of the digest (on v3: a failed one and a blocked call; on v2: a done one) and of the welcome graph. */
+function seedRuns(): RunData[] {
+  const digest = '00000000-0000-4000-8000-0000000000a1'
+  const failed = wireRun('00000000-0000-4000-8000-0000000000f1', digest, 3, 'failed', { error: 'The mail server refused the message', at: '2026-11-20T09:00:00Z' })
+  failed.steps = [{
+    token_id: 'tk-1', seq: 1, node_id: 'email', attempt: 2, input: { to: 'sales@acme.test', subject: 'Digest' }, outcome: 'failed',
+    output: { error: { message: 'The mail server refused the message' } }, error: { code: 'effect_failed', message: 'The mail server refused the message' },
+    started_at: '2026-11-20T09:00:00Z', ended_at: '2026-11-20T09:00:02Z',
+  }]
+  const blocked = wireRun('00000000-0000-4000-8000-0000000000f3', digest, 3, 'blocked', { nodes: ['email'], at: '2026-11-20T08:00:00Z', subject: { entity: 'crm.client', key: 'c-9' } })
+  blocked.waits = [{ token_id: 'tk-1', node_id: 'email', wait_id: 'call-1', kind: 'call', timeout_at: null, status: 'open' }]
+  const done = wireRun('00000000-0000-4000-8000-0000000000f2', '00000000-0000-4000-8000-0000000000a2', 1, 'done', { trigger: 'created', at: '2026-11-20T09:25:00Z', subject: { entity: 'core.user', key: '42' } })
+  done.steps = [{ token_id: 'tk-1', seq: 1, node_id: 'fin', attempt: 1, outcome: 'done', error: null, started_at: '2026-11-20T09:25:00Z', ended_at: '2026-11-20T09:25:00Z' }]
+  const old = wireRun('00000000-0000-4000-8000-0000000000f5', digest, 2, 'done', { at: '2026-11-20T07:00:00Z', subject: { entity: 'crm.client', key: 'c-3' } })
+  old.steps = [{ token_id: 'tk-1', seq: 1, node_id: 'email', attempt: 1, outcome: 'sent', output: { message_id: 'm-0' }, error: null, started_at: '2026-11-20T07:00:00Z', ended_at: '2026-11-20T07:00:01Z' }]
+  return [failed, blocked, old, done]
+}
+
 function rpcError(code: string, message: string): never {
   throw { code, message, data: { code } }
 }
@@ -139,6 +175,10 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
   let runSeq = 0
   let liveFails = opts.liveFailsOnce
   let reviewFails = false
+  const runs: RunData[] = opts.scenario === 'empty' ? [] : seedRuns()
+  const tests = new Map<string, RPC['automations.test_node']['result']>()
+  let testRuns = 0
+  let testLost = opts.testLostOnce
   const find = (id: string) => store.find((s) => s.item.id === id) ?? rpcError('not_found', 'automation not found')
   const digestOf = (s: Stored) => (s.code.length > 0 ? `digest-${s.item.latest_version}-${s.code.map((c) => c.source.length).join('.')}` : '')
   const handlers: { [K in keyof RPC]?: (p: RPC[K]['params']) => RPC[K]['result'] } = {
@@ -264,29 +304,70 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       runSeq++
       const run = `00000000-0000-4000-8000-${String(900 + runSeq).padStart(12, '0')}`
       s.item.last_run = { run_id: run, status: 'running', at: now }
+      runs.unshift(wireRun(run, s.item.id, s.item.enabled_version ?? 1, 'running', { trigger: p.trigger_id, nodes: ['fin'] }))
       return { ok: true, run_id: run }
     },
     'automations.search_subjects': (p) => [{ subject: { entity: p.entity, key: '42' }, label: `${p.query} (42)` }],
     'automations.runs': (p) => {
-      const s = find(p.automation_id)
-      return {
-        items: s.item.last_run ? [{
-          run_id: s.item.last_run.run_id, automation_id: s.item.id, version: s.item.enabled_version ?? 1, state: s.item.last_run.status === 'done' ? 'done' : 'failed', status: s.item.last_run.status,
-          trigger_kind: 'event', trigger_id: 'created', subject: { entity: 'none', key: '' }, current_nodes: [],
-          error: s.item.last_run.status === 'failed' ? { code: 'effect_failed', message: 'The mail server refused the message' } : null, created_at: s.item.last_run.at, updated_at: s.item.last_run.at,
-        }] : [],
-        next_cursor: null,
-      }
+      find(p.automation_id)
+      const q = (p.subject ?? '').toLowerCase()
+      const items = runs
+        .filter((r) => r.run.automation_id === p.automation_id && (!p.version || r.run.version === p.version) && (!p.state || p.state.length === 0 || p.state.includes(r.run.state)))
+        .filter((r) => !q || r.run.subject.key.toLowerCase().startsWith(q))
+        .filter((r) => !p.node || r.steps.some((st) => st.node_id === p.node))
+        .map((r) => r.run)
+      return { items, next_cursor: null }
     },
-    'automations.run': (p) => ({
-      run: {
-        run_id: p.run_id, automation_id: store[0]?.item.id ?? '', version: 1, state: 'done', status: 'done', trigger_kind: 'event', trigger_id: 'created',
-        subject: { entity: 'none', key: '' }, current_nodes: [], error: null, created_at: now, updated_at: now,
-      },
-      tokens: [], steps: [{ token_id: 't', seq: 1, node_id: 'fin', attempt: 1, outcome: 'done', error: null, started_at: now, ended_at: now }], waits: [],
+    'automations.run': (p) => {
+      const r = runs.find((x) => x.run.run_id === p.run_id) ?? rpcError('not_found', 'run not found')
+      return JSON.parse(JSON.stringify(r)) as RunData
+    },
+    'automations.run_cancel': (p) => {
+      const r = runs.find((x) => x.run.run_id === p.run_id) ?? rpcError('not_found', 'run not found')
+      if (['done', 'failed', 'cancelled'].includes(r.run.state)) return { ok: false, error: 'run_finished' }
+      r.run.state = 'cancelled'
+      r.run.status = 'cancelled'
+      r.waits = []
+      return { ok: true }
+    },
+    'automations.run_retry': (p) => {
+      const r = runs.find((x) => x.run.run_id === p.run_id) ?? rpcError('not_found', 'run not found')
+      if (!r.waits.some((w) => w.wait_id === p.wait_id)) rpcError('invalid_input', 'the call is not blocked')
+      r.run.state = 'running'
+      r.run.status = 'running'
+      r.waits = []
+      return { ok: true }
+    },
+    'automations.run_resolve': (p) => {
+      const r = runs.find((x) => x.run.run_id === p.run_id) ?? rpcError('not_found', 'run not found')
+      if (!r.waits.some((w) => w.wait_id === p.wait_id)) rpcError('invalid_input', 'the call is not blocked')
+      r.steps.push({ token_id: 'tk-1', seq: r.steps.length + 1, node_id: 'email', attempt: 2, outcome: p.outcome, error: null, started_at: now, ended_at: now })
+      r.run.state = 'done'
+      r.run.status = 'done'
+      r.waits = []
+      return { ok: true }
+    },
+    'automations.dry_run': () => ({
+      trace: [
+        { node: 'every_day', kind: 'triggered' },
+        { node: 'email', kind: 'step', outcome: 'sent', status: 'captured', effects: [{ to: 'sales@acme.test', subject: 'Digest' }] },
+        { node: 'fin', kind: 'ended' },
+      ],
+      live_calls: 0,
     }),
-    'automations.dry_run': () => ({ trace: [] }),
-    'automations.test_node': () => ({ outcome: 'done' }),
+    // As the server: a repeat with the same key gets the first answer, nothing runs twice.
+    'automations.test_node': (p) => {
+      const known = p.idempotency_key ? tests.get(p.idempotency_key) : undefined
+      if (known) return known
+      testRuns++
+      const res = { outcome: 'sent', duration_ms: 120, output: { message_id: `m-${testRuns}` }, logs: ['sent'] }
+      if (p.idempotency_key) tests.set(p.idempotency_key, res)
+      if (testLost) {
+        testLost = false
+        rpcError('internal', 'the connection dropped')
+      }
+      return res
+    },
   }
   const original = window.fetch.bind(window)
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {

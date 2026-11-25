@@ -1041,3 +1041,150 @@ func TestDeleteReturningGivesTheDeletedRow(t *testing.T) {
 	_, _, err = store.DeleteReturning(e.ctx, e.tenant, c.ID)
 	require.ErrorIs(t, err, connectors.ErrNotFound)
 }
+
+// Deleting the owner of a token set and rewrapping the rows of an older key lock the rows in the same (id)
+// order: neither is chosen as the victim of a deadlock when a dependent sorts before its owner.
+func TestDeleteOfAnOwnerAndRewrapDoNotDeadlock(t *testing.T) {
+	e := newEnv(t)
+	old := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, nil, nil)
+	gs, ok := connectors.ConnectionStore(old).(connectors.GroupSaver)
+	require.True(t, ok)
+	var owners []uuid.UUID
+	for n := 0; len(owners) < 8 && n < 200; n++ {
+		items := []connectors.GroupItem{
+			{Connection: connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("owner_%d", n)}, Credentials: connectors.Credentials{"token": botToken}},
+			{Connection: connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("dep_%d", n)}, Credentials: connectors.Credentials{"token": botToken}},
+		}
+		saved, err := gs.SaveGroup(e.ctx, items)
+		require.NoError(t, err)
+		if saved[1].ID.String() < saved[0].ID.String() {
+			owners = append(owners, saved[0].ID) // the dependent sorts before its owner
+		}
+	}
+	require.Len(t, owners, 8, "groups whose dependent has the lower id")
+
+	rotated := connectors.NewStore(e.db, keyring(t, "k2", "k1", "k2"), nil, nil, nil)
+	errs := make(chan error, len(owners)+1)
+	var wg sync.WaitGroup
+	for _, id := range owners {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- rotated.Delete(e.ctx, e.tenant, id)
+		}()
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			n, err := rotated.Rewrap(e.ctx, 2)
+			if err != nil || n == 0 {
+				errs <- err
+				return
+			}
+		}
+	}()
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+}
+
+// A deletion locks the group in id order, the lowest first: while another transaction holds the dependent
+// that sorts before the owner, the deletion waits without already holding the owner, so whoever holds the
+// dependent (a rewrap, in id order) is never waiting for a row the deletion holds.
+func TestDeleteLocksTheGroupInIDOrder(t *testing.T) {
+	e := newEnv(t)
+	store := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, nil, nil)
+	gs, ok := connectors.ConnectionStore(store).(connectors.GroupSaver)
+	require.True(t, ok)
+	var owner, dep uuid.UUID
+	for n := 0; dep == uuid.Nil && n < 200; n++ {
+		saved, err := gs.SaveGroup(e.ctx, []connectors.GroupItem{
+			{Connection: connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("owner_%d", n)}, Credentials: connectors.Credentials{"token": botToken}},
+			{Connection: connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("dep_%d", n)}, Credentials: connectors.Credentials{"token": botToken}},
+		})
+		require.NoError(t, err)
+		if saved[1].ID.String() < saved[0].ID.String() {
+			owner, dep = saved[0].ID, saved[1].ID
+		}
+	}
+	require.NotEqual(t, uuid.Nil, dep)
+
+	hold, err := e.db.Begin(e.ctx)
+	require.NoError(t, err)
+	_, err = hold.Exec(e.ctx, `SELECT 1 FROM automation.connections WHERE id = $1 FOR UPDATE`, dep)
+	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() { done <- store.Delete(e.ctx, e.tenant, owner) }()
+	select {
+	case err := <-done:
+		t.Fatalf("Delete returned %v while the dependent was locked", err)
+	case <-time.After(500 * time.Millisecond):
+	}
+	probe, err := e.db.Begin(e.ctx)
+	require.NoError(t, err)
+	var got uuid.UUID
+	err = probe.QueryRow(e.ctx, `SELECT id FROM automation.connections WHERE id = $1 FOR UPDATE NOWAIT`, owner).Scan(&got)
+	_ = probe.Rollback(e.ctx)
+	if err != nil {
+		_ = hold.Rollback(e.ctx) // let the deletion finish before the test fails
+		<-done
+	}
+	require.NoError(t, err, "the waiting deletion does not hold the owner")
+	require.NoError(t, hold.Rollback(e.ctx))
+	require.NoError(t, <-done)
+}
+
+// A save of an existing group locks the rows it updates in id order before it writes the primary: while a
+// lower-id dependent is held by someone else it waits without holding the owner, as a deletion of the group does.
+func TestSaveGroupLocksTheExistingRowsInIDOrder(t *testing.T) {
+	e := newEnv(t)
+	store := connectors.NewStore(e.db, keyring(t, "k1", "k1"), nil, nil, nil)
+	gs, ok := connectors.ConnectionStore(store).(connectors.GroupSaver)
+	require.True(t, ok)
+	var saved []connectors.Connection
+	for n := 0; saved == nil && n < 200; n++ {
+		got, err := gs.SaveGroup(e.ctx, []connectors.GroupItem{
+			{Connection: connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("owner_%d", n)}, Credentials: connectors.Credentials{"token": botToken}},
+			{Connection: connectors.Connection{TenantID: e.tenant, Kind: catalog.KindTelegramBot, Name: fmt.Sprintf("dep_%d", n)}, Credentials: connectors.Credentials{"token": botToken}},
+		})
+		require.NoError(t, err)
+		if got[1].ID.String() < got[0].ID.String() {
+			saved = got
+		}
+	}
+	require.NotNil(t, saved)
+
+	hold, err := e.db.Begin(e.ctx)
+	require.NoError(t, err)
+	_, err = hold.Exec(e.ctx, `SELECT 1 FROM automation.connections WHERE id = $1 FOR UPDATE`, saved[1].ID)
+	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() {
+		_, err := gs.SaveGroup(e.ctx, []connectors.GroupItem{
+			{Connection: saved[0], Credentials: connectors.Credentials{"token": botToken}},
+			{Connection: saved[1], Credentials: connectors.Credentials{"token": botToken}},
+		})
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		_ = hold.Rollback(e.ctx)
+		t.Fatalf("SaveGroup returned %v while a row it updates was locked", err)
+	case <-time.After(500 * time.Millisecond):
+	}
+	probe, err := e.db.Begin(e.ctx)
+	require.NoError(t, err)
+	var got uuid.UUID
+	err = probe.QueryRow(e.ctx, `SELECT id FROM automation.connections WHERE id = $1 FOR UPDATE NOWAIT`, saved[0].ID).Scan(&got)
+	_ = probe.Rollback(e.ctx)
+	if err != nil {
+		_ = hold.Rollback(e.ctx)
+		<-done
+	}
+	require.NoError(t, err, "the waiting save does not hold the owner")
+	require.NoError(t, hold.Rollback(e.ctx))
+	require.NoError(t, <-done)
+}

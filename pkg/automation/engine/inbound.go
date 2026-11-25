@@ -291,6 +291,15 @@ type Poller interface {
 	Poll(ctx context.Context, c connectors.Connection, creds connectors.Credentials, cursor json.RawMessage) (events []InboundEvent, next json.RawMessage, err error)
 }
 
+// Baseliner is an optional interface of a Poller: where a connection's cursor stands now, without reading
+// or publishing anything. The poller keeps the cursor of a connected connection that no enabled graph
+// uses up to date with it, so a graph enabled later (a wait for a reply, an inbound trigger) starts from a
+// cursor at most one interval old: mail that arrived before the graph existed is never published, and mail
+// that arrives after it is never skipped.
+type Baseliner interface {
+	Baseline(ctx context.Context, c connectors.Connection, creds connectors.Credentials) (json.RawMessage, error)
+}
+
 // InboundConfig wires InboundHandler.
 type InboundConfig struct {
 	Connections connectors.ConnectionStore

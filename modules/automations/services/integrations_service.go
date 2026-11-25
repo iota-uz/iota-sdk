@@ -154,6 +154,9 @@ type ConnectorEntry struct {
 	Connector   connectors.Connector
 	Platform    *PlatformState // nil: policy none
 	Connections []ConnectionEntry
+	// OAuthPresets are the sign-in presets of the connector the application can use: the provider's OAuth2
+	// client is configured (a preset without one is not offered).
+	OAuthPresets []string
 }
 
 // ListOptions configures List.
@@ -284,9 +287,29 @@ func (s *IntegrationsService) List(ctx context.Context, a Actor, opts ListOption
 		if entry.Platform, err = s.platformState(ctx, a.TenantID, conn); err != nil {
 			return nil, serrors.Wrap(op, err)
 		}
+		entry.OAuthPresets = s.availablePresets(conn)
 		out = append(out, entry)
 	}
 	return out, nil
+}
+
+// availablePresets are the sign-in presets of a connector whose OAuth2 client credential the application has.
+func (s *IntegrationsService) availablePresets(conn connectors.Connector) []string {
+	d := conn.Descriptor()
+	if len(d.OAuth2Presets) == 0 || s.oauth == nil || s.platform == nil || s.states == nil {
+		return nil
+	}
+	if _, ok := s.oauth.(connectors.PresetOAuth2); !ok {
+		return nil
+	}
+	var out []string
+	for name, p := range d.OAuth2Presets {
+		if client, _, ok := s.platform.Platform(catalog.ConnectorKind(p.ClientCredential)); ok && client[connectors.OAuth2ClientID] != "" {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (s *IntegrationsService) usedBy(ctx context.Context, tenantID, id uuid.UUID) (int, error) {
@@ -831,7 +854,10 @@ func (s *IntegrationsService) load(ctx context.Context, tenantID, id uuid.UUID) 
 	if az, ok := conn.(connectors.ConnectionAuthorizer); ok && az.SignsIn(creds) {
 		return s.loadAuthorized(ctx, az, cur, conn, creds)
 	}
-	if conn.Descriptor().Auth != connectors.AuthOAuth2 || s.oauth == nil {
+	// A connector with a form and a sign-in (an email box) signs in with a preset its credentials name.
+	d := conn.Descriptor()
+	_, preset := d.OAuth2Presets[creds[connectors.OAuth2Preset]]
+	if (d.Auth != connectors.AuthOAuth2 && !preset) || s.oauth == nil {
 		return cur, conn, creds, false, nil
 	}
 	// A connected connection gets its token as a node would; a disabled one (being enabled, or checked)
@@ -1043,16 +1069,28 @@ func (s *IntegrationsService) SetPlatformEnabled(ctx context.Context, a Actor, k
 // OAuthStart begins an OAuth2 authorization for a new connection (name) or the re-authorization of
 // connectionID; the state is kept for this user and tenant only.
 func (s *IntegrationsService) OAuthStart(ctx context.Context, a Actor, kind catalog.ConnectorKind, name, displayName string, connectionID uuid.UUID, redirectURL string) (string, error) {
+	return s.OAuthStartPreset(ctx, a, kind, "", name, displayName, connectionID, redirectURL)
+}
+
+// OAuthStartPreset is OAuthStart for a connector that has a form and also signs in with a provider (an
+// email box: preset gmail or m365). The sign-in makes every connection the connector's finisher names
+// (one to send, one to receive) and saves them together.
+func (s *IntegrationsService) OAuthStartPreset(ctx context.Context, a Actor, kind catalog.ConnectorKind, preset, name, displayName string, connectionID uuid.UUID, redirectURL string) (string, error) {
 	const op = serrors.Op("automations.IntegrationsService.OAuthStart")
 	conn, ok := s.dir.Get(kind)
 	if !ok {
 		return "", connectors.ErrNotFound
 	}
-	if az, ok := conn.(connectors.ConnectionAuthorizer); ok {
+	if az, ok := conn.(connectors.ConnectionAuthorizer); ok && preset == "" {
 		return s.signInStart(ctx, a, az, kind, connectionID, redirectURL)
 	}
-	if conn.Descriptor().Auth != connectors.AuthOAuth2 {
-		return "", &InvalidInputError{Fields: map[string]string{"kind": "oauth2"}}
+	d := conn.Descriptor()
+	if preset == "" {
+		if d.Auth != connectors.AuthOAuth2 {
+			return "", &InvalidInputError{Fields: map[string]string{"kind": "oauth2"}}
+		}
+	} else if _, known := d.OAuth2Presets[preset]; !known || d.Auth == connectors.AuthOAuth2 {
+		return "", &InvalidInputError{Fields: map[string]string{"preset": "oauth2"}}
 	}
 	if s.oauth == nil || s.states == nil {
 		return "", ErrOAuthUnavailable
@@ -1070,7 +1108,17 @@ func (s *IntegrationsService) OAuthStart(ctx context.Context, a Actor, kind cata
 			return "", connectors.ErrNotFound
 		}
 	}
-	authURL, state, err := s.oauth.Begin(ctx, a.TenantID, kind, redirectURL)
+	var (
+		authURL, state string
+		err            error
+	)
+	if preset == "" {
+		authURL, state, err = s.oauth.Begin(ctx, a.TenantID, kind, redirectURL)
+	} else if p, ok := s.oauth.(connectors.PresetOAuth2); ok {
+		authURL, state, err = p.BeginPreset(ctx, a.TenantID, kind, preset, redirectURL)
+	} else {
+		return "", ErrOAuthUnavailable
+	}
 	if err != nil {
 		if errors.Is(err, connectors.ErrNotConfigured) {
 			return "", ErrOAuthUnavailable
@@ -1211,9 +1259,15 @@ func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state,
 		return connectors.Connection{}, OAuthState{}, ErrStateInvalid
 	}
 	// The connector's Test produced the identity from the new token: it is stored and listed, so it is
-	// sanitized against the token set before either write (every field of a token set is secret).
-	grant.Identity = validIdentity(grant.Identity, func(string) bool { return true }, grant.Credentials)
-	var saved connectors.Connection
+	// sanitized against the credentials before either write: every field of an OAuth2 connector's token
+	// set is secret; a connector with a form besides its sign-in keeps its login and mailbox in the clear.
+	connector, ok := s.dir.Get(grant.Kind)
+	if !ok {
+		return connectors.Connection{}, pending, connectors.ErrNotFound
+	}
+	secret := secretsOf(connector.Descriptor())
+	grant.Identity = validIdentity(grant.Identity, secret, grant.Credentials)
+	var primary connectors.GroupItem
 	if pending.ConnectionID != uuid.Nil {
 		cur, old, err := s.store.Get(ctx, a.TenantID, pending.ConnectionID)
 		if err != nil {
@@ -1222,15 +1276,24 @@ func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state,
 		if cur.Kind != grant.Kind {
 			return connectors.Connection{}, pending, connectors.ErrNotFound
 		}
-		all := func(string) bool { return true }
-		cur.Identity = validIdentity(grant.Identity, all, grant.Credentials, old)
-		scrubRetained(&cur, all, old, grant.Credentials)
+		// A sign-in of another account does not take over a connection that is part of a pair: the other
+		// connection of the pair would keep the old mailbox's settings and take the new account's tokens.
+		if len(grant.Companions) > 0 && cur.Identity.External != "" && cur.Identity.External != grant.Identity.External {
+			return connectors.Connection{}, pending, ErrOAuthRefused
+		}
+		// Nor does a sign-in with another provider (a Gmail pair signed in again with Microsoft for the same
+		// address): the companion of the other provider is not replaced with it, and would end up on a token of
+		// a provider it does not connect to.
+		if p := old[connectors.OAuth2Preset]; p != "" && grant.Credentials[connectors.OAuth2Preset] != p {
+			return connectors.Connection{}, pending, ErrOAuthRefused
+		}
+		cur.Identity = validIdentity(grant.Identity, secret, grant.Credentials, old)
+		scrubRetained(&cur, secret, old, grant.Credentials)
 		if cur.Status != connectors.StatusDisabled {
 			cur.Status, cur.StatusReason = connectors.StatusConnected, ""
 		}
-		if saved, err = s.store.Save(ctx, cur, grant.Credentials); err != nil {
-			return connectors.Connection{}, pending, mapStoreError(op, err)
-		}
+		// The settings the grant does not own (the folder of a mailbox) stay as they were.
+		primary = connectors.GroupItem{Connection: cur, Credentials: connectors.KeepSettings(grant.Credentials, old)}
 	} else {
 		name := pending.Name
 		if name == "" {
@@ -1240,13 +1303,42 @@ func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state,
 		if display == "" {
 			display = grant.Identity.Display
 		}
-		saved, err = s.store.Save(ctx, connectors.Connection{
+		primary = connectors.GroupItem{Connection: connectors.Connection{
 			TenantID: a.TenantID, Kind: grant.Kind, Name: name, DisplayName: display,
 			Identity: grant.Identity, Status: connectors.StatusConnected, CreatedBy: a.UserID,
-		}, grant.Credentials)
+		}, Credentials: grant.Credentials}
+	}
+	var saved connectors.Connection
+	if len(grant.Companions) == 0 {
+		if saved, err = s.store.Save(ctx, primary.Connection, primary.Credentials); err != nil {
+			return connectors.Connection{}, pending, mapStoreError(op, err)
+		}
+	} else {
+		// One sign-in, several connections (an email box sends and receives): saved together, so a failed
+		// write leaves neither, and the later ones take their tokens from the first.
+		group, ok := s.store.(connectors.GroupSaver)
+		if !ok {
+			return connectors.Connection{}, pending, serrors.Wrap(op, ErrOAuthExchange)
+		}
+		items := []connectors.GroupItem{primary}
+		for _, comp := range grant.Companions {
+			cc, ok := s.dir.Get(comp.Kind)
+			if !ok {
+				return connectors.Connection{}, pending, serrors.Wrap(op, ErrOAuthExchange)
+			}
+			csecret := secretsOf(cc.Descriptor())
+			comp.Identity = validIdentity(comp.Identity, csecret, comp.Credentials)
+			it, err := connectors.PlanCompanion(ctx, s.store, csecret, a.TenantID, comp, a.UserID, primary)
+			if err != nil {
+				return connectors.Connection{}, pending, mapStoreError(op, err)
+			}
+			items = append(items, it)
+		}
+		all, err := group.SaveGroup(ctx, items)
 		if err != nil {
 			return connectors.Connection{}, pending, mapStoreError(op, err)
 		}
+		saved = all[0]
 	}
 	s.touch(ctx, a.TenantID, saved.ID)
 	return saved, pending, nil

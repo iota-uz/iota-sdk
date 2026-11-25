@@ -149,3 +149,85 @@ func TestComponentWithoutKeysIsUnconfigured(t *testing.T) {
 	_, err = store.List(f.Ctx, uuid.New(), "")
 	require.ErrorIs(t, err, connectors.ErrNotConfigured)
 }
+
+// The SDK's AI connectors are in the directory, and the platform keys the environment configures are
+// offered by opt-in; an explicit platform credential of the kind wins over the environment.
+func TestComponentRegistersTheAIConnectors(t *testing.T) {
+	src, err := config.Build(static.New(map[string]any{
+		"automation.openai.apikey":        "sk-openai",
+		"automation.openai.baseurl":       "https://llm.example.com/v1",
+		"automation.jev.apikey":           "sk-jev",
+		"automation.jev.provider":         "openai",
+		"automation.platform.credentials": `{"jev": {"provider": "openrouter", "api_key": "sk-explicit"}}`,
+	}))
+	require.NoError(t, err)
+	components := []composition.Component{}
+	for _, c := range modules.Components() {
+		if c.Descriptor().Name != "automations" {
+			components = append(components, c)
+		}
+	}
+	components = append(components, automations.NewComponent())
+	f := itf.Setup(t, itf.WithComponents(components...), itf.WithUser(itf.User()), itf.WithSource(src))
+
+	dir, err := composition.Resolve[connectors.Directory](f.Container)
+	require.NoError(t, err)
+	for _, kind := range []catalog.ConnectorKind{catalog.KindOpenAI, catalog.KindJEV} {
+		c, ok := dir.Get(kind)
+		require.True(t, ok, kind)
+		assert.Equal(t, connectors.PlatformOptIn, c.Descriptor().Platform, kind)
+		assert.Equal(t, connectors.CategoryAI, c.Descriptor().Category, kind)
+	}
+	reg, err := composition.Resolve[catalog.Registry](f.Container)
+	require.NoError(t, err)
+	_, hasLLM := reg.Node("ai.llm")
+	_, hasJev := reg.Node("ai.jev")
+	assert.True(t, hasLLM)
+	assert.True(t, hasJev)
+
+	platform, err := composition.Resolve[connectors.PlatformCredentials](f.Container)
+	require.NoError(t, err)
+	creds, _, ok := platform.Platform(catalog.KindOpenAI)
+	require.True(t, ok)
+	assert.Equal(t, connectors.Credentials{"api_key": "sk-openai", "base_url": "https://llm.example.com/v1"}, creds)
+	creds, _, ok = platform.Platform(catalog.KindJEV)
+	require.True(t, ok)
+	assert.Equal(t, connectors.Credentials{"provider": "openrouter", "api_key": "sk-explicit"}, creds, "an explicit platform credential wins")
+	assert.Equal(t, []catalog.ConnectorKind{catalog.KindJEV, catalog.KindOpenAI}, platform.(connectors.PlatformCatalog).Kinds())
+}
+
+// The registry the module provides learns from the store which platform keys a tenant cannot use: a node that
+// leaves its connection out ends with unavailable, not connection_unavailable, when the key is switched off.
+func TestModuleRegistryKnowsWithheldPlatformKeys(t *testing.T) {
+	src, err := config.Build(static.New(map[string]any{"automation.openai.apikey": "sk-openai"}))
+	require.NoError(t, err)
+	components := []composition.Component{}
+	for _, c := range modules.Components() {
+		if c.Descriptor().Name != "automations" {
+			components = append(components, c)
+		}
+	}
+	components = append(components, automations.NewComponent())
+	f := itf.Setup(t, itf.WithComponents(components...), itf.WithUser(itf.User()), itf.WithSource(src))
+	reg, err := composition.Resolve[catalog.Registry](f.Container)
+	require.NoError(t, err)
+	grants, err := composition.Resolve[connectors.PlatformGrants](f.Container)
+	require.NoError(t, err)
+	tenant := f.Tenant.ID
+
+	view, err := reg.ForTenant(f.Ctx, tenant)
+	require.NoError(t, err)
+	assert.True(t, view.PlatformWithheld[catalog.KindOpenAI], "offered by the platform, not enabled by the tenant")
+	assert.NotContains(t, view.Catalog.Nodes, "ai.llm")
+
+	require.NoError(t, grants.SetEnabled(f.Ctx, tenant, catalog.KindOpenAI, true, 0))
+	view, err = reg.ForTenant(f.Ctx, tenant)
+	require.NoError(t, err)
+	assert.False(t, view.PlatformWithheld[catalog.KindOpenAI])
+	assert.Contains(t, view.Catalog.Nodes, "ai.llm")
+
+	require.NoError(t, grants.SetEnabled(f.Ctx, tenant, catalog.KindOpenAI, false, 0))
+	view, err = reg.ForTenant(f.Ctx, tenant)
+	require.NoError(t, err)
+	assert.True(t, view.PlatformWithheld[catalog.KindOpenAI], "switched off again")
+}

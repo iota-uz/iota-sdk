@@ -88,6 +88,7 @@ type Service interface {
 	Options(ctx context.Context, a services.Actor, connectionID uuid.UUID, source, query string) ([]connectors.Option, error)
 	SetPlatformEnabled(ctx context.Context, a services.Actor, kind catalog.ConnectorKind, enabled bool) error
 	OAuthStart(ctx context.Context, a services.Actor, kind catalog.ConnectorKind, name, displayName string, connectionID uuid.UUID, redirectURL string) (string, error)
+	OAuthStartPreset(ctx context.Context, a services.Actor, kind catalog.ConnectorKind, preset, name, displayName string, connectionID uuid.UUID, redirectURL string) (string, error)
 	OAuthComplete(ctx context.Context, a services.Actor, state, code string) (connectors.Connection, services.OAuthState, error)
 	OAuthAbandon(ctx context.Context, a services.Actor, state string) (services.OAuthState, error)
 }

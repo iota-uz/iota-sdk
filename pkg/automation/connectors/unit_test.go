@@ -1,6 +1,7 @@
 package connectors_test
 
 import (
+	"context"
 	"encoding/base64"
 	"os"
 	"path/filepath"
@@ -245,4 +246,31 @@ func TestCarriesSecretFailsClosedPastTheDecodingDepth(t *testing.T) {
 	for _, ok := range []string{"robot@acme.uz", "@acme_sales_bot", "+998 90 123 45 67", "Sales bot", "docs.team+drive@acme-group.uz"} {
 		assert.False(t, connectors.CarriesSecret(ok, all, creds), ok)
 	}
+}
+
+// A connector with providers to sign in with (OAuth2Presets) and its own authorization server
+// (ConnectionAuthorizer) would have the state of one sign-in finished as the other: it is refused when it is
+// registered.
+type presetAuthorizer struct {
+	connectors.ConnectionAuthorizer
+}
+
+func (presetAuthorizer) Kind() catalog.ConnectorKind { return "both" }
+func (presetAuthorizer) Descriptor() connectors.Descriptor {
+	return connectors.Descriptor{
+		Kind: "both", Title: map[string]string{"en": "Both"}, Category: connectors.CategoryOther, Auth: connectors.AuthCustom,
+		Credentials:   []byte(`{"type":"object","properties":{}}`),
+		OAuth2Presets: map[string]connectors.OAuth2Config{"p": {AuthURL: "https://a.example/auth", TokenURL: "https://a.example/token", ClientCredential: "p_client"}},
+	}
+}
+func (presetAuthorizer) Nodes() []catalog.NodeType         { return nil }
+func (presetAuthorizer) Triggers() []catalog.TriggerSource { return nil }
+func (presetAuthorizer) Test(context.Context, connectors.Credentials) (connectors.Identity, error) {
+	return connectors.Identity{}, nil
+}
+
+func TestDirectoryRefusesPresetsOnAConnectionAuthorizer(t *testing.T) {
+	err := connectors.NewDirectory(nil).Register(presetAuthorizer{})
+	require.ErrorIs(t, err, connectors.ErrInvalid)
+	require.ErrorContains(t, err, "ConnectionAuthorizer", "refused for this reason, not for an invalid descriptor")
 }

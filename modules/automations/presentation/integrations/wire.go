@@ -127,9 +127,12 @@ type ConnectorView struct {
 	// "x-secret": true is write-only.
 	CredentialSchema any `json:"credential_schema"`
 	// Nodes are the titles of the nodes a connection makes available.
-	Nodes       []string         `json:"nodes"`
-	Platform    *PlatformView    `json:"platform"`
-	Connections []ConnectionView `json:"connections"`
+	Nodes []string `json:"nodes"`
+	// OAuthPresets are the sign-in presets the connector offers that the application can use (its OAuth2
+	// client is configured); empty for a connector with no sign-in besides its form.
+	OAuthPresets []string         `json:"oauth_presets,omitempty"`
+	Platform     *PlatformView    `json:"platform"`
+	Connections  []ConnectionView `json:"connections"`
 }
 
 // ListResponse is the result of automations.connectors.list.
@@ -198,6 +201,9 @@ type OAuthStartRequest struct {
 	Name         string `json:"name"`
 	DisplayName  string `json:"display_name,omitempty"`
 	ConnectionID string `json:"connection_id,omitempty"`
+	// Preset is the provider of a connector that has a form and a sign-in (gmail, m365); it is one of the
+	// connector's oauth_presets.
+	Preset string `json:"preset,omitempty"`
 }
 
 // OAuthStartResponse is where to send the browser.

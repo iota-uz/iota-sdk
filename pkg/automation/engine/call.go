@@ -37,6 +37,41 @@ const (
 	CodeInvalidInput   = "invalid_input"
 )
 
+// connectionLost is the failure of a call whose connection the tenant cannot use now: unavailable when the
+// node names the platform credential or works with a kind whose platform credential the tenant's
+// administrator withheld, else connection_unavailable.
+func connectionLost(view catalog.View, node graph.Node, kinds []catalog.ConnectorKind, params map[string]any) *StepError {
+	named, _ := params[catalog.ConnectionParam].(string)
+	// A node that names a connection of the tenant is not about the platform key, whatever is withheld.
+	off := strings.HasPrefix(named, catalog.PlatformPrefix)
+	if named == "" {
+		for _, k := range kinds {
+			off = off || view.PlatformWithheld[k]
+		}
+	}
+	if off {
+		return &StepError{Code: catalog.CallUnavailable, Message: platformOffMessage}
+	}
+	return &StepError{Code: CodeConnectionUnavailable, Message: "the connection of " + node.ID + " is not available"}
+}
+
+// paramTimeout is the deadline a call's params ask for: `timeout` (a duration such as 30s, or
+// milliseconds) or, for a node that names it so, `timeout_ms` (milliseconds).
+func paramTimeout(params map[string]any) (time.Duration, bool) {
+	for _, name := range []string{"timeout", "timeout_ms"} {
+		if v, set := params[name]; set && v != nil {
+			if ms, ok := graph.DurationMs(v); ok {
+				return time.Duration(ms) * time.Millisecond, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// platformOffMessage is why a call that names the platform credential cannot run: its tenant's
+// administrator has not enabled it, or switched it off.
+const platformOffMessage = "the platform key is not enabled for the tenant (платформенный ключ не включён)"
+
 // Masker replaces secrets with "***" in text and JSON (code.NewMasker).
 type Masker = code.Masker
 
@@ -132,6 +167,8 @@ type callRecord struct {
 	Message   string          `json:"message,omitempty"`
 	Retryable bool            `json:"retryable,omitempty"`
 	Await     *AwaitSpec      `json:"await,omitempty"`
+	// Logs are the lines the node wrote with Log during the attempt, masked with the connection's secrets.
+	Logs []string `json:"logs,omitempty"`
 }
 
 // ResolvedCall is the result an operator records for a blocked call (Operations.Resolve): the journal
@@ -225,7 +262,7 @@ func (c *CallRunner) recordedAnswer(raw []byte, req CallRequest) (WaitResult, bo
 	}
 	switch rec.Kind {
 	case "result":
-		return WaitResult{WaitID: req.WaitID, Outcome: rec.Outcome, Output: rec.Output, Await: rec.Await}, true
+		return WaitResult{WaitID: req.WaitID, Outcome: rec.Outcome, Output: rec.Output, Await: rec.Await, Logs: rec.Logs}, true
 	case "failed":
 		out, err := json.Marshal(graph.FailedOutput(rec.Code, rec.Message, rec.Retryable))
 		if err != nil {
@@ -235,7 +272,8 @@ func (c *CallRunner) recordedAnswer(raw []byte, req CallRequest) (WaitResult, bo
 		if nt, ok := c.r.cfg.Catalog.Node(req.NodeType); ok {
 			fo = nt.Spec().FailedOutcome
 		}
-		return WaitResult{WaitID: req.WaitID, Outcome: fo, Output: out, Error: &StepError{Code: rec.Code, Message: rec.Message, Retryable: rec.Retryable}}, true
+		// What the node logged before it failed goes with the failure, as with an answer.
+		return WaitResult{WaitID: req.WaitID, Outcome: fo, Output: out, Error: &StepError{Code: rec.Code, Message: rec.Message, Retryable: rec.Retryable}, Logs: rec.Logs}, true
 	}
 	return WaitResult{}, false
 }
@@ -356,8 +394,8 @@ func (c *CallRunner) Begin(ctx context.Context, tx pgx.Tx, run StepContext, node
 	}
 	limits := c.r.cfg.CallLimits
 	timeout := limits.DefaultTimeout
-	if ms, ok := graph.DurationMs(params["timeout"]); ok {
-		timeout = time.Duration(ms) * time.Millisecond
+	if t, ok := paramTimeout(params); ok {
+		timeout = t
 	}
 	if timeout > limits.MaxTimeout {
 		timeout = limits.MaxTimeout
@@ -388,14 +426,25 @@ func (c *CallRunner) Begin(ctx context.Context, tx pgx.Tx, run StepContext, node
 	if err != nil {
 		return WaitSpec{}, &host.InfraError{Err: err}
 	}
-	// The node's own kinds and its connector's.
-	if kinds := view.NodeRequires[node.Type]; len(kinds) > 0 {
+	// The node's own kinds and its connector's. A node the catalog lost since the step was entered (its
+	// connection went away, or the platform key it ran on was switched off) still works with them: it
+	// is not a call without a connector.
+	kinds := view.NodeRequires[node.Type]
+	if len(kinds) == 0 {
+		if lost := view.UnavailableRequires[node.Type]; len(lost) > 0 {
+			if needsReauth(ctx, tx, run.TenantID, params[catalog.ConnectionParam], lost) {
+				return WaitSpec{}, &StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth}
+			}
+			return WaitSpec{}, connectionLost(view, node, lost, params)
+		}
+	}
+	if len(kinds) > 0 {
 		ref, kind, err := catalog.ResolveConnection(view.Connections, kinds, params[catalog.ConnectionParam])
 		if err != nil {
 			if needsReauth(ctx, tx, run.TenantID, params[catalog.ConnectionParam], kinds) {
 				return WaitSpec{}, &StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth}
 			}
-			return WaitSpec{}, &StepError{Code: CodeConnectionUnavailable, Message: "the connection of " + node.ID + " is not available"}
+			return WaitSpec{}, connectionLost(view, node, kinds, params)
 		}
 		req.Connection, req.ConnectorKind = ref.ID, string(kind)
 		if id, err := uuid.Parse(ref.ID); err == nil {
@@ -561,7 +610,7 @@ func (x *callExec) run(ctx context.Context) (WaitResult, error) {
 		switch rec.Kind {
 		case "result":
 			x.c.r.metrics.call(ctx, x.connector(nt), req.NodeType, "ok")
-			wr := WaitResult{Outcome: rec.Outcome, Output: rec.Output}
+			wr := WaitResult{Outcome: rec.Outcome, Output: rec.Output, Logs: rec.Logs}
 			if rec.Await != nil {
 				wr.Await = rec.Await
 			}
@@ -573,7 +622,9 @@ func (x *callExec) run(ctx context.Context) (WaitResult, error) {
 			}
 			continue
 		default:
-			return x.failed(nt, rec.Code, rec.Message, rec.Retryable), nil
+			wr := x.failed(nt, rec.Code, rec.Message, rec.Retryable)
+			wr.Logs = rec.Logs
+			return wr, nil
 		}
 	}
 }
@@ -908,12 +959,16 @@ func (x *callExec) open(ctx context.Context, cn catalog.CallNode) (*openConnecti
 	switch {
 	case errors.Is(err, connectors.ErrNeedsReauth):
 		return nil, &callRecord{Kind: "failed", Code: catalog.CallUnauthorized, Message: msgNeedsReauth}, nil
+	case errors.Is(err, connectors.ErrNotFound) && strings.HasPrefix(req.Connection, catalog.PlatformPrefix):
+		// The platform credential is no longer the tenant's: its administrator switched it off after the
+		// run started (or the application stopped offering it).
+		return nil, &callRecord{Kind: "failed", Code: catalog.CallUnavailable, Message: platformOffMessage}, nil
 	case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrUndecryptable):
 		return nil, &callRecord{Kind: "failed", Code: CodeConnectionUnavailable, Message: "the connection is not connected"}, nil
 	case err != nil:
 		return nil, nil, &host.InfraError{Err: fmt.Errorf("open the connection of %s: %w", req.NodeID, err)}
 	}
-	conn.info, conn.creds, conn.masker = &ci, cr, code.NewMasker(map[string]string(cr))
+	conn.info, conn.creds, conn.masker = &ci, cr, x.c.r.credentialMasker(ci.Kind, cr)
 	return conn, nil, nil
 }
 
@@ -966,24 +1021,45 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, prior int, 
 	if token != "" {
 		callCtx = WithCorrelation(callCtx, Correlation{Token: token})
 	}
+	logs := &logCollector{}
+	callCtx = withLogs(callCtx, logs)
 	started := time.Now()
 	res, err := cn.Execute(callCtx, in)
 	x.c.r.metrics.callDuration(ctx, x.connector(cn), time.Since(started))
+	rec, err := x.recordOf(ctx, callCtx, cn, in, res, err, prior, a, limits, idempotent, masker, token, afterSeq)
+	if err != nil {
+		return rec, err
+	}
+	// What the node logged goes with its record (masked): the step shows it.
+	if lines := logs.lines(); len(lines) > 0 {
+		rec.Logs = make([]string, len(lines))
+		for i, l := range lines {
+			rec.Logs[i] = masker.Mask(l)
+		}
+	}
+	return rec, nil
+}
+
+// recordOf is the record of one executed attempt: its result, a repeat or a failure. ctx is the
+// process's, callCtx the call's (its deadline).
+func (x *callExec) recordOf(ctx, callCtx context.Context, cn catalog.CallNode, in catalog.CallInput, res catalog.CallResult, err error, prior int, a workflow.EffectAttempt,
+	limits CallLimits, idempotent bool, masker Masker, token string, afterSeq int64) (callRecord, error) {
+	req := x.req
 	if err != nil {
 		var ce *catalog.CallError
 		if errors.As(err, &ce) {
 			msg := masker.Mask(ce.Message)
-			ce = &catalog.CallError{Code: callCode(ce.Code, masker), Message: ce.Message, Retryable: ce.Retryable}
+			ce = &catalog.CallError{Code: callCode(ce.Code, masker), Message: ce.Message, Retryable: ce.Retryable, RetryAfter: ce.RetryAfter}
 			switch {
 			case ce.Code == catalog.CallOutcomeUnknown:
 				return x.unknown(msg)
 			case ce.Code == catalog.CallRateLimited:
-				return x.repeat(prior+a.Attempt, 0, limits, CodeRateLimited, msg)
+				return x.repeat(prior+a.Attempt, ce.RetryAfter, limits, CodeRateLimited, msg)
 			case clientRefusal(ce.Code):
 				// A refusal of the request itself: repeating it gives the same answer.
 				return callRecord{Kind: "failed", Code: ce.Code, Message: msg}, nil
 			case ce.Retryable && idempotent:
-				return x.repeat(prior+a.Attempt, 0, limits, ce.Code, msg)
+				return x.repeat(prior+a.Attempt, ce.RetryAfter, limits, ce.Code, msg)
 			}
 			return callRecord{Kind: "failed", Code: ce.Code, Message: msg, Retryable: ce.Retryable}, nil
 		}

@@ -115,28 +115,6 @@ type PlatformStarter interface {
 	StartPlatform(ctx context.Context, creds Credentials) error
 }
 
-// WithPlatformProviders adds the platform credentials the connectors of dir bring themselves, for a
-// kind the configuration (creds) does not name.
-func WithPlatformProviders(creds map[catalog.ConnectorKind]PlatformCredential, list ...Connector) map[catalog.ConnectorKind]PlatformCredential {
-	out := make(map[catalog.ConnectorKind]PlatformCredential, len(creds)+len(list))
-	for k, v := range creds {
-		out[k] = v
-	}
-	for _, c := range list {
-		pp, ok := c.(PlatformProvider)
-		if !ok {
-			continue
-		}
-		if _, set := out[c.Kind()]; set {
-			continue
-		}
-		if pc, ok := pp.PlatformCredential(); ok && len(pc.Credentials) > 0 {
-			out[c.Kind()] = pc
-		}
-	}
-	return out
-}
-
 // Option is a choice offered for a node's param: the value goes into the params, the label is shown, the
 // group (a key the screen names) sorts the choices.
 type Option struct {

@@ -137,7 +137,16 @@
         },
         "ConfirmWarning": "仍然连接",
         "ConfirmRequired": "请确认：尽管有上述警告，仍要连接此机器人。",
-        "BotInUse": "此机器人已被占用：它已作为另一个连接接入，或属于其他账户或平台。请改用其他机器人，或联系管理员。如果您管理现有连接，请先删除它（仅停用会继续占用该机器人）。"
+        "BotInUse": "此机器人已被占用：它已作为另一个连接接入，或属于其他账户或平台。请改用其他机器人，或联系管理员。如果您管理现有连接，请先删除它（仅停用会继续占用该机器人）。",
+        "Preset": {
+          "custom": "任意服务器（登录名和密码）",
+          "gmail": "Gmail（使用 Google 登录）",
+          "m365": "Microsoft 365（使用 Microsoft 登录）"
+        },
+        "PresetProvider": {
+          "gmail": "Google",
+          "m365": "Microsoft"
+        }
       },
       "Test": {
         "Running": "正在检查…",
@@ -423,9 +432,9 @@
         "Waiting": "等待中"
       },
       "Runs": {
-        "Empty": "尚未运行。",
-        "NoSteps": "尚无步骤。",
-        "Steps": "运行步骤"
+        "NotFound": "未找到运行",
+        "NotFoundText": "它已被删除，或属于另一个工作区。",
+        "Opening": "正在打开运行…"
       },
       "Status": {
         "Disabled": "已停用",
