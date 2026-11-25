@@ -45,6 +45,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/automations/presentation/graphs"
 	"github.com/iota-uz/iota-sdk/modules/automations/presentation/integrations"
 	"github.com/iota-uz/iota-sdk/modules/automations/services"
+	"github.com/iota-uz/iota-sdk/modules/automations/tasks"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
@@ -144,6 +145,7 @@ type component struct {
 	noMCP        bool
 	noEmail      bool
 	noTelegram   bool
+	subjectNames tasks.SubjectResolver
 }
 
 func (c *component) Descriptor() composition.Descriptor {
@@ -301,6 +303,14 @@ func (c *component) Build(b *composition.Builder) error {
 		if err := registerBuiltins(reg, container); err != nil {
 			return nil, err
 		}
+		// The human node: its form annotation names a task form of the application.
+		forms, err := composition.Resolve[*tasks.Forms](container)
+		if err != nil {
+			return nil, err
+		}
+		if err := reg.RegisterNode(tasks.HumanNode(forms)); err != nil {
+			return nil, err
+		}
 		return reg, nil
 	})
 	// The actions of the application's native set (actions.Native) join the catalog when it starts.
@@ -308,6 +318,7 @@ func (c *component) Build(b *composition.Builder) error {
 		return []composition.Hook{actionsHook(container)}, nil
 	})
 	c.buildEngine(b)
+	c.buildTasks(b)
 	composition.ProvideDefault[connectors.Directory](b, func(container *composition.Container) (connectors.Directory, error) {
 		reg, err := composition.Resolve[catalog.Registry](container)
 		if err != nil {
@@ -791,7 +802,15 @@ func (c *component) buildPages(b *composition.Builder) {
 		hooks := graphs.NewHooksController(engine.InboundHandler(engine.InboundConfig{
 			Connections: store, Registry: reg, Inbound: rt.Inbound(), DB: db, Connectors: dir, Platform: platform,
 		}))
-		return []application.Controller{ctrl, hooks}, nil
+		out := []application.Controller{ctrl, hooks}
+		inboxCtrl, err := c.inboxController(container)
+		if err != nil {
+			return nil, err
+		}
+		if inboxCtrl != nil {
+			out = append(out, inboxCtrl)
+		}
+		return out, nil
 	})
 }
 

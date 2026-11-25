@@ -146,6 +146,7 @@ func (c *component) LocaleFS() []*embed.FS {
 func (c *component) Build(builder *composition.Builder) error {
 	const op serrors.Op = "core.component.Build"
 	composition.AddHashFS(builder, assets.HashFS)
+	contributeSubjectNames(builder)
 	channelAdapters := slices.Clone(c.options.NotificationChannels)
 	var webPush *webpush.Adapter
 	if c.options.NotificationWebPush != nil {
@@ -227,8 +228,11 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, func() *notifications.DeliveryPolicies {
 		return notifications.NewDeliveryPolicies(c.options.NotificationDeliveryPolicy)
 	})
-	composition.ProvideFunc(builder, func(notices notifications.NoticeRepository, renderers *notifications.ContentRenderers, contacts *notifications.ContactResolvers, devices notifications.PushDeviceRepository, policies *notifications.DeliveryPolicies) *services.NotificationPlatform {
-		return &services.NotificationPlatform{Notices: notices, Renderers: renderers, Contacts: contacts, Devices: devices, SubjectAccess: c.options.NotificationSubjectAccess, Policy: policies}
+	// Subject access: the rule a module contributed for its entity (notifications.ContributeSubjectAccess),
+	// else the application's NotificationSubjectAccess.
+	composition.ProvideFunc(builder, func(container *composition.Container, notices notifications.NoticeRepository, renderers *notifications.ContentRenderers, contacts *notifications.ContactResolvers, devices notifications.PushDeviceRepository, policies *notifications.DeliveryPolicies) *services.NotificationPlatform {
+		access := notifications.NewEntitySubjectAccess(container, c.options.NotificationSubjectAccess)
+		return &services.NotificationPlatform{Notices: notices, Renderers: renderers, Contacts: contacts, Devices: devices, SubjectAccess: access, Policy: policies}
 	})
 	composition.ProvideFunc(builder, func(repo notifications.DeliveryRepository, prefs notifications.PreferenceRepository, platform *services.NotificationPlatform, logger *logrus.Logger) *services.NotificationChannelService {
 		return services.NewNotificationChannelService(repo, prefs, channelAdapters, c.options.NotificationAddressResolver, logger).WithPlatform(platform)

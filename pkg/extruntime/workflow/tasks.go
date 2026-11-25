@@ -264,6 +264,10 @@ type TaskFilter struct {
 	// Cursor, when set, is CursorAfter of the last task of the previous page:
 	// its sort key as that page returned it. It takes precedence over After.
 	Cursor *TaskCursor
+	// PastDeadline also lists the open tasks past their final deadline that the
+	// run has not closed yet (they take no decision: PastFinalDeadline); by
+	// default they are left out.
+	PastDeadline bool
 }
 
 // ---- validation ----
@@ -638,6 +642,40 @@ func (e *Engine) loadTask(ctx context.Context, q taskQueryer, tenant, id uuid.UU
 		return Task{}, serrors.Wrap(opManage, fmt.Errorf("%w: task %s", ErrNotFound, id))
 	}
 	return tasks[0], nil
+}
+
+// PastFinalDeadline reports an open task whose due time passed at now with no escalation step left:
+// the run closes it as a timeout and DecideTask and DelegateTask refuse it (ErrTaskClosed), the
+// predicate they judge by. Tasks leaves such a task out of the inbox.
+func (t Task) PastFinalDeadline(now time.Time) bool {
+	return t.Status == "open" && t.DueAt != nil && !t.DueAt.After(now) && t.EscalationLevel >= len(t.Escalation)
+}
+
+// TasksByID reads tasks of the tenant by ID with their assignees,
+// delegations and decisions, in the order of ids; an ID of no task of the
+// tenant is left out. It judges no rights: a caller that shows a task to a
+// user decides who may see it (Tasks, DecideTask and DelegateTask judge
+// their own).
+func (e *Engine) TasksByID(ctx context.Context, tenant uuid.UUID, ids []uuid.UUID) ([]Task, error) {
+	if len(ids) == 0 {
+		return []Task{}, nil
+	}
+	tasks, err := e.queryTasks(ctx, e.cfg.DB, tenant, `t.id = ANY($2)`, ids)
+	if err != nil {
+		return nil, err
+	}
+	at := make(map[uuid.UUID]Task, len(tasks))
+	for _, t := range tasks {
+		at[t.ID] = t
+	}
+	out := make([]Task, 0, len(tasks))
+	for _, id := range ids {
+		if t, ok := at[id]; ok {
+			out = append(out, t)
+			delete(at, id)
+		}
+	}
+	return out, nil
 }
 
 // ---- observers ----
@@ -1408,7 +1446,7 @@ func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, stat
 			  AND ($5 = '' OR i.workflow = $5)
 			  AND ($6::boolean IS NULL OR (t.due_at IS NOT NULL AND t.due_at < now()) = $6)
 			  AND (NOT $7 OR (COALESCE(t.due_at, 'infinity'::timestamptz), t.id) > (COALESCE($8::timestamptz, 'infinity'::timestamptz), $9::uuid))
-			  AND (t.status <> 'open' OR NOT `+pastFinalDeadline+`)
+			  AND (t.status <> 'open' OR $12 OR NOT `+pastFinalDeadline+`)
 			  AND NOT EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id AND a.delegated_from = $2)
 			  AND (t.status <> 'open' OR NOT EXISTS (SELECT 1 FROM extruntime.human_task_decisions d WHERE d.task_id = t.id AND d.user_id = $2))
 			  AND EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id
@@ -1416,7 +1454,7 @@ func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, stat
 					     OR (a.kind IN ('role', 'group') AND a.delegated_from IS NULL AND $10)))
 			ORDER BY COALESCE(t.due_at, 'infinity'::timestamptz), t.id
 			LIMIT $11`,
-			current.TenantID, current.UserID, perms, statuses, f.Workflow, f.Overdue, hasCursor, afterDue, afterID, audience, batch)
+			current.TenantID, current.UserID, perms, statuses, f.Workflow, f.Overdue, hasCursor, afterDue, afterID, audience, batch, f.PastDeadline)
 		if err != nil {
 			return nil, serrors.FromDB(opManage, err)
 		}

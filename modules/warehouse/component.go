@@ -42,6 +42,7 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
+	contributeSubjectNames(builder)
 	composition.AddNavNodes(builder, WarehouseLink)
 	notifications.ContributeDefinitions(builder, eventNotifications()...)
 	composition.AddAssets(builder, &assets.FS)
