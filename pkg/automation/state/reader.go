@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 
 	"github.com/google/uuid"
@@ -70,6 +71,50 @@ func (r *Reader) Err() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.err
+}
+
+// Snapshot is what every key read so far looked like: whether it was there and its value. A decision made
+// over the memory (a preparation of an effect) keeps it to tell later whether it still holds.
+func (r *Reader) Snapshot() map[string]string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.cache) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(r.cache))
+	for key, f := range r.cache {
+		out[key] = fingerprint(f.value, f.ok)
+	}
+	return out
+}
+
+// Same reports that every key of a snapshot reads as it did: through r, which reads the keys it has not read
+// yet. An empty snapshot is the same for any memory, a nil Reader included.
+func (r *Reader) Same(snapshot map[string]string) bool {
+	if len(snapshot) == 0 {
+		return true
+	}
+	if r == nil {
+		return false
+	}
+	for key, was := range snapshot {
+		v, ok, err := r.Lookup(key)
+		if err != nil || fingerprint(v, ok) != was {
+			return false
+		}
+	}
+	return true
+}
+
+func fingerprint(value any, ok bool) string {
+	if !ok {
+		return "-"
+	}
+	b, err := json.Marshal(value) // keys of objects are written in order
+	if err != nil {
+		return "?"
+	}
+	return "+" + string(b)
 }
 
 // Empty is the memory of a context that has none (a trigger's, an automation not yet saved): no key is there.

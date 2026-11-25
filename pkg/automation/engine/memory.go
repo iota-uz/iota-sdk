@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/state"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // Memory is the people's and agents' view of an automation's memory between runs (the keys set_state writes
@@ -79,15 +80,23 @@ func (m *memory) Get(ctx context.Context, a Actor, id uuid.UUID, key string) (st
 	return e, nil
 }
 
-// write runs a change of the memory in one transaction with the graph's row locked: a Delete of the graph
-// waits for it (or it for the Delete), so a deleted graph never gets a key.
+// write runs a change of the memory in one transaction that holds a share lock of the graph's row: a Delete
+// of the graph waits for it (or it for the Delete), so a deleted graph never gets a key. A share lock, not an
+// exclusive one: a step that writes a key takes a key-share lock of the row (the foreign key) while it holds
+// the memory's advisory lock, which this write waits for.
 func (m *memory) write(ctx context.Context, a Actor, id uuid.UUID, fn func(tx pgx.Tx) error) error {
 	if err := m.r.service.authorize(a, PermAuthor); err != nil {
 		return err
 	}
 	return m.r.service.inTx(ctx, func(tx pgx.Tx) error {
-		if _, err := loadAutomation(ctx, tx, a.TenantID, id, true); err != nil {
-			return err
+		var one int
+		err := tx.QueryRow(ctx, `SELECT 1 FROM automation.automations WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL FOR SHARE`,
+			a.TenantID, id).Scan(&one)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return serrors.FromDB(opService, err)
 		}
 		return fn(tx)
 	})

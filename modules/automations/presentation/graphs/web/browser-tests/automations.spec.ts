@@ -601,6 +601,19 @@ test.describe('state panel', () => {
     await expect(panel.getByTestId('state-total')).toHaveText('2 of 10000 keys')
   })
 
+  test('edits made while a save runs stay open', async ({ page }) => {
+    await settings(page, '&delay=1000')
+    const panel = page.getByTestId('state-panel')
+    await panel.getByRole('button', { name: 'Edit: rule:daily:count' }).click()
+    const value = panel.locator('textarea[data-field="state-value"]')
+    await value.fill('4')
+    await panel.getByTestId('state-save').click()
+    await value.fill('5')
+    // The save of 4 is answered; the 5 typed meanwhile is not dropped.
+    await expect(panel.locator('[data-key="rule:daily:count"] code').nth(1)).toHaveText('4')
+    await expect(value).toHaveValue('5')
+  })
+
   test('without Automations.Author the keys are read only', async ({ page }) => {
     await settings(page, '&cannot=author')
     const panel = page.getByTestId('state-panel')

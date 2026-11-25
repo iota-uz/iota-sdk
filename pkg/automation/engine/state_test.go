@@ -283,3 +283,47 @@ func TestTestNodeOfSetStateWritesNothing(t *testing.T) {
 	assert.Equal(t, "set", res.Outcome)
 	assert.Zero(t, e.count(`SELECT count(*) FROM automation.state`), "the test is rolled back")
 }
+
+// A key lives for its ttl from the write, however long ago the writing transaction began; and the writers of
+// one automation's memory take turns, a renewal included, while a person's write and a step's write that
+// wait for each other do not deadlock.
+func TestStateWritesInOpenTransactions(t *testing.T) {
+	e, p := newStateEnv(t)
+	a := e.human()
+	am := e.create(p, a, stateGraph)
+	ctx := context.Background()
+
+	tx, err := e.db.Begin(ctx)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback(ctx) }()
+	_, err = tx.Exec(ctx, `SELECT pg_sleep(1.5)`)
+	require.NoError(t, err)
+	_, err = state.Put(ctx, tx, e.tenant, am.ID, "late", 1, time.Minute, nil)
+	require.NoError(t, err)
+	var seconds float64
+	require.NoError(t, tx.QueryRow(ctx, `SELECT extract(epoch FROM expires_at - now())::float8 FROM automation.state WHERE key = 'late'`).Scan(&seconds))
+	assert.Greater(t, seconds, 61.0, "the minute counts from the write")
+
+	// The transaction holds the memory's lock: a person's write waits for it.
+	done := make(chan error, 1)
+	go func() {
+		_, err := p.rt.Memory().Set(ctx, a, am.ID, "person", json.RawMessage(`2`), 0)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("the write did not wait: %v", err)
+	case <-time.After(time.Second):
+	}
+	// The transaction writes another new key (a key-share lock of the graph's row) while the person waits.
+	_, err = state.Put(ctx, tx, e.tenant, am.ID, "second", 3, 0, nil)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit(ctx))
+	require.NoError(t, <-done)
+	assert.Equal(t, 3, e.count(`SELECT count(*) FROM automation.state`))
+
+	// A deleted graph takes no key.
+	require.NoError(t, p.rt.Service().Delete(ctx, a, am.ID))
+	_, err = p.rt.Memory().Set(ctx, a, am.ID, "after", json.RawMessage(`1`), 0)
+	require.ErrorIs(t, err, engine.ErrNotFound)
+}

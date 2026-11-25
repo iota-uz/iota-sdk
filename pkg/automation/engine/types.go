@@ -606,8 +606,9 @@ type needsPrepareError struct {
 	sc       StepContext
 	node     graph.Node
 	effect   graph.Effect
-	effects  []graph.Effect // every effect of the node's step
-	varsHash string         // the subject's variables the step read (mover.varsHash)
+	effects  []graph.Effect    // every effect of the node's step
+	varsHash string            // the subject's variables the step read (mover.varsHash)
+	memory   map[string]string // the memory keys the step read (state.Reader.Snapshot)
 }
 
 func (*needsPrepareError) Error() string { return "the effect needs its preparation before the step" }

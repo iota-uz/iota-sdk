@@ -188,32 +188,24 @@ func Put(ctx context.Context, db DB, tenant, automation uuid.UUID, key string, v
 	}
 	var out Entry
 	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		// An update of a live key needs no check of the count; only a new key does.
-		update := func() (Entry, bool, error) {
-			return scanEntry(tx.QueryRow(ctx, `
-				UPDATE automation.state
-				SET value = $4, expires_at = CASE WHEN $5::text IS NULL THEN NULL ELSE now() + $5::text::interval END,
-				    updated_at = now(), updated_by_run = $6
-				WHERE tenant_id = $1 AND automation_id = $2 AND key = $3 AND `+live+`
-				RETURNING key, value, expires_at, updated_at, updated_by_run`,
-				tenant, automation, key, []byte(raw), intervalOf(ttl), byRun))
+		// The writers of one automation take turns, a renewal of a key included: the count a new key checks then
+		// holds every key written before it, one renewed just before its expiry too.
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, "automation.state:"+tenant.String()+":"+automation.String()); err != nil {
+			return serrors.FromDB(op, err)
 		}
-		e, ok, err := update()
+		// An update of a live key adds no key and needs no check of the count; only a new key does. The lifetime
+		// counts from the write (clock_timestamp), not from the start of a transaction that may be long open.
+		e, ok, err := scanEntry(tx.QueryRow(ctx, `
+			UPDATE automation.state
+			SET value = $4, expires_at = CASE WHEN $5::text IS NULL THEN NULL ELSE clock_timestamp() + $5::text::interval END,
+			    updated_at = clock_timestamp(), updated_by_run = $6
+			WHERE tenant_id = $1 AND automation_id = $2 AND key = $3 AND `+live+`
+			RETURNING key, value, expires_at, updated_at, updated_by_run`,
+			tenant, automation, key, []byte(raw), intervalOf(ttl), byRun))
 		if err != nil {
 			return err
 		}
 		if ok {
-			out = e
-			return nil
-		}
-		// Writers of new keys of one automation take turns, so the count they check holds.
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, "automation.state:"+tenant.String()+":"+automation.String()); err != nil {
-			return serrors.FromDB(op, err)
-		}
-		// The writer ahead of this one may have written this very key: replacing it adds no key.
-		if e, ok, err = update(); err != nil {
-			return err
-		} else if ok {
 			out = e
 			return nil
 		}
@@ -226,7 +218,7 @@ func Put(ctx context.Context, db DB, tenant, automation uuid.UUID, key string, v
 		}
 		e, _, err = scanEntry(tx.QueryRow(ctx, `
 			INSERT INTO automation.state (tenant_id, automation_id, key, value, expires_at, updated_at, updated_by_run)
-			VALUES ($1, $2, $3, $4, CASE WHEN $5::text IS NULL THEN NULL ELSE now() + $5::text::interval END, now(), $6)
+			VALUES ($1, $2, $3, $4, CASE WHEN $5::text IS NULL THEN NULL ELSE clock_timestamp() + $5::text::interval END, clock_timestamp(), $6)
 			ON CONFLICT (tenant_id, automation_id, key) DO UPDATE
 			SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at, updated_at = EXCLUDED.updated_at, updated_by_run = EXCLUDED.updated_by_run
 			RETURNING key, value, expires_at, updated_at, updated_by_run`,

@@ -112,8 +112,8 @@ export function StatePanel(props: { id: string; canEdit: boolean }): JSX.Element
     try {
       await app.call('automations.state_set', { id: props.id, key, value: parsed.value, ...(d.ttl.trim() ? { ttl: d.ttl.trim() } : {}) })
       app.toast.notify({ variant: 'success', title: t('State.Saved') })
-      // Only the draft this save was for goes: another may have been opened while it ran.
-      if (draft()?.uid === d.uid) setDraft(undefined)
+      // Only what was saved goes: another draft, or edits made to this one while it ran, stay open.
+      if (draft() === d) setDraft(undefined)
       await load()
     } catch (e) {
       // A refusal of the memory (a value over 16 KiB, a ttl out of range) carries its own words.
