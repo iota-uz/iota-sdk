@@ -18,6 +18,11 @@ import (
 
 type fixedTenantSecrets map[string]string
 
+func (f fixedTenantSecrets) Has(_ context.Context, _ uuid.UUID, name string) (bool, error) {
+	_, ok := f[name]
+	return ok, nil
+}
+
 func (f fixedTenantSecrets) Resolve(_ context.Context, _ uuid.UUID, name string) (string, error) {
 	if v, ok := f[name]; ok {
 		return v, nil

@@ -44,6 +44,10 @@
         "Label": "Manage secrets",
         "_Description": "Create, rename, rotate and delete the organization's secrets (values are never shown)"
       },
+      "ConnectionsUse": {
+        "Label": "Use connections",
+        "_Description": "Let the automations this user runs call the organization's connections from Code and HTTP nodes"
+      },
       "SecretsUse": {
         "Label": "Use secrets",
         "_Description": "Let the automations this user runs read the organization's secrets"

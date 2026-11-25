@@ -44,6 +44,10 @@
         "Label": "管理密钥",
         "_Description": "创建、重命名、轮换和删除组织的密钥（值永不显示）"
       },
+      "ConnectionsUse": {
+        "Label": "使用连接",
+        "_Description": "允许此用户运行的自动化从 Code 和 HTTP 节点调用组织的连接"
+      },
       "SecretsUse": {
         "Label": "使用密钥",
         "_Description": "允许此用户运行的自动化读取组织的密钥"

@@ -51,6 +51,12 @@ var (
 		"Connections.Manage", ResourceConnection, ActionManage, permission.ModifierAll,
 	)
 
+	// ConnectionsUse lets the automations a user runs as use the tenant's connections from Code and HTTP
+	// nodes (env.connections, auth: {connection}): their HTTP calls and operations.
+	ConnectionsUse = permission.MustCreate(
+		uuid.MustParse("5a0f3c2e-8d41-4b7e-9c56-2e7f1a9b3d84"),
+		"Connections.Use", ResourceConnection, ActionUse, permission.ModifierAll,
+	)
 	// SecretsManage creates, renames, rotates and deletes the tenant's secrets (the «Secret» connector of
 	// the integrations page). It never shows a value: a saved value is write-only.
 	SecretsManage = permission.MustCreate(
@@ -72,6 +78,7 @@ var Permissions = []permission.Permission{
 	AutomationsEnable,
 	AutomationsOperate,
 	ConnectionsManage,
+	ConnectionsUse,
 	SecretsManage,
 	SecretsUse,
 }

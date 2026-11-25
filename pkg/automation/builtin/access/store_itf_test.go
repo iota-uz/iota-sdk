@@ -74,6 +74,7 @@ func TestStoreConnectionsOfEverySDKConnector(t *testing.T) {
 	bot := r.save(t, telegram.Kind, "bot", connectors.Credentials{"token": itfBotToken})
 	ai := r.save(t, openai.Kind, "llm", connectors.Credentials{"api_key": "sk-itf-key-1234567890"})
 	mail := r.save(t, email.KindSMTP, "mail", connectors.Credentials{"host": "smtp.example.com", "port": "465", "username": "u", "password": "p-secret", "from": "u@example.com"})
+	inbox := r.save(t, email.KindIMAP, "inbox", connectors.Credentials{"host": "imap.example.com", "port": "993", "username": "u", "password": "p-secret", "mailbox": "INBOX"})
 	r.tg.Bot(itfBotToken, "itf_bot")
 
 	t.Run("HTTP/API: base URL and a fetch with the token injected", func(t *testing.T) {
@@ -112,7 +113,16 @@ func TestStoreConnectionsOfEverySDKConnector(t *testing.T) {
 		assert.True(t, opened["mail"].HasOperator())
 	})
 
-	for _, c := range []connectors.Connection{api, bot, ai, mail} {
+	t.Run("IMAP exposes its read operations", func(t *testing.T) {
+		opened, err := access.OpenAll(r.ctx, r.conns, r.tenant, []string{"inbox"})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"listMessages", "getMessage"}, opened["inbox"].Access.OperationNames())
+		assert.True(t, opened["inbox"].HasOperator())
+		assert.Empty(t, opened["inbox"].Access.Methods)
+		assert.False(t, opened["inbox"].Access.Fetch)
+	})
+
+	for _, c := range []connectors.Connection{api, bot, ai, mail, inbox} {
 		require.NoError(t, r.store.SetStatus(r.ctx, r.tenant, c.ID, connectors.StatusDisabled, ""))
 		_, err := access.OpenAll(r.ctx, r.conns, r.tenant, []string{c.Name})
 		var ce *catalog.CallError

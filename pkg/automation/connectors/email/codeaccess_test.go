@@ -33,8 +33,10 @@ func TestCodeAccessRegistersInADirectory(t *testing.T) {
 	f := newFx(t, emailtest.ModeTLS)
 	require.NoError(t, connectors.NewDirectory(nil).Register(f.smtp))
 	assert.Equal(t, []string{"send"}, f.smtp.CodeAccess().OperationNames())
-	_, isAccessor := any(f.imap).(connectors.CodeAccessor)
-	assert.False(t, isAccessor, "the imap connector offers no code access")
+	require.NoError(t, connectors.NewDirectory(nil).Register(f.imap))
+	assert.Equal(t, []string{"listMessages", "getMessage"}, f.imap.CodeAccess().OperationNames())
+	_, isOperator := any(f.imap).(connectors.CodeOperator)
+	assert.True(t, isOperator)
 }
 
 func TestCodeSendDeliversThroughTheConnection(t *testing.T) {

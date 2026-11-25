@@ -96,11 +96,14 @@ func validateName(n string) error {
 	return nil
 }
 
+// live is the condition of a record that is not a tombstone.
+const live = `deleted_at IS NULL`
+
 func (m *manager) List(ctx context.Context, tenantID uuid.UUID) ([]Secret, error) {
 	if tenantID == uuid.Nil {
 		return nil, ErrForbidden
 	}
-	rows, err := m.db.Query(ctx, `SELECT `+secretColumns+` FROM automation.secrets WHERE tenant_id = $1 ORDER BY name`, tenantID)
+	rows, err := m.db.Query(ctx, `SELECT `+secretColumns+` FROM automation.secrets WHERE tenant_id = $1 AND `+live+` ORDER BY name`, tenantID)
 	if err != nil {
 		return nil, unavailable(err)
 	}
@@ -113,7 +116,11 @@ func (m *manager) List(ctx context.Context, tenantID uuid.UUID) ([]Secret, error
 		}
 		out = append(out, s)
 	}
-	return out, unavailable(rows.Err())
+	if err := rows.Err(); err != nil {
+		return nil, unavailable(err)
+	}
+	m.purge(ctx, tenantID)
+	return out, nil
 }
 
 func (m *manager) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput) (Secret, error) {
@@ -135,24 +142,37 @@ func (m *manager) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 	if ref.TenantID != tenantID {
 		return Secret{}, ErrForbidden
 	}
-	// The value first: a record never points at a value that is not there. A failed insert removes it.
-	md, err := m.writer.Put(ctx, ref, map[string]string{ValueKey: in.Value})
-	if err != nil {
-		return Secret{}, unavailable(err)
-	}
-	s, err := scanSecret(m.db.QueryRow(ctx, `INSERT INTO automation.secrets (id, tenant_id, name, description, ref_path, value_version, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING `+secretColumns,
-		id, tenantID, in.Name, in.Description, ref.Path, md.Version, in.CreatedBy))
-	if err != nil {
-		cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		_ = m.writer.Delete(cleanup, ref)
-		if isUnique(err) {
-			return Secret{}, ErrNameTaken
+	ref.Version = 0
+	// The record is inserted in a transaction that also writes the value and commits only after it: the
+	// name is published with its value or not at all. A value written for a record that then fails to
+	// commit is removed (and is unreachable anyway: no record names it).
+	var out Secret
+	err := pgx.BeginFunc(ctx, m.db, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `INSERT INTO automation.secrets (id, tenant_id, name, description, ref_path, value_version, created_by)
+			VALUES ($1, $2, $3, $4, $5, 1, $6)`, id, tenantID, in.Name, in.Description, ref.Path, in.CreatedBy); err != nil {
+			if isUnique(err) {
+				return ErrNameTaken
+			}
+			return unavailable(err)
 		}
-		return Secret{}, unavailable(err)
+		md, err := m.writer.Put(ctx, ref, map[string]string{ValueKey: in.Value})
+		if err != nil {
+			return unavailable(err)
+		}
+		out, err = scanSecret(tx.QueryRow(ctx, `UPDATE automation.secrets SET value_version = $3 WHERE tenant_id = $1 AND id = $2 RETURNING `+secretColumns,
+			tenantID, id, md.Version))
+		return unavailable(err)
+	})
+	if err != nil {
+		if !errors.Is(err, ErrNameTaken) {
+			cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			_ = m.writer.Delete(cleanup, ref)
+		}
+		return Secret{}, err
 	}
-	return s, nil
+	m.purge(ctx, tenantID)
+	return out, nil
 }
 
 func (m *manager) Update(ctx context.Context, tenantID uuid.UUID, in UpdateInput) (Secret, error) {
@@ -175,7 +195,7 @@ func (m *manager) Update(ctx context.Context, tenantID uuid.UUID, in UpdateInput
 	}
 	s, err := scanSecret(m.db.QueryRow(ctx, `UPDATE automation.secrets
 		SET name = COALESCE($4, name), description = COALESCE($5, description), version = version + 1, updated_at = now()
-		WHERE tenant_id = $1 AND id = $2 AND version = $3 RETURNING `+secretColumns,
+		WHERE tenant_id = $1 AND id = $2 AND version = $3 AND `+live+` RETURNING `+secretColumns,
 		tenantID, in.ID, in.Version, name, desc))
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
@@ -191,7 +211,7 @@ func (m *manager) Update(ctx context.Context, tenantID uuid.UUID, in UpdateInput
 // missOrConflict tells a secret that is not there from one that changed.
 func (m *manager) missOrConflict(ctx context.Context, tenantID, id uuid.UUID) error {
 	var one int
-	err := m.db.QueryRow(ctx, `SELECT 1 FROM automation.secrets WHERE tenant_id = $1 AND id = $2`, tenantID, id).Scan(&one)
+	err := m.db.QueryRow(ctx, `SELECT 1 FROM automation.secrets WHERE tenant_id = $1 AND id = $2 AND `+live, tenantID, id).Scan(&one)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return ErrNotFound
@@ -201,6 +221,10 @@ func (m *manager) missOrConflict(ctx context.Context, tenantID, id uuid.UUID) er
 	return ErrVersionConflict
 }
 
+// Rotate writes the new value as the next version, then publishes it by committing the record that names
+// it (value_version), under the record's lock. Readers resolve the version the record names: a rotation
+// that fails after the value was written leaves them, and the record, on the version before. Once
+// published, the earlier versions are pruned (best effort: a failed prune only keeps old versions longer).
 func (m *manager) Rotate(ctx context.Context, tenantID uuid.UUID, in RotateInput) (Secret, error) {
 	if tenantID == uuid.Nil {
 		return Secret{}, ErrForbidden
@@ -209,9 +233,8 @@ func (m *manager) Rotate(ctx context.Context, tenantID uuid.UUID, in RotateInput
 		return Secret{}, err
 	}
 	var out Secret
-	// The record is locked while the new value is written: two rotations of one secret do not interleave.
 	err := pgx.BeginFunc(ctx, m.db, func(tx pgx.Tx) error {
-		cur, err := scanSecret(tx.QueryRow(ctx, `SELECT `+secretColumns+` FROM automation.secrets WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, tenantID, in.ID))
+		cur, err := scanSecret(tx.QueryRow(ctx, `SELECT `+secretColumns+` FROM automation.secrets WHERE tenant_id = $1 AND id = $2 AND `+live+` FOR UPDATE`, tenantID, in.ID))
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 			return ErrNotFound
@@ -220,7 +243,7 @@ func (m *manager) Rotate(ctx context.Context, tenantID uuid.UUID, in RotateInput
 		case cur.Version != in.Version:
 			return ErrVersionConflict
 		}
-		md, err := m.writer.Put(ctx, cur.Ref, map[string]string{ValueKey: in.Value})
+		md, err := m.writer.Put(ctx, Ref{TenantID: tenantID, Path: cur.Ref.Path}, map[string]string{ValueKey: in.Value})
 		if err != nil {
 			return unavailable(err)
 		}
@@ -232,29 +255,70 @@ func (m *manager) Rotate(ctx context.Context, tenantID uuid.UUID, in RotateInput
 	if err != nil {
 		return Secret{}, err
 	}
+	prune, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	_ = m.writer.Prune(prune, Ref{TenantID: tenantID, Path: out.Ref.Path}, out.ValueVersion)
+	m.purge(ctx, tenantID)
 	return out, nil
 }
 
+// Delete makes the record a tombstone first (committed: the name resolves no more and is free again), then
+// removes the value and the tombstone. When the store fails the tombstone stays and the value is removed by
+// a later call of the manager for the tenant (purge): the secret is never live without its value, nor its
+// value kept without a record to find it by.
 func (m *manager) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	if tenantID == uuid.Nil {
 		return ErrForbidden
 	}
-	return pgx.BeginFunc(ctx, m.db, func(tx pgx.Tx) error {
-		var path string
-		err := tx.QueryRow(ctx, `SELECT ref_path FROM automation.secrets WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, tenantID, id).Scan(&path)
-		switch {
-		case errors.Is(err, pgx.ErrNoRows):
-			return ErrNotFound
-		case err != nil:
-			return unavailable(err)
-		}
-		// The value first: when the store fails the record stays and the secret can be deleted again.
-		if err := m.writer.Delete(ctx, Ref{TenantID: tenantID, Path: path}); err != nil {
-			return unavailable(err)
-		}
-		_, err = tx.Exec(ctx, `DELETE FROM automation.secrets WHERE tenant_id = $1 AND id = $2`, tenantID, id)
+	var path string
+	err := m.db.QueryRow(ctx, `UPDATE automation.secrets SET deleted_at = now(), updated_at = now()
+		WHERE tenant_id = $1 AND id = $2 AND `+live+` RETURNING ref_path`, tenantID, id).Scan(&path)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return ErrNotFound
+	case err != nil:
 		return unavailable(err)
-	})
+	}
+	m.removeValue(ctx, tenantID, id, path)
+	m.purge(ctx, tenantID)
+	return nil
+}
+
+// removeValue deletes a tombstone's value and then the tombstone; a failure leaves both for purge.
+func (m *manager) removeValue(ctx context.Context, tenantID, id uuid.UUID, path string) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := m.writer.Delete(ctx, Ref{TenantID: tenantID, Path: path}); err != nil {
+		return
+	}
+	_, _ = m.db.Exec(ctx, `DELETE FROM automation.secrets WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NOT NULL`, tenantID, id)
+}
+
+// purgeBatch is how many tombstones one call of the manager retries.
+const purgeBatch = 20
+
+// purge retries removing the values of the tenant's tombstones (a delete whose store call failed).
+func (m *manager) purge(ctx context.Context, tenantID uuid.UUID) {
+	rows, err := m.db.Query(ctx, `SELECT id, ref_path FROM automation.secrets WHERE tenant_id = $1 AND deleted_at IS NOT NULL ORDER BY deleted_at LIMIT $2`,
+		tenantID, purgeBatch)
+	if err != nil {
+		return
+	}
+	type tomb struct {
+		id   uuid.UUID
+		path string
+	}
+	var tombs []tomb
+	for rows.Next() {
+		var t tomb
+		if rows.Scan(&t.id, &t.path) == nil {
+			tombs = append(tombs, t)
+		}
+	}
+	rows.Close()
+	for _, t := range tombs {
+		m.removeValue(ctx, tenantID, t.id, t.path)
+	}
 }
 
 type resolver struct {
@@ -262,10 +326,32 @@ type resolver struct {
 	reader Reader
 }
 
-// NewResolver reads a tenant's secret by name: the record from automation.secrets, the value from reader
-// on every call (nothing is cached, so a rotation is effective at once in every process).
+// NewResolver reads a tenant's secret by name: the record from automation.secrets, then the version of the
+// value it publishes from reader, on every call (nothing is cached, so a rotation is effective at once in
+// every process).
 func NewResolver(db *pgxpool.Pool, reader Reader) Resolver {
 	return &resolver{db: db, reader: reader}
+}
+
+func (r *resolver) Has(ctx context.Context, tenantID uuid.UUID, name string) (bool, error) {
+	if tenantID == uuid.Nil {
+		return false, ErrForbidden
+	}
+	if !IsName(name) {
+		return false, nil
+	}
+	if r.db == nil {
+		return false, fmt.Errorf("%w: not configured", ErrUnavailable)
+	}
+	var one int
+	err := r.db.QueryRow(ctx, `SELECT 1 FROM automation.secrets WHERE tenant_id = $1 AND name = $2 AND `+live, tenantID, name).Scan(&one)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return false, nil
+	case err != nil:
+		return false, unavailable(err)
+	}
+	return true, nil
 }
 
 func (r *resolver) Resolve(ctx context.Context, tenantID uuid.UUID, name string) (string, error) {
@@ -281,17 +367,19 @@ func (r *resolver) Resolve(ctx context.Context, tenantID uuid.UUID, name string)
 	var (
 		id       uuid.UUID
 		path     string
+		version  int
 		lastUsed *time.Time
 	)
-	err := r.db.QueryRow(ctx, `SELECT id, ref_path, last_used_at FROM automation.secrets WHERE tenant_id = $1 AND name = $2`,
-		tenantID, name).Scan(&id, &path, &lastUsed)
+	err := r.db.QueryRow(ctx, `SELECT id, ref_path, value_version, last_used_at FROM automation.secrets WHERE tenant_id = $1 AND name = $2 AND `+live,
+		tenantID, name).Scan(&id, &path, &version, &lastUsed)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return "", ErrNotFound
 	case err != nil:
 		return "", unavailable(err)
 	}
-	v, err := r.reader.Read(ctx, Ref{TenantID: tenantID, Path: path})
+	// The version the record publishes, never simply the latest: a rotation not yet published is not read.
+	v, err := r.reader.Read(ctx, Ref{TenantID: tenantID, Path: path, Version: version})
 	switch {
 	case errors.Is(err, ErrNotFound):
 		// The record is there and its value is not: a broken store, not an unknown name.

@@ -18,9 +18,21 @@ import (
 type tenantSecrets struct {
 	values map[string]string
 	err    error
+	reads  *int
+}
+
+func (r tenantSecrets) Has(_ context.Context, _ uuid.UUID, name string) (bool, error) {
+	if r.err != nil {
+		return false, r.err
+	}
+	_, ok := r.values[name]
+	return ok, nil
 }
 
 func (r tenantSecrets) Resolve(_ context.Context, _ uuid.UUID, name string) (string, error) {
+	if r.reads != nil {
+		*r.reads++
+	}
 	if r.err != nil {
 		return "", r.err
 	}
@@ -67,10 +79,12 @@ func TestChainTenantSecretFirstThenTheApplication(t *testing.T) {
 
 func TestChainRefusesARunAsWithoutSecretsUse(t *testing.T) {
 	app := &countingSecrets{values: map[string]string{"API_KEY": "from-app"}}
-	s := access.ChainSecrets(tenantSecrets{values: map[string]string{"API_KEY": "from-tenant"}}, useSecrets, app)
+	reads := 0
+	s := access.ChainSecrets(tenantSecrets{values: map[string]string{"API_KEY": "from-tenant"}, reads: &reads}, useSecrets, app)
 	_, err := s.Secret(context.Background(), uuid.New(), spi.Subject{}, "API_KEY")
 	assert.ErrorIs(t, err, access.ErrSecretForbidden)
 	assert.Zero(t, app.calls, "no fallback past a refusal")
+	assert.Zero(t, reads, "the value is neither read nor its use recorded before the run-as is authorized")
 
 	_, err = access.ReadSecrets(context.Background(), s, catalog.CallInput{TenantID: uuid.New()}, []string{"API_KEY"})
 	var ce *catalog.CallError

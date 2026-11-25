@@ -49,10 +49,10 @@ const credentialsSchema = `{
   "properties": {
     "base_url": {"type": "string", "title": "API address", "x-label": {"en":"API address","ru":"Адрес API","uz":"API manzili","oz":"API манзили"}, "description": "https only, without a query: https://api.example.com/v1", "pattern": "^https://[^\\s]+$", "maxLength": 300, "examples": ["https://api.example.com/v1"]},
     "auth": {"type": "string", "title": "Authorization", "x-label": {"en":"Authorization","ru":"Авторизация","uz":"Avtorizatsiya","oz":"Авторизация"}, "enum": ["none", "bearer", "header", "basic"], "default": "none", "description": "none; bearer: Authorization: Bearer <token>; header: a header with the token; basic: a login and a password"},
-    "token": {"type": "string", "title": "Token", "x-label": {"en":"Token","ru":"Токен","uz":"Token","oz":"Токен"}, "description": "For bearer and header", "x-secret": true, "maxLength": 4096},
+    "token": {"type": "string", "title": "Token", "x-label": {"en":"Token","ru":"Токен","uz":"Token","oz":"Токен"}, "description": "For bearer and header", "x-secret": true, "x-authorization-only": true, "maxLength": 4096},
     "header_name": {"type": "string", "title": "Header name", "x-label": {"en":"Header name","ru":"Имя заголовка","uz":"Sarlavha nomi","oz":"Сарлавҳа номи"}, "description": "For header, for example X-API-Key", "maxLength": 100, "pattern": "^[A-Za-z][A-Za-z0-9-]*$"},
     "username": {"type": "string", "title": "Login", "x-label": {"en":"Login","ru":"Логин","uz":"Login","oz":"Логин"}, "description": "For basic", "maxLength": 500},
-    "password": {"type": "string", "title": "Password", "x-label": {"en":"Password","ru":"Пароль","uz":"Parol","oz":"Парол"}, "description": "For basic", "x-secret": true, "maxLength": 4096}
+    "password": {"type": "string", "title": "Password", "x-label": {"en":"Password","ru":"Пароль","uz":"Parol","oz":"Парол"}, "description": "For basic", "x-secret": true, "x-authorization-only": true, "maxLength": 4096}
   },
   "additionalProperties": false
 }`

@@ -11,13 +11,14 @@
 type Writer interface {
     Put(ctx, ref Ref, data map[string]string) (Metadata, error) // следующая версия значения
     Delete(ctx, ref Ref) error                                  // со всеми версиями; нет значения - не ошибка
+    Prune(ctx, ref Ref, keepFrom int) error                     // удалить версии до keepFrom
 }
-type Reader interface{ Read(ctx, ref Ref) (Value, error) }                // текущая версия целиком
+type Reader interface{ Read(ctx, ref Ref) (Value, error) }                // версия ref.Version (0 - последняя) целиком
 type MetadataReader interface{ Metadata(ctx, ref Ref) (Metadata, error) } // версии и времена, не значение
 type Store interface{ Writer; Reader; MetadataReader }
 ```
 
-`Ref{TenantID, Path}` - где лежит значение. Путь формирует `Locator`; по умолчанию
+`Ref{TenantID, Path, Version}` - где лежит значение; `Version` выбирает версию для `Read` (0 - последняя). Путь формирует `Locator`; по умолчанию
 `DefaultLocator(prefix)`: `<prefix>tenants/<tenant>/automation/secrets/<secret-id>` (prefix - окружение,
 например `prod/`). Запись хранит `ref_path`, так что смена Locator не ломает уже созданные секреты.
 
@@ -26,6 +27,7 @@ type Store interface{ Writer; Reader; MetadataReader }
 
 ### Контракт адаптера
 
+- Значения версионируются как в KV v2: `Put` добавляет следующую версию, прежние остаются до `Prune`.
 - `Read` возвращает одну версию целиком, никогда поля двух версий (у встроенного адаптера - одна строка и один запрос).
 - `Put` виден следующему `Read` в любом процессе; кеша, переживающего ротацию, нет. Версия растёт атомарно.
 - `Ref` без арендатора - `ErrForbidden`; путь чужого арендатора - `ErrNotFound`/`ErrForbidden`, значение не отдаётся.
@@ -36,7 +38,7 @@ type Store interface{ Writer; Reader; MetadataReader }
 ## Встроенный адаптер
 
 `connectors.NewSealedSecrets(db, keys)` хранит значение в `automation.secret_values`
-(`tenant_id, path, version, key_id, nonce, ciphertext`, PK `(tenant_id, path)`): AES-256-GCM тем же кольцом
+(`tenant_id, path, version, key_id, nonce, ciphertext`, PK `(tenant_id, path, version)`): AES-256-GCM тем же кольцом
 ключей, что и подключения; AAD связывает шифртекст с арендатором, путём и версией. Без кольца ключей
 каждый вызов - `ErrUnavailable`, оборачивающий `connectors.ErrNotConfigured`. `Store.Rewrap` пере-шифровывает
 значения секретов вместе с подключениями.
@@ -45,10 +47,20 @@ type Store interface{ Writer; Reader; MetadataReader }
 
 - `secrets.NewManager(db, writer, meta, locator)`: `List`, `Create`, `Update` (имя, описание; с проверкой версии),
   `Rotate` (новая версия значения), `Delete` (значение и запись). Значение - не пустое, до 64 КиБ; имя -
-  `^[A-Z][A-Z0-9_]{0,63}$`, уникально в арендаторе (`ErrNameTaken`). Значение пишется первым; если запись
-  не вставилась - значение удаляется.
-- `secrets.NewResolver(db, reader)`: `Resolve(ctx, tenant, name)`. Нет записи - `ErrNotFound`; сбой записей
-  или хранилища - `ErrUnavailable`. Значение читается при каждом вызове, поэтому ротация действует в
+  `^[A-Z][A-Z0-9_]{0,63}$`, уникально среди живых секретов арендатора (`ErrNameTaken`).
+- **Публикация версии.** Запись хранит `value_version` - версию, которую читают ноды. `Rotate` под блокировкой
+  записи пишет версию N+1 через `Writer.Put`, затем коммитит запись с `value_version = N+1`. Сбой между двумя
+  записями (обрыв, падение процесса) оставляет запись и всех читателей на версии N, а UI видит ошибку - метаданные
+  и значение не расходятся. После публикации прежние версии удаляются `Prune` (сбой лишь дольше хранит старые).
+  `Create` вставляет запись и пишет значение в одной транзакции записи: имя публикуется вместе со значением;
+  значение незакоммиченной записи удаляется и всё равно недостижимо.
+- **Удаление через надгробие.** `Delete` сначала коммитит `deleted_at` (имя сразу перестаёт разрешаться и
+  освобождается), затем удаляет значение и строку. Если хранилище недоступно, надгробие остаётся, и любой
+  следующий вызов менеджера для арендатора (`purge`) повторяет удаление значения. Живого имени без значения
+  и значения без записи, по которой его можно найти, не бывает.
+- `secrets.NewResolver(db, reader)`: `Has(ctx, tenant, name)` - только по записям, без чтения значения и
+  отметки использования; `Resolve(ctx, tenant, name)` читает опубликованную версию (`value_version`). Нет
+  записи - `ErrNotFound`; сбой записей или хранилища - `ErrUnavailable`. Значение читается при каждом вызове, поэтому ротация действует в
   работающем процессе без перезапуска. `last_used_at` обновляется не чаще раза в минуту и не может
   провалить чтение.
 
@@ -56,9 +68,12 @@ type Store interface{ Writer; Reader; MetadataReader }
 
 Нода (Code, HTTP) объявляет секреты по имени. `access.ChainSecrets` ищет:
 
-1. секрет арендатора (коннектор «Secret»). Субъект, от имени которого идёт запуск, должен иметь
-   `Secrets.Use`; иначе нода падает с кодом `secret_forbidden`;
-2. цепочка приложения (`access.FromResolver`): `CONNECTION__FIELD` - секретное поле подключения, затем `host.SecretResolver`;
+1. секрет арендатора (коннектор «Secret»). Сначала `Has` по записям; если имя принадлежит арендатору, субъект,
+   от имени которого идёт запуск, должен иметь `Secrets.Use` - иначе нода падает с кодом `secret_forbidden`,
+   а значение не читается и использование не отмечается. Только после этого `Resolve`;
+2. цепочка приложения (`access.FromResolver`): `CONNECTION__FIELD` - секретное поле подключения, затем
+   `host.SecretResolver`. Поле с `"x-authorization-only": true` (токен и пароль коннектора HTTP/API) так не
+   отдаётся никогда: им пользуется только авторизация самого подключения;
 3. иначе код `secret_missing`, сообщение `unknown secret NAME`.
 
 `ErrUnavailable` хранилища арендатора - управляемая ошибка `unavailable` (повторяемая); к цепочке приложения
@@ -67,7 +82,12 @@ type Store interface{ Writer; Reader; MetadataReader }
 ## RBAC
 
 - `Secrets.Manage` - создавать, переименовывать, ротировать, удалять (набор прав `secrets_manage`);
-- `Secrets.Use` - автоматизации пользователя читают секреты арендатора (набор `secrets_use`).
+- `Secrets.Use` - автоматизации пользователя читают секреты арендатора (набор `secrets_use`);
+- `Connections.Use` - автоматизации пользователя вызывают подключения арендатора из Code и HTTP нод
+  (`env.connections`, `auth: {connection}`): и HTTP-запросы, и Go-операции (набор `connections_use`). Без него
+  нода получает `permission_denied` до обращения к провайдеру. Перед каждым вызовом статус подключения
+  читается заново: выключенное или сломанное за время запуска подключение даёт `connection_disabled` /
+  `connection_broken`, провайдер не вызывается.
 
 ## Заменить адаптер
 
@@ -84,9 +104,10 @@ composition.Provide[secrets.Store](b, func(c *composition.Container) (secrets.St
 | Порт | KV v2 (mount `secret`) |
 | --- | --- |
 | `Put(ref, data)` | `POST /v1/secret/data/<ref.Path>` с `{"data": {...}, "options": {"cas": <версия>}}`; версия из ответа - `Metadata.Version` |
-| `Read(ref)` | `GET /v1/secret/data/<ref.Path>` - текущая версия целиком (`data.data`, `data.metadata.version`); 404 - `ErrNotFound` |
+| `Read(ref)` | `GET /v1/secret/data/<ref.Path>?version=<ref.Version>` (без параметра при 0) - версия целиком (`data.data`, `data.metadata.version`); 404 - `ErrNotFound` |
 | `Metadata(ref)` | `GET /v1/secret/metadata/<ref.Path>` - `current_version`, `created_time`, `updated_time` |
 | `Delete(ref)` | `DELETE /v1/secret/metadata/<ref.Path>` - все версии; 404 не ошибка |
+| `Prune(ref, keepFrom)` | `POST /v1/secret/destroy/<ref.Path>` с `{"versions": [1..keepFrom-1]}` |
 
 Политики разделены: роль записи (`create`, `update` на `secret/data/tenants/*/automation/secrets/*`,
 `delete` на `secret/metadata/...`) и роль чтения (`read` на `secret/data/...` и `secret/metadata/...`).

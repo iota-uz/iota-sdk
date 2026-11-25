@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -65,31 +66,25 @@ func (s *sealedSecrets) Put(ctx context.Context, ref secrets.Ref, data map[strin
 	}
 	keyID, key := s.keys.Active()
 	for range putAttempts {
-		var current int
-		err := s.db.QueryRow(ctx, `SELECT version FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`,
-			ref.TenantID, ref.Path).Scan(&current)
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		var latest int
+		if err := s.db.QueryRow(ctx, `SELECT COALESCE(max(version), 0) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`,
+			ref.TenantID, ref.Path).Scan(&latest); err != nil {
 			return secrets.Metadata{}, unavailableSecret(err)
 		}
-		next := current + 1
+		next := latest + 1
 		nonce, ct, err := seal(key, plain, secretAAD(ref.TenantID, ref.Path, next))
 		if err != nil {
 			return secrets.Metadata{}, unavailableSecret(err)
 		}
-		// One statement writes the next version only over the version it was sealed against: a concurrent
-		// Put makes it match no row and the attempt starts again from the new version.
-		var md secrets.Metadata
-		err = s.db.QueryRow(ctx, `INSERT INTO automation.secret_values AS v (tenant_id, path, version, key_id, nonce, ciphertext)
-			VALUES ($1, $2, $3, $4, $5, $6)
-			ON CONFLICT (tenant_id, path) DO UPDATE
-			SET version = EXCLUDED.version, key_id = EXCLUDED.key_id, nonce = EXCLUDED.nonce,
-				ciphertext = EXCLUDED.ciphertext, updated_at = now()
-			WHERE v.version = $3::int - 1
-			RETURNING version, created_at, updated_at`,
-			ref.TenantID, ref.Path, next, keyID, nonce, ct).Scan(&md.Version, &md.CreatedAt, &md.UpdatedAt)
+		// The next version is a row of its own: the earlier ones stay readable until they are pruned, and a
+		// concurrent Put of the same version makes this one conflict and start again from the new latest.
+		var at time.Time
+		err = s.db.QueryRow(ctx, `INSERT INTO automation.secret_values (tenant_id, path, version, key_id, nonce, ciphertext)
+			VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING RETURNING created_at`,
+			ref.TenantID, ref.Path, next, keyID, nonce, ct).Scan(&at)
 		switch {
 		case err == nil:
-			return md, nil
+			return s.Metadata(ctx, secrets.Ref{TenantID: ref.TenantID, Path: ref.Path})
 		case errors.Is(err, pgx.ErrNoRows):
 			continue
 		default:
@@ -109,6 +104,17 @@ func (s *sealedSecrets) Delete(ctx context.Context, ref secrets.Ref) error {
 	return nil
 }
 
+func (s *sealedSecrets) Prune(ctx context.Context, ref secrets.Ref, keepFrom int) error {
+	if err := s.check(ref); err != nil {
+		return err
+	}
+	if _, err := s.db.Exec(ctx, `DELETE FROM automation.secret_values WHERE tenant_id = $1 AND path = $2 AND version < $3`,
+		ref.TenantID, ref.Path, keepFrom); err != nil {
+		return unavailableSecret(err)
+	}
+	return nil
+}
+
 func (s *sealedSecrets) Read(ctx context.Context, ref secrets.Ref) (secrets.Value, error) {
 	if err := s.check(ref); err != nil {
 		return secrets.Value{}, err
@@ -122,8 +128,9 @@ func (s *sealedSecrets) Read(ctx context.Context, ref secrets.Ref) (secrets.Valu
 		keyID           string
 		nonce, ciphertx []byte
 	)
-	err := s.db.QueryRow(ctx, `SELECT version, key_id, nonce, ciphertext FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`,
-		ref.TenantID, ref.Path).Scan(&version, &keyID, &nonce, &ciphertx)
+	err := s.db.QueryRow(ctx, `SELECT version, key_id, nonce, ciphertext FROM automation.secret_values
+		WHERE tenant_id = $1 AND path = $2 AND ($3 = 0 OR version = $3) ORDER BY version DESC LIMIT 1`,
+		ref.TenantID, ref.Path, ref.Version).Scan(&version, &keyID, &nonce, &ciphertx)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		return secrets.Value{}, secrets.ErrNotFound
@@ -150,14 +157,17 @@ func (s *sealedSecrets) Metadata(ctx context.Context, ref secrets.Ref) (secrets.
 		return secrets.Metadata{}, err
 	}
 	var md secrets.Metadata
-	err := s.db.QueryRow(ctx, `SELECT version, created_at, updated_at FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`,
-		ref.TenantID, ref.Path).Scan(&md.Version, &md.CreatedAt, &md.UpdatedAt)
+	var version *int
+	var created, updated *time.Time
+	err := s.db.QueryRow(ctx, `SELECT max(version), min(created_at), max(created_at) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`,
+		ref.TenantID, ref.Path).Scan(&version, &created, &updated)
 	switch {
-	case errors.Is(err, pgx.ErrNoRows):
-		return secrets.Metadata{}, secrets.ErrNotFound
 	case err != nil:
 		return secrets.Metadata{}, unavailableSecret(err)
+	case version == nil:
+		return secrets.Metadata{}, secrets.ErrNotFound
 	}
+	md.Version, md.CreatedAt, md.UpdatedAt = *version, *created, *updated
 	return md, nil
 }
 
@@ -167,6 +177,7 @@ func rewrapSecretValues(ctx context.Context, db *pgxpool.Pool, keys Keyring, lim
 	activeID, activeKey := keys.Active()
 	var afterTenant uuid.UUID
 	afterPath := ""
+	afterVersion := 0
 	first := true
 	for done < limit {
 		var seen, batchDone, batchSkipped int
@@ -178,8 +189,8 @@ func rewrapSecretValues(ctx context.Context, db *pgxpool.Pool, keys Keyring, lim
 				nonce, cipher []byte
 			}
 			rows, err := tx.Query(ctx, `SELECT tenant_id, path, version, key_id, nonce, ciphertext FROM automation.secret_values
-				WHERE key_id <> $1 AND ($4 OR (tenant_id, path) > ($2, $3)) ORDER BY tenant_id, path LIMIT $5 FOR UPDATE`,
-				activeID, afterTenant, afterPath, first, limit-done)
+				WHERE key_id <> $1 AND ($5 OR (tenant_id, path, version) > ($2, $3, $4)) ORDER BY tenant_id, path, version LIMIT $6 FOR UPDATE`,
+				activeID, afterTenant, afterPath, afterVersion, first, limit-done)
 			if err != nil {
 				return err
 			}
@@ -198,7 +209,7 @@ func rewrapSecretValues(ctx context.Context, db *pgxpool.Pool, keys Keyring, lim
 			}
 			seen = len(found)
 			for _, r := range found {
-				afterTenant, afterPath = r.tenant, r.path
+				afterTenant, afterPath, afterVersion = r.tenant, r.path, r.version
 				old, ok := keys.Key(r.keyID)
 				if !ok {
 					batchSkipped++
@@ -214,8 +225,8 @@ func rewrapSecretValues(ctx context.Context, db *pgxpool.Pool, keys Keyring, lim
 				if err != nil {
 					return err
 				}
-				if _, err := tx.Exec(ctx, `UPDATE automation.secret_values SET key_id = $3, nonce = $4, ciphertext = $5 WHERE tenant_id = $1 AND path = $2`,
-					r.tenant, r.path, activeID, nonce, ct); err != nil {
+				if _, err := tx.Exec(ctx, `UPDATE automation.secret_values SET key_id = $4, nonce = $5, ciphertext = $6 WHERE tenant_id = $1 AND path = $2 AND version = $3`,
+					r.tenant, r.path, r.version, activeID, nonce, ct); err != nil {
 					return err
 				}
 				batchDone++

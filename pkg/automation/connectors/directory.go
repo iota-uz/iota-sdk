@@ -166,6 +166,28 @@ func SecretFields(d Descriptor) map[string]bool {
 	return out
 }
 
+// AuthorizationOnlyFields are the credential fields whose schema property has "x-authorization-only": true:
+// the connector uses them only to authorize its own requests (an API token). They are never served as a
+// secret by name (SecretResolver, a node's CONNECTION__FIELD), so code reaches the API only through the
+// connection, never with the credential itself.
+func AuthorizationOnlyFields(d Descriptor) map[string]bool {
+	var doc struct {
+		Properties map[string]struct {
+			Only bool `json:"x-authorization-only"`
+		} `json:"properties"`
+	}
+	out := map[string]bool{}
+	if len(d.Credentials) == 0 || json.Unmarshal(d.Credentials, &doc) != nil {
+		return out
+	}
+	for name, p := range doc.Properties {
+		if p.Only {
+			out[name] = true
+		}
+	}
+	return out
+}
+
 // ValidateCredentials checks credentials against the connector's credentials schema. Issues name the
 // fields, never their values.
 func ValidateCredentials(d Descriptor, c Credentials) error {

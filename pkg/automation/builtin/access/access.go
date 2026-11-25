@@ -133,6 +133,24 @@ type Connection struct {
 	operator connectors.CodeOperator
 	info     *catalog.ConnectionInfo
 	creds    connectors.Credentials
+	// check re-reads the connection's status before each call (nil: nothing to re-read).
+	check func(ctx context.Context) error
+}
+
+// WithCheck is the connection with check run before each of its calls: it returns a typed refusal
+// (connectors.ErrCodeConnectionDisabled, ErrCodeConnectionBroken, ErrConnectionMissing) when the connection
+// changed since it was opened, so a run never keeps calling a connection an administrator disabled.
+func (c Connection) WithCheck(check func(ctx context.Context) error) Connection {
+	c.check = check
+	return c
+}
+
+// Check is the connection's current state: nil while it may be called.
+func (c Connection) Check(ctx context.Context) error {
+	if c.check == nil {
+		return nil
+	}
+	return c.check(ctx)
 }
 
 // OperatorBinding is what an operator-backed connection carries besides its HTTP access.
@@ -267,9 +285,13 @@ func (s storeConnections) Open(ctx context.Context, tenantID uuid.UUID, name str
 		}
 		access.BaseURL = base
 	}
+	id, kind := cur.ID, cur.Kind
 	out := Connection{
 		Name: name, Kind: cur.Kind, Access: access, Values: values,
 		auth: func(ctx context.Context, header http.Header) error { return ca.Authorize(ctx, creds, header) },
+		// The status is read again before each call, without the credentials: a connection disabled or
+		// marked broken during the run is refused from then on.
+		check: func(ctx context.Context) error { return s.status(ctx, tenantID, id, kind, name) },
 	}
 	if op, ok := ca.(connectors.CodeOperator); ok && len(access.Operations) > 0 {
 		out = out.WithOperator(OperatorBinding{
@@ -281,8 +303,43 @@ func (s storeConnections) Open(ctx context.Context, tenantID uuid.UUID, name str
 	return out, nil
 }
 
+// status is the typed state of an opened connection now: nil while it is connected under its name.
+func (s storeConnections) status(ctx context.Context, tenantID, id uuid.UUID, kind catalog.ConnectorKind, name string) error {
+	list, err := s.store.List(ctx, tenantID, kind)
+	if err != nil {
+		return err
+	}
+	for _, c := range list {
+		if c.ID != id {
+			continue
+		}
+		switch {
+		case c.Name != name:
+			return fmt.Errorf("%w: %s was renamed", ErrConnectionMissing, name)
+		case c.Status == connectors.StatusConnected:
+			return nil
+		case c.Status == connectors.StatusDisabled:
+			return fmt.Errorf("%w: %s", connectors.ErrCodeConnectionDisabled, name)
+		case c.Status == connectors.StatusNeedsReauth || c.Status == connectors.StatusError:
+			return fmt.Errorf("%w: %s", connectors.ErrCodeConnectionBroken, name)
+		}
+		return fmt.Errorf("%w: %s is not connected", ErrConnectionMissing, name)
+	}
+	return fmt.Errorf("%w: %s was deleted", ErrConnectionMissing, name)
+}
+
 // OpenAll opens the connections a node declares; a missing one is a CallError connection_missing.
 func OpenAll(ctx context.Context, cs Connections, tenantID uuid.UUID, names []string) (map[string]Connection, error) {
+	return OpenFor(ctx, cs, catalog.CallInput{TenantID: tenantID}, names, "")
+}
+
+// OpenFor is OpenAll for a node's call: with use set, the run-as subject must hold that permission to use
+// the tenant's connections at all (CallError permission_denied before any connection is opened).
+func OpenFor(ctx context.Context, cs Connections, in catalog.CallInput, names []string, use string) (map[string]Connection, error) {
+	tenantID := in.TenantID
+	if len(names) > 0 && use != "" && !in.RunAs.Has(use) {
+		return nil, &catalog.CallError{Code: CodePermissionDenied, Message: "the user the automation runs as needs " + use + " to use connections"}
+	}
 	out := make(map[string]Connection, len(names))
 	for _, name := range names {
 		if cs == nil {
@@ -370,6 +427,32 @@ type Gateway struct {
 	// Input is the Code node's call: operations are checked against Input.RunAs and receive it (with the
 	// connection's own info and credentials) as their call.
 	Input catalog.CallInput
+	// Use is the permission the run-as subject needs for every call through a connection, HTTP and
+	// operations alike ("": none beyond an operation's own).
+	Use string
+}
+
+// admit checks a call before it reaches the provider: the run-as subject may use connections, and the
+// connection is still connected (its status is read again: an administrator may have disabled it during
+// the run).
+func (g *Gateway) admit(ctx context.Context, c Connection) error {
+	if g.Use != "" && !g.Input.RunAs.Has(g.Use) {
+		return &code.ConnectionRefusedError{Code: CodePermissionDenied, Message: "the user the automation runs as needs " + g.Use + " to use connections"}
+	}
+	err := c.Check(ctx)
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, connectors.ErrCodeConnectionDisabled):
+		return &code.ConnectionRefusedError{Code: CodeConnectionDisabled, Message: "connection " + c.Name + " is disabled"}
+	case errors.Is(err, connectors.ErrCodeConnectionBroken):
+		return &code.ConnectionRefusedError{Code: CodeConnectionBroken, Message: "connection " + c.Name + " needs to be reconnected"}
+	case errors.Is(err, ErrConnectionMissing):
+		return &code.ConnectionRefusedError{Code: code.ReasonConnectionMissing, Message: "connection " + c.Name + " is no longer connected"}
+	case ctx.Err() != nil:
+		return ctx.Err()
+	}
+	return &code.ConnectionRefusedError{Code: CodeUnavailable, Message: "the connection store is not available now", Retryable: true}
 }
 
 var (
@@ -419,6 +502,9 @@ func (g *Gateway) CallConnection(ctx context.Context, req code.ConnectionRequest
 	}
 	u, err := Target(c, req.Path)
 	if err != nil {
+		return nil, err
+	}
+	if err := g.admit(ctx, c); err != nil {
 		return nil, err
 	}
 	var added []string
@@ -474,6 +560,9 @@ func (g *Gateway) CallOperation(ctx context.Context, req code.OperationRequest) 
 	op, ok := c.Access.Operation(req.Operation)
 	if !ok || c.operator == nil {
 		return nil, fmt.Errorf("connection %s has no operation %s", req.Connection, req.Operation)
+	}
+	if err := g.admit(ctx, c); err != nil {
+		return nil, err
 	}
 	if !g.Input.RunAs.Has(op.Permission) {
 		return nil, &code.ConnectionRefusedError{Code: CodePermissionDenied,

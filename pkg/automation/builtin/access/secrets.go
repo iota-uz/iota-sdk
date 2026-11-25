@@ -39,20 +39,28 @@ type chain struct {
 
 func (c chain) Secret(ctx context.Context, tenantID uuid.UUID, runAs spi.Subject, name string) (string, error) {
 	if c.tenant != nil && secrets.IsName(name) {
-		v, err := c.tenant.Resolve(ctx, tenantID, name)
-		switch {
-		case err == nil:
-			// Whether the tenant manages the name is known only now; the value goes no further without the permission.
+		// The records first, without the value: the run-as subject is authorized before the value is read
+		// (or its use recorded). A name the tenant does not manage goes on to the application's chain.
+		owned, err := c.tenant.Has(ctx, tenantID, name)
+		if err != nil {
+			return "", err
+		}
+		if owned {
 			if !runAs.Has(c.use) {
 				return "", fmt.Errorf("%w: %s needs %s", ErrSecretForbidden, name, c.use)
 			}
-			return v, nil
-		case errors.Is(err, secrets.ErrNotFound):
-			// Not the tenant's: the application's chain next.
-		default:
-			return "", err
+			v, err := c.tenant.Resolve(ctx, tenantID, name)
+			if errors.Is(err, secrets.ErrNotFound) {
+				// Deleted between the two reads: as if it was never there.
+				return c.next(ctx, tenantID, runAs, name)
+			}
+			return v, err
 		}
 	}
+	return c.next(ctx, tenantID, runAs, name)
+}
+
+func (c chain) next(ctx context.Context, tenantID uuid.UUID, runAs spi.Subject, name string) (string, error) {
 	if c.fallback == nil {
 		return "", fmt.Errorf("%w: %s", ErrSecretMissing, name)
 	}

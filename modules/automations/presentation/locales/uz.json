@@ -44,6 +44,10 @@
         "Label": "Sirlarni boshqarish",
         "_Description": "Tashkilot sirlarini yaratish, nomini o'zgartirish, yangilash va o'chirish (qiymatlar ko'rsatilmaydi)"
       },
+      "ConnectionsUse": {
+        "Label": "Ulanishlardan foydalanish",
+        "_Description": "Ushbu foydalanuvchi nomidan ishlaydigan avtomatlashtirishlarga Code va HTTP tugunlaridan tashkilot ulanishlarini chaqirishga ruxsat berish"
+      },
       "SecretsUse": {
         "Label": "Sirlardan foydalanish",
         "_Description": "Ushbu foydalanuvchi nomidan ishlaydigan avtomatlashtirishlarga tashkilot sirlarini o'qishga ruxsat berish"

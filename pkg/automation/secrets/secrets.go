@@ -13,7 +13,8 @@
 //
 // The contract every adapter keeps:
 //
-//   - a Read returns one version whole: never fields of two versions;
+//   - values are versioned like KV v2: a Put adds the next version and keeps the earlier ones until Prune;
+//   - a Read returns one version whole (the one the Ref names, or the latest): never fields of two versions;
 //   - a Put is visible to the next Read of any process (no cache outlives a rotation);
 //   - a Ref of another tenant is refused (ErrForbidden), whatever its path;
 //   - an outage is ErrUnavailable: a caller never falls back to the environment or a stale value;
@@ -31,9 +32,14 @@ import (
 
 // Ref is where a secret's value lives: the tenant it belongs to and a path the application forms
 // (Locator). An adapter maps it to its own address (an OpenBao KV v2 mount and path, a table row).
+//
+// Version names one version of the value for Read (KV v2's ?version=N); 0 is the latest. The records
+// publish a value by its version: a rotation writes version N+1 and then commits the record that names it,
+// so a rotation that fails between the two writes leaves every reader on version N.
 type Ref struct {
 	TenantID uuid.UUID
 	Path     string
+	Version  int
 }
 
 // Value is one version of a secret's value, read whole.
@@ -56,11 +62,14 @@ type Writer interface {
 	Put(ctx context.Context, ref Ref, data map[string]string) (Metadata, error)
 	// Delete removes the value with every version; deleting what is not there is not an error.
 	Delete(ctx context.Context, ref Ref) error
+	// Prune removes the versions before keepFrom (KV v2: destroy them), once a later version is published;
+	// pruning what is not there is not an error.
+	Prune(ctx context.Context, ref Ref, keepFrom int) error
 }
 
 // Reader reads values: what resolving a secret for a node needs.
 type Reader interface {
-	// Read is the current version, whole; ErrNotFound when there is none.
+	// Read is the version ref.Version (0: the latest), whole; ErrNotFound when there is none.
 	Read(ctx context.Context, ref Ref) (Value, error)
 }
 
@@ -152,10 +161,14 @@ type Manager interface {
 	Delete(ctx context.Context, tenantID, id uuid.UUID) error
 }
 
-// Resolver reads a tenant's secret by name for a node: the current version of its value. ErrNotFound when
-// the tenant has no secret of the name (the caller tries the application's resolver next); ErrUnavailable
-// when the records or the store fail (the caller fails, never falls back).
+// Resolver reads a tenant's secret by name for a node: the published version of its value. ErrNotFound
+// when the tenant has no secret of the name (the caller tries the application's resolver next);
+// ErrUnavailable when the records or the store fail (the caller fails, never falls back).
 type Resolver interface {
+	// Has reports whether the tenant has a secret of the name, from the records only: no value is read
+	// and no use recorded, so a caller authorizes before Resolve.
+	Has(ctx context.Context, tenantID uuid.UUID, name string) (bool, error)
+	// Resolve reads the value and records the use.
 	Resolve(ctx context.Context, tenantID uuid.UUID, name string) (string, error)
 }
 

@@ -62,6 +62,9 @@ type Deps struct {
 	// Secrets and Connections are the tenant's (nil: none).
 	Secrets     access.Secrets
 	Connections access.Connections
+	// ConnectionUse is the permission the run-as subject needs to use the tenant's connections from the
+	// node ("": none).
+	ConnectionUse string
 }
 
 // Node is the code node type.
@@ -229,7 +232,7 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 		}
 		return catalog.CallResult{}, err
 	}
-	conns, err := access.OpenAll(ctx, n.d.Connections, in.TenantID, p.Connections)
+	conns, err := access.OpenFor(ctx, n.d.Connections, in, p.Connections, n.d.ConnectionUse)
 	if err != nil {
 		var ce *catalog.CallError
 		if errors.As(err, &ce) {
@@ -267,7 +270,7 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 	}
 	if len(conns) > 0 {
 		run.ConnectionSpecs = specs
-		run.ConnectionCaller = &access.Gateway{Fetcher: n.d.Fetcher, Connections: conns, Input: in}
+		run.ConnectionCaller = &access.Gateway{Fetcher: n.d.Fetcher, Connections: conns, Input: in, Use: n.d.ConnectionUse}
 	}
 	res, err := eng.Run(ctx, compiled, run)
 	if err != nil {

@@ -44,6 +44,10 @@
         "Label": "Gerenciar segredos",
         "_Description": "Criar, renomear, rotacionar e excluir os segredos da organização (os valores nunca são exibidos)"
       },
+      "ConnectionsUse": {
+        "Label": "Usar conexões",
+        "_Description": "Permitir que as automações executadas por este usuário chamem as conexões da organização a partir dos nós Code e HTTP"
+      },
       "SecretsUse": {
         "Label": "Usar segredos",
         "_Description": "Permitir que as automações executadas por este usuário leiam os segredos da organização"

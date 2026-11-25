@@ -37,6 +37,8 @@ func registerBuiltins(reg catalog.Registry, container *composition.Container) er
 		},
 		Secrets:     &lazySecrets{container: container},
 		Connections: &lazyConnections{container: container},
+		// Code and HTTP nodes use a connection only for a run-as subject that may: Connections.Use.
+		ConnectionUse: permissions.ConnectionsUse.Name(),
 		Runs: func() (engine.RunStarter, error) {
 			if !composition.Has[engine.RunStarter](container) {
 				return nil, errors.New("the automation engine is not composed")
