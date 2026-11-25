@@ -506,3 +506,27 @@ func TestCleanupOfADeletedConnectionLeavesItsReplacementsWebhook(t *testing.T) {
 	require.NoError(t, r.c.Deprovision(ctx, replacement, r.creds()))
 	assert.Empty(t, r.bot.Webhook().URL, "its own is removed")
 }
+
+// A change of the application's origin with the same platform bot (docs: «Смена origin при том же платформенном боте»):
+// the start does not take over the webhook of the old address (it is another service's for it), and the platform bot
+// gets the new address once the operator removed the old webhook (deleteWebhook), with the same secret the route
+// verifies. A start at the unchanged origin sets its own webhook again.
+func TestAChangeOfOriginMovesThePlatformWebhookOnlyAfterItIsRemoved(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	require.NoError(t, r.c.StartPlatform(ctx, r.platformCreds()))
+	require.NoError(t, r.c.StartPlatform(ctx, r.platformCreds()), "the same origin again: its own webhook")
+	old := r.platform.Webhook()
+	require.Equal(t, origin+"/automations/hooks/platform/telegram_bot", old.URL)
+
+	const moved = "https://new.example.test"
+	next := telegram.New(telegram.Config{PlatformToken: platformToken, PublicOrigin: moved, Inbound: r.in, APIURL: r.api.URL(), Connections: r.st})
+	require.Error(t, next.StartPlatform(ctx, r.platformCreds()), "the old address is not taken over")
+	assert.Equal(t, old, r.platform.Webhook(), "and stays as it was")
+
+	r.platform.SetWebhook("", "") // the operator's deleteWebhook
+	require.NoError(t, next.StartPlatform(ctx, r.platformCreds()))
+	got := r.platform.Webhook()
+	assert.Equal(t, moved+"/automations/hooks/platform/telegram_bot", got.URL, "the new address")
+	assert.Equal(t, old.Secret, got.Secret, "with the secret of the platform route")
+}
