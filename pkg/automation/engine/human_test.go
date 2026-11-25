@@ -202,3 +202,56 @@ func TestTaskAssignedNewUsersPastALargeEarlierAudience(t *testing.T) {
 	assert.False(t, cut)
 	assert.Equal(t, []int64{1202}, users)
 }
+
+// assignees_from names the deciders from the run's data and required_from the quorum: a CEL list of user ids from the event, added to
+// the static assignees without repeating one. The task is assigned to exactly them and a user it names
+// decides it.
+// Falsely green if: assignees_from were ignored — user 3 is named only by the event's amount and could
+// not decide; or it replaced the static assignees — user 1 would be missing.
+func TestHumanAssigneesFromTheRun(t *testing.T) {
+	ae, _ := humanEnv(t)
+	p := ae.proc()
+	ae.create(p, ae.human(), humanGraph(`{"title": "Approve", "assignees": [{"kind": "user", "user_id": 1}],
+		"assignees_from": "[event.amount, 1]", "required_from": "size([event.amount, 1])", `+humanButtons+`}`, false))
+	ae.publish(ae.tenant, orderCreated, "o-1", order{Amount: 3}, 0)
+	p.until(func() bool { return ae.count(`SELECT count(*) FROM extruntime.human_tasks WHERE status = 'open'`) == 1 }, "the task opens")
+	rows, err := ae.db.Query(context.Background(), `SELECT payload FROM extruntime.outbox_events WHERE event = $1 ORDER BY seq`, engine.EventTaskAssigned)
+	require.NoError(t, err)
+	raws, err := pgx.CollectRows(rows, pgx.RowTo[[]byte])
+	require.NoError(t, err)
+	require.Len(t, raws, 1)
+	var assigned engine.TaskAssignedPayload
+	require.NoError(t, json.Unmarshal(raws[0], &assigned))
+	assert.Equal(t, []int64{1, 3}, assigned.UserIDs)
+	task := ae.openTask(t)
+	require.NoError(t, p.wf.DecideTask(context.Background(), spiSubject(ae.tenant, 3), task, json.RawMessage(`{"outcome": "approve"}`)))
+	p.pass()
+	assert.Empty(t, noteTexts(t, ae.env), "the quorum is both of them")
+	require.NoError(t, p.wf.DecideTask(context.Background(), spiSubject(ae.tenant, 1), task, json.RawMessage(`{"outcome": "approve"}`)))
+	p.until(func() bool { return len(noteTexts(t, ae.env)) == 1 }, "both decided")
+}
+
+func TestHumanAssigneesFromValues(t *testing.T) {
+	p, err := engine.ParseHumanParams(json.RawMessage(`{"title": "x", "assignees_from": [5, "6", {"kind": "role", "ref": "77"}, 5], "buttons": [{"outcome": "ok", "label": "OK"}]}`))
+	require.NoError(t, err)
+	require.Len(t, p.Assignees, 3, "ids, decimal strings and assignees; a repeat once")
+	assert.Equal(t, int64(5), *p.Assignees[0].UserID)
+	assert.Equal(t, int64(6), *p.Assignees[1].UserID)
+	assert.Equal(t, "77", p.Assignees[2].Ref)
+	_, err = engine.ParseHumanParams(json.RawMessage(`{"title": "x", "assignees_from": [0], "buttons": [{"outcome": "ok", "label": "OK"}]}`))
+	require.Error(t, err, "0 is not a user")
+	_, err = engine.ParseHumanParams(json.RawMessage(`{"title": "x", "assignees_from": "5", "buttons": [{"outcome": "ok", "label": "OK"}]}`))
+	require.Error(t, err, "the value is a list")
+	p, err = engine.ParseHumanParams(json.RawMessage(`{"title": "x", "assignees_from": [], "buttons": [{"outcome": "ok", "label": "OK"}]}`))
+	require.NoError(t, err)
+	_, err = p.TaskSpec(time.Hour, engine.SubjectRef{})
+	require.Error(t, err, "a task for nobody is refused")
+
+	p, err = engine.ParseHumanParams(json.RawMessage(`{"title": "x", "assignees_from": [5, 6], "required": 1, "required_from": 2, "buttons": [{"outcome": "ok", "label": "OK"}]}`))
+	require.NoError(t, err)
+	assert.Equal(t, 2, p.Required, "required_from is the quorum")
+	for _, bad := range []string{`0`, `1.5`, `"2"`, `101`} {
+		_, err = engine.ParseHumanParams(json.RawMessage(`{"title": "x", "assignees_from": [5], "required_from": ` + bad + `, "buttons": [{"outcome": "ok", "label": "OK"}]}`))
+		require.Error(t, err, bad)
+	}
+}

@@ -1,0 +1,1 @@
+{"bump":"minor","summary":"Automations: the human node takes its deciders and its quorum from the run's data — assignees_from (CEL: a list of user ids or assignees, added to assignees) and required_from (CEL: the quorum, e.g. all of them)."}
