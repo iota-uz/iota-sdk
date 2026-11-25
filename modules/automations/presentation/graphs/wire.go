@@ -539,7 +539,8 @@ type RunsRequest struct {
 	AutomationID string     `json:"automation_id"`
 	Version      int        `json:"version,omitempty"`
 	State        []RunState `json:"state,omitempty"`
-	// Subject narrows the runs to subjects whose key starts with it (case-insensitive).
+	// Subject narrows the runs to subjects whose key starts with it (case-insensitive) or whose name the
+	// host finds by it (engine.SubjectSearcher, with the viewer's rights).
 	Subject string `json:"subject,omitempty"`
 	// Node narrows the runs to those that took a step on the node (a Test node's example).
 	Node   string `json:"node,omitempty"`

@@ -151,7 +151,7 @@ Object.assign(api, {
     if (runsMode === 'error') throw new Error('network')
     const q = (input.subject ?? '').toLowerCase()
     const items = runs.filter((r) => (!input.version || r.version === input.version) && (!input.state || input.state.length === 0 || input.state.includes(r.state)) &&
-      (!q || (r.subject?.key ?? '').toLowerCase().startsWith(q)) && (!input.node || r.steps.some((s) => s.node === input.node))).map(toSummary)
+      (!q || (r.subject?.key ?? '').toLowerCase().startsWith(q) || (r.subject?.label ?? '').toLowerCase().includes(q)) && (!input.node || r.steps.some((s) => s.node === input.node))).map(toSummary)
     // Pages by the cursor, as the server does.
     const from = Number(input.cursor ?? '0')
     const size = input.limit ?? 50

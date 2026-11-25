@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Automation engine lint after the AI-node and run-view merges: TestNodeResult declares its JSON names (unchanged, the Go field names stored in automation.node_tests), keepField lists the scalar kinds, and a call output that is not JSON is marked as the step's recorded failure."}
