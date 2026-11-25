@@ -74,10 +74,13 @@ const PlatformStartTimeout = PlatformLease / 2
 // that session ends during the provider call (its advisory lock and transaction go with it), the committed reservation
 // still holds the account for the lease, and a tenant's save of the account is refused until then. start runs under
 // the account's lock in a second transaction (two instances that start with the same credential set it up one after
-// the other, a tenant's save waits) with a deadline of PlatformStartTimeout, shorter than the lease: a request the
-// provider takes late has landed before the reservation can run out, so a delayed platform setWebhook never replaces
-// the webhook of a tenant that took the account after it. The reservation is kept when start fails; its failure is a
-// *PlatformStartError.
+// the other, a tenant's save waits) with a deadline of at most PlatformStartTimeout that also ends while a quarter of
+// the committed lease is still left: the lock wait counts against it, and with less left the setup is not attempted.
+// Telegram has no conditional setWebhook, so this is a bound, not a fence: a request the provider applies more than
+// that quarter of the lease after the client's deadline, from an instance that stopped renewing (a crash), could still
+// land after a tenant took the account. A live instance renews the lease every quarter of it, so its reservation does
+// not run out under a request of its own. The reservation is kept when start fails; its failure (and a setup that was
+// not attempted) is a *PlatformStartError.
 func StartPlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind, external string, start func(ctx context.Context) error) error {
 	if external == "" {
 		if start == nil {
@@ -118,15 +121,23 @@ func StartPlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.C
 		if err := lockIdentity(ctx, tx, kind, external); err != nil {
 			return err
 		}
-		// The reservation committed above, read again under the lock: nothing is set up without it.
-		holder, err := holderOf(ctx, tx, kind, external)
+		// The reservation committed above, read again under the lock: nothing is set up without it, and the setup
+		// ends while a quarter of the committed lease is still left (the lock wait has used some of it).
+		var leftMs float64
+		err := tx.QueryRow(ctx, `SELECT extract(epoch FROM lease_until - clock_timestamp()) * 1000 FROM automation.exclusive_identities
+			WHERE platform AND kind = $1 AND external = $2 FOR UPDATE`, string(kind), external).Scan(&leftMs)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errLeaseLost
+		}
 		if err != nil {
 			return err
 		}
-		if !holder.held || !holder.platform {
-			return errLeaseLost
+		budget := startBudget(time.Duration(leftMs) * time.Millisecond)
+		if budget <= 0 {
+			startErr = errLeaseTooShort
+			return nil
 		}
-		startCtx, cancel := context.WithTimeout(ctx, PlatformStartTimeout)
+		startCtx, cancel := context.WithTimeout(ctx, budget)
 		startErr = start(startCtx)
 		cancel()
 		// The lease counts from the moment start returned (the lock wait and the provider call would shorten it).
@@ -140,6 +151,18 @@ func StartPlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.C
 	}
 	return nil
 }
+
+// platformStartMargin is the committed lease that is still left when the provider setup's deadline passes.
+const platformStartMargin = PlatformLease / 4
+
+// startBudget is the deadline of the provider setup for the committed lease left: at most PlatformStartTimeout, and
+// never past the point where less than platformStartMargin of the lease would be left.
+func startBudget(left time.Duration) time.Duration {
+	return min(PlatformStartTimeout, left-platformStartMargin)
+}
+
+// errLeaseTooShort is a setup that would not end inside the committed lease (the lock wait used it up).
+var errLeaseTooShort = errors.New("automation connections: too little of the platform reservation's lease is left to set the provider up")
 
 func lockIdentity(ctx context.Context, tx pgx.Tx, kind catalog.ConnectorKind, external string) error {
 	_, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, identityLockKey(kind, external))
