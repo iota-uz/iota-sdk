@@ -629,6 +629,52 @@ func TestTelegramRetiredPlatformBotIsRefused(t *testing.T) {
 	assert.Equal(t, http.StatusOK, d.Status, "the new platform bot is served")
 }
 
+// A platform setWebhook that Telegram applied late — from an instance that crashed during the call, after the bot
+// stopped being the platform's and a tenant's connection took it — points the tenant's bot back to the platform route.
+// The route recognises the stray update (its secret is that bot's platform secret, checked with the connection's
+// token), points the webhook back to the connection and answers 503; Telegram's next delivery reaches the connection
+// and runs its graph. A request no retired account verifies stays a plain 404.
+func TestTelegramStrayPlatformWebhookIsPointedBackToItsConnection(t *testing.T) {
+	te := newTgEnv(t)
+	p := te.proc()
+	te.provision()
+	te.chat(700)
+	te.create(p, te.human(), tgMessageGraph(`{"id": "m", "event": "telegram.message_received.v1"}`))
+	ctx := context.Background()
+	account := te.tg.ExternalID(connectors.Credentials{"token": tgToken})
+	// The tenant's bot was the platform's until a rotation: its reservation is retired, and the connection holds it.
+	_, err := te.db.Exec(ctx, `INSERT INTO automation.retired_platform_identities (kind, external) VALUES ($1, $2)`, string(telegram.Kind), account)
+	require.NoError(t, err)
+	require.NoError(t, pgx.BeginFunc(ctx, te.db, func(tx pgx.Tx) error {
+		return connectors.ReserveIdentity(ctx, tx, telegram.Kind, account, te.conn.ID)
+	}))
+	own := te.bot.Webhook()
+
+	// The late platform request lands.
+	platformRoute := te.srv.URL + "/automations/hooks/platform/" + string(telegram.Kind)
+	te.bot.SetWebhook(platformRoute, telegram.WebhookSecret(tgToken, catalog.PlatformConnectionID(telegram.Kind)))
+	u := te.bot.Update(700, tgAlice, "after the stray webhook")
+	d, err := te.bot.Redeliver(u)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusServiceUnavailable, d.Status, "delivered again")
+	assert.Equal(t, own, te.bot.Webhook(), "the webhook is the connection's again, with its own secret")
+	p.pass()
+	assert.Zero(t, te.count(`SELECT count(*) FROM automation.runs`), "nothing ran on the platform route")
+
+	d, err = te.bot.Redeliver(u)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, d.Status)
+	p.until(func() bool { return len(noteTexts(t, te.env)) == 1 }, "the next delivery reaches the connection and runs its graph")
+
+	// Another bot's request with a made-up secret on the platform route is not taken for a stray.
+	stranger := te.api.Bot("444444:DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", "stranger_bot")
+	stranger.SetWebhook(platformRoute, "not-the-secret-not-the-secret-12")
+	d, err = stranger.Redeliver(stranger.Update(700, tgAlice, "hi"))
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, d.Status)
+	assert.Equal(t, own, te.bot.Webhook())
+}
+
 type failingStart struct{ tgStart }
 
 func (failingStart) Handle(context.Context, telegram.StartUpdate) (string, error) {

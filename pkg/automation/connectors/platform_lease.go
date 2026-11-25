@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -79,7 +80,8 @@ const PlatformStartTimeout = PlatformLease / 2
 // Telegram has no conditional setWebhook, so this is a bound, not a fence: a request the provider applies more than
 // that quarter of the lease after the client's deadline, from an instance that stopped renewing (a crash), could still
 // land after a tenant took the account. A live instance renews the lease every quarter of it, so its reservation does
-// not run out under a request of its own. The reservation is kept when start fails; its failure (and a setup that was
+// not run out under a request of its own; a stray webhook that lands anyway is pointed back to the tenant's connection
+// by the platform route (the released account is retired, RetiredPlatformHolders, engine.PlatformStrayReceiver). The reservation is kept when start fails; its failure (and a setup that was
 // not attempted) is a *PlatformStartError.
 func StartPlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind, external string, start func(ctx context.Context) error) error {
 	if external == "" {
@@ -177,15 +179,63 @@ func lockIdentity(ctx context.Context, tx pgx.Tx, kind catalog.ConnectorKind, ex
 // free to be connected as a tenant's own. Its webhook cannot be removed without its token, which is gone with the
 // configuration; a tenant's connection replaces it.
 func PrunePlatformIdentities(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind) error {
-	_, err := db.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE platform AND kind = $1 AND lease_until < now()`, string(kind))
+	if _, err := db.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE platform AND kind = $1 AND lease_until < now()`, string(kind)); err != nil {
+		return err
+	}
+	_, err := db.Exec(ctx, `DELETE FROM automation.retired_platform_identities WHERE kind = $1 AND retired_at < now() - $2::interval`, string(kind), retiredInterval())
 	return err
 }
 
 // ReleasePlatformIdentities releases every platform reservation of a kind at once, whatever its lease: for an
-// operator who knows that no instance runs with the platform credential any more.
+// operator who knows that no instance runs with the platform credential any more. (A reservation whose lease is live
+// is kept against any other delete, an instance of the previous release's included: the database refuses it.)
 func ReleasePlatformIdentities(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind) error {
-	_, err := db.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE platform AND kind = $1`, string(kind))
-	return err
+	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT set_config('automation.release_platform', 'on', true)`); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE platform AND kind = $1`, string(kind))
+		return err
+	})
+}
+
+// RetiredPlatformWindow is how long an account that stopped being the platform's is watched for a platform webhook
+// the provider applied late (RetiredPlatformHolders).
+const RetiredPlatformWindow = 24 * time.Hour
+
+func retiredInterval() string {
+	return fmt.Sprintf("%d seconds", int64(RetiredPlatformWindow.Seconds()))
+}
+
+// RetiredHolder is a tenant's connection that holds an account which was the platform's within RetiredPlatformWindow.
+type RetiredHolder struct {
+	TenantID     uuid.UUID
+	ConnectionID uuid.UUID
+	External     string
+}
+
+// RetiredPlatformHolders are the tenants' connections of a kind that hold an account the platform's reservation left
+// within RetiredPlatformWindow: the only accounts a stray update on the platform route can belong to (a platform
+// setWebhook applied late, after the account changed hands).
+func RetiredPlatformHolders(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind) ([]RetiredHolder, error) {
+	rows, err := db.Query(ctx, `SELECT c.tenant_id, c.id, e.external FROM automation.exclusive_identities e
+		JOIN automation.retired_platform_identities r ON r.kind = e.kind AND r.external = e.external
+		JOIN automation.connections c ON c.id = e.connection_id
+		WHERE e.kind = $1 AND NOT e.platform AND r.retired_at > now() - $2::interval
+		ORDER BY r.retired_at DESC LIMIT 20`, string(kind), retiredInterval())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []RetiredHolder
+	for rows.Next() {
+		var h RetiredHolder
+		if err := rows.Scan(&h.TenantID, &h.ConnectionID, &h.External); err != nil {
+			return nil, err
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
 }
 
 // IsPlatformStartError reports whether err is the failure of a platform start rather than of its reservation.

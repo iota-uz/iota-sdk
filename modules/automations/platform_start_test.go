@@ -379,3 +379,48 @@ func TestThePlatformReservationIsCommittedBeforeTheWebhookIsSet(t *testing.T) {
 	assert.LessOrEqual(t, p.deadline, connectors.PlatformStartTimeout)
 	assert.Less(t, connectors.PlatformStartTimeout, connectors.PlatformLease)
 }
+
+// The first rollout of this release runs next to instances of the previous one, which do not renew leases and, at their
+// start, delete the platform's reservations of every other account (all of them when they run without a platform
+// credential). Their statements, verbatim, cannot release a reservation whose lease is live; an expired one they may.
+// An operator's release of all of them still works, and every released account is recorded as retired.
+func TestThePreviousReleaseCannotReleaseALiveLease(t *testing.T) {
+	db, _, _, dir, _ := startEnv(t) //nolint:dogsled // the instances are simulated by SQL
+	ctx := context.Background()
+	newer := connectors.NewPlatformCredentials(dir, map[catalog.ConnectorKind]connectors.PlatformCredential{
+		catalog.KindTelegramBot: {Credentials: connectors.Credentials{"token": "new"}}})
+	require.NoError(t, automations.StartPlatformConnectors(ctx, dir, newer, db, nil, (&logged{}).warn))
+	held := func(account string) int {
+		var n int
+		require.NoError(t, db.QueryRow(ctx, `SELECT count(*) FROM automation.exclusive_identities WHERE platform AND external = $1`, account).Scan(&n))
+		return n
+	}
+	require.Equal(t, 1, held("acct-new"))
+
+	// The previous release's ReservePlatformIdentity for its own (old) bot, then its release without a credential.
+	previousStart := func(account string) {
+		require.NoError(t, pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE platform AND kind = $1 AND external <> $2`, string(catalog.KindTelegramBot), account); err != nil {
+				return err
+			}
+			_, err := tx.Exec(ctx, `INSERT INTO automation.exclusive_identities (kind, external, platform) VALUES ($1, $2, TRUE) ON CONFLICT DO NOTHING`, string(catalog.KindTelegramBot), account)
+			return err
+		}))
+	}
+	previousStart("acct-old")
+	assert.Equal(t, 1, held("acct-new"), "an instance of the previous release does not release the new bot")
+	assert.Equal(t, 1, held("acct-old"), "and holds its own, for ten minutes without renewal")
+	_, err := db.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE platform AND kind = $1`, string(catalog.KindTelegramBot))
+	require.NoError(t, err)
+	assert.Equal(t, 1, held("acct-new"), "nor does its release without a credential")
+
+	expireLease(t, db, "acct-old")
+	previousStart("acct-new")
+	assert.Zero(t, held("acct-old"), "an expired lease is released by anyone")
+	var retired int
+	require.NoError(t, db.QueryRow(ctx, `SELECT count(*) FROM automation.retired_platform_identities WHERE external = 'acct-old'`).Scan(&retired))
+	assert.Equal(t, 1, retired, "and recorded as retired")
+
+	require.NoError(t, connectors.ReleasePlatformIdentities(ctx, db, catalog.KindTelegramBot))
+	assert.Zero(t, held("acct-new"), "an operator's release releases a live lease too")
+}

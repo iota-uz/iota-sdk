@@ -78,6 +78,30 @@ func (c *Connector) Verify(r *http.Request, _ []byte, conn connectors.Connection
 	return nil
 }
 
+var _ engine.PlatformStrayReceiver = (*Connector)(nil)
+
+// VerifyStray tells whether a request on the platform route carries the platform webhook secret of the connection's
+// bot: the bot was the platform's, and a platform setWebhook applied late pointed it back there.
+func (c *Connector) VerifyStray(r *http.Request, _ []byte, conn connectors.Connection, creds connectors.Credentials) bool {
+	token, got := creds["token"], r.Header.Get(SecretHeader)
+	if token == "" || got == "" || isPlatform(conn) {
+		return false
+	}
+	return secretEqual(got, WebhookSecret(token, catalog.PlatformConnectionID(Kind)))
+}
+
+// Reclaim points the connection's bot back to the connection's webhook, with the secret its Provision made.
+func (c *Connector) Reclaim(ctx context.Context, conn connectors.Connection, creds connectors.Credentials) error {
+	stored, account, err := c.storedSecret(ctx, conn)
+	if err != nil {
+		return err
+	}
+	if stored == "" || account != c.ExternalID(creds) {
+		return errors.New("telegram: the connection has no webhook secret of its bot")
+	}
+	return c.bot(creds["token"]).setWebhook(ctx, c.hookURL(conn), stored)
+}
+
 // storedSecret reads the connection's webhook secret, and the bot account it is bound to, from its inbound
 // state.
 func (c *Connector) storedSecret(ctx context.Context, conn connectors.Connection) (string, string, error) {

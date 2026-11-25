@@ -379,7 +379,7 @@ func (h *inboundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		pc, _, has := h.cfg.Platform.Platform(catalog.ConnectorKind(kind))
 		if !has {
-			notFound(w)
+			h.stray(w, r, body, catalog.ConnectorKind(kind))
 			return
 		}
 		conn = connectors.Connection{Kind: catalog.ConnectorKind(kind), Name: "platform", Status: connectors.StatusConnected}
@@ -423,6 +423,10 @@ func (h *inboundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := recv.Verify(r, body, conn, creds); err != nil {
+		if kind != "" {
+			h.stray(w, r, body, conn.Kind)
+			return
+		}
 		notFound(w)
 		return
 	}
@@ -461,6 +465,64 @@ func (h *inboundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	buf.flush(w)
+}
+
+// PlatformStrayReceiver is an optional interface of a WebhookReceiver whose accounts are exclusive (a Telegram bot,
+// one webhook): a request on the platform route that the platform credential does not verify may belong to an account
+// that was the platform's and that a tenant's connection took since (connectors.RetiredPlatformHolders) — a platform
+// setWebhook the provider applied late, from an instance that crashed during the call, points it back to the platform
+// route. VerifyStray tells whether the request is that account's platform webhook (verified with the connection's
+// credentials); Reclaim points the account's webhook back to the connection. The request is then answered 503, so the
+// provider delivers it again, to the connection.
+type PlatformStrayReceiver interface {
+	VerifyStray(r *http.Request, body []byte, c connectors.Connection, creds connectors.Credentials) bool
+	Reclaim(ctx context.Context, c connectors.Connection, creds connectors.Credentials) error
+}
+
+// latestReader is the part of connectors.Store that runs a step under the lock of a connection's exclusive account,
+// with the connection as it is committed then.
+type latestReader interface {
+	WithLatest(ctx context.Context, kind catalog.ConnectorKind, tenantID, id uuid.UUID, external string, fn func(found bool, c connectors.Connection, creds connectors.Credentials) error) error
+}
+
+// stray answers a platform-route request the platform credential did not verify: a stray update of an account a
+// tenant's connection took (PlatformStrayReceiver) has its webhook pointed back to the connection and is answered 503
+// (delivered again, there); anything else is 404.
+func (h *inboundHandler) stray(w http.ResponseWriter, r *http.Request, body []byte, kind catalog.ConnectorKind) {
+	cn, found := h.cfg.Connectors.Get(kind)
+	sr, ok := cn.(PlatformStrayReceiver)
+	if !found || !ok || h.cfg.DB == nil || h.cfg.Connections == nil {
+		notFound(w)
+		return
+	}
+	ctx := r.Context()
+	holders, err := connectors.RetiredPlatformHolders(ctx, h.cfg.DB, kind)
+	if err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+	for _, hd := range holders {
+		conn, creds, err := h.cfg.Connections.Get(ctx, hd.TenantID, hd.ConnectionID)
+		if err != nil || conn.Status != connectors.StatusConnected || !sr.VerifyStray(r, body, conn, creds) {
+			continue
+		}
+		// Under the account's lock, with the connection as it is committed now: a save or a delete of the
+		// connection that runs meanwhile is not undone.
+		if lr, ok := h.cfg.Connections.(latestReader); ok {
+			_ = lr.WithLatest(ctx, kind, hd.TenantID, hd.ConnectionID, hd.External, func(found bool, c connectors.Connection, cr connectors.Credentials) error {
+				if !found || c.Status != connectors.StatusConnected {
+					return nil
+				}
+				return sr.Reclaim(ctx, c, cr)
+			})
+		} else {
+			_ = sr.Reclaim(ctx, conn, creds)
+		}
+		// Delivered again: to the connection once its webhook is back, or here, to try once more.
+		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+	notFound(w)
 }
 
 // publish writes the events of one request in one transaction; an event of another tenant than the
