@@ -454,7 +454,7 @@ func (c *component) Build(b *composition.Builder) error {
 				return nil, err
 			}
 			if dbErr != nil {
-				return nil, nil //nolint:nilnil // no reservation to keep
+				return nil, nil //nolint:nilnil,nilerr // without the database there is no reservation to keep; the start warned
 			}
 			return keepPlatformLeases(dir, platform, db, warn), nil
 		}}}, nil

@@ -1077,7 +1077,7 @@ func (c *Controller) searchOptions(ctx context.Context, req SearchOptionsRequest
 	out := SearchOptionsResponse{Options: []OptionView{}}
 	id, perr := uuid.Parse(strings.TrimSpace(req.Connection))
 	if c.cfg.Options == nil || perr != nil || strings.TrimSpace(req.Source) == "" {
-		return out, nil
+		return out, nil //nolint:nilerr // a connection that is not a tenant's own (a platform credential) offers none
 	}
 	query := strings.TrimSpace(req.Query)
 	if len(query) > maxOptionQuery {

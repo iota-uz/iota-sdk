@@ -180,7 +180,7 @@ func expireLease(t *testing.T, db *pgxpool.Pool, account string) {
 // and set its webhook under them, and an old instance that starts again meanwhile does not release the new bot —
 // and it is released once its lease ran out (the last old instance stopped).
 func TestARollingUpdateKeepsThePreviousPlatformBotReservedWhileItRuns(t *testing.T) {
-	db, tenant, _, _, _ := startEnv(t)
+	db, tenant, _, _, _ := startEnv(t) //nolint:dogsled // the instances below bring their own bots
 	ctx := context.Background()
 	instance := func(token string) (*bot, connectors.Directory, connectors.PlatformCredentials) {
 		b := &bot{}
