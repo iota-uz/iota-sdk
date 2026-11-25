@@ -136,8 +136,11 @@ type TaskView struct {
 	// PastDeadline: the task is still open but past its final deadline; it takes no decision and the
 	// run closes it as expired.
 	PastDeadline bool
-	Escalated    bool
-	State        string // StateOpen | StateDecided | StateExpired | StateCancelled
+	// Deadline is the final deadline of an open task: after it the task takes no decision. Nil when the
+	// task has no due time or an escalation step is still pending.
+	Deadline  *time.Time
+	Escalated bool
+	State     string // StateOpen | StateDecided | StateExpired | StateCancelled
 	// Outcome is the outcome a decided task closed with.
 	Outcome string
 	// ClosedBy and ClosedAt are who closed a decided task and when (the due time of an expired one).
@@ -197,7 +200,26 @@ type TaskForm interface {
 	// a signature, say), and returns the outcome and the fields of the decision. It runs outside any
 	// transaction; an error records no decision and the task stays open. An external effect inside it
 	// must be safe to repeat: the form deduplicates it.
+	//
+	// Before Decide runs, the inbox refuses a submission the task would refuse: a comment too long, and,
+	// for a form that tells it (FormPreparer, FormIntent), an outcome that is no button or lacks its
+	// comment, fields that break the schema. A form without FormPreparer decides only a task whose
+	// schema constrains no field (ConstrainsFields); otherwise the task shows it unavailable. Right
+	// before Decide the inbox reads the task again and asks the substrate, under the task's lock, whether
+	// the user may still decide it by their current rights (Substrate.AuthorizeTask); ctx ends at the
+	// final deadline that judgement read. The action and the vote cannot be one
+	// transaction: an action that completes just as the deadline passes may find the vote refused
+	// (ErrTaskClosed) and the task expiring; its effect then stands, and a repeat of it is deduplicated.
 	Decide(ctx context.Context, t TaskView, actor user.User, form json.RawMessage) (FormDecision, error)
+}
+
+// FormPreparer is an optional interface of a TaskForm: the decision its data asks for, prepared without
+// the form's action (no external effect). The inbox validates it as the decision (the outcome among the
+// buttons, the comment, the fields against the node's schema) before Decide performs the action; Decide
+// must decide as Prepare did: a result with another outcome, or one that breaks the schema, is not
+// recorded; the prepared decision is.
+type FormPreparer interface {
+	Prepare(ctx context.Context, t TaskView, actor user.User, form json.RawMessage) (FormDecision, error)
 }
 
 // FormIntent is an optional interface of a TaskForm: the outcome its data asks for, read without the

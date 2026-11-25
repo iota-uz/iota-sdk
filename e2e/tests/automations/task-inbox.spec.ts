@@ -64,7 +64,8 @@ test.describe('automations: my tasks', () => {
 		// H4: one decision; a toast; the counter refreshes in place (the live region is the same node).
 		await badge.evaluate((el) => { (el as HTMLElement).dataset.marker = 'kept'; });
 		await comment.press('Control+Enter');
-		await expect(a.page.getByText('Decision recorded').first()).toBeVisible();
+		// The toast itself: the replaced list also says it in a screen-reader-only status.
+		await expect(a.page.locator('[data-toast-container]').getByText('Decision recorded')).toBeVisible();
 		expect(await decisions(taskID)).toBe(1);
 		await expect(badge).not.toContainText('1');
 		expect(await badge.evaluate((el) => (el as HTMLElement).dataset.marker)).toBe('kept');

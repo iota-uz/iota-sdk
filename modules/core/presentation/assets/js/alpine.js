@@ -3089,7 +3089,9 @@ const htmxErrorToast = (() => {
     if (type.includes("json")) {
       try {
         const data = JSON.parse(body);
-        const value = data && (data.message || data.error || data.detail);
+        // {"message"}, {"error": "..."} or {"error": {"code", "message"}}.
+        const nested = data && data.error && typeof data.error === "object" ? data.error.message : "";
+        const value = data && (data.message || nested || data.error || data.detail);
         return typeof value === "string" ? value.slice(0, 300) : "";
       } catch {
         return "";
@@ -3105,12 +3107,15 @@ const htmxErrorToast = (() => {
 
   // "off" covers background reads only: a container can hold both a polling
   // GET and write forms, and a failed write must always be reported.
-  // "banner" is a screen that reports every failure itself, reads and
-  // writes (its own banner with Retry), so a toast would only repeat it.
-  const optedOut = (event) => {
+  // "banner" is a screen whose own banner (with Retry) reports a lost
+  // connection and an unavailable server (network errors, timeouts, 5xx),
+  // reads and writes, so a toast would only repeat it; any other failure
+  // (a 4xx such as 403 HUMAN_REQUIRED) the banner does not show keeps the
+  // toast.
+  const optedOut = (event, bannerHandles) => {
     const elt = event.detail && (event.detail.elt || event.target);
     if (!elt || !elt.closest) return false;
-    if (elt.closest('[data-htmx-error-toast="banner"]')) return true;
+    if (bannerHandles && elt.closest('[data-htmx-error-toast="banner"]')) return true;
     return isRead(event) && !!elt.closest('[data-htmx-error-toast="off"]');
   };
 
@@ -3127,14 +3132,15 @@ const htmxErrorToast = (() => {
 
   return {
     responseError(event) {
-      if (event.defaultPrevented || optedOut(event)) return;
+      const status = event.detail && event.detail.xhr ? event.detail.xhr.status : 0;
+      if (event.defaultPrevented || optedOut(event, status >= 500)) return;
       const title = isRead(event)
         ? text("errorLoadFailed", "Could not load data")
         : text("errorSaveFailed", "Could not save changes");
       notify(title, plainMessage(event.detail.xhr));
     },
     sendError(event) {
-      if (event.defaultPrevented || optedOut(event)) return;
+      if (event.defaultPrevented || optedOut(event, true)) return;
       notify(
         text("errorNetwork", "No connection to the server"),
         text("errorNetworkHint", "Check your connection and try again.")

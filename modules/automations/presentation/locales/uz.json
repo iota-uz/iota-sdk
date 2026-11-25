@@ -487,7 +487,7 @@
       },
       "Empty": {
         "Mine": "Siz uchun vazifa yo‘q",
-        "MineHint": "Avtomatlashtirish sizdan, rolingiz yoki guruhingizdan qaror so‘rasa, vazifa shu yerda paydo bo‘ladi va bildirishnoma keladi.",
+        "MineHint": "Avtomatlashtirish sizdan, rolingiz yoki guruhingizdan qaror so‘rasa, vazifa shu yerda paydo bo‘ladi.",
         "Overdue": "Muddati o‘tgan vazifa yo‘q",
         "OverdueHint": "Muddati o‘tgan ochiq vazifalar shu yerda paydo bo‘ladi.",
         "Decided": "Siz hali birorta vazifani hal qilmadingiz",
@@ -604,8 +604,15 @@
         "Text": "Server bilan aloqa yo‘q. Kiritilgan ma’lumot saqlanib qoladi."
       },
       "Field": {
-        "Null": "Bo‘sh (null)"
-      }
+        "Null": "Bo‘sh (null)",
+        "Yes": "Ha",
+        "No": "Yo‘q",
+        "Document": "Qaror maydonlari (JSON)",
+        "DocumentHint": "Qaror maydonlarini JSON obyekt sifatida kiriting; ular vazifa shakli bo‘yicha tekshiriladi."
+      },
+      "Unconfirmed": "Quyida qarorni tasdiqlang: u yuborilmadi.",
+      "RetryChooseColleague": "Hamkasbni qayta tanlang va «Vazifani topshirish» tugmasini bosing.",
+      "CopyFailed": "Nusxalab bo‘lmadi. ID ni belgilab, nusxalang:"
     }
   }
 }

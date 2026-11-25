@@ -4,7 +4,7 @@
  * colleague search never chooses for the person (K5).
  */
 import { randomUUID } from 'node:crypto';
-import { request as playwrightRequest } from '@playwright/test';
+import { request as playwrightRequest, type Request } from '@playwright/test';
 import { test, expect } from '../../fixtures/test';
 import { login } from '../../fixtures/auth';
 import { ADMIN, PASSWORD, decisions, people, rowOf, sessionOf, startTask, taskIDOf } from './inbox';
@@ -16,8 +16,7 @@ test.describe('automations: my tasks under failures', () => {
 		const { members: [gleb] } = await people(['Gleb']);
 		await login(page, ADMIN, PASSWORD);
 		const title = `Bearer ${randomUUID().slice(0, 6)}`;
-		await startTask(page, title, { assignees: [{ kind: 'user', user_id: gleb.id }] });
-		const task = await taskIDOf(title);
+		const task = await taskIDOf(await startTask(page, title, { assignees: [{ kind: 'user', user_id: gleb.id }] }));
 
 		const api = await playwrightRequest.newContext({ baseURL }); // no cookies
 		for (const verb of ['decide', 'delegate']) {
@@ -141,22 +140,40 @@ test.describe('automations: my tasks under failures', () => {
 		await (await rowOf(g.page, title)).locator('a').first().click();
 		await g.page.getByTestId('automations-task-delegate').locator('summary').click();
 		const picker = g.page.getByRole('combobox', { name: 'Colleague' });
-		// The answer for "Gleb" (anyone but the delegate) comes late.
+		// The answer for "admin" (anyone but the delegate) is held at the route until the query has changed.
+		let release!: () => void;
+		const released = new Promise<void>((r) => { release = r; });
+		let reached!: (request: Request) => void;
+		const staleReached = new Promise<Request>((r) => { reached = r; });
 		await g.page.route('**/delegates?*', async (route) => {
 			const q = new URL(route.request().url()).searchParams.get('q') ?? '';
-			if (q === 'admin') await new Promise((r) => setTimeout(r, 1500));
-			await route.continue();
+			if (q === 'admin') {
+				reached(route.request());
+				await released;
+			}
+			// The page may have cancelled the held request (hx-sync replace): nothing is left to continue.
+			await route.continue().catch(() => {});
 		});
 		await picker.fill('admin');
-		await g.page.waitForTimeout(400); // the request for "admin" is on its way, slowly
+		const stale = await staleReached; // the request for "admin" is on its way, held
+		// Its end: answered, or cancelled by the page; listened to before the query changes.
+		const staleDone = new Promise<void>((resolve) => {
+			const done = (r: Request) => { if (r === stale) resolve(); };
+			g.page.on('requestfinished', done);
+			g.page.on('requestfailed', done);
+		});
 		await picker.fill(outsider.email);
 		await picker.press('ArrowDown');
 		await picker.press('Enter');
 		await expect(g.page.getByTestId('automations-task-delegate-submit')).toBeDisabled();
 		await expect(g.page.getByRole('option')).toHaveCount(1);
 		await expect(g.page.getByRole('option').first()).toContainText(outsider.name);
-		await g.page.waitForTimeout(1600); // the late answer for "admin" arrives and is dropped
+		release();
+		await staleDone; // the late answer for "admin" arrived or was cancelled
+		// An answer that arrived has been swapped and settled (or dropped) once htmx is idle again.
+		await g.page.waitForFunction(() => !document.querySelector('.htmx-request, .htmx-swapping, .htmx-settling'));
 		await expect(g.page.getByRole('option')).toHaveCount(1);
+		await expect(g.page.getByRole('option').first()).toContainText(outsider.name);
 		await picker.press('ArrowDown');
 		await picker.press('Enter');
 		await expect(picker).toHaveValue(outsider.name);

@@ -16,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
+	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 )
@@ -173,7 +174,11 @@ func (s *Service) CanRead(ctx context.Context, tenantID uuid.UUID, u user.User, 
 	}
 	sub, err := s.cfg.Subjects.LoadSubject(ctx, tenantID, int64(u.ID()), spi.SubjectInitiator)
 	if err != nil {
-		return false, nil //nolint:nilerr // a user who cannot be loaded (blocked) reads nothing
+		if errors.Is(err, host.ErrSubjectBlocked) {
+			return false, nil // a blocked, missing or invalid user reads nothing
+		}
+		// Anything else (the database is down) is no answer: the delivery is retried.
+		return false, err
 	}
 	if sub.Has(permissions.AutomationsRead.Name()) {
 		return true, nil
