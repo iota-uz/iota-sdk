@@ -312,6 +312,16 @@ export default function EditorPage(): JSX.Element {
       return { outcome: res.outcome, ...(res.output !== undefined ? { output: res.output } : {}), ...(res.logs ? { logs: res.logs } : {}), ...(res.duration_ms ? { duration_ms: res.duration_ms } : {}), ...(res.error ? { error: res.error } : {}) }
     },
     searchSubjects: (entity, query) => app.call('automations.search_subjects', { entity, query }),
+    // A picker of a field with x-options-source (the chat of a Telegram node) lists what the step's connection
+    // knows; a step that names none uses the only connection of its kind, as the engine does.
+    searchOptions: async (source, query, ctx) => {
+      const named = typeof ctx.params.connection === 'string' ? ctx.params.connection : ''
+      const candidates = connectionsOf(ctx.nodeType)
+      const connection = named || (candidates.length === 1 ? candidates[0]!.id : '')
+      if (!connection) return []
+      const res = await app.call('automations.search_options', { source, query, connection })
+      return res.options.map((o) => ({ value: o.value, label: o.label, ...(o.group ? { group: o.group } : {}) }))
+    },
     runs: async (input) => {
       const page = await app.call('automations.runs', {
         automation_id: input.automation_id, ...(input.version ? { version: input.version } : {}), ...(input.state && input.state.length > 0 ? { state: input.state } : {}),
@@ -349,16 +359,26 @@ export default function EditorPage(): JSX.Element {
     },
   }
 
+  // The connector kinds of a node type or trigger event: what its connection is one of.
+  const kindsOf = (nodeType: string): string[] => {
+    const data = loaded()
+    if (!data) return []
+    const node = data.catalog.nodes.find((n) => n.type === nodeType) as (EditorCatalog['nodes'][number] & { requires?: string[] }) | undefined
+    const event = data.catalog.events.find((e) => e.key === nodeType) as (EditorCatalog['events'][number] & { requires?: string[] }) | undefined
+    return node?.requires ?? (node?.connector ? [node.connector] : event?.requires ?? [])
+  }
+  // The tenant's working connections of a node type's connector kinds.
+  function connectionsOf(nodeType: string): { id: string; name: string }[] {
+    const data = loaded()
+    if (!data) return []
+    return kindsOf(nodeType).flatMap((k) => data.connections[k] ?? [])
+  }
+
   // A node's connection: the tenant's working connections of the node's connector kinds.
   const fieldSlot: FieldSlot = (field) => {
     if (field.param !== 'connection') return undefined
-    const data = loaded()
-    if (!data) return undefined
-    const node = data.catalog.nodes.find((n) => n.type === field.nodeType) as (EditorCatalog['nodes'][number] & { requires?: string[] }) | undefined
-    const event = data.catalog.events.find((e) => e.key === field.nodeType) as (EditorCatalog['events'][number] & { requires?: string[] }) | undefined
-    const kinds = node?.requires ?? (node?.connector ? [node.connector] : event?.requires ?? [])
-    if (kinds.length === 0) return undefined
-    const options = kinds.flatMap((k) => data.connections[k] ?? [])
+    if (!loaded() || kindsOf(field.nodeType).length === 0) return undefined
+    const options = connectionsOf(field.nodeType)
     return (
       <div class="flex flex-col gap-1" data-testid="connection-field">
         <Show when={options.length > 0} fallback={

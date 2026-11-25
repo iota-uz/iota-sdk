@@ -214,4 +214,6 @@ func TestALegacyChatFileIsOpenedUnderItsName(t *testing.T) {
 	assert.Equal(t, "report.pdf", f.Name)
 }
 
-func email2(body string) mailconn.UploadFile { return mailconn.UploadFile{Name: "mail.pdf", Data: []byte(body)} }
+func email2(body string) mailconn.UploadFile {
+	return mailconn.UploadFile{Name: "mail.pdf", Data: []byte(body)}
+}

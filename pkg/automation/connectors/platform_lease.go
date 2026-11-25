@@ -23,7 +23,9 @@ const PlatformLease = 2 * time.Minute
 // reservation itself was made, and the credential still sends.
 type PlatformStartError struct{ Err error }
 
-func (e *PlatformStartError) Error() string { return "automation connections: platform start: " + e.Err.Error() }
+func (e *PlatformStartError) Error() string {
+	return "automation connections: platform start: " + e.Err.Error()
+}
 func (e *PlatformStartError) Unwrap() error { return e.Err }
 
 func leaseInterval() string { return fmt.Sprintf("%d milliseconds", PlatformLease.Milliseconds()) }

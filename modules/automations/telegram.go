@@ -152,3 +152,26 @@ func (l lazyTelegramUploads) Open(ctx context.Context, tenantID uuid.UUID, id st
 	}
 	return u.Open(ctx, tenantID, id)
 }
+
+// connectionOptions are the choices the connector of a tenant's connection offers for a param field
+// (connectors.OptionSource): the chats a Telegram bot knows, for the editor's picker.
+type connectionOptions struct {
+	store connectors.ConnectionStore
+	dir   connectors.Directory
+}
+
+func (o connectionOptions) Options(ctx context.Context, tenantID, connectionID uuid.UUID, source, query string) ([]connectors.Option, error) {
+	conn, _, err := o.store.Get(ctx, tenantID, connectionID)
+	if err != nil {
+		return nil, err
+	}
+	c, ok := o.dir.Get(conn.Kind)
+	if !ok {
+		return []connectors.Option{}, nil
+	}
+	src, ok := c.(connectors.OptionSource)
+	if !ok {
+		return []connectors.Option{}, nil
+	}
+	return src.Options(ctx, tenantID, connectionID, source, query)
+}

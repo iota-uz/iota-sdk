@@ -8,9 +8,10 @@
 //	components := slices.DeleteFunc(modules.Components(), func(c composition.Component) bool {
 //	    return c.Descriptor().Name == "automations"
 //	})
-//	components = append(components, automations.NewComponent(automations.WithConnectors(telegram.New())))
+//	components = append(components, automations.NewComponent(automations.WithConnectors(email.New(cfg)...)))
 //
-// or registers connectors on the resolved connectors.Directory before serving requests.
+// or registers connectors on the resolved connectors.Directory before serving requests. The SDK's AI, SMS, MCP and
+// Telegram bot connectors are registered by the module itself unless the application registered its own of the kind.
 //
 // The component provides the connector Directory, the catalog Registry with the built-in node types
 // (set, code, http, start_automation, run_automation and the actions modules contribute through
@@ -770,6 +771,7 @@ func (c *component) buildPages(b *composition.Builder) {
 			Engine:  graphs.Engine{Service: rt.Service(), Authoring: rt.Authoring(), Operations: rt.Operations()},
 			Catalog: reg, Users: persistence.NewUserNames(db), Host: host, Assets: assets, Path: path,
 			IntegrationsPath: integrations.DefaultPath, MessageKeys: keys, Logger: slog.Default(), MCPTools: tools, Links: c.links,
+			Options: connectionOptions{store: store, dir: dir},
 		})
 		if err != nil {
 			return nil, err

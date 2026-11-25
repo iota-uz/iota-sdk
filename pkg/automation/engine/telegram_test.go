@@ -588,6 +588,47 @@ func TestTelegramPlatformAskIsAnsweredByItsTenant(t *testing.T) {
 	assert.Equal(t, []string{"approved by alice as Approve #9 (approve)"}, noteTexts(t, te.env))
 }
 
+// After the platform's bot is replaced (the application runs with another APP_TELEGRAMBOTTOKEN), the retired bot's
+// webhook still points to the platform route, but nothing can authenticate it any more: its secret is derived from a
+// token the application no longer has. Its updates — even the press of a question it asked before the change — are
+// refused like any request without the route's secret (404, nothing published), and the question waits for its
+// timeout. The new bot's updates are taken.
+func TestTelegramRetiredPlatformBotIsRefused(t *testing.T) {
+	te := newTgEnv(t)
+	p := te.proc()
+	te.provision()
+	te.chat(800)
+	_, err := te.db.Exec(context.Background(), `DELETE FROM automation.connections`)
+	require.NoError(t, err)
+	g := strings.Replace(tgAskGraph, `"chat_id": 700`, `"chat_id": 800, "connection": "platform:telegram_bot"`, 1)
+	te.create(p, te.human(), g)
+	te.publish(te.tenant, orderCreated, "o-1", order{Note: "#9"}, 0)
+	p.until(func() bool {
+		return len(te.platform.Sent()) == 1 && te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND correlation IS NOT NULL`) == 1
+	}, "the question goes out through the platform bot")
+	q := te.platform.Sent()[0]
+
+	// The platform bot is rotated: the route now verifies the new bot's secret.
+	const rotated = "333333:CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+	successor := te.api.Bot(rotated, "successor_bot")
+	te.hook.Store(engine.InboundHandler(engine.InboundConfig{
+		Connections: te.store, Registry: te.reg, Inbound: p.rt.Inbound(), DB: te.db, Connectors: te.dir,
+		Platform: connectors.NewPlatformCredentials(te.dir, map[catalog.ConnectorKind]connectors.PlatformCredential{
+			telegram.Kind: {Credentials: connectors.Credentials{"token": rotated}}}),
+	}))
+	require.NoError(t, te.tg.StartPlatform(context.Background(), connectors.Credentials{"token": rotated}))
+
+	d, _, err := te.platform.PressData(800, q.ID, tgAlice, q.Markup[0][0].CallbackData, q)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, d.Status, "the retired bot cannot be authenticated")
+	assert.Equal(t, 1, te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND correlation IS NOT NULL`), "the question still waits")
+	assert.Empty(t, noteTexts(t, te.env), "no answer reached the run")
+
+	d, err = successor.SendText(800, tgAlice, "hello")
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, d.Status, "the new platform bot is served")
+}
+
 type failingStart struct{ tgStart }
 
 func (failingStart) Handle(context.Context, telegram.StartUpdate) (string, error) {

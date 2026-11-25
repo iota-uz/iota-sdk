@@ -64,6 +64,7 @@ func (c *Controller) bindings() []solid.Binding {
 		bind(MethodRunRetry, c.runRetry),
 		bind(MethodRunRestart, c.runRestart),
 		bind(MethodMCPTools, c.mcpTools),
+		bind(MethodSearchOptions, c.searchOptions),
 	}
 }
 
@@ -1058,6 +1059,39 @@ func (c *Controller) mcpTools(ctx context.Context, req MCPToolsRequest) (MCPTool
 	for _, t := range tools {
 		out.Tools = append(out.Tools, MCPTool{Name: t.Name, Title: t.Title, Description: t.Description,
 			InputSchema: t.InputSchema, OutputSchema: t.OutputSchema, ReadOnly: t.ReadOnly})
+	}
+	return out, nil
+}
+
+// maxOptionQuery bounds the text a picker searches with.
+const maxOptionQuery = 200
+
+// searchOptions serves the pickers of the editor's param fields with x-options-source (the chat of a Telegram
+// node): an author chooses among the chats the step's connection knows. A connection that is not one of the
+// tenant's own (a platform credential, none chosen) offers none.
+func (c *Controller) searchOptions(ctx context.Context, req SearchOptionsRequest) (SearchOptionsResponse, error) {
+	a, err := actor(ctx, permAuthor)
+	if err != nil {
+		return SearchOptionsResponse{}, err
+	}
+	out := SearchOptionsResponse{Options: []OptionView{}}
+	id, perr := uuid.Parse(strings.TrimSpace(req.Connection))
+	if c.cfg.Options == nil || perr != nil || strings.TrimSpace(req.Source) == "" {
+		return out, nil
+	}
+	query := strings.TrimSpace(req.Query)
+	if len(query) > maxOptionQuery {
+		query = query[:maxOptionQuery]
+	}
+	opts, err := c.cfg.Options.Options(ctx, a.TenantID, id, req.Source, query)
+	switch {
+	case errors.Is(err, connectors.ErrNotFound):
+		return SearchOptionsResponse{}, notFound()
+	case err != nil:
+		return SearchOptionsResponse{}, mapErr(err)
+	}
+	for _, o := range opts {
+		out.Options = append(out.Options, OptionView{Value: o.Value, Label: o.Label, Group: o.Group})
 	}
 	return out, nil
 }
