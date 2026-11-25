@@ -428,55 +428,13 @@ func (c *component) Build(b *composition.Builder) error {
 				return nil, err
 			}
 			db, dbErr := composition.Resolve[*pgxpool.Pool](container)
-			for _, conn := range dir.List() {
-				starter, isStarter := conn.(connectors.PlatformStarter)
-				ex, exclusive := conn.(connectors.ExclusiveIdentity)
-				creds, _, has := platform.Platform(conn.Kind())
-				warn := func(format string, err error) {
-					if logger := b.Context().Logger(); logger != nil {
-						logger.Warnf(format, conn.Kind(), err)
-					}
+			warn := func(kind catalog.ConnectorKind, format string, err error) {
+				if logger := b.Context().Logger(); logger != nil {
+					logger.Warnf(format, kind, err)
 				}
-				if !has {
-					// No platform credential is configured (any more): the account it held is nobody's
-					// reservation. Its webhook cannot be removed without its token, which is gone with the
-					// configuration.
-					if exclusive && dbErr == nil {
-						if err := connectors.ReleasePlatformIdentities(ctx, db, conn.Kind()); err != nil {
-							warn("automations: the platform reservation of %s was not released: %v", err)
-						}
-					}
-					continue
-				}
-				// The platform credential in effect (the configuration's, else the connector's own) is the
-				// one that is registered, verified and reserved: an account a tenant's connection holds
-				// cannot be the platform's too, and is then not offered to tenants as a platform credential.
-				if exclusive && dbErr == nil {
-					if err := connectors.ReservePlatformIdentity(ctx, db, conn.Kind(), ex.ExternalID(creds)); err != nil {
-						w, ok := platform.(connectors.PlatformWithdrawer)
-						if !ok {
-							// A credential that cannot be withdrawn would be served next to the account of a
-							// tenant that holds it: the application does not start with it.
-							return nil, fmt.Errorf("automations: the platform credential of %s cannot be used and cannot be withdrawn: %w", conn.Kind(), err)
-						}
-						w.Withdraw(conn.Kind())
-						warn("automations: the platform credential of %s is withdrawn: %v", err)
-						continue
-					}
-				}
-				if !isStarter {
-					continue
-				}
-				if exclusive && dbErr != nil {
-					// Without the reservation the webhook could replace one a tenant's connection holds: the
-					// platform credential keeps working for sending, and is set up at the next start.
-					warn("automations: the platform credential of %s was not set up: %v", dbErr)
-					continue
-				}
-				if err := starter.StartPlatform(ctx, creds); err != nil {
-					// The application starts without it: the platform credential works for sending.
-					warn("automations: the platform credential of %s was not set up: %v", err)
-				}
+			}
+			if err := startPlatformConnectors(ctx, dir, platform, db, dbErr, warn); err != nil {
+				return nil, err
 			}
 			return nil, nil //nolint:nilnil // a hook with nothing to stop
 		}}}, nil
@@ -830,4 +788,58 @@ func withConnectorCredentials(creds map[catalog.ConnectorKind]connectors.Platfor
 		}
 	}
 	return out
+}
+
+// startPlatformConnectors sets up the platform credential of every connector that has one: the account it names
+// is reserved against the tenants' connections (a credential whose account a tenant's connection holds is
+// withdrawn, and the application does not start when it cannot be withdrawn), and a connector that sets its
+// credential up (a webhook) does it only with the reservation in place. dbErr is the failure to reach the
+// database: no reservation can be made or checked then, so no webhook is set.
+func startPlatformConnectors(ctx context.Context, dir connectors.Directory, platform connectors.PlatformCredentials, db *pgxpool.Pool, dbErr error, warn func(kind catalog.ConnectorKind, format string, err error)) error {
+	for _, conn := range dir.List() {
+		starter, isStarter := conn.(connectors.PlatformStarter)
+		ex, exclusive := conn.(connectors.ExclusiveIdentity)
+		creds, _, has := platform.Platform(conn.Kind())
+		if !has {
+			// No platform credential is configured (any more): the account it held is nobody's
+			// reservation. Its webhook cannot be removed without its token, which is gone with the
+			// configuration.
+			if exclusive && dbErr == nil {
+				if err := connectors.ReleasePlatformIdentities(ctx, db, conn.Kind()); err != nil {
+					warn(conn.Kind(), "automations: the platform reservation of %s was not released: %v", err)
+				}
+			}
+			continue
+		}
+		// The platform credential in effect (the configuration's, else the connector's own) is the
+		// one that is registered, verified and reserved: an account a tenant's connection holds
+		// cannot be the platform's too, and is then not offered to tenants as a platform credential.
+		if exclusive && dbErr == nil {
+			if err := connectors.ReservePlatformIdentity(ctx, db, conn.Kind(), ex.ExternalID(creds)); err != nil {
+				w, ok := platform.(connectors.PlatformWithdrawer)
+				if !ok {
+					// A credential that cannot be withdrawn would be served next to the account of a
+					// tenant that holds it: the application does not start with it.
+					return fmt.Errorf("automations: the platform credential of %s cannot be used and cannot be withdrawn: %w", conn.Kind(), err)
+				}
+				w.Withdraw(conn.Kind())
+				warn(conn.Kind(), "automations: the platform credential of %s is withdrawn: %v", err)
+				continue
+			}
+		}
+		if !isStarter {
+			continue
+		}
+		if exclusive && dbErr != nil {
+			// Without the reservation the webhook could replace one a tenant's connection holds: the
+			// platform credential keeps working for sending, and is set up at the next start.
+			warn(conn.Kind(), "automations: the platform credential of %s was not set up: %v", dbErr)
+			continue
+		}
+		if err := starter.StartPlatform(ctx, creds); err != nil {
+			// The application starts without it: the platform credential works for sending.
+			warn(conn.Kind(), "automations: the platform credential of %s was not set up: %v", err)
+		}
+	}
+	return nil
 }

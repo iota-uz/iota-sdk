@@ -88,6 +88,7 @@ type state struct {
 	exists      map[uuid.UUID]bool                   // connections of the application that are alive
 	owner       uuid.UUID                            // the connection the inbound state is of
 	actions     map[string]*connectors.InboundAction // updates the connector handled itself
+	existsCalls int                                  // lookups of whether a connection exists (a second database connection)
 	failHandled int                                  // InboundHandled calls that fail
 	failWrites  int                                  // inbound writes that fail
 	token       string                               // the token the connection holds now ("" : the tenant bot's)
@@ -100,6 +101,7 @@ type state struct {
 func (s *state) ConnectionExists(_ context.Context, id uuid.UUID) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.existsCalls++
 	return s.exists[id], nil
 }
 

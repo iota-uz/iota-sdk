@@ -439,3 +439,70 @@ func TestTheSecretIsBoundToTheBot(t *testing.T) {
 	_, err = r.c.Provision(ctx, r.conn, r.creds(), []string{telegram.WarnPollingUnknown}, json.RawMessage(`not json`))
 	require.Error(t, err)
 }
+
+// Provision runs inside the save's own transaction: a stale webhook (of a connection that is gone) is judged
+// without asking whether that connection exists, which would take a second database connection and, with a pool of
+// one, wait for the one the save holds. The advice before the save asks; the provisioning does not.
+func TestProvisionDoesNotLookUpAStaleWebhookWithASecondConnection(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	r.bot.SetWebhook(origin+"/automations/hooks/"+uuid.NewString(), "stale") // the webhook of a connection that is gone
+	before := r.st.existsCalls
+	_, err := r.prov(ctx, r.conn, r.creds(), nil)
+	require.NoError(t, err, "a stale webhook is nobody's: no confirmation, no failure")
+	assert.Equal(t, before, r.st.existsCalls, "no lookup of the stale webhook's connection during the provisioning")
+	assert.Equal(t, origin+"/automations/hooks/"+r.conn.ID.String(), r.bot.Webhook().URL)
+
+	// The advice, outside the transaction, is where the lookup is made.
+	r.bot.SetWebhook(origin+"/automations/hooks/"+uuid.NewString(), "stale")
+	_, err = r.c.Advise(ctx, nil, r.creds())
+	require.NoError(t, err)
+	assert.Greater(t, r.st.existsCalls, before, "the advice asks")
+}
+
+// After the token of a connection was replaced by another bot's, a request that carries the new bot's secret is not
+// accepted with the old bot's token (nor the old secret with the new token): the secret and the token must be of
+// one bot, so the two are never mixed.
+func TestTheOldTokenAndTheReplacementsSecretAreNotMixed(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	oldSecret := r.bot.Webhook().Secret
+	next := "444444:DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"
+	nb := r.api.Bot(next, "next_bot")
+	state, err := r.prov(ctx, r.conn, connectors.Credentials{"token": next}, []string{telegram.WarnPollingUnknown + "@444444"})
+	require.NoError(t, err)
+	r.st.mu.Lock()
+	merged, merr := connectors.MergeInbound(r.st.inbound, state)
+	r.st.inbound = merged
+	r.st.mu.Unlock()
+	require.NoError(t, merr)
+	newSecret := nb.Webhook().Secret
+	require.NotEqual(t, oldSecret, newSecret)
+
+	upd := nb.Update(900, alice, "hi")
+	nextCreds := connectors.Credentials{"token": next}
+	code, _ := r.post(r.conn, nextCreds, newSecret, upd)
+	assert.Equal(t, http.StatusOK, code, "the replacement's secret with the replacement's token")
+	code, _ = r.post(r.conn, r.creds(), newSecret, upd)
+	assert.Equal(t, http.StatusNotFound, code, "the replacement's secret with the old token")
+	code, _ = r.post(r.conn, nextCreds, oldSecret, upd)
+	assert.Equal(t, http.StatusNotFound, code, "the old secret with the replacement's token")
+}
+
+// The webhook of a connection that was deleted is removed only while it is that connection's own: when the bot
+// has meanwhile been connected again (another connection, its own URL), the cleanup of the deleted one leaves it.
+func TestCleanupOfADeletedConnectionLeavesItsReplacementsWebhook(t *testing.T) {
+	r := newRig(t)
+	ctx := context.Background()
+	old := r.conn
+	replacement := connectors.Connection{ID: uuid.New(), TenantID: old.TenantID, Kind: telegram.Kind, Name: "again"}
+	r.st.exists[replacement.ID] = true
+	_, err := r.c.Provision(ctx, replacement, r.creds(), []string{telegram.WarnPollingUnknown + "@111111"}, nil)
+	require.NoError(t, err)
+	want := origin + "/automations/hooks/" + replacement.ID.String()
+	require.Equal(t, want, r.bot.Webhook().URL)
+	require.NoError(t, r.c.Deprovision(ctx, old, r.creds()), "the deleted connection's cleanup")
+	assert.Equal(t, want, r.bot.Webhook().URL, "the replacement's webhook is not erased")
+	require.NoError(t, r.c.Deprovision(ctx, replacement, r.creds()))
+	assert.Empty(t, r.bot.Webhook().URL, "its own is removed")
+}
