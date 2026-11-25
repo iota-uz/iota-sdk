@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Preserve the search filter and page size when navigating finance counterparty pages."
+}
