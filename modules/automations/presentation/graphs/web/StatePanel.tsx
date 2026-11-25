@@ -27,6 +27,8 @@ export function parseValue(text: string): { ok: true; value: unknown } | { ok: f
 }
 
 interface Draft {
+  /** Names the draft: edits keep it, a new draft has another. */
+  uid: number
   /** The key as it was; null for a key being added. */
   original: string | null
   key: string
@@ -78,24 +80,30 @@ export function StatePanel(props: { id: string; canEdit: boolean }): JSX.Element
   onCleanup(() => clearTimeout(timer))
   const search = (value: string) => {
     setQuery(value)
+    // Pages of the old query are not continued under the new one: its pending loads are dropped and "Show
+    // more" waits for the new first page.
+    seq++
+    setNext(null)
     clearTimeout(timer)
     timer = setTimeout(() => void load(), SEARCH_DELAY_MS)
   }
 
+  let drafts = 0
   const edit = (e: Entry) => {
     setDraftError(undefined)
-    setDraft({ original: e.key, key: e.key, value: JSON.stringify(e.value, null, 2) ?? 'null', ttl: '' })
+    setDraft({ uid: ++drafts, original: e.key, key: e.key, value: JSON.stringify(e.value, null, 2) ?? 'null', ttl: '' })
   }
   const add = () => {
     setDraftError(undefined)
-    setDraft({ original: null, key: '', value: '', ttl: '' })
+    setDraft({ uid: ++drafts, original: null, key: '', value: '', ttl: '' })
   }
   const patch = (p: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...p } : d))
 
   const save = async () => {
     const d = draft()
     if (!d || busy()) return
-    const key = d.key.trim()
+    // A key that is there is saved as it is (its field is read only); only a new key is trimmed.
+    const key = d.original ?? d.key.trim()
     if (key === '') { setDraftError(t('State.KeyRequired')); return }
     const parsed = parseValue(d.value)
     if (!parsed.ok) { setDraftError(t('State.InvalidJSON')); return }
@@ -104,12 +112,13 @@ export function StatePanel(props: { id: string; canEdit: boolean }): JSX.Element
     try {
       await app.call('automations.state_set', { id: props.id, key, value: parsed.value, ...(d.ttl.trim() ? { ttl: d.ttl.trim() } : {}) })
       app.toast.notify({ variant: 'success', title: t('State.Saved') })
-      setDraft(undefined)
+      // Only the draft this save was for goes: another may have been opened while it ran.
+      if (draft()?.uid === d.uid) setDraft(undefined)
       await load()
     } catch (e) {
       // A refusal of the memory (a value over 16 KiB, a ttl out of range) carries its own words.
       const message = errorCode(e) === 'invalid_input' ? (e as { message?: string }).message : undefined
-      setDraftError(message || errorText(t, e, t('Actions.SaveState')))
+      if (draft()?.uid === d.uid) setDraftError(message || errorText(t, e, t('Actions.SaveState')))
     } finally {
       setBusy(false)
     }

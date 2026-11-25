@@ -267,3 +267,19 @@ func TestSetStateParamsAreChecked(t *testing.T) {
 	assert.NotEmpty(t, check(`{"key": "a", "value": "1", "ttl": "366d"}`), "over a year")
 	assert.Empty(t, check(`{"key": "a", "value": "1", "ttl": "365d"}`))
 }
+
+// Testing a set_state node of a saved graph runs it as the node would run, then rolls it back.
+func TestTestNodeOfSetStateWritesNothing(t *testing.T) {
+	e, p := newStateEnv(t)
+	a := e.human()
+	am := e.create(p, a, stateGraph)
+	res, err := p.rt.Authoring().TestNode(context.Background(), a, engine.TestNodeInput{
+		Graph: json.RawMessage(stateGraph), NodeID: "mark", AutomationID: am.ID,
+		Subject: &engine.SubjectRef{Entity: "acme.order", Key: "o-1"},
+		Context: map[string]json.RawMessage{"event": json.RawMessage(`{"kind": "acme.order.created.v1", "amount": 1, "note": "42", "secret": ""}`)},
+	})
+	require.NoError(t, err)
+	assert.Nil(t, res.Error)
+	assert.Equal(t, "set", res.Outcome)
+	assert.Zero(t, e.count(`SELECT count(*) FROM automation.state`), "the test is rolled back")
+}

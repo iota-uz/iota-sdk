@@ -310,7 +310,11 @@ func (x *exprs) env(owner, event string, withNodes bool, each string) (*expr.Env
 		nodes = x.outputs
 	}
 	var scope expr.Scope
+	// A subject that declares a variable named state wins over the memory: when any subject a step may run
+	// for declares it, the step reads no memory (varsOf lets that subject's value win).
+	stateShadowed := false
 	if len(triggers) == 0 {
+		stateShadowed = declaredNames(subjectVars(x.view.catalog, x.view.subject))[StateVar]
 		kind := event
 		if event == "*" {
 			kind = x.event
@@ -320,6 +324,9 @@ func (x *exprs) env(owner, event string, withNodes bool, each string) (*expr.Env
 		scope.Vars["events"] = expr.ListOf(eventField(x.view.catalog, x.event))
 	} else {
 		kinds, subjects := x.kindsAndSubjects(triggers)
+		for _, subject := range subjects {
+			stateShadowed = stateShadowed || declaredNames(subjectVars(x.view.catalog, subject))[StateVar]
+		}
 		triggerKinds := kinds
 		if event != "*" {
 			kinds = []string{event}
@@ -339,7 +346,7 @@ func (x *exprs) env(owner, event string, withNodes bool, each string) (*expr.Env
 	if withNodes {
 		// state is the automation's memory between runs: read in a step, where it is the step's own, never
 		// when a trigger decides whether to start (a subject's variable of that name wins).
-		if _, declared := scope.Vars[StateVar]; !declared {
+		if _, declared := scope.Vars[StateVar]; !declared && !stateShadowed {
 			scope.Vars[StateVar] = StateField
 		}
 		// foreach.<id>.item and .index: read inside the foreach's body.

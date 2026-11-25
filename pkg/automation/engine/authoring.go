@@ -639,7 +639,7 @@ func (au *authoring) testNode(ctx context.Context, a Actor, in TestNodeInput, ke
 			}
 		}
 		if len(st.Effects) > 0 {
-			applied, serr, err := au.r.effectRolledBack(ctx, a.TenantID, sub, subject, authorTrigger(event, a), node, interp.View().Catalog().Nodes[node.Type], st.Effects)
+			applied, serr, err := au.r.effectRolledBack(ctx, a.TenantID, in.AutomationID, sub, subject, authorTrigger(event, a), node, interp.View().Catalog().Nodes[node.Type], st.Effects)
 			if err != nil {
 				return TestNodeResult{}, err
 			}
@@ -733,14 +733,14 @@ func (r *Runtime) previewEffects(ctx context.Context, tenant uuid.UUID, as spi.S
 
 // effectRolledBack applies an effect node's effects in a transaction it rolls back: the node's output
 // is shown, and nothing it wrote (rows, outbox events) stays.
-func (r *Runtime) effectRolledBack(ctx context.Context, tenant uuid.UUID, as spi.Subject, subject SubjectRef, trigger *TriggerEvent, node graph.Node, spec graph.NodeSpec, effects []graph.Effect) (EffectResult, *StepError, error) {
+func (r *Runtime) effectRolledBack(ctx context.Context, tenant, automation uuid.UUID, as spi.Subject, subject SubjectRef, trigger *TriggerEvent, node graph.Node, spec graph.NodeSpec, effects []graph.Effect) (EffectResult, *StepError, error) {
 	nt, _ := r.cfg.Catalog.Node(node.Type)
 	en, ok := nt.(EffectNode)
 	if !ok {
 		// As in a run: an effect node without an executor applies nothing, so its test says so.
 		return EffectResult{}, &StepError{Code: CodeUnsupported, Message: fmt.Sprintf("node type %s has no effect executor", node.Type)}, nil
 	}
-	sc := StepContext{TenantID: tenant, RunAs: as, Subject: subject, NodeID: node.ID, Trigger: trigger}
+	sc := StepContext{TenantID: tenant, AutomationID: automation, RunAs: as, Subject: subject, NodeID: node.ID, Trigger: trigger}
 	if prep, ok := en.(EffectPreparer); ok && len(effects) > 0 {
 		// Prepared before the transaction opens, as a run does.
 		v, err := prep.PrepareEffect(ctx, sc, node, effects[0])

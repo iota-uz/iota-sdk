@@ -42,6 +42,11 @@ describe('contextPaths', () => {
   it('has no node outputs for a trigger', () => {
     expect(contextPaths({ catalog, graph, nodeId: 'user_created' }).some((p) => p.source === 'node')).toBe(false)
   })
+  it('offers the graph memory to a step, not to a trigger', () => {
+    expect(contextPaths({ catalog, graph, nodeId: 'check' }).map((p) => p.path)).toContain('state')
+    expect(contextPaths({ catalog, graph, nodeId: 'user_created' }).map((p) => p.path)).not.toContain('state')
+    expect(contextPaths({ catalog, graph, nodeId: null }).map((p) => p.path)).not.toContain('state')
+  })
   it('falls back to event.kind when triggers differ', () => {
     const mixed = { ...graph, triggers: [...graph.triggers, { id: 'other', event: 'x.y' }] }
     const paths = contextPaths({ catalog, graph: mixed, nodeId: null }).map((p) => p.path)

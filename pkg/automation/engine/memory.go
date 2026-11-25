@@ -79,14 +79,30 @@ func (m *memory) Get(ctx context.Context, a Actor, id uuid.UUID, key string) (st
 	return e, nil
 }
 
-func (m *memory) Set(ctx context.Context, a Actor, id uuid.UUID, key string, value json.RawMessage, ttl time.Duration) (state.Entry, error) {
-	if err := m.check(ctx, a, id, true); err != nil {
-		return state.Entry{}, err
+// write runs a change of the memory in one transaction with the graph's row locked: a Delete of the graph
+// waits for it (or it for the Delete), so a deleted graph never gets a key.
+func (m *memory) write(ctx context.Context, a Actor, id uuid.UUID, fn func(tx pgx.Tx) error) error {
+	if err := m.r.service.authorize(a, PermAuthor); err != nil {
+		return err
 	}
+	return m.r.service.inTx(ctx, func(tx pgx.Tx) error {
+		if _, err := loadAutomation(ctx, tx, a.TenantID, id, true); err != nil {
+			return err
+		}
+		return fn(tx)
+	})
+}
+
+func (m *memory) Set(ctx context.Context, a Actor, id uuid.UUID, key string, value json.RawMessage, ttl time.Duration) (state.Entry, error) {
 	if len(value) == 0 || !json.Valid(value) {
 		return state.Entry{}, fmt.Errorf("%w: the value is not JSON", ErrInvalidInput)
 	}
-	e, err := state.Put(ctx, m.db(ctx), a.TenantID, id, key, value, ttl, nil)
+	var e state.Entry
+	err := m.write(ctx, a, id, func(tx pgx.Tx) error {
+		var err error
+		e, err = state.Put(ctx, tx, a.TenantID, id, key, value, ttl, nil)
+		return err
+	})
 	if err != nil {
 		return state.Entry{}, refusal(err)
 	}
@@ -94,17 +110,17 @@ func (m *memory) Set(ctx context.Context, a Actor, id uuid.UUID, key string, val
 }
 
 func (m *memory) Delete(ctx context.Context, a Actor, id uuid.UUID, key string) error {
-	if err := m.check(ctx, a, id, true); err != nil {
-		return err
-	}
-	deleted, err := state.Delete(ctx, m.db(ctx), a.TenantID, id, key)
-	if err != nil {
-		return refusal(err)
-	}
-	if !deleted {
-		return ErrNotFound
-	}
-	return nil
+	err := m.write(ctx, a, id, func(tx pgx.Tx) error {
+		deleted, err := state.Delete(ctx, tx, a.TenantID, id, key)
+		if err != nil {
+			return err
+		}
+		if !deleted {
+			return ErrNotFound
+		}
+		return nil
+	})
+	return refusal(err)
 }
 
 // refusal is a refusal of the memory as the engine's sentinel with its message.

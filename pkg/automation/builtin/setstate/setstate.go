@@ -135,7 +135,7 @@ func (Node) ApplyEffect(ctx context.Context, tx pgx.Tx, run engine.StepContext, 
 		if !ok {
 			return nil, &engine.StepError{Code: state.CodeTTLInvalid, Message: fmt.Sprintf("%q is not a duration", s)}
 		}
-		ttl = time.Duration(ms) * time.Millisecond
+		ttl = state.DurationOfMs(ms)
 	}
 	var byRun *uuid.UUID
 	if run.RunID != uuid.Nil {

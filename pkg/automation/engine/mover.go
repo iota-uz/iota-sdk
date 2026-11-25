@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/automation/state"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -100,6 +101,9 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 		return behavior, err
 	}
 	st := in.Start(node.ID, &graph.StepContext{Ctx: gctx, Token: tok.Path, From: tok.From, Tokens: active})
+	if err := memoryFailure(ctx, gctx); err != nil {
+		return behavior, err
+	}
 	st.Effects = m.preparedEffects(tok, node.ID, st.Effects)
 	switch st.Kind {
 	case graph.StepFailed, graph.StepMissingContext:
@@ -1177,6 +1181,9 @@ func (m *mover) wakeEvent(ctx context.Context, tok *tokenRow, w waitRow, ev inbo
 		gctx.Now = ev.OccurredAt
 	}
 	matched, st := m.in().WaitMatches(w.NodeID, gev, gctx)
+	if err := memoryFailure(ctx, gctx); err != nil {
+		return err
+	}
 	if st != nil {
 		if err := closeWait(ctx, m.tx, m.x.tenant, w, waitCancelled); err != nil {
 			return err
@@ -1575,5 +1582,19 @@ func (m *mover) withheldOutput(ctx context.Context, gev graph.Event) error {
 	var changed bool
 	m.s.sensitive, changed = mergeRefs(m.s.sensitive, refs)
 	m.s.sensitiveChanged = m.s.sensitiveChanged || changed
+	return nil
+}
+
+// memoryFailure is the platform failure an expression of the step met reading the automation's memory: the
+// expression failed with the database's text, but the step is retried, not failed. Any other failure of a
+// lookup stays the expression's own.
+func memoryFailure(ctx context.Context, gctx graph.Context) error {
+	r, ok := gctx.State.(*state.Reader)
+	if !ok {
+		return nil
+	}
+	if err := r.Err(); err != nil && (host.IsInfrastructure(err) || ctx.Err() != nil) {
+		return err
+	}
 	return nil
 }

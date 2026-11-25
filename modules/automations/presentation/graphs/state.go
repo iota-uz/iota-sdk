@@ -101,7 +101,7 @@ func (c *Controller) stateSet(ctx context.Context, req StateSetRequest) (StateSe
 		if !ok {
 			return StateSetResponse{}, rpcError(ErrInvalidInput, "the lifetime is a duration like 20m, 2h or 7d", nil)
 		}
-		ttl = time.Duration(ms) * time.Millisecond
+		ttl = state.DurationOfMs(ms)
 	}
 	e, err := mem.Set(ctx, a, id, req.Key, req.Value, ttl)
 	if err != nil {

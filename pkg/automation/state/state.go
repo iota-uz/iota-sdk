@@ -40,6 +40,7 @@ const (
 const (
 	CodeValueTooLarge = "state_value_too_large"
 	CodeKeyInvalid    = "state_key_invalid"
+	CodeValueInvalid  = "state_value_invalid"
 	CodeLimitExceeded = "state_limit_exceeded"
 	CodeTTLInvalid    = "state_ttl_invalid"
 )
@@ -103,6 +104,34 @@ func ValidateTTL(ttl time.Duration) error {
 	return nil
 }
 
+// hasNULEscape reports a JSON \u0000 escape: a NUL character, which jsonb does not keep. A backslash
+// that is itself escaped (the text \\u0000) is no NUL.
+func hasNULEscape(raw []byte) bool {
+	const esc = `\u0000`
+	for i := 0; i+len(esc) <= len(raw); i++ {
+		if string(raw[i:i+len(esc)]) != esc {
+			continue
+		}
+		slashes := 0
+		for j := i - 1; j >= 0 && raw[j] == '\\'; j-- {
+			slashes++
+		}
+		if slashes%2 == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// DurationOfMs is a lifetime given in milliseconds as a duration; one too long to be a duration is clamped
+// to a value ValidateTTL refuses, so it never wraps into a short one.
+func DurationOfMs(ms int64) time.Duration {
+	if ms > int64(MaxTTL/time.Millisecond)+1 {
+		ms = int64(MaxTTL/time.Millisecond) + 1
+	}
+	return time.Duration(ms) * time.Millisecond
+}
+
 // Encode is the JSON a value is stored as, refused over MaxValueBytes. The value is any JSON-encodable
 // Go value or a json.RawMessage.
 func Encode(value any) (json.RawMessage, error) {
@@ -117,14 +146,15 @@ func Encode(value any) (json.RawMessage, error) {
 	if len(raw) > MaxValueBytes {
 		return nil, refuse(CodeValueTooLarge, "the value has %d bytes, at most %d", len(raw), MaxValueBytes)
 	}
-	if strings.Contains(string(raw), `\u0000`) {
-		return nil, refuse(CodeValueTooLarge, "the value has a NUL character, which the store does not keep")
+	if hasNULEscape(raw) {
+		return nil, refuse(CodeValueInvalid, "the value has a NUL character, which the store does not keep")
 	}
 	return raw, nil
 }
 
 // live is the condition of a row that is not expired.
-const live = `(expires_at IS NULL OR expires_at > now())`
+// clock_timestamp, not now(): a transaction that stays open past a key's expiry must not see it as live.
+const live = `(expires_at IS NULL OR expires_at > clock_timestamp())`
 
 // Get reads a key; ok is false when it is absent or expired.
 func Get(ctx context.Context, db Querier, tenant, automation uuid.UUID, key string) (Entry, bool, error) {
@@ -159,13 +189,16 @@ func Put(ctx context.Context, db DB, tenant, automation uuid.UUID, key string, v
 	var out Entry
 	err = pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
 		// An update of a live key needs no check of the count; only a new key does.
-		e, ok, err := scanEntry(tx.QueryRow(ctx, `
-			UPDATE automation.state
-			SET value = $4, expires_at = CASE WHEN $5::text IS NULL THEN NULL ELSE now() + $5::text::interval END,
-			    updated_at = now(), updated_by_run = $6
-			WHERE tenant_id = $1 AND automation_id = $2 AND key = $3 AND `+live+`
-			RETURNING key, value, expires_at, updated_at, updated_by_run`,
-			tenant, automation, key, []byte(raw), intervalOf(ttl), byRun))
+		update := func() (Entry, bool, error) {
+			return scanEntry(tx.QueryRow(ctx, `
+				UPDATE automation.state
+				SET value = $4, expires_at = CASE WHEN $5::text IS NULL THEN NULL ELSE now() + $5::text::interval END,
+				    updated_at = now(), updated_by_run = $6
+				WHERE tenant_id = $1 AND automation_id = $2 AND key = $3 AND `+live+`
+				RETURNING key, value, expires_at, updated_at, updated_by_run`,
+				tenant, automation, key, []byte(raw), intervalOf(ttl), byRun))
+		}
+		e, ok, err := update()
 		if err != nil {
 			return err
 		}
@@ -176,6 +209,13 @@ func Put(ctx context.Context, db DB, tenant, automation uuid.UUID, key string, v
 		// Writers of new keys of one automation take turns, so the count they check holds.
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, "automation.state:"+tenant.String()+":"+automation.String()); err != nil {
 			return serrors.FromDB(op, err)
+		}
+		// The writer ahead of this one may have written this very key: replacing it adds no key.
+		if e, ok, err = update(); err != nil {
+			return err
+		} else if ok {
+			out = e
+			return nil
 		}
 		var n int
 		if err := tx.QueryRow(ctx, `SELECT count(*) FROM automation.state WHERE tenant_id = $1 AND automation_id = $2 AND `+live, tenant, automation).Scan(&n); err != nil {
@@ -316,13 +356,16 @@ func Purge(ctx context.Context, db DB) (int64, error) {
 		tag, err := db.Exec(ctx, `
 			DELETE FROM automation.state WHERE (tenant_id, automation_id, key) IN (
 				SELECT tenant_id, automation_id, key FROM automation.state
-				WHERE expires_at IS NOT NULL AND expires_at <= now() LIMIT $1)`, purgeBatch)
+				WHERE expires_at IS NOT NULL AND expires_at <= clock_timestamp() LIMIT $1)`, purgeBatch)
 		if err != nil {
 			return total, serrors.FromDB(op, err)
 		}
 		total += tag.RowsAffected()
-		if tag.RowsAffected() < purgeBatch || ctx.Err() != nil {
+		if tag.RowsAffected() < purgeBatch {
 			return total, nil
+		}
+		if err := ctx.Err(); err != nil {
+			return total, err
 		}
 	}
 }

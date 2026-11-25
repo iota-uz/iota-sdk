@@ -161,7 +161,7 @@ func (f stateFields) ttl() (time.Duration, bool) {
 		return 0, true
 	}
 	ms, ok := graph.DurationMs(f.TTL)
-	return time.Duration(ms) * time.Millisecond, ok
+	return state.DurationOfMs(ms), ok
 }
 
 // stateIssues are what is wrong with the id, the key, the value and the ttl of a change, without reading.

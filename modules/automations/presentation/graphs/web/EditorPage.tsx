@@ -302,12 +302,12 @@ export default function EditorPage(): JSX.Element {
   const api: EditorApi = {
     validate: (graph) => app.call('automations.validate', { graph }),
     dryRun: (input) => app.call('automations.dry_run', {
-      ...(app.props.id ? { id: app.props.id } : {}), graph: input.graph, subject: input.subject, events: input.events as never,
+      ...(info() ? { id: info()!.id } : {}), graph: input.graph, subject: input.subject, events: input.events as never,
       ...(input.context ? { context: input.context as never } : {}), ...(input.decisions ? { decisions: input.decisions } : {}),
     }) as never,
     testNode: async (input) => {
       const res = await app.call('automations.test_node', {
-        ...(app.props.id ? { id: app.props.id } : {}), graph: input.graph, node_id: input.node_id, ...(input.subject ? { subject: input.subject } : {}),
+        ...(info() ? { id: info()!.id } : {}), graph: input.graph, node_id: input.node_id, ...(input.subject ? { subject: input.subject } : {}),
         ...(input.context ? { context: input.context as never } : {}), ...(input.idempotency_key ? { idempotency_key: input.idempotency_key } : {}),
       })
       return { outcome: res.outcome, ...(res.output !== undefined ? { output: res.output } : {}), ...(res.logs ? { logs: res.logs } : {}), ...(res.duration_ms ? { duration_ms: res.duration_ms } : {}), ...(res.error ? { error: res.error } : {}) }

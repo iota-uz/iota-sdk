@@ -20,6 +20,7 @@ type Reader struct {
 
 	mu    sync.Mutex
 	cache map[string]found
+	err   error // the first failure of the database
 }
 
 type found struct {
@@ -48,6 +49,9 @@ func (r *Reader) Lookup(key string) (any, bool, error) {
 	}
 	e, ok, err := Get(r.ctx, r.db, r.tenant, r.automation, key)
 	if err != nil {
+		if r.err == nil {
+			r.err = err
+		}
 		return nil, false, err
 	}
 	var v any
@@ -58,6 +62,14 @@ func (r *Reader) Lookup(key string) (any, bool, error) {
 	}
 	r.cache[key] = found{value: v, ok: ok}
 	return v, ok, nil
+}
+
+// Err is the first failure of the database a lookup met. The expression that read the key failed with its
+// text, but only the caller can tell a platform failure (to retry the step) from the expression's own.
+func (r *Reader) Err() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.err
 }
 
 // Empty is the memory of a context that has none (a trigger's, an automation not yet saved): no key is there.
