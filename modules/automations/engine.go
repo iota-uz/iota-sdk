@@ -122,6 +122,31 @@ func SubjectRunsOf(container *composition.Container) (engine.SubjectRuns, bool, 
 	return h.rt.SubjectRuns(), true, nil
 }
 
+// Engine is the automation engine of a composed application for another module that acts for a person:
+// it creates, reads and validates graphs and reads their runs with an engine.Actor the module resolves
+// from that person's trusted session (their user, the human origin, their current rights), so every
+// check of the service applies to the person.
+type Engine struct {
+	Service   engine.Service
+	Authoring engine.Authoring
+}
+
+// EngineOf is the automation engine of a composed application (Engine). ok is false when the composition
+// runs no automation engine.
+func EngineOf(container *composition.Container) (Engine, bool, error) {
+	if !composition.Has[*engineHolder](container) {
+		return Engine{}, false, nil
+	}
+	h, err := composition.Resolve[*engineHolder](container)
+	if err != nil {
+		return Engine{}, false, err
+	}
+	if h.rt == nil {
+		return Engine{}, false, nil
+	}
+	return Engine{Service: h.rt.Service(), Authoring: h.rt.Authoring()}, true, nil
+}
+
 // runtime is the composition's engine, nil when it cannot run one.
 func (c *component) runtime(container *composition.Container) (*engine.Runtime, error) {
 	if c.noEngine || !composition.Has[*engineHolder](container) {

@@ -717,3 +717,34 @@ func TestSubjectRunsOfCancelsTheRunsOfARecord(t *testing.T) {
 	_, err = runs.Live(ctx, env.Tenant.ID, engine.SubjectRef{})
 	assert.Equal(t, serrors.Invalid, serrors.CodeOf(err), "a subject of nothing is refused")
 }
+
+// Another module acts for a person through EngineOf: the service applies the person's rights — the
+// author reads the graph the person created, and a person without Automations.Read is refused.
+// Falsely green if: EngineOf returned a service that skips authorization — the refusal below holds.
+func TestEngineOfActsForAPerson(t *testing.T) {
+	s, container := tasksApp(t)
+	env := s.Env()
+	eng, ok, err := automations.EngineOf(container)
+	require.NoError(t, err)
+	require.True(t, ok)
+	ctx := context.Background()
+	author := engine.Actor{TenantID: env.Tenant.ID, UserID: int64(env.User.ID()), Origin: engine.OriginHuman, Subject: spi.Subject{
+		TenantID: env.Tenant.ID, UserID: int64(env.User.ID()), Permissions: []string{engine.PermRead, engine.PermAuthor},
+	}}
+	raw, err := json.Marshal(humanTaskGraph("Approve", map[string]any{
+		"assignees": []any{map[string]any{"kind": "user", "user_id": env.User.ID()}},
+	}))
+	require.NoError(t, err)
+	_, err = eng.Authoring.Validate(ctx, author, raw)
+	require.NoError(t, err)
+	created, _, err := eng.Service.Create(ctx, author, engine.CreateInput{Graph: raw})
+	require.NoError(t, err)
+	got, err := eng.Service.Get(ctx, author, created.ID)
+	require.NoError(t, err)
+	assert.Equal(t, created.ID, got.ID)
+
+	nobody := author
+	nobody.Subject.Permissions = nil
+	_, err = eng.Service.Get(ctx, nobody, created.ID)
+	require.ErrorIs(t, err, engine.ErrForbidden)
+}
