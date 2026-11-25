@@ -77,6 +77,10 @@ type Server struct {
 	logins   []string // mechanisms the servers saw, "smtp:PLAIN", "imap:XOAUTH2"
 
 	listeners []net.Listener
+	// serving counts the Serve goroutines. Close waits for them before it closes the servers: go-imap's
+	// Serve adds to a WaitGroup that its Close waits on, so a Close racing a Serve that has not yet
+	// started is a data race inside the library.
+	serving   sync.WaitGroup
 	smtpSrv   *smtp.Server
 	imapSrv   *imapserver.Server
 	imapCaps  imap.CapSet
@@ -135,17 +139,23 @@ func (s *Server) listen(mode Mode, cfg *tls.Config, serve func(net.Listener)) st
 		l = tls.NewListener(l, cfg)
 	}
 	s.listeners = append(s.listeners, l)
-	go serve(l)
+	s.serving.Add(1)
+	go func() {
+		defer s.serving.Done()
+		serve(l)
+	}()
 	return l.Addr().String()
 }
 
-// Close stops the servers.
+// Close stops the servers. The listeners close first, so every Serve returns; the servers close after
+// that and then drop the connections still open.
 func (s *Server) Close() {
-	_ = s.smtpSrv.Close()
-	_ = s.imapSrv.Close()
 	for _, l := range s.listeners {
 		_ = l.Close()
 	}
+	s.serving.Wait()
+	_ = s.smtpSrv.Close()
+	_ = s.imapSrv.Close()
 }
 
 // FailBodyFetch makes the n-th (1-based, counted from now) fetch of a message body fail once, as a server

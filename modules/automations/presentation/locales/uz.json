@@ -39,6 +39,18 @@
       "ConnectionsManage": {
         "Label": "Integratsiyalarni boshqarish",
         "_Description": "Tashkilotning tashqi xizmatlardagi akkauntlarini ulash, tekshirish, oʻchirish va oʻchirib tashlash"
+      },
+      "SecretsManage": {
+        "Label": "Sirlarni boshqarish",
+        "_Description": "Tashkilot sirlarini yaratish, nomini o'zgartirish, yangilash va o'chirish (qiymatlar ko'rsatilmaydi)"
+      },
+      "ConnectionsUse": {
+        "Label": "Ulanishlardan foydalanish",
+        "_Description": "Ushbu foydalanuvchi nomidan ishlaydigan avtomatlashtirishlarga Code va HTTP tugunlaridan tashkilot ulanishlarini chaqirishga ruxsat berish"
+      },
+      "SecretsUse": {
+        "Label": "Sirlardan foydalanish",
+        "_Description": "Ushbu foydalanuvchi nomidan ishlaydigan avtomatlashtirishlarga tashkilot sirlarini o'qishga ruxsat berish"
       }
     }
   },
@@ -240,6 +252,60 @@
         "unknown": {
           "Text": "xizmat ulanishni qabul qilmadi",
           "Fix": "Qiymatlarni tekshiring; takrorlansa, quyida xizmat javobini oching."
+        }
+      },
+      "Secrets": {
+        "Category": "Sirlar",
+        "Title": "Sir",
+        "Kind": "Oʻrnatilgan",
+        "Summary": "Code va HTTP tugunlari nomi boʻyicha oʻqiydigan qiymatlar (masalan, API kalitlari). Saqlangan qiymat boshqa koʻrsatilmaydi.",
+        "Empty": "Hozircha sirlar yoʻq. Sir qoʻshing va uni Code yoki HTTP tugunida nomi boʻyicha oʻqing.",
+        "Add": "Sir qoʻshish",
+        "LoadFailed": "Sirlarni yuklab boʻlmadi.",
+        "Masked": "Qiymat yashirilgan",
+        "Created": "Yaratilgan: {date}",
+        "Rotated": "Yangilangan: {date}",
+        "LastUsed": "Oxirgi foydalanish: {date}",
+        "NeverUsed": "Hali foydalanilmagan",
+        "Actions": "{name} amallari",
+        "Menu": {
+          "Edit": "Nomini yoki tavsifini oʻzgartirish",
+          "Rotate": "Qiymatni almashtirish",
+          "Delete": "Oʻchirish"
+        },
+        "Form": {
+          "TitleNew": "Yangi sir",
+          "TitleEdit": "{name}ni tahrirlash",
+          "TitleRotate": "{name} uchun yangi qiymat",
+          "Name": "Nomi",
+          "NameHint": "Katta lotin harflari, raqamlar va _, harf bilan boshlanadi, masalan API_KEY. Tugunlar sirni shu nom bilan oʻqiydi.",
+          "DescriptionLabel": "Tavsif",
+          "DescriptionHint": "Sir nima uchun va qayerda berilgan.",
+          "Value": "Qiymat",
+          "ValueHint": "Shifrlangan holda saqlanadi. Saqlangandan keyin boshqa koʻrsatilmaydi.",
+          "NewValue": "Yangi qiymat",
+          "RotateHint": "Yangi qiymat keyingi ishga tushirishdan boshlab barcha tugunlar uchun joriy qiymatni almashtiradi. Joriy qiymat koʻrsatilmaydi.",
+          "RenameHint": "Nomi oʻzgartirilgach, sirni joriy nomi bilan oʻqiydigan tugunlar uni topa olmaydi.",
+          "NameFormat": "Katta lotin harflari, raqamlar va _ dan foydalaning, birinchisi harf boʻlsin (64 tagacha).",
+          "NameTaken": "Bu nomli sir allaqachon mavjud.",
+          "Save": "Saqlash",
+          "Saving": "Saqlanmoqda…",
+          "Rotate": "Yangi qiymatni saqlash",
+          "VersionConflict": "Bu sirni kimdir oʻzgartirdi. Uning oxirgi versiyasi yuklandi: formani tekshirib, qayta saqlang.",
+          "Unavailable": "Sirlar ombori mavjud emas. Bir daqiqadan keyin urinib koʻring.",
+          "Failed": "Saqlab boʻlmadi. Bir daqiqadan keyin urinib koʻring."
+        },
+        "Delete": {
+          "Title": "{name} oʻchirilsinmi?",
+          "Text": "{name}ni oʻqiydigan Code va HTTP tugunlari shu nomli sir qayta qoʻshilmaguncha «unknown secret» xatosi bilan toʻxtaydi — agar ilovaning oʻzida shu nomli sir boʻlmasa: boʻlsa, tugunlar uni ishlatadi. Qiymatni tiklab boʻlmaydi.",
+          "Confirm": "Sirni oʻchirish",
+          "Cancel": "Bekor qilish"
+        },
+        "Toast": {
+          "Created": "{name} saqlandi. Uning qiymati boshqa koʻrsatilmaydi.",
+          "Updated": "{name} saqlandi",
+          "Rotated": "{name} yangi qiymatga ega",
+          "Deleted": "{name} oʻchirildi"
         }
       }
     },

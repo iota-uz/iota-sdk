@@ -39,6 +39,18 @@
       "ConnectionsManage": {
         "Label": "管理集成",
         "_Description": "连接、检查、停用和删除组织在外部服务中的账户"
+      },
+      "SecretsManage": {
+        "Label": "管理密钥",
+        "_Description": "创建、重命名、轮换和删除组织的密钥（值永不显示）"
+      },
+      "ConnectionsUse": {
+        "Label": "使用连接",
+        "_Description": "允许此用户运行的自动化从 Code 和 HTTP 节点调用组织的连接"
+      },
+      "SecretsUse": {
+        "Label": "使用密钥",
+        "_Description": "允许此用户运行的自动化读取组织的密钥"
       }
     }
   },
@@ -240,6 +252,60 @@
         "unknown": {
           "Text": "服务拒绝了连接",
           "Fix": "请检查填写的值；如果再次出现，请查看下方的服务响应。"
+        }
+      },
+      "Secrets": {
+        "Category": "密钥",
+        "Title": "密钥",
+        "Kind": "内置",
+        "Summary": "Code 和 HTTP 节点按名称读取的值，例如 API 密钥。保存后的值不会再显示。",
+        "Empty": "还没有密钥。添加一个，然后在 Code 或 HTTP 节点中按名称读取。",
+        "Add": "添加密钥",
+        "LoadFailed": "无法加载密钥。",
+        "Masked": "值已隐藏",
+        "Created": "创建于 {date}",
+        "Rotated": "轮换于 {date}",
+        "LastUsed": "最近使用于 {date}",
+        "NeverUsed": "尚未使用",
+        "Actions": "{name} 的操作",
+        "Menu": {
+          "Edit": "重命名或描述",
+          "Rotate": "轮换值",
+          "Delete": "删除"
+        },
+        "Form": {
+          "TitleNew": "添加密钥",
+          "TitleEdit": "编辑 {name}",
+          "TitleRotate": "轮换 {name}",
+          "Name": "名称",
+          "NameHint": "大写拉丁字母、数字和 _，以字母开头，例如 API_KEY。节点按此名称读取密钥。",
+          "DescriptionLabel": "描述",
+          "DescriptionHint": "密钥的用途及签发位置。",
+          "Value": "值",
+          "ValueHint": "加密存储。保存后不会再显示。",
+          "NewValue": "新值",
+          "RotateHint": "从下一次运行起，新值将替换所有节点的当前值。当前值不会显示。",
+          "RenameHint": "重命名后，按当前名称读取该密钥的节点将找不到它。",
+          "NameFormat": "请使用大写拉丁字母、数字和 _，以字母开头（最多 64 个）。",
+          "NameTaken": "已存在同名密钥。",
+          "Save": "保存",
+          "Saving": "正在保存…",
+          "Rotate": "保存新值",
+          "VersionConflict": "有人同时修改了此密钥。已加载最新版本：请检查表单后再次保存。",
+          "Unavailable": "密钥存储不可用。请一分钟后重试。",
+          "Failed": "无法保存。请一分钟后重试。"
+        },
+        "Delete": {
+          "Title": "删除 {name}？",
+          "Text": "读取 {name} 的 Code 和 HTTP 节点将以「unknown secret」失败，直到再次添加同名密钥——除非应用本身提供了同名密钥，届时节点将改用该密钥。该值无法恢复。",
+          "Confirm": "删除密钥",
+          "Cancel": "取消"
+        },
+        "Toast": {
+          "Created": "{name} 已保存。其值不会再显示。",
+          "Updated": "{name} 已保存",
+          "Rotated": "{name} 已有新值",
+          "Deleted": "{name} 已删除"
         }
       }
     },

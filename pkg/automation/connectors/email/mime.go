@@ -6,8 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"github.com/emersion/go-imap/v2"
-	"github.com/emersion/go-imap/v2/imapclient"
 	"io"
 	"mime"
 	"net/mail"
@@ -15,6 +13,9 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-imap/v2/imapclient"
 
 	"github.com/emersion/go-message"
 	_ "github.com/emersion/go-message/charset" // decoders of the charsets mail comes in
@@ -195,6 +196,7 @@ type received struct {
 	subject    string
 	text       string
 	hasHTML    bool
+	html       string // the first text/html part as sent; read by code access only, never published
 	attachment []part
 	auto       bool
 	date       time.Time
@@ -286,6 +288,7 @@ func (w *partWalker) leaf(hdr message.Header, body io.Reader, undecoded bool) {
 		case typ == "text/html":
 			w.m.hasHTML = true
 			if !w.sawHTML {
+				w.m.html = string(b)
 				w.htmlText, w.sawHTML = htmlToText(string(b)), true
 			}
 		}

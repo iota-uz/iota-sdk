@@ -26,6 +26,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/secrets"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost/solid"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -58,6 +59,12 @@ const (
 	MethodDelete      = "automations.connections.delete"
 	MethodPlatform    = "automations.platform.set_enabled"
 	MethodOptions     = "automations.connections.options"
+
+	MethodSecretsList   = "automations.secrets.list"
+	MethodSecretsCreate = "automations.secrets.create"
+	MethodSecretsUpdate = "automations.secrets.update"
+	MethodSecretsRotate = "automations.secrets.rotate"
+	MethodSecretsDelete = "automations.secrets.delete"
 )
 
 // screen declares the Solid module. The call keeps string literals so the iota-solid generator can
@@ -73,6 +80,11 @@ var screen = solid.Import[Props]("./web/Integrations.tsx", solid.WithRPC(
 	solid.Action[IDRequest, DeleteResponse]("automations.connections.delete", solid.Invalidates("automations.connectors.list", "automations.connections.usage")),
 	solid.Action[PlatformRequest, OKResponse]("automations.platform.set_enabled", solid.Invalidates("automations.connectors.list")),
 	solid.Query[OptionsRequest, OptionsResponse]("automations.connections.options"),
+	solid.Query[Empty, SecretListResponse]("automations.secrets.list"),
+	solid.Action[SecretCreateRequest, SecretSaveResponse]("automations.secrets.create", solid.Invalidates("automations.secrets.list")),
+	solid.Action[SecretUpdateRequest, SecretSaveResponse]("automations.secrets.update", solid.Invalidates("automations.secrets.list")),
+	solid.Action[SecretRotateRequest, SecretSaveResponse]("automations.secrets.rotate", solid.Invalidates("automations.secrets.list")),
+	solid.Action[IDRequest, OKResponse]("automations.secrets.delete", solid.Invalidates("automations.secrets.list")),
 ))
 
 // Service is what the controller calls; *services.IntegrationsService implements it, and a test or an
@@ -115,6 +127,9 @@ type Config struct {
 	Origin string
 	// Messages are the locale keys the screen reads.
 	MessageKeys []string
+	// Secrets manages the tenant's secrets (the built-in «Secret» connector); nil: the page has no secrets
+	// section and the secrets methods answer unavailable.
+	Secrets secrets.Manager
 	// TrustedOrigins are origins besides the request's own the RPC accepts calls from.
 	TrustedOrigins []string
 	Logger         *slog.Logger
@@ -156,7 +171,7 @@ func NewController(cfg Config) (*Controller, error) {
 	}
 	if cfg.Host != nil {
 		c.client, err = clienthost.NewController(ControllerID+".page", *cfg.Host, []clienthost.Route{{
-			Spec:    application.Get(cfg.Path, application.ClientRoute(RouteID), application.RequireAll(permissions.ConnectionsManage)),
+			Spec:    application.Get(cfg.Path, application.ClientRoute(RouteID), application.RequireAny(permissions.ConnectionsManage, permissions.SecretsManage)),
 			Feature: screen,
 			Build:   c.build,
 		}}, clienthost.WithShell(shell), clienthost.WithSession(c.session), clienthost.WithServices(clienthost.ServiceEndpoints{RPC: c.rpcPath()}))
@@ -204,7 +219,7 @@ func (c *Controller) Register(r *mux.Router) {
 			middleware.ProvideDynamicLogo(),
 			middleware.WithPageContext(),
 			middleware.NavItems(),
-			requireManage,
+			requirePage,
 		)
 		c.client.Register(page)
 	}
@@ -220,15 +235,35 @@ func (c *Controller) Register(r *mux.Router) {
 	cb.Path("").HandlerFunc(c.oauthCallback)
 }
 
+// requirePage refuses users who hold neither Connections.Manage nor Secrets.Manage whatever the navigation
+// shows: the page holds the connections and the tenant's secrets.
+func requirePage(next http.Handler) http.Handler {
+	return requireAny(next, permissions.ConnectionsManage.Name(), permissions.SecretsManage.Name())
+}
+
 // requireManage refuses users without Connections.Manage whatever the navigation shows.
 func requireManage(next http.Handler) http.Handler {
+	return requireAny(next, permissions.ConnectionsManage.Name())
+}
+
+// holdsAny reports whether sub holds one of perms.
+func holdsAny(sub spi.Subject, perms ...string) bool {
+	for _, p := range perms {
+		if sub.Has(p) {
+			return true
+		}
+	}
+	return false
+}
+
+func requireAny(next http.Handler, perms ...string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sub, err := listext.SubjectFromContext(r.Context())
 		if err != nil {
 			http.Redirect(w, r, "/login?next="+url.QueryEscape(r.URL.RequestURI()), http.StatusFound)
 			return
 		}
-		if !sub.Has(permissions.ConnectionsManage.Name()) {
+		if !holdsAny(sub, perms...) {
 			w.WriteHeader(http.StatusForbidden)
 			if err := error_pages.Forbidden().Render(r.Context(), w); err != nil {
 				_, _ = w.Write([]byte("<h1>403 Forbidden</h1>"))

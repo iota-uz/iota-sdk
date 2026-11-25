@@ -244,6 +244,9 @@ func automationPermissionSets() []rbac.PermissionSet {
 		set("automations_enable", "Enable", automationsPerms.AutomationsRead, automationsPerms.AutomationsEnable),
 		set("automations_operate", "Operate", automationsPerms.AutomationsRead, automationsPerms.AutomationsOperate),
 		set("connections_manage", "ConnectionsManage", automationsPerms.ConnectionsManage),
+		set("secrets_manage", "SecretsManage", automationsPerms.SecretsManage),
+		set("secrets_use", "SecretsUse", automationsPerms.SecretsUse),
+		set("connections_use", "ConnectionsUse", automationsPerms.ConnectionsUse),
 	}
 }
 

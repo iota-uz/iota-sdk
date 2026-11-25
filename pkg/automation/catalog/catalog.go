@@ -19,7 +19,7 @@ import (
 )
 
 // ConnectorKind names a connector: "telegram_bot", "whatsapp_cloud", "smtp", "imap", "eskiz", "twilio",
-// "openai", "jev", "mcp", "didox", or one an application adds.
+// "openai", "jev", "mcp", "didox", "http_api", or one an application adds.
 type ConnectorKind string
 
 // Connector kinds the SDK's own connectors use.
@@ -34,6 +34,7 @@ const (
 	KindJEV           ConnectorKind = "jev"
 	KindMCP           ConnectorKind = "mcp"
 	KindDidox         ConnectorKind = "didox"
+	KindHTTPAPI       ConnectorKind = "http_api"
 )
 
 // ConnectionParam is the reserved param a node or a trigger that needs a connector selects its

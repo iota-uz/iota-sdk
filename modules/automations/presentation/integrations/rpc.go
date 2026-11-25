@@ -39,23 +39,33 @@ func (c *Controller) bindings() []solid.Binding {
 		bind(MethodDelete, c.delete),
 		bind(MethodPlatform, c.setPlatform),
 		bind(MethodOptions, c.options),
+		bind(MethodSecretsList, c.listSecrets),
+		bind(MethodSecretsCreate, c.createSecret),
+		bind(MethodSecretsUpdate, c.updateSecret),
+		bind(MethodSecretsRotate, c.rotateSecret),
+		bind(MethodSecretsDelete, c.deleteSecret),
 	}
 }
 
 var manage = permissions.ConnectionsManage.Name()
 
 func (c *Controller) list(ctx context.Context, _ Empty) (ListResponse, error) {
-	sub, err := caller(ctx, manage, permissions.AutomationsAuthor.Name())
+	author := permissions.AutomationsAuthor.Name()
+	sub, err := caller(ctx, manage, author, manageSecrets)
 	if err != nil {
 		return ListResponse{}, err
 	}
 	canManage := sub.Has(manage)
+	out := ListResponse{Connectors: []ConnectorView{}, CanManage: canManage, CanManageSecrets: c.cfg.Secrets != nil && sub.Has(manageSecrets)}
+	if !canManage && !sub.Has(author) {
+		// A secrets administrator who does not manage connections sees the secrets only.
+		return out, nil
+	}
 	entries, err := c.cfg.Service.List(ctx, actor(sub), services.ListOptions{WithFields: canManage})
 	if err != nil {
 		return ListResponse{}, err
 	}
 	lang := listext.LangFromContext(ctx)
-	out := ListResponse{Connectors: make([]ConnectorView, 0, len(entries)), CanManage: canManage}
 	for _, e := range entries {
 		out.Connectors = append(out.Connectors, connectorView(e, lang, canManage))
 	}

@@ -39,6 +39,18 @@
       "ConnectionsManage": {
         "Label": "Manage integrations",
         "_Description": "Connect, check, disable and delete the organization's accounts in external services"
+      },
+      "SecretsManage": {
+        "Label": "Manage secrets",
+        "_Description": "Create, rename, rotate and delete the organization's secrets (values are never shown)"
+      },
+      "ConnectionsUse": {
+        "Label": "Use connections",
+        "_Description": "Let the automations this user runs call the organization's connections from Code and HTTP nodes"
+      },
+      "SecretsUse": {
+        "Label": "Use secrets",
+        "_Description": "Let the automations this user runs read the organization's secrets"
       }
     }
   },
@@ -240,6 +252,60 @@
         "unknown": {
           "Text": "the service refused the connection",
           "Fix": "Check the values; if it repeats, open the service’s answer below."
+        }
+      },
+      "Secrets": {
+        "Category": "Secrets",
+        "Title": "Secret",
+        "Kind": "Built-in",
+        "Summary": "Values such as API keys that Code and HTTP nodes read by name. A saved value is never shown again.",
+        "Empty": "No secrets yet. Add one, then read it in a Code or HTTP node by its name.",
+        "Add": "Add secret",
+        "LoadFailed": "Could not load secrets.",
+        "Masked": "Value hidden",
+        "Created": "Created {date}",
+        "Rotated": "Rotated {date}",
+        "LastUsed": "Last used {date}",
+        "NeverUsed": "Not used yet",
+        "Actions": "Actions for {name}",
+        "Menu": {
+          "Edit": "Rename or describe",
+          "Rotate": "Rotate value",
+          "Delete": "Delete"
+        },
+        "Form": {
+          "TitleNew": "Add a secret",
+          "TitleEdit": "Edit {name}",
+          "TitleRotate": "Rotate {name}",
+          "Name": "Name",
+          "NameHint": "Upper case Latin letters, digits and _, starting with a letter, for example API_KEY. Nodes read the secret by this name.",
+          "DescriptionLabel": "Description",
+          "DescriptionHint": "What the secret is for and where it was issued.",
+          "Value": "Value",
+          "ValueHint": "Stored encrypted. After saving it is never shown again.",
+          "NewValue": "New value",
+          "RotateHint": "The new value replaces the current one for every node from the next run. The current value is not shown.",
+          "RenameHint": "Nodes that read the secret by its current name will stop finding it after a rename.",
+          "NameFormat": "Use upper case Latin letters, digits and _, starting with a letter (up to 64).",
+          "NameTaken": "A secret with this name already exists.",
+          "Save": "Save",
+          "Saving": "Saving…",
+          "Rotate": "Save new value",
+          "VersionConflict": "Someone changed this secret meanwhile. Its latest version is loaded: check the form and save again.",
+          "Unavailable": "The secret store is unavailable. Try again in a minute.",
+          "Failed": "Could not save. Try again in a minute."
+        },
+        "Delete": {
+          "Title": "Delete {name}?",
+          "Text": "Code and HTTP nodes that read {name} will fail with «unknown secret» until a secret with this name is added again — unless the application provides a secret of the same name, which they will then use. The value cannot be restored.",
+          "Confirm": "Delete secret",
+          "Cancel": "Cancel"
+        },
+        "Toast": {
+          "Created": "{name} is saved. Its value will not be shown again.",
+          "Updated": "{name} is saved",
+          "Rotated": "{name} has a new value",
+          "Deleted": "{name} is deleted"
         }
       }
     },

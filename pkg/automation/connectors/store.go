@@ -989,7 +989,7 @@ func (s *store) UpdateInbound(ctx context.Context, tenantID, id uuid.UUID, fn fu
 	return serrors.Wrap(op, err)
 }
 
-// Rewrap walks the rows of older keys in id order, a batch per transaction, and re-seals those it can
+// Rewrap walks the rows of older keys (connections in id order, then the sealed secret values), a batch per transaction, and re-seals those it can
 // decrypt with the active key, until it rewrapped batch rows or none are left. It waits for rows another
 // transaction holds (an OAuth2 refresh) instead of skipping them, so 0 means no row of an older key is
 // left, apart from those reported as undecryptable. A row whose key is gone
@@ -1060,6 +1060,15 @@ func (s *store) Rewrap(ctx context.Context, batch int) (int, error) {
 		skipped += batchSkipped
 		if seen == 0 {
 			break
+		}
+	}
+	// The sealed values of the tenants' secrets (NewSealedSecrets) share the keyring and are re-sealed too.
+	if done < batch {
+		n, left, err := rewrapSecretValues(ctx, s.db, s.keys, batch-done)
+		done += n
+		skipped += left
+		if err != nil {
+			return done, serrors.Wrap(op, err)
 		}
 	}
 	if skipped > 0 {

@@ -10,6 +10,7 @@ import (
 const (
 	ResourceAutomation permission.Resource = "automation"
 	ResourceConnection permission.Resource = "connection"
+	ResourceSecret     permission.Resource = "secret"
 )
 
 // Actions of automations: Author edits graphs, Enable turns versions on and off, Operate acts on runs
@@ -19,6 +20,7 @@ const (
 	ActionEnable  permission.Action = "enable"
 	ActionOperate permission.Action = "operate"
 	ActionManage  permission.Action = "manage"
+	ActionUse     permission.Action = "use"
 )
 
 var (
@@ -48,6 +50,25 @@ var (
 		uuid.MustParse("ea7cde5d-e133-44f4-9fa9-9dd32b4df37f"),
 		"Connections.Manage", ResourceConnection, ActionManage, permission.ModifierAll,
 	)
+
+	// ConnectionsUse lets the automations a user runs as use the tenant's connections from Code and HTTP
+	// nodes (env.connections, auth: {connection}): their HTTP calls and operations.
+	ConnectionsUse = permission.MustCreate(
+		uuid.MustParse("5a0f3c2e-8d41-4b7e-9c56-2e7f1a9b3d84"),
+		"Connections.Use", ResourceConnection, ActionUse, permission.ModifierAll,
+	)
+	// SecretsManage creates, renames, rotates and deletes the tenant's secrets (the «Secret» connector of
+	// the integrations page). It never shows a value: a saved value is write-only.
+	SecretsManage = permission.MustCreate(
+		uuid.MustParse("7984b0ba-91e8-4f44-9e60-9766ecfc1984"),
+		"Secrets.Manage", ResourceSecret, ActionManage, permission.ModifierAll,
+	)
+	// SecretsUse lets the automations a user runs as read the tenant's secrets: a Code or HTTP node
+	// resolves a secret of the «Secret» connector only when the run-as subject holds it.
+	SecretsUse = permission.MustCreate(
+		uuid.MustParse("cf6be1a6-6423-4403-a39d-84e8deaf13c2"),
+		"Secrets.Use", ResourceSecret, ActionUse, permission.ModifierAll,
+	)
 )
 
 // Permissions are every permission of the module.
@@ -57,4 +78,7 @@ var Permissions = []permission.Permission{
 	AutomationsEnable,
 	AutomationsOperate,
 	ConnectionsManage,
+	ConnectionsUse,
+	SecretsManage,
+	SecretsUse,
 }
