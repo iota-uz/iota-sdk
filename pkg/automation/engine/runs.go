@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -55,6 +56,15 @@ func (s *service) ListRuns(ctx context.Context, a Actor, f RunFilter) (Page[RunS
 	if f.SubjectKeyPrefix != "" {
 		args = append(args, likePrefix(f.SubjectKeyPrefix))
 		where = append(where, fmt.Sprintf(`r.subject_key ILIKE $%d ESCAPE '\'`, len(args)))
+	}
+	if q := strings.TrimSpace(f.SubjectQuery); q != "" {
+		entities, keys, err := s.subjectMatches(ctx, a, q)
+		if err != nil {
+			return Page[RunSummary]{}, err
+		}
+		args = append(args, likePrefix(q), entities, keys)
+		where = append(where, fmt.Sprintf(`(r.subject_key ILIKE $%d ESCAPE '\' OR (r.subject_entity, r.subject_key) IN (SELECT * FROM unnest($%d::text[], $%d::text[])))`,
+			len(args)-2, len(args)-1, len(args)))
 	}
 	if f.Since != nil {
 		args = append(args, *f.Since)
@@ -356,6 +366,64 @@ func (s *service) GetRun(ctx context.Context, a Actor, runID uuid.UUID, opts ...
 }
 
 // likePrefix is a LIKE pattern matching strings that start with s, its wildcards escaped.
+// MaxSubjectQueryMatches bounds the subjects of one entity a RunFilter.SubjectQuery matches by name;
+// maxSubjectQueryEntities bounds the entities it asks the SubjectSearcher about.
+const (
+	MaxSubjectQueryMatches  = 50
+	maxSubjectQueryEntities = 20
+)
+
+// subjectMatches is what the SubjectSearcher finds by q among the subject entities of the tenant's runs,
+// with the viewer's rights, as two parallel lists: the entities and the keys. Nothing without a searcher.
+func (s *service) subjectMatches(ctx context.Context, a Actor, q string) ([]string, []string, error) {
+	entities, keys := []string{}, []string{}
+	searcher, ok := s.r.cfg.Subjects.(SubjectSearcher)
+	if !ok {
+		return entities, keys, nil
+	}
+	// The distinct entities by a skip scan of runs_tenant_subject_idx: a tenant has few of them and many runs.
+	rows, err := s.r.cfg.DB.Query(ctx, `
+		WITH RECURSIVE e AS (
+			(SELECT subject_entity FROM automation.runs WHERE tenant_id = $1 ORDER BY subject_entity LIMIT 1)
+			UNION ALL
+			SELECT (SELECT r.subject_entity FROM automation.runs r WHERE r.tenant_id = $1 AND r.subject_entity > e.subject_entity
+				ORDER BY r.subject_entity LIMIT 1) FROM e WHERE e.subject_entity IS NOT NULL)
+		SELECT subject_entity FROM e WHERE subject_entity IS NOT NULL AND subject_entity NOT IN ('', $2) LIMIT $3`,
+		a.TenantID, graph.SubjectNone, maxSubjectQueryEntities)
+	if err != nil {
+		return nil, nil, serrors.FromDB(opService, err)
+	}
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			rows.Close()
+			return nil, nil, serrors.FromDB(opService, err)
+		}
+		names = append(names, name)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, nil, serrors.FromDB(opService, err)
+	}
+	viewer := a.Subject
+	viewer.TenantID = a.TenantID
+	for _, entity := range names {
+		found, err := searcher.Search(ctx, viewer, entity, q, MaxSubjectQueryMatches)
+		if err != nil {
+			return nil, nil, serrors.Wrap(opService, err)
+		}
+		for i, o := range found {
+			if i == MaxSubjectQueryMatches {
+				break
+			}
+			// A searcher answers about the entity it is asked about.
+			entities, keys = append(entities, entity), append(keys, o.Subject.Key)
+		}
+	}
+	return entities, keys, nil
+}
+
 func likePrefix(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 	return r.Replace(s) + "%"

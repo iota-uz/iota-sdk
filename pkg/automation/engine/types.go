@@ -304,6 +304,10 @@ type RunFilter struct {
 	Subject      *SubjectRef
 	// SubjectKeyPrefix keeps the runs whose subject key starts with it, case-insensitively ("": any).
 	SubjectKeyPrefix string
+	// SubjectQuery keeps the runs whose subject key starts with it or whose subject the SubjectSearcher
+	// (an optional interface of Config.Subjects) finds by it with the viewer's rights: the name an author
+	// sees, not only the key. At most MaxSubjectQueryMatches subjects of each entity match by name.
+	SubjectQuery string
 	// Node keeps the runs that took a step on the node ("": any).
 	Node         string
 	Since, Until *time.Time

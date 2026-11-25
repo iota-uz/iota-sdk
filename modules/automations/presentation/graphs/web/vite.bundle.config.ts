@@ -34,6 +34,8 @@ export default defineConfig({
     alias: [
       { find: '@iota-uz/sdk/automation-editor/styles.css', replacement: path.join(repo, 'web/automation-editor/src/styles.css') },
       { find: '@iota-uz/sdk/automation-editor', replacement: path.join(repo, 'web/automation-editor/src/index.ts') },
+      // As in the editor's package: d3-color is a stub that never matches a color (src/xy/d3-color.ts).
+      { find: /^d3-color$/, replacement: path.join(repo, 'web/automation-editor/src/xy/d3-color.ts') },
       { find: '@xyflow/system', replacement: path.join(web, 'node_modules/@xyflow/system') },
       { find: '@iota-uz/sdk/solid-ui', replacement: path.join(repo, 'web/solid-ui/src/index.ts') },
       { find: '@iota-uz/sdk/solid', replacement: path.join(repo, 'web/client-host/src/solid-index.ts') },
