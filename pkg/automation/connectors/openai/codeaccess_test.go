@@ -55,7 +55,8 @@ func TestCodeCompleteText(t *testing.T) {
 	body := reqs[0].JSON(t)
 	assert.Equal(t, "gpt-4o-mini-2024-07-18", body["model"], "the default model")
 	assert.Equal(t, "Bearer sk-test-key-123456", reqs[0].Header.Get("Authorization"))
-	raw, _ := json.Marshal(res)
+	raw, err := json.Marshal(res)
+	require.NoError(t, err)
 	assert.NotContains(t, string(raw), "sk-test-key")
 }
 

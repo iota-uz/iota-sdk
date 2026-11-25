@@ -2,7 +2,6 @@ package access_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -31,12 +30,12 @@ func TestConnectionsNeedTheUsePermissionBeforeAnyProviderCall(t *testing.T) {
 
 	_, err = g.CallConnection(context.Background(), code.ConnectionRequest{Connection: "crm", Method: "fetch", Fetch: true, Path: "/x"})
 	var refused *code.ConnectionRefusedError
-	require.True(t, errors.As(err, &refused))
+	require.ErrorAs(t, err, &refused)
 	assert.EqualValues(t, access.CodePermissionDenied, refused.Code)
 	assert.Empty(t, rec.got.URL, "no request was sent")
 
 	_, err = g.CallOperation(context.Background(), code.OperationRequest{Connection: "crm", Operation: "send", Args: []byte("null")})
-	require.True(t, errors.As(err, &refused))
+	require.ErrorAs(t, err, &refused)
 	assert.EqualValues(t, access.CodePermissionDenied, refused.Code)
 	assert.Empty(t, kind.calls, "the operator was not called")
 
@@ -49,7 +48,7 @@ func TestConnectionsNeedTheUsePermissionBeforeAnyProviderCall(t *testing.T) {
 	counting := countingConnections{opened: &opened}
 	_, err = access.OpenFor(context.Background(), counting, catalog.CallInput{TenantID: uuid.New()}, []string{"crm"}, useConnections)
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, access.CodePermissionDenied, ce.Code)
 	assert.Zero(t, opened)
 }
@@ -86,7 +85,7 @@ func TestAnOpenConnectionIsCheckedAgainAtEveryCall(t *testing.T) {
 		require.NoError(t, r.store.SetStatus(r.ctx, r.tenant, conn.ID, status, ""))
 		err := call()
 		var refused *code.ConnectionRefusedError
-		require.True(t, errors.As(err, &refused), status)
+		require.ErrorAs(t, err, &refused, status)
 		assert.EqualValues(t, want, refused.Code, status)
 		assert.Empty(t, rec.got.URL, "%s: nothing was sent", status)
 	}
@@ -96,6 +95,6 @@ func TestAnOpenConnectionIsCheckedAgainAtEveryCall(t *testing.T) {
 	require.NoError(t, r.store.Delete(r.ctx, r.tenant, conn.ID))
 	err = call()
 	var refused *code.ConnectionRefusedError
-	require.True(t, errors.As(err, &refused))
-	assert.EqualValues(t, code.ReasonConnectionMissing, refused.Code)
+	require.ErrorAs(t, err, &refused)
+	assert.Equal(t, code.ReasonConnectionMissing, refused.Code)
 }

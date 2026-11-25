@@ -198,8 +198,10 @@ func TestOperationErrorsAreCodedAndMasked(t *testing.T) {
 	}
 	var out struct {
 		A struct {
-			Name, Code, Message string
-			Retryable           bool
+			Name      string `json:"name"`
+			Code      string `json:"code"`
+			Message   string `json:"message"`
+			Retryable bool   `json:"retryable"`
 		} `json:"a"`
 		B string `json:"b"`
 	}

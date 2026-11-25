@@ -99,6 +99,7 @@ func TestCodeNodesNeverReadAnHTTPAPIToken(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "failed", res.Outcome)
 	assert.Equal(t, "secret_missing", res.Output["error"].(map[string]any)["code"])
-	raw, _ := json.Marshal(res.Output)
+	raw, err := json.Marshal(res.Output)
+	require.NoError(t, err)
 	assert.NotContains(t, string(raw), token)
 }

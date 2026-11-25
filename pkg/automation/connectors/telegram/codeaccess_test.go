@@ -3,7 +3,6 @@ package telegram_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"testing"
 
@@ -61,7 +60,7 @@ func TestCodeSendMessageInvalidArgs(t *testing.T) {
 	} {
 		_, err := r.c.CallCodeOperation(context.Background(), r.codeCall("sendMessage", args))
 		var ce *connectors.CodeOperationError
-		require.True(t, errors.As(err, &ce), name)
+		require.ErrorAs(t, err, &ce, name)
 		assert.Equal(t, "invalid_args", ce.Code, name)
 	}
 	assert.Empty(t, r.bot.Sent())
@@ -72,20 +71,20 @@ func TestCodeSendMessageRefusals(t *testing.T) {
 	ctx := context.Background()
 	_, err := r.c.CallCodeOperation(ctx, r.codeCall("sendMessage", `{"chat_id":777,"text":"x"}`))
 	var ce *connectors.CodeOperationError
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, "provider_refused", ce.Code, "a chat the bot cannot reach")
 
 	r.bot.Fail(telegramtest.Failure{Method: "sendMessage", Code: 429, Description: "Too Many Requests", RetryAfter: 3})
 	r.api.Chat(telegramtest.Chat{ID: 5002})
 	_, err = r.c.CallCodeOperation(ctx, r.codeCall("sendMessage", `{"chat_id":5002,"text":"x"}`))
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, "rate_limited", ce.Code)
 	assert.True(t, ce.Retryable)
 
 	r.bot.Fail(telegramtest.Failure{Method: "sendMessage", Code: 502, Description: "Bad Gateway"})
 	_, err = r.c.CallCodeOperation(ctx, r.codeCall("sendMessage", `{"chat_id":5002,"text":"x"}`))
 	require.Error(t, err)
-	assert.False(t, errors.As(err, &ce), "an unknown outcome is a plain error")
+	assert.NotErrorAs(t, err, &ce, "an unknown outcome is a plain error")
 	assert.NotContains(t, err.Error(), tenantToken)
 }
 
@@ -96,7 +95,8 @@ func TestCodeGetMe(t *testing.T) {
 	me := out.(map[string]any)
 	assert.Equal(t, "tenant_bot", me["username"])
 	assert.EqualValues(t, 111111, me["id"])
-	raw, _ := json.Marshal(me)
+	raw, err := json.Marshal(me)
+	require.NoError(t, err)
 	assert.NotContains(t, string(raw), "AAAAAAAA", "no token in the result")
 }
 
@@ -106,6 +106,6 @@ func TestCodeOperationNeedsAToken(t *testing.T) {
 	call.Input.Credentials = connectors.Credentials{}
 	_, err := r.c.CallCodeOperation(context.Background(), call)
 	var ce *connectors.CodeOperationError
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, "provider_refused", ce.Code)
 }

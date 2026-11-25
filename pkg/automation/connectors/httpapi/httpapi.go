@@ -165,7 +165,7 @@ func headerName(name string) bool {
 	for i := 0; i < len(name); i++ {
 		ch := name[i]
 		letter := ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z'
-		if !letter && (i == 0 || !(ch >= '0' && ch <= '9' || ch == '-')) {
+		if !letter && (i == 0 || (ch < '0' || ch > '9') && ch != '-') {
 			return false
 		}
 	}

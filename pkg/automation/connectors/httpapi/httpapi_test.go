@@ -52,18 +52,18 @@ func TestAuthorize(t *testing.T) {
 	cases := []struct {
 		name  string
 		creds connectors.Credentials
-		check func(t *testing.T, h http.Header)
+		check func(h http.Header)
 	}{
-		{"none", creds(), func(t *testing.T, h http.Header) { assert.Empty(t, h.Get("Authorization")) }},
-		{"none, explicit", creds("auth", "none", "token", "ignored"), func(t *testing.T, h http.Header) { assert.Empty(t, h) }},
-		{"bearer", creds("auth", "bearer", "token", "tok-123"), func(t *testing.T, h http.Header) {
+		{"none", creds(), func(h http.Header) { assert.Empty(t, h.Get("Authorization")) }},
+		{"none, explicit", creds("auth", "none", "token", "ignored"), func(h http.Header) { assert.Empty(t, h) }},
+		{"bearer", creds("auth", "bearer", "token", "tok-123"), func(h http.Header) {
 			assert.Equal(t, "Bearer tok-123", h.Get("Authorization"))
 		}},
-		{"header", creds("auth", "header", "header_name", "X-Api-Key", "token", "key-9"), func(t *testing.T, h http.Header) {
+		{"header", creds("auth", "header", "header_name", "X-Api-Key", "token", "key-9"), func(h http.Header) {
 			assert.Equal(t, "key-9", h.Get("X-Api-Key"))
 			assert.Empty(t, h.Get("Authorization"))
 		}},
-		{"basic", creds("auth", "basic", "username", "ann", "password", "p:w"), func(t *testing.T, h http.Header) {
+		{"basic", creds("auth", "basic", "username", "ann", "password", "p:w"), func(h http.Header) {
 			r := &http.Request{Header: h}
 			u, p, ok := r.BasicAuth()
 			assert.True(t, ok)
@@ -75,7 +75,7 @@ func TestAuthorize(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := http.Header{}
 			require.NoError(t, c.Authorize(ctx, tc.creds, h))
-			tc.check(t, h)
+			tc.check(h)
 		})
 	}
 	t.Run("replaces the authorization the code set", func(t *testing.T) {

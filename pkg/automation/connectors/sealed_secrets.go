@@ -181,7 +181,8 @@ func (s *sealedSecrets) Metadata(ctx context.Context, ref secrets.Ref) (secrets.
 
 // rewrapSecretValues re-seals up to limit values of older keys with the active one, a batch in one
 // transaction; it returns how many it re-sealed and how many it could not (key gone, row changed).
-func rewrapSecretValues(ctx context.Context, db *pgxpool.Pool, keys Keyring, limit int) (done, skipped int, err error) {
+func rewrapSecretValues(ctx context.Context, db *pgxpool.Pool, keys Keyring, limit int) (int, int, error) {
+	var done, skipped int
 	activeID, activeKey := keys.Active()
 	var afterTenant uuid.UUID
 	afterPath := ""

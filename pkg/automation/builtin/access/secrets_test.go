@@ -2,7 +2,6 @@ package access_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -82,13 +81,13 @@ func TestChainRefusesARunAsWithoutSecretsUse(t *testing.T) {
 	reads := 0
 	s := access.ChainSecrets(tenantSecrets{values: map[string]string{"API_KEY": "from-tenant"}, reads: &reads}, useSecrets, app)
 	_, err := s.Secret(context.Background(), uuid.New(), spi.Subject{}, "API_KEY")
-	assert.ErrorIs(t, err, access.ErrSecretForbidden)
+	require.ErrorIs(t, err, access.ErrSecretForbidden)
 	assert.Zero(t, app.calls, "no fallback past a refusal")
 	assert.Zero(t, reads, "the value is neither read nor its use recorded before the run-as is authorized")
 
 	_, err = access.ReadSecrets(context.Background(), s, catalog.CallInput{TenantID: uuid.New()}, []string{"API_KEY"})
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, access.CodeSecretForbidden, ce.Code)
 
 	// A name the tenant does not manage is the application's, whoever runs.
@@ -103,7 +102,7 @@ func TestChainOutageIsControlledAndNeverFallsBack(t *testing.T) {
 	s := access.ChainSecrets(tenantSecrets{err: secrets.ErrUnavailable}, useSecrets, app)
 	_, err := access.ReadSecrets(context.Background(), s, catalog.CallInput{TenantID: uuid.New(), RunAs: user}, []string{"API_KEY"})
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, access.CodeUnavailable, ce.Code)
 	assert.True(t, ce.Retryable)
 	assert.Zero(t, app.calls)
@@ -113,7 +112,7 @@ func TestReadSecretsSaysUnknownSecret(t *testing.T) {
 	s := access.ChainSecrets(tenantSecrets{}, useSecrets, access.FromResolver(nil))
 	_, err := access.ReadSecrets(context.Background(), s, catalog.CallInput{TenantID: uuid.New(), RunAs: user}, []string{"NOPE"})
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, access.CodeSecretMissing, ce.Code)
 	assert.Equal(t, "unknown secret NOPE", ce.Message)
 }

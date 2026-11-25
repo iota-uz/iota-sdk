@@ -78,7 +78,7 @@ func TestResolveRotateDelete(t *testing.T) {
 	assert.Equal(t, "v2", got)
 
 	_, err = e.mgr.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "v3"})
-	assert.ErrorIs(t, err, secrets.ErrVersionConflict, "a stale version")
+	require.ErrorIs(t, err, secrets.ErrVersionConflict, "a stale version")
 
 	list, err := e.mgr.List(e.ctx, e.tenant)
 	require.NoError(t, err)
@@ -87,10 +87,10 @@ func TestResolveRotateDelete(t *testing.T) {
 
 	require.NoError(t, e.mgr.Delete(e.ctx, e.tenant, s.ID))
 	_, err = e.res.Resolve(e.ctx, e.tenant, "API_KEY")
-	assert.ErrorIs(t, err, secrets.ErrNotFound)
+	require.ErrorIs(t, err, secrets.ErrNotFound)
 	_, err = e.store.Read(e.ctx, s.Ref)
-	assert.ErrorIs(t, err, secrets.ErrNotFound, "the value is gone with the record")
-	assert.ErrorIs(t, e.mgr.Delete(e.ctx, e.tenant, s.ID), secrets.ErrNotFound)
+	require.ErrorIs(t, err, secrets.ErrNotFound, "the value is gone with the record")
+	require.ErrorIs(t, e.mgr.Delete(e.ctx, e.tenant, s.ID), secrets.ErrNotFound)
 }
 
 func TestCreateValidatesAndRefusesATakenName(t *testing.T) {
@@ -100,12 +100,12 @@ func TestCreateValidatesAndRefusesATakenName(t *testing.T) {
 		{Name: "api_key", Value: "x"}, {Name: "API_KEY", Value: ""}, {Name: "API_KEY", Value: string(make([]byte, secrets.MaxValueBytes+1))},
 	} {
 		_, err := e.mgr.Create(e.ctx, e.tenant, in)
-		assert.ErrorIs(t, err, secrets.ErrInvalid)
+		require.ErrorIs(t, err, secrets.ErrInvalid)
 	}
 	_, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "A", Value: "x"})
 	require.NoError(t, err)
 	_, err = e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "A", Value: "y"})
-	assert.ErrorIs(t, err, secrets.ErrNameTaken)
+	require.ErrorIs(t, err, secrets.ErrNameTaken)
 	var n int
 	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1`, e.tenant).Scan(&n))
 	assert.Equal(t, 1, n, "the value of the refused secret is cleaned up")
@@ -121,9 +121,9 @@ func TestUpdateRenamesWithVersionCheck(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "B", u.Name)
 	_, err = e.mgr.Update(e.ctx, e.tenant, secrets.UpdateInput{ID: s.ID, Version: s.Version, Description: &desc})
-	assert.ErrorIs(t, err, secrets.ErrVersionConflict)
+	require.ErrorIs(t, err, secrets.ErrVersionConflict)
 	_, err = e.mgr.Update(e.ctx, e.tenant, secrets.UpdateInput{ID: uuid.New(), Version: 1, Description: &desc})
-	assert.ErrorIs(t, err, secrets.ErrNotFound)
+	require.ErrorIs(t, err, secrets.ErrNotFound)
 	got, err := e.res.Resolve(e.ctx, e.tenant, "B")
 	require.NoError(t, err)
 	assert.Equal(t, "x", got)
@@ -137,17 +137,17 @@ func TestAnotherTenantNeverReadsIt(t *testing.T) {
 	b := e.newTenant()
 
 	_, err = e.res.Resolve(e.ctx, b, "API_KEY")
-	assert.ErrorIs(t, err, secrets.ErrNotFound)
+	require.ErrorIs(t, err, secrets.ErrNotFound)
 	// The path of A's value under B's tenant: not found; without a tenant: refused.
 	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: b, Path: s.Ref.Path})
-	assert.ErrorIs(t, err, secrets.ErrNotFound)
+	require.ErrorIs(t, err, secrets.ErrNotFound)
 	_, err = e.store.Read(e.ctx, secrets.Ref{Path: s.Ref.Path})
-	assert.ErrorIs(t, err, secrets.ErrForbidden)
+	require.ErrorIs(t, err, secrets.ErrForbidden)
 	_, err = e.store.Put(e.ctx, secrets.Ref{}, map[string]string{"value": "x"})
-	assert.ErrorIs(t, err, secrets.ErrForbidden)
-	assert.ErrorIs(t, e.mgr.Delete(e.ctx, b, s.ID), secrets.ErrNotFound)
+	require.ErrorIs(t, err, secrets.ErrForbidden)
+	require.ErrorIs(t, e.mgr.Delete(e.ctx, b, s.ID), secrets.ErrNotFound)
 	_, err = e.mgr.Rotate(e.ctx, b, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "stolen"})
-	assert.ErrorIs(t, err, secrets.ErrNotFound)
+	require.ErrorIs(t, err, secrets.ErrNotFound)
 	got, err := e.res.Resolve(e.ctx, e.tenant, "API_KEY")
 	require.NoError(t, err)
 	assert.Equal(t, "mine", got)
@@ -165,20 +165,20 @@ func TestAStoreOutageIsAControlledError(t *testing.T) {
 	_, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v"})
 	require.NoError(t, err)
 	_, err = secrets.NewResolver(e.db, failingReader{}).Resolve(e.ctx, e.tenant, "API_KEY")
-	assert.ErrorIs(t, err, secrets.ErrUnavailable)
-	assert.NotErrorIs(t, err, secrets.ErrNotFound)
+	require.ErrorIs(t, err, secrets.ErrUnavailable)
+	require.NotErrorIs(t, err, secrets.ErrNotFound)
 
 	// The records unreachable (a closed context) are an outage too, not a missing secret.
 	ctx, cancel := context.WithCancel(e.ctx)
 	cancel()
 	_, err = e.res.Resolve(ctx, e.tenant, "API_KEY")
-	assert.ErrorIs(t, err, secrets.ErrUnavailable)
+	require.ErrorIs(t, err, secrets.ErrUnavailable)
 
 	// No keyring: the sealed adapter is unavailable, never empty.
 	noKeys := connectors.NewSealedSecrets(e.db, nil)
 	_, err = secrets.NewResolver(e.db, noKeys).Resolve(e.ctx, e.tenant, "API_KEY")
-	assert.ErrorIs(t, err, secrets.ErrUnavailable)
-	assert.ErrorIs(t, err, connectors.ErrNotConfigured)
+	require.ErrorIs(t, err, secrets.ErrUnavailable)
+	require.ErrorIs(t, err, connectors.ErrNotConfigured)
 }
 
 func TestSealedValuesAreVersioned(t *testing.T) {
@@ -203,14 +203,14 @@ func TestSealedValuesAreVersioned(t *testing.T) {
 	assert.Equal(t, secrets.Value{Data: map[string]string{"a": "1", "b": "2"}, Version: 1}, v)
 	require.NoError(t, e.store.Prune(e.ctx, ref, 2))
 	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: "p/1", Version: 1})
-	assert.ErrorIs(t, err, secrets.ErrNotFound)
+	require.ErrorIs(t, err, secrets.ErrNotFound)
 
 	// A row moved to another path does not open (the path is bound).
 	_, err = e.db.Exec(e.ctx, `UPDATE automation.secret_values SET path = 'p/2' WHERE tenant_id = $1`, e.tenant)
 	require.NoError(t, err)
 	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: "p/2"})
-	assert.ErrorIs(t, err, secrets.ErrUnavailable)
-	assert.ErrorIs(t, err, connectors.ErrUndecryptable)
+	require.ErrorIs(t, err, secrets.ErrUnavailable)
+	require.ErrorIs(t, err, connectors.ErrUndecryptable)
 }
 
 func TestRewrapReSealsSecretValues(t *testing.T) {
@@ -286,7 +286,7 @@ func TestARotationThatFailsAfterTheValueKeepsThePublishedVersion(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "v3", got)
 	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: s.Ref.Path, Version: 1})
-	assert.ErrorIs(t, err, secrets.ErrNotFound, "earlier versions are pruned once a later one is published")
+	require.ErrorIs(t, err, secrets.ErrNotFound, "earlier versions are pruned once a later one is published")
 }
 
 func TestACreateThatFailsAfterTheValueLeavesNothing(t *testing.T) {
@@ -297,7 +297,7 @@ func TestACreateThatFailsAfterTheValueLeavesNothing(t *testing.T) {
 	_, err := broken.Create(ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
 	require.Error(t, err)
 	_, err = e.res.Resolve(e.ctx, e.tenant, "API_KEY")
-	assert.ErrorIs(t, err, secrets.ErrNotFound)
+	require.ErrorIs(t, err, secrets.ErrNotFound)
 	var n int
 	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1`, e.tenant).Scan(&n))
 	assert.Zero(t, n, "the value written for the record that never committed is removed")
@@ -313,7 +313,7 @@ func TestADeleteWhoseValueCannotBeRemovedIsRetried(t *testing.T) {
 	require.NoError(t, down.Delete(e.ctx, e.tenant, s.ID))
 	// The name is gone at once, never live without its value; the value waits for the store.
 	_, err = e.res.Resolve(e.ctx, e.tenant, "API_KEY")
-	assert.ErrorIs(t, err, secrets.ErrNotFound)
+	require.ErrorIs(t, err, secrets.ErrNotFound)
 	has, err := e.res.Has(e.ctx, e.tenant, "API_KEY")
 	require.NoError(t, err)
 	assert.False(t, has)
@@ -378,13 +378,13 @@ func TestAReaderFollowsARotationThatPrunedItsVersion(t *testing.T) {
 	require.NoError(t, err, "a live secret on a healthy store resolves")
 	assert.Equal(t, "v3", got)
 	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: s.Ref.Path, Version: 1})
-	assert.ErrorIs(t, err, secrets.ErrNotFound, "version 1 was pruned under the reader")
+	require.ErrorIs(t, err, secrets.ErrNotFound, "version 1 was pruned under the reader")
 
 	// The published version missing while the record stays as it is: a broken store, a controlled error.
 	_, err = e.db.Exec(e.ctx, `DELETE FROM automation.secret_values WHERE tenant_id = $1`, e.tenant)
 	require.NoError(t, err)
 	_, err = e.res.Resolve(e.ctx, e.tenant, "API_KEY")
-	assert.ErrorIs(t, err, secrets.ErrUnavailable)
+	require.ErrorIs(t, err, secrets.ErrUnavailable)
 }
 
 // The previous version stays readable after a rotation, for a reader that looked the record up before it.
@@ -401,9 +401,9 @@ func TestARotationKeepsThePreviousVersion(t *testing.T) {
 	_, err = e.mgr.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: r.Version, Value: "v3"})
 	require.NoError(t, err)
 	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: s.Ref.Path, Version: 1})
-	assert.ErrorIs(t, err, secrets.ErrNotFound)
+	require.ErrorIs(t, err, secrets.ErrNotFound)
 	_, err = e.store.Read(e.ctx, secrets.Ref{TenantID: e.tenant, Path: s.Ref.Path, Version: 2})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 // A COMMIT whose reply is lost after the record was published: the manager settles it from the record and
@@ -544,7 +544,7 @@ func TestOverlappingRotationsPublishTheWinnersValue(t *testing.T) {
 		require.NoError(t, err)
 	}}, e.store, secrets.DefaultLocator("test/"))
 	_, err = a.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "from-a"})
-	assert.ErrorIs(t, err, secrets.ErrVersionConflict, "the rotation that lost reports it")
+	require.ErrorIs(t, err, secrets.ErrVersionConflict, "the rotation that lost reports it")
 	got, err := e.res.Resolve(e.ctx, e.tenant, "API_KEY")
 	require.NoError(t, err)
 	assert.Equal(t, "from-b", got)
@@ -560,7 +560,7 @@ func TestALateRotationAfterADeleteLeavesNoValue(t *testing.T) {
 	late := secrets.NewManager(e.db, deleteFirst{Writer: e.store, del: func() { require.NoError(t, e.mgr.Delete(e.ctx, e.tenant, s.ID)) }},
 		e.store, secrets.DefaultLocator("test/"))
 	_, err = late.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "v2"})
-	assert.ErrorIs(t, err, secrets.ErrNotFound)
+	require.ErrorIs(t, err, secrets.ErrNotFound)
 	values := func() int {
 		var n int
 		require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`, e.tenant, s.Ref.Path).Scan(&n))
@@ -576,7 +576,7 @@ func TestALateRotationAfterADeleteLeavesNoValue(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, values(), "purge found the late value through the tombstone")
 	_, err = e.res.Resolve(e.ctx, e.tenant, "API_KEY")
-	assert.ErrorIs(t, err, secrets.ErrNotFound)
+	require.ErrorIs(t, err, secrets.ErrNotFound)
 }
 
 // deleteFirst deletes the secret (another administrator) right before its Put writes.
@@ -622,7 +622,7 @@ func TestAGivenUpCreateKeepsItsReferenceAcrossAStoreOutage(t *testing.T) {
 	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`, e.tenant, path).Scan(&n))
 	assert.Equal(t, 1, n, "the store was down: the value is still there")
 	_, err = e.res.Resolve(e.ctx, e.tenant, "API_KEY")
-	assert.ErrorIs(t, err, secrets.ErrNotFound)
+	require.ErrorIs(t, err, secrets.ErrNotFound)
 	_, err = e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v2"})
 	require.NoError(t, err, "the name is free")
 

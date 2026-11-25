@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"strings"
 	"testing"
 
@@ -126,13 +125,13 @@ func TestStoreConnectionsOfEverySDKConnector(t *testing.T) {
 		require.NoError(t, r.store.SetStatus(r.ctx, r.tenant, c.ID, connectors.StatusDisabled, ""))
 		_, err := access.OpenAll(r.ctx, r.conns, r.tenant, []string{c.Name})
 		var ce *catalog.CallError
-		require.True(t, errors.As(err, &ce), c.Kind)
+		require.ErrorAs(t, err, &ce, c.Kind)
 		assert.Equal(t, access.CodeConnectionDisabled, ce.Code, c.Kind)
 		assert.False(t, strings.Contains(ce.Message, itfAPIToken) || strings.Contains(ce.Message, itfBotToken))
 
 		require.NoError(t, r.store.SetStatus(r.ctx, r.tenant, c.ID, connectors.StatusNeedsReauth, ""))
 		_, err = access.OpenAll(r.ctx, r.conns, r.tenant, []string{c.Name})
-		require.True(t, errors.As(err, &ce), c.Kind)
+		require.ErrorAs(t, err, &ce, c.Kind)
 		assert.Equal(t, access.CodeConnectionBroken, ce.Code, c.Kind)
 	}
 
@@ -140,6 +139,6 @@ func TestStoreConnectionsOfEverySDKConnector(t *testing.T) {
 	other := uuid.New()
 	_, err := access.OpenAll(r.ctx, r.conns, other, []string{"crm"})
 	var ce *catalog.CallError
-	require.True(t, errors.As(err, &ce))
+	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, access.CodeConnectionMissing, ce.Code)
 }

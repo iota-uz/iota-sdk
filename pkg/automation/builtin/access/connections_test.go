@@ -52,7 +52,7 @@ func (f *fakeKind) CallCodeOperation(_ context.Context, call connectors.CodeCall
 	case "boom":
 		return nil, errors.New("provider failed with " + secretToken)
 	}
-	return nil, nil
+	return json.RawMessage("null"), nil
 }
 
 type fakeDir struct {

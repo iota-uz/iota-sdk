@@ -11,7 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
 
-// CodeSecretForbidden: the run-as subject may not read the tenant's secrets.
+// CodeSecretForbidden is the code of a node whose run-as subject may not read the tenant's secrets.
 const CodeSecretForbidden = "secret_forbidden"
 
 // ErrSecretForbidden reports that the run-as subject lacks the permission to read the tenant's secrets.
