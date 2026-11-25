@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -586,6 +587,147 @@ func TestTelegramPlatformAskIsAnsweredByItsTenant(t *testing.T) {
 	assert.Equal(t, http.StatusOK, d.Status)
 	p.until(func() bool { return len(noteTexts(t, te.env)) == 1 }, "the press reached the tenant's run")
 	assert.Equal(t, []string{"approved by alice as Approve #9 (approve)"}, noteTexts(t, te.env))
+}
+
+// After the platform's bot is replaced (the application runs with another APP_TELEGRAMBOTTOKEN), the retired bot's
+// webhook still points to the platform route, but nothing can authenticate it any more: its secret is derived from a
+// token the application no longer has. Its updates — even the press of a question it asked before the change — are
+// refused like any request without the route's secret (404, nothing published), and the question waits for its
+// timeout. The new bot's updates are taken.
+func TestTelegramRetiredPlatformBotIsRefused(t *testing.T) {
+	te := newTgEnv(t)
+	p := te.proc()
+	te.provision()
+	te.chat(800)
+	_, err := te.db.Exec(context.Background(), `DELETE FROM automation.connections`)
+	require.NoError(t, err)
+	g := strings.Replace(tgAskGraph, `"chat_id": 700`, `"chat_id": 800, "connection": "platform:telegram_bot"`, 1)
+	te.create(p, te.human(), g)
+	te.publish(te.tenant, orderCreated, "o-1", order{Note: "#9"}, 0)
+	p.until(func() bool {
+		return len(te.platform.Sent()) == 1 && te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND correlation IS NOT NULL`) == 1
+	}, "the question goes out through the platform bot")
+	q := te.platform.Sent()[0]
+
+	// The platform bot is rotated: the route now verifies the new bot's secret.
+	const rotated = "333333:CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+	successor := te.api.Bot(rotated, "successor_bot")
+	te.hook.Store(engine.InboundHandler(engine.InboundConfig{
+		Connections: te.store, Registry: te.reg, Inbound: p.rt.Inbound(), DB: te.db, Connectors: te.dir,
+		Platform: connectors.NewPlatformCredentials(te.dir, map[catalog.ConnectorKind]connectors.PlatformCredential{
+			telegram.Kind: {Credentials: connectors.Credentials{"token": rotated}}}),
+	}))
+	require.NoError(t, te.tg.StartPlatform(context.Background(), connectors.Credentials{"token": rotated}))
+
+	d, _, err := te.platform.PressData(800, q.ID, tgAlice, q.Markup[0][0].CallbackData, q)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, d.Status, "the retired bot cannot be authenticated")
+	assert.Equal(t, 1, te.count(`SELECT count(*) FROM automation.waits WHERE status = 'open' AND correlation IS NOT NULL`), "the question still waits")
+	assert.Empty(t, noteTexts(t, te.env), "no answer reached the run")
+
+	d, err = successor.SendText(800, tgAlice, "hello")
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, d.Status, "the new platform bot is served")
+}
+
+// A platform setWebhook that Telegram applied late — from an instance that crashed during the call, after the bot
+// stopped being the platform's and a tenant's connection took it, however long after — points the tenant's bot back
+// to the platform route.
+// The route recognises the stray update (its secret is that bot's platform secret, checked with the connection's
+// token), points the webhook back to the connection and answers 503; Telegram's next delivery reaches the connection
+// and runs its graph. A request no retired account verifies stays a plain 404.
+func TestTelegramStrayPlatformWebhookIsPointedBackToItsConnection(t *testing.T) {
+	te := newTgEnv(t)
+	p := te.proc()
+	te.provision()
+	te.chat(700)
+	te.create(p, te.human(), tgMessageGraph(`{"id": "m", "event": "telegram.message_received.v1"}`))
+	ctx := context.Background()
+	account := te.tg.ExternalID(connectors.Credentials{"token": tgToken})
+	// The tenant's bot was the platform's: its reservation's lease ran out and the prune released it (recorded as
+	// retired). Days pass with nobody holding it, prunes keep running, and only then a tenant's connection takes it.
+	creds := connectors.Credentials{"token": tgToken}
+	require.NoError(t, connectors.StartPlatformIdentity(ctx, te.db, telegram.Kind, account, te.tg.PlatformStrayKey(creds), nil))
+	_, err := te.db.Exec(ctx, `UPDATE automation.exclusive_identities SET lease_until = now() - interval '1 second' WHERE platform AND external = $1`, account)
+	require.NoError(t, err)
+	require.NoError(t, connectors.PrunePlatformIdentities(ctx, te.db, telegram.Kind))
+	_, err = te.db.Exec(ctx, `UPDATE automation.retired_platform_identities SET retired_at = now() - interval '3 days' WHERE external = $1`, account)
+	require.NoError(t, err)
+	require.NoError(t, connectors.PrunePlatformIdentities(ctx, te.db, telegram.Kind))
+	require.NoError(t, pgx.BeginFunc(ctx, te.db, func(tx pgx.Tx) error {
+		return connectors.ReserveIdentity(ctx, tx, telegram.Kind, account, te.conn.ID)
+	}))
+	// Many other retired platform bots, retired later, are held by connections too: every one is considered.
+	for i := range 25 {
+		token := fmt.Sprintf("%d:%s", 600000+i, strings.Repeat("E", 35))
+		other, err := te.store.Save(ctx, connectors.Connection{TenantID: te.tenant, Kind: telegram.Kind, Name: fmt.Sprintf("retired_%d", i), DisplayName: "Retired"},
+			connectors.Credentials{"token": token})
+		require.NoError(t, err)
+		ext := te.tg.ExternalID(connectors.Credentials{"token": token})
+		_, err = te.db.Exec(ctx, `INSERT INTO automation.retired_platform_identities (kind, external) VALUES ($1, $2)`, string(telegram.Kind), ext)
+		require.NoError(t, err)
+		require.NoError(t, pgx.BeginFunc(ctx, te.db, func(tx pgx.Tx) error {
+			return connectors.ReserveIdentity(ctx, tx, telegram.Kind, ext, other.ID)
+		}))
+	}
+	own := te.bot.Webhook()
+
+	// The route runs on a pool of one connection: the recovery holds the account's lock on it, and reads nothing else
+	// meanwhile.
+	cfg := te.db.Config().Copy()
+	cfg.MaxConns = 1
+	single, err := pgxpool.NewWithConfig(ctx, cfg)
+	require.NoError(t, err)
+	t.Cleanup(single.Close)
+	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": []byte("0123456789abcdef0123456789abcdef")})
+	require.NoError(t, err)
+	platform := connectors.NewPlatformCredentials(te.dir, map[catalog.ConnectorKind]connectors.PlatformCredential{
+		telegram.Kind: {Credentials: connectors.Credentials{"token": tgPlatformToken}}})
+	singleStore := connectors.NewStore(single, keys, nil, platform, nil)
+	singleTg := telegram.New(telegram.Config{PlatformToken: tgPlatformToken, PublicOrigin: te.srv.URL, Inbound: te.late, APIURL: te.api.URL(), Uploads: te.uploads, Connections: singleStore})
+	te.hook.Store(engine.InboundHandler(engine.InboundConfig{
+		Connections: singleStore, Registry: te.reg, Inbound: p.rt.Inbound(), DB: single, Connectors: oneConnector{singleTg}, Platform: platform,
+	}))
+
+	// The late platform request lands.
+	platformRoute := te.srv.URL + "/automations/hooks/platform/" + string(telegram.Kind)
+	te.bot.SetWebhook(platformRoute, telegram.WebhookSecret(tgToken, catalog.PlatformConnectionID(telegram.Kind)))
+	u := te.bot.Update(700, tgAlice, "after the stray webhook")
+	d, err := te.bot.Redeliver(u)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusServiceUnavailable, d.Status, "delivered again")
+	assert.Equal(t, own, te.bot.Webhook(), "the webhook is the connection's again, with its own secret")
+	p.pass()
+	assert.Zero(t, te.count(`SELECT count(*) FROM automation.runs`), "nothing ran on the platform route")
+
+	d, err = te.bot.Redeliver(u)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, d.Status)
+	p.until(func() bool { return len(noteTexts(t, te.env)) == 1 }, "the next delivery reaches the connection and runs its graph")
+	stat := single.Stat()
+	assert.Equal(t, int32(1), stat.MaxConns(), "all of it on one connection")
+
+	// On the platform route a request without the secret header is refused at once, and another bot's with a made-up
+	// secret matches no account.
+	stranger := te.api.Bot("444444:DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", "stranger_bot")
+	stranger.SetWebhook(platformRoute, "")
+	d, err = stranger.Redeliver(stranger.Update(700, tgAlice, "no header"))
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, d.Status)
+	stranger.SetWebhook(platformRoute, "not-the-secret-not-the-secret-12")
+	d, err = stranger.Redeliver(stranger.Update(700, tgAlice, "hi"))
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusNotFound, d.Status)
+	assert.Equal(t, own, te.bot.Webhook())
+}
+
+// oneConnector is a directory of one connector.
+type oneConnector struct{ c connectors.Connector }
+
+func (o oneConnector) Register(connectors.Connector) error { return nil }
+func (o oneConnector) List() []connectors.Connector        { return []connectors.Connector{o.c} }
+func (o oneConnector) Get(k catalog.ConnectorKind) (connectors.Connector, bool) {
+	return o.c, k == o.c.Kind()
 }
 
 type failingStart struct{ tgStart }

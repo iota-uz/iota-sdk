@@ -64,6 +64,15 @@ func (hooky) Descriptor() connectors.Descriptor {
 	return connectors.Descriptor{Kind: hookyKind, Title: map[string]string{"en": "Hooky"}, Auth: connectors.AuthAPIKey,
 		Credentials: json.RawMessage(`{"type":"object","properties":{"secret":{"type":"string","x-secret":true}}}`)}
 }
+
+// Options are the choices of the hooky.things source: what a picker of the editor lists.
+func (hooky) Options(_ context.Context, _, _ uuid.UUID, source, query string) ([]connectors.Option, error) {
+	if source != "hooky.things" {
+		return nil, nil
+	}
+	return []connectors.Option{{Value: "42", Label: "Thing " + query, Group: "private"}}, nil
+}
+
 func (hooky) Test(context.Context, connectors.Credentials) (connectors.Identity, error) {
 	return connectors.Identity{Display: "hooky"}, nil
 }

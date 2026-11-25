@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 )
@@ -213,6 +212,10 @@ func ReserveIdentity(ctx context.Context, tx pgx.Tx, kind catalog.ConnectorKind,
 		connectionID, string(kind), external); err != nil {
 		return err
 	}
+	// A platform reservation whose lease ran out belongs to no instance any more: the account is free.
+	if err := releaseExpiredPlatform(ctx, tx, kind, external); err != nil {
+		return err
+	}
 	var holder *uuid.UUID
 	err := tx.QueryRow(ctx, `SELECT connection_id FROM automation.exclusive_identities WHERE kind = $1 AND external = $2`, string(kind), external).Scan(&holder)
 	switch {
@@ -241,7 +244,9 @@ func holderOf(ctx context.Context, q interface {
 		holder   *uuid.UUID
 		platform bool
 	)
-	err := q.QueryRow(ctx, `SELECT connection_id, platform FROM automation.exclusive_identities WHERE kind = $1 AND external = $2`, string(kind), external).Scan(&holder, &platform)
+	// The row is locked until the caller's transaction ends: a concurrent prune of an expired platform lease waits,
+	// then re-checks the lease the caller renewed.
+	err := q.QueryRow(ctx, `SELECT connection_id, platform FROM automation.exclusive_identities WHERE kind = $1 AND external = $2 FOR UPDATE`, string(kind), external).Scan(&holder, &platform)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return identityHolder{}, nil
 	}
@@ -255,34 +260,6 @@ func holderOf(ctx context.Context, q interface {
 	return out, nil
 }
 
-// ReservePlatformIdentity gives the exclusive identity to the platform credential, under the same lock as a
-// connection's reservation. A connection that holds it already keeps it (ErrIdentityTaken): the platform's
-// credential then cannot be set up for that account. The platform's reservation of another account is released.
-func ReservePlatformIdentity(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind, external string) error {
-	if external == "" {
-		return nil
-	}
-	return pgx.BeginFunc(ctx, db, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, identityLockKey(kind, external)); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE platform AND kind = $1 AND external <> $2`, string(kind), external); err != nil {
-			return err
-		}
-		holder, err := holderOf(ctx, tx, kind, external)
-		switch {
-		case err != nil:
-			return err
-		case holder.held && holder.platform:
-			return nil
-		case holder.held && holder.connection != uuid.Nil:
-			return ErrIdentityTaken
-		}
-		_, err = tx.Exec(ctx, `INSERT INTO automation.exclusive_identities (kind, external, platform) VALUES ($1, $2, TRUE)`, string(kind), external)
-		return err
-	})
-}
-
 // InboundTx reads a connection's inbound state in the caller's transaction.
 func InboundTx(ctx context.Context, tx pgx.Tx, tenantID, id uuid.UUID) (json.RawMessage, error) {
 	var state []byte
@@ -291,13 +268,6 @@ func InboundTx(ctx context.Context, tx pgx.Tx, tenantID, id uuid.UUID) (json.Raw
 		return nil, err
 	}
 	return json.RawMessage(state), nil
-}
-
-// ReleasePlatformIdentities releases the platform credential's reservations of a kind: the credential is no
-// longer configured, so the account it held is free to be connected as a tenant's own.
-func ReleasePlatformIdentities(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind) error {
-	_, err := db.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE platform AND kind = $1`, string(kind))
-	return err
 }
 
 // InboundState is how far a provider update a connector handles itself has got.

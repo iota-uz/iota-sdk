@@ -28,6 +28,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/agentsession"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/mcp"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
@@ -82,6 +83,7 @@ const (
 	MethodRunRetry       = "automations.run_retry"
 	MethodRunRestart     = "automations.run_restart"
 	MethodMCPTools       = "automations.mcp_tools"
+	MethodSearchOptions  = "automations.search_options"
 )
 
 // screen declares the Solid module. The call keeps string literals so the iota-solid generator can
@@ -110,6 +112,7 @@ var screen = solid.Import[Props]("./web/Automations.tsx", solid.WithRPC(
 	solid.Action[RunRetryRequest, OKResponse]("automations.run_retry", solid.Invalidates("automations.runs", "automations.run")),
 	solid.Action[RunRestartRequest, RunRef]("automations.run_restart", solid.Invalidates("automations.runs", "automations.list")),
 	solid.Query[MCPToolsRequest, MCPToolsResponse]("automations.mcp_tools"),
+	solid.Query[SearchOptionsRequest, SearchOptionsResponse]("automations.search_options"),
 ))
 
 // Engine is what the controller calls: the engine's services (engine.Runtime provides all three).
@@ -154,6 +157,16 @@ type Config struct {
 	// MCPTools lists the tools of an MCP connection for the mcp_tool node (nil: automations.mcp_tools
 	// answers unavailable).
 	MCPTools mcp.ToolLister
+	// Options gives the choices of a param field with x-options-source (the chats of a Telegram bot) for one
+	// of the tenant's connections (nil: automations.search_options answers none).
+	Options OptionSearcher
+}
+
+// OptionSearcher is the choices a connector offers for a param field that names a source
+// (connectors.OptionSource), for one of the tenant's connections; connectors.ErrNotFound when the connection is
+// not the tenant's.
+type OptionSearcher interface {
+	Options(ctx context.Context, tenantID, connectionID uuid.UUID, source, query string) ([]connectors.Option, error)
 }
 
 // Controller serves the section's pages and their RPC.
