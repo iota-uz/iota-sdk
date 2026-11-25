@@ -424,3 +424,31 @@ func TestThePreviousReleaseCannotReleaseALiveLease(t *testing.T) {
 	require.NoError(t, connectors.ReleasePlatformIdentities(ctx, db, catalog.KindTelegramBot))
 	assert.Zero(t, held("acct-new"), "an operator's release releases a live lease too")
 }
+
+// A retired platform account is remembered as long as a tenant's connection holds it, however long ago it retired; one
+// nobody holds is forgotten after RetiredPlatformWindow.
+func TestARetiredPlatformAccountIsRememberedWhileItIsHeld(t *testing.T) {
+	db, tenant, _, _, _ := startEnv(t) //nolint:dogsled // no instance runs here
+	ctx := context.Background()
+	held := holdAccount(t, db, tenant) // acct-platform, held by a tenant's connection
+	for _, account := range []string{"acct-platform", "acct-free"} {
+		_, err := db.Exec(ctx, `INSERT INTO automation.retired_platform_identities (kind, external, retired_at) VALUES ($1, $2, now() - interval '3 days')`,
+			string(catalog.KindTelegramBot), account)
+		require.NoError(t, err)
+	}
+	require.NoError(t, connectors.PrunePlatformIdentities(ctx, db, catalog.KindTelegramBot))
+	var left []string
+	rows, err := db.Query(ctx, `SELECT external FROM automation.retired_platform_identities ORDER BY external`)
+	require.NoError(t, err)
+	for rows.Next() {
+		var e string
+		require.NoError(t, rows.Scan(&e))
+		left = append(left, e)
+	}
+	require.NoError(t, rows.Err())
+	assert.Equal(t, []string{"acct-platform"}, left)
+	holders, err := connectors.RetiredPlatformHolders(ctx, db, catalog.KindTelegramBot)
+	require.NoError(t, err)
+	require.Len(t, holders, 1)
+	assert.Equal(t, held, holders[0].ConnectionID)
+}

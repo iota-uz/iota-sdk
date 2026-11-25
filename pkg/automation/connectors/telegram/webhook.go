@@ -90,16 +90,18 @@ func (c *Connector) VerifyStray(r *http.Request, _ []byte, conn connectors.Conne
 	return secretEqual(got, WebhookSecret(token, catalog.PlatformConnectionID(Kind)))
 }
 
-// Reclaim points the connection's bot back to the connection's webhook, with the secret its Provision made.
-func (c *Connector) Reclaim(ctx context.Context, conn connectors.Connection, creds connectors.Credentials) error {
+// Reclaim reads the secret the connection's Provision made and returns the step that points the bot back to the
+// connection's webhook with it (a Bot API call only).
+func (c *Connector) Reclaim(ctx context.Context, conn connectors.Connection, creds connectors.Credentials) (func(context.Context) error, error) {
 	stored, account, err := c.storedSecret(ctx, conn)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if stored == "" || account != c.ExternalID(creds) {
-		return errors.New("telegram: the connection has no webhook secret of its bot")
+		return nil, errors.New("telegram: the connection has no webhook secret of its bot")
 	}
-	return c.bot(creds["token"]).setWebhook(ctx, c.hookURL(conn), stored)
+	b, url := c.bot(creds["token"]), c.hookURL(conn)
+	return func(ctx context.Context) error { return b.setWebhook(ctx, url, stored) }, nil
 }
 
 // storedSecret reads the connection's webhook secret, and the bot account it is bound to, from its inbound

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -642,13 +643,44 @@ func TestTelegramStrayPlatformWebhookIsPointedBackToItsConnection(t *testing.T) 
 	te.create(p, te.human(), tgMessageGraph(`{"id": "m", "event": "telegram.message_received.v1"}`))
 	ctx := context.Background()
 	account := te.tg.ExternalID(connectors.Credentials{"token": tgToken})
-	// The tenant's bot was the platform's until a rotation: its reservation is retired, and the connection holds it.
-	_, err := te.db.Exec(ctx, `INSERT INTO automation.retired_platform_identities (kind, external) VALUES ($1, $2)`, string(telegram.Kind), account)
+	// The tenant's bot was the platform's until a rotation three days ago: its reservation is retired, and the
+	// connection holds it. However long ago, it is watched while the connection holds it.
+	_, err := te.db.Exec(ctx, `INSERT INTO automation.retired_platform_identities (kind, external, retired_at) VALUES ($1, $2, now() - interval '3 days')`, string(telegram.Kind), account)
 	require.NoError(t, err)
 	require.NoError(t, pgx.BeginFunc(ctx, te.db, func(tx pgx.Tx) error {
 		return connectors.ReserveIdentity(ctx, tx, telegram.Kind, account, te.conn.ID)
 	}))
+	// Many other retired platform bots, retired later, are held by connections too: every one is considered.
+	for i := range 25 {
+		token := fmt.Sprintf("%d:%s", 600000+i, strings.Repeat("E", 35))
+		other, err := te.store.Save(ctx, connectors.Connection{TenantID: te.tenant, Kind: telegram.Kind, Name: fmt.Sprintf("retired_%d", i), DisplayName: "Retired"},
+			connectors.Credentials{"token": token})
+		require.NoError(t, err)
+		ext := te.tg.ExternalID(connectors.Credentials{"token": token})
+		_, err = te.db.Exec(ctx, `INSERT INTO automation.retired_platform_identities (kind, external) VALUES ($1, $2)`, string(telegram.Kind), ext)
+		require.NoError(t, err)
+		require.NoError(t, pgx.BeginFunc(ctx, te.db, func(tx pgx.Tx) error {
+			return connectors.ReserveIdentity(ctx, tx, telegram.Kind, ext, other.ID)
+		}))
+	}
 	own := te.bot.Webhook()
+
+	// The route runs on a pool of one connection: the recovery holds the account's lock on it, and reads nothing else
+	// meanwhile.
+	cfg := te.db.Config().Copy()
+	cfg.MaxConns = 1
+	single, err := pgxpool.NewWithConfig(ctx, cfg)
+	require.NoError(t, err)
+	t.Cleanup(single.Close)
+	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": []byte("0123456789abcdef0123456789abcdef")})
+	require.NoError(t, err)
+	platform := connectors.NewPlatformCredentials(te.dir, map[catalog.ConnectorKind]connectors.PlatformCredential{
+		telegram.Kind: {Credentials: connectors.Credentials{"token": tgPlatformToken}}})
+	singleStore := connectors.NewStore(single, keys, nil, platform, nil)
+	singleTg := telegram.New(telegram.Config{PlatformToken: tgPlatformToken, PublicOrigin: te.srv.URL, Inbound: te.late, APIURL: te.api.URL(), Uploads: te.uploads, Connections: singleStore})
+	te.hook.Store(engine.InboundHandler(engine.InboundConfig{
+		Connections: singleStore, Registry: te.reg, Inbound: p.rt.Inbound(), DB: single, Connectors: oneConnector{singleTg}, Platform: platform,
+	}))
 
 	// The late platform request lands.
 	platformRoute := te.srv.URL + "/automations/hooks/platform/" + string(telegram.Kind)
@@ -665,6 +697,8 @@ func TestTelegramStrayPlatformWebhookIsPointedBackToItsConnection(t *testing.T) 
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, d.Status)
 	p.until(func() bool { return len(noteTexts(t, te.env)) == 1 }, "the next delivery reaches the connection and runs its graph")
+	stat := single.Stat()
+	assert.Equal(t, int32(1), stat.MaxConns(), "all of it on one connection")
 
 	// Another bot's request with a made-up secret on the platform route is not taken for a stray.
 	stranger := te.api.Bot("444444:DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", "stranger_bot")
@@ -673,6 +707,15 @@ func TestTelegramStrayPlatformWebhookIsPointedBackToItsConnection(t *testing.T) 
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusNotFound, d.Status)
 	assert.Equal(t, own, te.bot.Webhook())
+}
+
+// oneConnector is a directory of one connector.
+type oneConnector struct{ c connectors.Connector }
+
+func (o oneConnector) Register(connectors.Connector) error { return nil }
+func (o oneConnector) List() []connectors.Connector        { return []connectors.Connector{o.c} }
+func (o oneConnector) Get(k catalog.ConnectorKind) (connectors.Connector, bool) {
+	return o.c, k == o.c.Kind()
 }
 
 type failingStart struct{ tgStart }

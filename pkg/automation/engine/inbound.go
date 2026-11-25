@@ -472,17 +472,24 @@ func (h *inboundHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // that was the platform's and that a tenant's connection took since (connectors.RetiredPlatformHolders) — a platform
 // setWebhook the provider applied late, from an instance that crashed during the call, points it back to the platform
 // route. VerifyStray tells whether the request is that account's platform webhook (verified with the connection's
-// credentials); Reclaim points the account's webhook back to the connection. The request is then answered 503, so the
-// provider delivers it again, to the connection.
+// credentials). Reclaim reads what pointing the account's webhook back to the connection needs (its stored secret)
+// and returns the step that does it, which touches no database: the handler runs it under the account's lock, once the
+// connection is found unchanged (same version). The request is then answered 503, so the provider delivers it again,
+// to the connection.
 type PlatformStrayReceiver interface {
 	VerifyStray(r *http.Request, body []byte, c connectors.Connection, creds connectors.Credentials) bool
-	Reclaim(ctx context.Context, c connectors.Connection, creds connectors.Credentials) error
+	Reclaim(ctx context.Context, c connectors.Connection, creds connectors.Credentials) (func(ctx context.Context) error, error)
 }
 
 // latestReader is the part of connectors.Store that runs a step under the lock of a connection's exclusive account,
 // with the connection as it is committed then.
 type latestReader interface {
 	WithLatest(ctx context.Context, kind catalog.ConnectorKind, tenantID, id uuid.UUID, external string, fn func(found bool, c connectors.Connection, creds connectors.Credentials) error) error
+}
+
+func (h *inboundHandler) latest() latestReader {
+	lr, _ := h.cfg.Connections.(latestReader)
+	return lr
 }
 
 // stray answers a platform-route request the platform credential did not verify: a stray update of an account a
@@ -506,17 +513,22 @@ func (h *inboundHandler) stray(w http.ResponseWriter, r *http.Request, body []by
 		if err != nil || conn.Status != connectors.StatusConnected || !sr.VerifyStray(r, body, conn, creds) {
 			continue
 		}
-		// Under the account's lock, with the connection as it is committed now: a save or a delete of the
-		// connection that runs meanwhile is not undone.
-		if lr, ok := h.cfg.Connections.(latestReader); ok {
-			_ = lr.WithLatest(ctx, kind, hd.TenantID, hd.ConnectionID, hd.External, func(found bool, c connectors.Connection, cr connectors.Credentials) error {
-				if !found || c.Status != connectors.StatusConnected {
+		// What the step needs is read first, outside the lock: the lock holds a database connection, and a pool of
+		// one would have none left for the read.
+		step, err := sr.Reclaim(ctx, conn, creds)
+		switch {
+		case err != nil:
+		case h.latest() != nil:
+			// Under the account's lock, and only while the connection is as it was read: a save or a delete of the
+			// connection meanwhile (which sets or removes its webhook itself) is not undone.
+			_ = h.latest().WithLatest(ctx, kind, hd.TenantID, hd.ConnectionID, hd.External, func(found bool, c connectors.Connection, _ connectors.Credentials) error {
+				if !found || c.Status != connectors.StatusConnected || c.Version != conn.Version {
 					return nil
 				}
-				return sr.Reclaim(ctx, c, cr)
+				return step(ctx)
 			})
-		} else {
-			_ = sr.Reclaim(ctx, conn, creds)
+		default:
+			_ = step(ctx)
 		}
 		// Delivered again: to the connection once its webhook is back, or here, to try once more.
 		w.WriteHeader(http.StatusServiceUnavailable)

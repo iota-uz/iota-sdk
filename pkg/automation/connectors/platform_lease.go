@@ -182,7 +182,11 @@ func PrunePlatformIdentities(ctx context.Context, db *pgxpool.Pool, kind catalog
 	if _, err := db.Exec(ctx, `DELETE FROM automation.exclusive_identities WHERE platform AND kind = $1 AND lease_until < now()`, string(kind)); err != nil {
 		return err
 	}
-	_, err := db.Exec(ctx, `DELETE FROM automation.retired_platform_identities WHERE kind = $1 AND retired_at < now() - $2::interval`, string(kind), retiredInterval())
+	// A retired account is watched as long as a tenant's connection holds it (a stray platform webhook may surface at
+	// its next update, however late); one nobody holds is forgotten after RetiredPlatformWindow.
+	_, err := db.Exec(ctx, `DELETE FROM automation.retired_platform_identities r WHERE r.kind = $1 AND r.retired_at < now() - $2::interval
+		AND NOT EXISTS (SELECT 1 FROM automation.exclusive_identities e WHERE e.kind = r.kind AND e.external = r.external AND NOT e.platform)`,
+		string(kind), retiredInterval())
 	return err
 }
 
@@ -199,8 +203,8 @@ func ReleasePlatformIdentities(ctx context.Context, db *pgxpool.Pool, kind catal
 	})
 }
 
-// RetiredPlatformWindow is how long an account that stopped being the platform's is watched for a platform webhook
-// the provider applied late (RetiredPlatformHolders).
+// RetiredPlatformWindow is how long an account that stopped being the platform's is remembered while no tenant's
+// connection holds it; one a connection holds is remembered as long as it does (RetiredPlatformHolders).
 const RetiredPlatformWindow = 24 * time.Hour
 
 func retiredInterval() string {
@@ -214,15 +218,16 @@ type RetiredHolder struct {
 	External     string
 }
 
-// RetiredPlatformHolders are the tenants' connections of a kind that hold an account the platform's reservation left
-// within RetiredPlatformWindow: the only accounts a stray update on the platform route can belong to (a platform
-// setWebhook applied late, after the account changed hands).
+// RetiredPlatformHolders are the tenants' connections of a kind that hold an account which was once the platform's:
+// the only accounts a stray update on the platform route can belong to (a platform setWebhook applied late, after the
+// account changed hands), however long ago that was. There are as many as platform accounts were ever replaced and
+// then connected by a tenant, so all of them are returned.
 func RetiredPlatformHolders(ctx context.Context, db *pgxpool.Pool, kind catalog.ConnectorKind) ([]RetiredHolder, error) {
 	rows, err := db.Query(ctx, `SELECT c.tenant_id, c.id, e.external FROM automation.exclusive_identities e
 		JOIN automation.retired_platform_identities r ON r.kind = e.kind AND r.external = e.external
 		JOIN automation.connections c ON c.id = e.connection_id
-		WHERE e.kind = $1 AND NOT e.platform AND r.retired_at > now() - $2::interval
-		ORDER BY r.retired_at DESC LIMIT 20`, string(kind), retiredInterval())
+		WHERE e.kind = $1 AND NOT e.platform
+		ORDER BY r.retired_at DESC`, string(kind))
 	if err != nil {
 		return nil, err
 	}
