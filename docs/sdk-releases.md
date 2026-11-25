@@ -2,8 +2,21 @@
 
 PRs run service-free checks on standard GitHub runners. A release runs full CI
 once on an immutable candidate before publishing matching Go/npm SemVer versions.
-Merge does not launch a release. There are no scheduled release jobs, GitHub Apps,
-consumer bots, or cross-repository CI secrets.
+
+## Plot-managed consumer work
+
+When a consumer task needs an SDK change, create an issue in `iota-uz/iota-sdk`
+and enqueue it in Plot with `auto_merge: true`. Set the consumer card to wait with
+`until issue_done` for the SDK issue. The Plot GitHub App merges the SDK card's
+PR automatically once CI, QA, and code review pass.
+
+When the SDK issue is done, set the consumer card to wait with
+`until release_contains {repository: "iota-uz/iota-sdk", pr}`, where `pr` is the
+merged SDK PR number. If no `vX.Y.Z` tag contains that PR, the Plot GitHub App
+dispatches `release.yml` on demand with `sdk_pr` set to the PR number. Plot
+dispatches at most once per PR. If the release fails, the waiting card escalates
+when its deadline expires. A dispatch with no outstanding release work is a
+no-op, for example when a ready release already contains the requested PR.
 
 ## Agent workflow
 
@@ -20,17 +33,19 @@ Each SDK PR adds an append-only `.changes/<name>.json` declaration:
 {"bump":"minor","summary":"Add upload cancellation."}
 ```
 
-Use patch for compatible fixes, minor for features, major for breaking changes,
-and none with a reason when no release is needed. The largest bump since the
-previous release wins. During v0 a breaking change advances minor; after v1 a
-major change requires an explicit Go module-path migration.
+Use `patch` for compatible fixes, `minor` for features, and `major` for breaking
+changes. Every SDK PR needs a releasable declaration. If the pending declarations
+are all `none`, release preparation fails with `no releasable changes`. The
+largest bump since the previous release wins. During v0 a breaking change
+advances minor; after v1 a major change requires an explicit Go module-path
+migration.
 
 In the consumer repository:
 
 ```sh
 sdkctl use 1234 --go-dir back --web-dir frontend
 # Develop, test, and commit the consumer changes and .sdk/dependency.json.
-# Merge SDK PR 1234 through its normal review process.
+# Once the SDK PR has merged:
 sdkctl promote
 # Review local dependency changes, then commit and push normally.
 ```
@@ -46,9 +61,9 @@ lockfiles stay unchanged. Refresh with `sdkctl preview`. Fork SDK PRs and unmana
 existing workspaces are rejected.
 
 `promote` requires the SDK PR to be merged. It reuses a ready release containing
-that merge, or joins an active release workflow, or dispatches release.yml using
-your local gh authorization. Creating a release requires permission to dispatch
-SDK Actions. An interrupted session is resumed by running the same command.
+that merge or joins an active release workflow, including one Plot dispatched.
+It can also dispatch `release.yml` using local `gh` authorization with permission
+to dispatch SDK Actions. Run the same command to resume an interrupted session.
 The remote release continues after the terminal closes.
 
 After successful publication, promote updates local Go/npm locks and the release
@@ -144,5 +159,6 @@ Configure npm trusted publishing for iota-uz/iota-sdk / release.yml on a standar
 GitHub runner. Allow the release workflow contents write. Protect v* against
 updates/deletions and protect state/candidate branches from manual changes while
 allowing the workflow to create and update its state. Require `Release contract
-and tooling` from test.yml on main. No App credentials are needed.
+and tooling` from test.yml on main. The release workflow uses GitHub Actions
+credentials for publication, and Plot uses its GitHub App for merge and dispatch.
 Existing consumer pins remain unchanged until their own explicit promotion.
