@@ -10,7 +10,7 @@
 //	})
 //	components = append(components, automations.NewComponent(automations.WithConnectors(myConnector)))
 //
-// or registers connectors on the resolved connectors.Directory before serving requests. The SDK's AI, SMS, MCP and
+// or registers connectors on the resolved connectors.Directory before serving requests. The SDK's AI, SMS, MCP,
 // email and Telegram bot connectors are registered by the module itself unless the application registered its own of the kind.
 //
 // The component provides the connector Directory, the catalog Registry with the built-in node types
