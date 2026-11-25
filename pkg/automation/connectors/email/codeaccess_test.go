@@ -65,15 +65,16 @@ func TestCodeSendDeliversThroughTheConnection(t *testing.T) {
 func TestCodeSendInvalidArgs(t *testing.T) {
 	f := newFx(t, emailtest.ModeTLS)
 	for name, args := range map[string]string{
-		"no to":         `{"subject":"s","text":"t"}`,
-		"no subject":    `{"to":"a@example.org","text":"t"}`,
-		"no body":       `{"to":"a@example.org","subject":"s"}`,
-		"bad address":   `{"to":"not-an-address","subject":"s","text":"t"}`,
-		"bad reply_to":  `{"to":"a@example.org","subject":"s","text":"t","reply_to":"nope"}`,
-		"unknown field": `{"to":"a@example.org","subject":"s","text":"t","from":"x@y.z"}`,
-		"to a number":   `{"to":5,"subject":"s","text":"t"}`,
-		"not an object": `[]`,
-		"long subject":  `{"to":"a@example.org","subject":"` + strings.Repeat("s", 999) + `","text":"t"}`,
+		"no to":                    `{"subject":"s","text":"t"}`,
+		"no subject":               `{"to":"a@example.org","text":"t"}`,
+		"no body":                  `{"to":"a@example.org","subject":"s"}`,
+		"bad address":              `{"to":"not-an-address","subject":"s","text":"t"}`,
+		"bad reply_to":             `{"to":"a@example.org","subject":"s","text":"t","reply_to":"nope"}`,
+		"unknown field":            `{"to":"a@example.org","subject":"s","text":"t","from":"x@y.z"}`,
+		"to a number":              `{"to":5,"subject":"s","text":"t"}`,
+		"not an object":            `[]`,
+		"long subject":             `{"to":"a@example.org","subject":"` + strings.Repeat("s", 999) + `","text":"t"}`,
+		"long subject in Cyrillic": `{"to":"a@example.org","subject":"` + strings.Repeat("ж", 999) + `","text":"t"}`,
 	} {
 		_, err := f.smtp.CallCodeOperation(context.Background(), f.codeCall(args, f.smtpCreds()))
 		assert.Equal(t, "invalid_args", codeErr(t, err).Code, name)
@@ -113,4 +114,12 @@ func TestCodeSendRefusals(t *testing.T) {
 		_, err := f.smtp.CallCodeOperation(ctx, call)
 		assert.Equal(t, "unknown_operation", codeErr(t, err).Code)
 	})
+}
+
+// The limits count characters: a subject of 998 Cyrillic letters (1996 bytes) is sent.
+func TestCodeSendCountsCharacters(t *testing.T) {
+	f := newFx(t, emailtest.ModeTLS)
+	_, err := f.smtp.CallCodeOperation(context.Background(), f.codeCall(
+		`{"to":"boss@example.org","subject":"`+strings.Repeat("ж", 998)+`","text":"`+strings.Repeat("ю", 2000)+`"}`, f.smtpCreds()))
+	require.NoError(t, err)
 }

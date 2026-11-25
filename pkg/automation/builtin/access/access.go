@@ -380,20 +380,28 @@ func Target(c Connection, target string) (*url.URL, error) {
 	if err != nil {
 		return nil, &code.ConnectionRefusedError{Code: code.ReasonConnectionOriginMismatch, Message: "the connector's base URL is invalid"}
 	}
-	var u *url.URL
-	if strings.Contains(target, "://") || strings.HasPrefix(target, "//") {
-		if u, err = url.Parse(target); err != nil {
-			return nil, &code.ConnectionRefusedError{Code: code.ReasonConnectionOriginMismatch, Message: "the URL is invalid"}
-		}
-	} else {
-		rel, err := url.Parse(target)
-		if err != nil || rel.Scheme != "" || rel.Host != "" {
-			return nil, &code.ConnectionRefusedError{Code: code.ReasonConnectionOriginMismatch, Message: "the path is invalid"}
-		}
+	// The target is classified by what it parses to, never by its text: "://" in a query is a relative path's.
+	parsed, err := url.Parse(target)
+	if err != nil {
+		return nil, &code.ConnectionRefusedError{Code: code.ReasonConnectionOriginMismatch, Message: "the URL is invalid"}
+	}
+	u := parsed
+	switch {
+	case parsed.Scheme != "" || parsed.Host != "":
+		// An absolute URL: it must be on the base URL's origin (checked below).
+	case parsed.Opaque != "":
+		return nil, &code.ConnectionRefusedError{Code: code.ReasonConnectionOriginMismatch, Message: "the path is invalid"}
+	default:
+		// A path relative to the base URL: joined both decoded and escaped, so an escaped separator (%2F)
+		// stays one segment.
 		joined := *base
-		joined.Path = strings.TrimSuffix(base.Path, "/") + "/" + strings.TrimPrefix(rel.Path, "/")
-		joined.RawPath = ""
-		joined.RawQuery = rel.RawQuery
+		joined.Path = strings.TrimSuffix(base.Path, "/") + "/" + strings.TrimPrefix(parsed.Path, "/")
+		joined.RawPath = strings.TrimSuffix(base.EscapedPath(), "/") + "/" + strings.TrimPrefix(parsed.EscapedPath(), "/")
+		if joined.EscapedPath() != joined.RawPath {
+			joined.RawPath = "" // the escaping is the default one
+		}
+		joined.RawQuery = parsed.RawQuery
+		joined.Fragment, joined.RawFragment = "", ""
 		u = &joined
 	}
 	if u.User != nil || Origin(u) != Origin(base) {
@@ -532,7 +540,7 @@ func (g *Gateway) CallConnection(ctx context.Context, req code.ConnectionRequest
 		return nil, &code.NetworkBlockedError{Reason: "disabled"}
 	}
 	resp, err := g.Fetcher.Fetch(ctx, code.FetchRequest{
-		URL: u.String(), Method: httpMethod, Header: header, Body: req.Body, SameOrigin: true, Sensitive: sensitive,
+		URL: u.String(), Method: httpMethod, Header: header, Body: req.Body, SameOrigin: true, Sensitive: sensitive, Redirect: req.Redirect,
 	})
 	if err != nil {
 		var left *code.OriginError

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 
@@ -24,6 +25,12 @@ var (
 
 // CodeAccess offers the operation send: a message through the connection's SMTP server or sign-in, from the
 // connection's own sender address.
+// Limits of send from code, in characters (as the send node's schema counts them), not bytes.
+const (
+	maxCodeSubject = 998
+	maxCodeBody    = 1000000
+)
+
 func (c *smtpConnector) CodeAccess() connectors.CodeAccess {
 	return connectors.CodeAccess{Operations: []connectors.CodeOperation{{
 		Name:        OpSend,
@@ -89,11 +96,11 @@ func (c *smtpConnector) CallCodeOperation(ctx context.Context, call connectors.C
 		return nil, invalidArgs("to has no address")
 	case args.Subject == nil:
 		return nil, invalidArgs("subject is required")
-	case len(*args.Subject) > 998:
+	case utf8.RuneCountInString(*args.Subject) > maxCodeSubject:
 		return nil, invalidArgs("subject is at most 998 characters")
 	case strings.TrimSpace(args.Text) == "" && strings.TrimSpace(args.HTML) == "":
 		return nil, invalidArgs("the message has no text or html")
-	case len(args.Text) > 1000000 || len(args.HTML) > 1000000:
+	case utf8.RuneCountInString(args.Text) > maxCodeBody || utf8.RuneCountInString(args.HTML) > maxCodeBody:
 		return nil, invalidArgs("text and html are at most 1000000 characters")
 	}
 	params := map[string]any{"to": args.To.values(), "subject": *args.Subject, "text": args.Text}

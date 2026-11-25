@@ -301,6 +301,21 @@ export function secretMeta(t: Translator, s: SecretView, lang: string): string[]
   return out
 }
 
+/** The editable fields of the secret form. */
+export type SecretDraft = { name: string; description: string }
+
+/**
+ * The form's fields after a version conflict loaded `latest`: a field the person left as it was in `prev` (the
+ * version the form showed) takes the latest value, so the next save does not send a stale one back as a change;
+ * a field the person changed keeps what they typed.
+ */
+export function rebaseSecretDraft(draft: SecretDraft, prev: SecretDraft, latest: SecretDraft): SecretDraft {
+  return {
+    name: draft.name.trim() === prev.name ? latest.name : draft.name,
+    description: draft.description.trim() === prev.description ? latest.description : draft.description,
+  }
+}
+
 /** Secrets by name, as nodes refer to them. */
 export function sortSecrets(list: readonly SecretView[]): SecretView[] {
   return [...list].sort((a, b) => a.name.localeCompare(b.name))

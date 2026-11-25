@@ -80,7 +80,7 @@ func TestCodeListMessages(t *testing.T) {
 	assert.EqualValues(t, 3, unseen[0]["uid"])
 	assert.EqualValues(t, 1, unseen[1]["uid"])
 	assert.Len(t, f.list(t, `{"since":"2024-01-01"}`), 3)
-	assert.Len(t, f.list(t, `{"since":"2025-06-01T00:00:00Z"}`), 2, "since is the arrival date")
+	assert.Len(t, f.list(t, `{"since":"2025-06-01"}`), 2, "since is the arrival day")
 	assert.Empty(t, f.list(t, `{"since":"2099-01-01"}`))
 
 	f.srv.Mailbox(mailbox, "Archive")
@@ -148,21 +148,22 @@ func TestCodeImapInvalidArgs(t *testing.T) {
 	f := newFx(t, emailtest.ModeTLS)
 	f.srv.Deliver(mailbox, "INBOX", mailText("<i1@x>", "a@example.org", "Hi", "body"))
 	for name, c := range map[string][2]string{
-		"limit zero":       {OpListMessages, `{"limit":0}`},
-		"limit too big":    {OpListMessages, `{"limit":51}`},
-		"limit fraction":   {OpListMessages, `{"limit":1.5}`},
-		"bad since":        {OpListMessages, `{"since":"yesterday"}`},
-		"unknown field":    {OpListMessages, `{"folder":"x"}`},
-		"unseen a string":  {OpListMessages, `{"unseen":"yes"}`},
-		"not an object":    {OpListMessages, `[]`},
-		"bad mailbox":      {OpListMessages, `{"mailbox":"a\nb"}`},
-		"no uid":           {OpGetMessage, `{}`},
-		"uid zero":         {OpGetMessage, `{"uid":0}`},
-		"uid negative":     {OpGetMessage, `{"uid":-1}`},
-		"uid a string":     {OpGetMessage, `{"uid":"1"}`},
-		"uid too large":    {OpGetMessage, `{"uid":4294967296}`},
-		"get unknown":      {OpGetMessage, `{"uid":1,"seen":true}`},
-		"get no arguments": {OpGetMessage, `null`},
+		"limit zero":        {OpListMessages, `{"limit":0}`},
+		"limit too big":     {OpListMessages, `{"limit":51}`},
+		"limit fraction":    {OpListMessages, `{"limit":1.5}`},
+		"bad since":         {OpListMessages, `{"since":"yesterday"}`},
+		"since with a time": {OpListMessages, `{"since":"2026-01-31T12:00:00Z"}`},
+		"unknown field":     {OpListMessages, `{"folder":"x"}`},
+		"unseen a string":   {OpListMessages, `{"unseen":"yes"}`},
+		"not an object":     {OpListMessages, `[]`},
+		"bad mailbox":       {OpListMessages, `{"mailbox":"a\nb"}`},
+		"no uid":            {OpGetMessage, `{}`},
+		"uid zero":          {OpGetMessage, `{"uid":0}`},
+		"uid negative":      {OpGetMessage, `{"uid":-1}`},
+		"uid a string":      {OpGetMessage, `{"uid":"1"}`},
+		"uid too large":     {OpGetMessage, `{"uid":4294967296}`},
+		"get unknown":       {OpGetMessage, `{"uid":1,"seen":true}`},
+		"get no arguments":  {OpGetMessage, `null`},
 	} {
 		_, err := f.imap.CallCodeOperation(context.Background(), f.imapCall(c[0], c[1], f.imapCreds()))
 		assert.Equal(t, "invalid_args", codeErr(t, err).Code, name)

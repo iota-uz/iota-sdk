@@ -521,14 +521,12 @@ func (c *component) Build(b *composition.Builder) error {
 	if err != nil {
 		return serrors.Wrap(op, err)
 	}
-	composition.ContributeControllers(b, func(container *composition.Container) ([]application.Controller, error) {
-		svc, err := composition.Resolve[*services.IntegrationsService](container)
-		if err != nil {
-			return nil, err
-		}
-		// The «Secret» connector's section of the page: shown when the composition manages secrets.
+	composition.ContributeControllersFunc(b, func(container *composition.Container, svc *services.IntegrationsService) ([]application.Controller, error) {
+		// The «Secret» connector's section of the page, an optional dependency: shown when the composition
+		// manages secrets.
 		var secretsManager secrets.Manager
 		if composition.Has[secrets.Manager](container) {
+			var err error
 			if secretsManager, err = composition.Resolve[secrets.Manager](container); err != nil {
 				return nil, err
 			}

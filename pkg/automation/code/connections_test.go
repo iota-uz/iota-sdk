@@ -25,6 +25,9 @@ func (f *fakeConnections) CallConnection(_ context.Context, req ConnectionReques
 	f.mu.Lock()
 	f.calls = append(f.calls, req)
 	f.mu.Unlock()
+	if req.Path == "/down" {
+		return nil, &ConnectionRefusedError{Code: "unavailable", Message: "the connection store is not available now", Retryable: true}
+	}
 	if strings.Contains(req.Path, "://") && !strings.HasPrefix(req.Path, "https://api.example.com/") {
 		return nil, &ConnectionRefusedError{Code: ReasonConnectionOriginMismatch, Message: "the path leaves the connector's origin"}
 	}
@@ -253,5 +256,44 @@ func TestDeclarationsForSpecs(t *testing.T) {
 		if !strings.Contains(d, want) {
 			t.Fatalf("declarations lack %q:\n%s", want, d)
 		}
+	}
+}
+
+// A connection fetch passes the code's redirect mode on (refusing an unknown one), and a refusal the caller
+// marks retryable reaches the code as retryable.
+func TestConnectionFetchRedirectAndRetryableRefusal(t *testing.T) {
+	fc := &fakeConnections{}
+	res := runCode(t, `export default async function run(ctx, env) {
+		const c = env.connections.api;
+		await c.fetch("/a", { redirect: "manual" });
+		await c.fetch("/b", { redirect: "error" });
+		await c.fetch("/c");
+		let bad, down;
+		try { await c.fetch("/d", { redirect: "sideways" }); } catch (e) { bad = e.message; }
+		try { await c.fetch("/down"); } catch (e) { down = { name: e.name, code: e.code, retryable: e.retryable }; }
+		return { outcome: "done", output: { bad, down } };
+	}`, RunInput{ConnectionSpecs: map[string]ConnectionSpec{"api": {BaseURL: "https://api.example.com", Fetch: true}}, ConnectionCaller: fc})
+	if res.Err != nil {
+		t.Fatalf("run failed: %v", res.Err)
+	}
+	if len(fc.calls) != 4 || fc.calls[0].Redirect != "manual" || fc.calls[1].Redirect != "error" || fc.calls[2].Redirect != "follow" {
+		t.Fatalf("redirect modes: %+v", fc.calls)
+	}
+	var out struct {
+		Bad  string `json:"bad"`
+		Down struct {
+			Name      string `json:"name"`
+			Code      string `json:"code"`
+			Retryable bool   `json:"retryable"`
+		} `json:"down"`
+	}
+	if err := json.Unmarshal(res.Output, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.Bad, "redirect must be") {
+		t.Fatalf("an unknown redirect mode: %q", out.Bad)
+	}
+	if out.Down.Name != "ConnectionError" || out.Down.Code != "unavailable" || !out.Down.Retryable {
+		t.Fatalf("retryable refusal: %+v", out.Down)
 	}
 }

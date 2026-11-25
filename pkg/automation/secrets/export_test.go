@@ -20,3 +20,13 @@ func SetWriteWindow(d time.Duration) func() {
 	writeWindow, writeFence = d, d/2
 	return func() { writeWindow, writeFence = w, f }
 }
+
+// WriteWindow is the current write window.
+func WriteWindow() time.Duration { return writeWindow }
+
+// SetCleanupTimeout shortens the cleanup deadline for a test; the returned func restores it.
+func SetCleanupTimeout(d time.Duration) func() {
+	c := cleanupTimeout
+	cleanupTimeout = d
+	return func() { cleanupTimeout = c }
+}

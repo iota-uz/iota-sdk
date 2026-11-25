@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MSG, availablePresets, connectionPreset, knownPresets, presetOptions, changedCredentials, oauthErrorText, reasonText, errorCode, groupByCategory, missingRequired, newCredentials, saveErrorText, schemaFields, slugify, warningText,
   translator, usageHref, usedByText, type ConnectorView,
-  MASKED_VALUE, SECRET_NAME_RE, secretFieldErrorText, secretFormErrors, secretMeta, secretName, secretSaveErrorText, sortSecrets, type SecretView,
+  MASKED_VALUE, SECRET_NAME_RE, secretFieldErrorText, secretFormErrors, secretMeta, rebaseSecretDraft, secretName, secretSaveErrorText, sortSecrets, type SecretView,
 } from './model'
 
 const messages: Record<string, string> = {
@@ -170,10 +170,27 @@ describe('secrets', () => {
   })
 
   it('tells the safe facts: created, rotated only when it was, last used', () => {
-    expect(secretMeta(st, secret(), 'en')).toEqual(['Created Nov 2, 2026', 'Not used yet'])
+    // Dates are shown in the viewer's time zone: the expected text is formatted the same way, not hardcoded.
+    const day = (iso: string) => new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date(iso))
+    expect(secretMeta(st, secret(), 'en')).toEqual([`Created ${day('2026-11-02T10:00:00Z')}`, 'Not used yet'])
     expect(secretMeta(st, secret({ rotated_at: '2026-11-10T08:00:00Z', last_used_at: '2026-11-20T09:00:00Z' }), 'en'))
-      .toEqual(['Created Nov 2, 2026', 'Rotated Nov 10, 2026', 'Last used Nov 20, 2026'])
+      .toEqual([`Created ${day('2026-11-02T10:00:00Z')}`, `Rotated ${day('2026-11-10T08:00:00Z')}`, `Last used ${day('2026-11-20T09:00:00Z')}`])
+    expect(day('2026-11-02T12:00:00Z')).toMatch(/^Nov [123], 2026$/)
     expect(sortSecrets([secret({ name: 'B' }), secret({ name: 'A' })]).map((s) => s.name)).toEqual(['A', 'B'])
     expect(MASKED_VALUE).not.toMatch(/[A-Za-z0-9]/)
+  })
+
+  it('after a version conflict, takes the latest value of a field the person did not change', () => {
+    const prev = { name: 'API_KEY', description: 'old' }
+    const latest = { name: 'CRM_KEY', description: 'theirs' }
+    // Only the description was edited: the name follows the latest version, so no rename is sent back.
+    expect(rebaseSecretDraft({ name: 'API_KEY', description: 'mine' }, prev, latest)).toEqual({ name: 'CRM_KEY', description: 'mine' })
+    // Only the name was edited: the description follows the latest version.
+    expect(rebaseSecretDraft({ name: 'NEW_KEY', description: 'old' }, prev, latest)).toEqual({ name: 'NEW_KEY', description: 'theirs' })
+    // Nothing edited: the form shows the latest version; both edited: both stay.
+    expect(rebaseSecretDraft(prev, prev, latest)).toEqual(latest)
+    expect(rebaseSecretDraft({ name: 'X', description: 'y' }, prev, latest)).toEqual({ name: 'X', description: 'y' })
+    // Whitespace the save would trim away is no change.
+    expect(rebaseSecretDraft({ name: 'API_KEY', description: 'old  ' }, prev, latest)).toEqual(latest)
   })
 })

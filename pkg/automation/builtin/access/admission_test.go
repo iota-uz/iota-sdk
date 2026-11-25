@@ -98,3 +98,39 @@ func TestAnOpenConnectionIsCheckedAgainAtEveryCall(t *testing.T) {
 	require.ErrorAs(t, err, &refused)
 	assert.Equal(t, code.ReasonConnectionMissing, refused.Code)
 }
+
+// A target is classified by what it parses to: "://" in a query stays a relative path's, an escaped
+// separator stays one segment, and an absolute URL must still be on the API's origin.
+func TestTargetJoinsRelativePathsAsParsed(t *testing.T) {
+	c := access.NewConnection("crm", "acme", connectors.CodeAccess{BaseURL: "https://crm.example.com/v1"}, nil, nil)
+	for target, want := range map[string]string{
+		"/deals?next=https://example.com/done": "https://crm.example.com/v1/deals?next=https://example.com/done",
+		"/files/a%2Fb":                         "https://crm.example.com/v1/files/a%2Fb",
+		"deals/7":                              "https://crm.example.com/v1/deals/7",
+		"https://crm.example.com/other":        "https://crm.example.com/other",
+	} {
+		u, err := access.Target(c, target)
+		require.NoError(t, err, target)
+		assert.Equal(t, want, u.String(), target)
+	}
+	for _, target := range []string{"https://evil.example.org/x", "//evil.example.org/x", "https://u:p@crm.example.com/x", "mailto:a@b"} {
+		_, err := access.Target(c, target)
+		var refused *code.ConnectionRefusedError
+		require.ErrorAs(t, err, &refused, target)
+		assert.Equal(t, code.ReasonConnectionOriginMismatch, refused.Code, target)
+	}
+}
+
+// A connection fetch keeps the code's redirect mode, and a retryable refusal of the gateway stays retryable.
+func TestFetchKeepsTheRedirectMode(t *testing.T) {
+	kind := &fakeKind{access: connectors.CodeAccess{Fetch: true}}
+	c, err := openWith(t, kind, connectors.StatusConnected)
+	require.NoError(t, err)
+	rec := &recorder{}
+	g := &access.Gateway{Fetcher: rec, Connections: map[string]access.Connection{"crm": c}}
+	for _, mode := range []string{"manual", "error", "follow"} {
+		_, err := g.CallConnection(context.Background(), code.ConnectionRequest{Connection: "crm", Method: "fetch", Fetch: true, Path: "/x", Redirect: mode})
+		require.NoError(t, err)
+		assert.Equal(t, mode, rec.got.Redirect)
+	}
+}

@@ -322,6 +322,8 @@ type ConnectionRequest struct {
 	Fetch      bool
 	HTTPMethod string
 	Header     http.Header
+	// Redirect is the fetch's redirect mode: "follow" (default), "manual" or "error", as env.fetch's.
+	Redirect string
 }
 
 // ConnectionOperator performs the operations of env.connections.<name>.<operation>(args). A ConnectionCaller

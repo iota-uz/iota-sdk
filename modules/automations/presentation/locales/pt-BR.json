@@ -297,7 +297,7 @@
         },
         "Delete": {
           "Title": "Excluir {name}?",
-          "Text": "Os nós Code e HTTP que leem {name} falharão até que um segredo com este nome seja adicionado novamente. O valor não pode ser restaurado.",
+          "Text": "Os nós Code e HTTP que leem {name} falharão com «unknown secret» até que um segredo com este nome seja adicionado novamente — a menos que a aplicação forneça um segredo com o mesmo nome, que eles passarão a usar. O valor não pode ser restaurado.",
           "Confirm": "Excluir segredo",
           "Cancel": "Cancelar"
         },

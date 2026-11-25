@@ -613,11 +613,35 @@ test('Secrets: a version conflict loads the latest version and keeps what was ty
   await form.locator('[data-field="value"]').fill('rotated')
   await form.getByTestId('secret-save').click()
   await expect(form.getByTestId('secret-form-error')).toContainText('Someone changed this secret meanwhile')
+  // The conflict reloads the list and the form moves to the latest version before the next save.
+  await expect(secretRow(page, 'CRM_API_KEY')).toContainText('Changed by another administrator')
+  await expect(form.locator('form')).toHaveAttribute('data-version', '4')
   await expect(form.locator('[data-field="value"]')).toHaveValue('rotated')
   await form.getByTestId('secret-save').click()
   await expect(form).toHaveCount(0)
   const rotations = await callsOf(page, 'secrets.rotate')
   expect(rotations.map((c) => c.params.version)).toEqual([3, 4])
+})
+
+test('Secrets: after a version conflict an untouched field takes the latest value, an edited one stays', async ({ page }) => {
+  await open(page, 'secretConflictOnce')
+  await secretMenu(page, 'CRM_API_KEY', 'edit')
+  const form = page.getByTestId('secret-form')
+  await form.locator('[data-field="name"]').fill('CRM_KEY')
+  await form.getByTestId('secret-save').click()
+  await expect(form.getByTestId('secret-form-error')).toContainText('Someone changed this secret meanwhile')
+  await expect(form.locator('form')).toHaveAttribute('data-version', '4')
+  // The other administrator changed the description: the form shows theirs, the typed name stays.
+  await expect(form.locator('[data-field="description"]')).toHaveValue('Changed by another administrator')
+  await expect(form.locator('[data-field="name"]')).toHaveValue('CRM_KEY')
+  await form.getByTestId('secret-save').click()
+  await expect(form).toHaveCount(0)
+  const updates = await callsOf(page, 'secrets.update')
+  expect(updates.map((c) => c.params)).toEqual([
+    { id: '00000000-0000-4000-9000-000000000001', version: 3, name: 'CRM_KEY' },
+    { id: '00000000-0000-4000-9000-000000000001', version: 4, name: 'CRM_KEY' },
+  ])
+  await expect(secretRow(page, 'CRM_KEY')).toContainText('Changed by another administrator')
 })
 
 test('Secrets: who sees them — a secrets administrator alone, none for an author or without the right', async ({ page }) => {

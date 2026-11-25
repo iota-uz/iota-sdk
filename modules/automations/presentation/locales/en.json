@@ -297,7 +297,7 @@
         },
         "Delete": {
           "Title": "Delete {name}?",
-          "Text": "Code and HTTP nodes that read {name} will fail until a secret with this name is added again. The value cannot be restored.",
+          "Text": "Code and HTTP nodes that read {name} will fail with «unknown secret» until a secret with this name is added again — unless the application provides a secret of the same name, which they will then use. The value cannot be restored.",
           "Confirm": "Delete secret",
           "Cancel": "Cancel"
         },

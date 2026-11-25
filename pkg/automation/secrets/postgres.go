@@ -124,16 +124,17 @@ const (
 
 	// readAttempts bounds how often Resolve follows a rotation that moved past the version it looked up.
 	readAttempts = 3
-	// cleanupTimeout bounds the best-effort steps that run after the caller's context is done.
-	cleanupTimeout = 5 * time.Second
 )
 
 // writeWindow is how long after its claim a tombstone is kept. A claimed write is fenced to commit by
 // writeFence after its claim (Ref.NotAfter, on the database's clock), well inside the window. Variables only
 // so a test can shorten them.
 var (
-	writeWindow = 10 * time.Minute
-	writeFence  = writeWindow / 2
+	// cleanupTimeout bounds the best-effort steps that run after the caller's context is done (one purge
+	// batch as a whole).
+	cleanupTimeout = 5 * time.Second
+	writeWindow    = 10 * time.Minute
+	writeFence     = writeWindow / 2
 )
 
 // publishHook runs after a record's publishing statement (tests: a COMMIT whose reply is lost).
@@ -227,7 +228,7 @@ func (m *manager) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 // an orphan value to remove. When the record cannot be read nothing is undone: purge settles it later from
 // the row.
 func (m *manager) settleCreate(ctx context.Context, tenantID, id uuid.UUID, ref Ref) (Secret, bool) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+	ctx, cancel := cleanupContext(ctx)
 	defer cancel()
 	s, err := scanSecret(m.db.QueryRow(ctx, `SELECT `+secretColumns+` FROM automation.secrets WHERE tenant_id = $1 AND id = $2`, tenantID, id))
 	switch {
@@ -378,9 +379,17 @@ func (m *manager) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 	case err != nil:
 		return unavailable(err)
 	}
-	m.removeValue(ctx, tenantID, id, path)
+	cleanup, cancel := cleanupContext(ctx)
+	m.removeValue(cleanup, tenantID, id, path)
+	cancel()
 	m.purge(ctx, tenantID)
 	return nil
+}
+
+// cleanupContext is ctx detached from its cancellation (a cleanup finishes after the caller gave up) and
+// bounded by cleanupTimeout.
+func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 }
 
 // removeValue deletes a tombstone's value, then the tombstone once no claimed write can still land; a
@@ -391,9 +400,9 @@ func (m *manager) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 // the same when the row is deleted. Every write claimed before that instant was fenced to commit before
 // it, so the delete that follows removed whatever it wrote; a claim that expires during the delete keeps
 // the tombstone for the next purge.
+//
+// ctx bounds the whole step; callers pass a cleanup context (cleanupContext, or purge's batch deadline).
 func (m *manager) removeValue(ctx context.Context, tenantID, id uuid.UUID, path string) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
-	defer cancel()
 	var (
 		claim   *time.Time
 		expired bool
@@ -436,12 +445,19 @@ func (m *manager) purge(ctx context.Context, tenantID uuid.UUID) {
 		}
 	}
 	rows.Close()
+	// One deadline for the whole batch: a slow or failing store costs the caller at most cleanupTimeout,
+	// and what is left unfinished waits for the next call.
+	batch, cancel := cleanupContext(ctx)
+	defer cancel()
 	for _, l := range found {
+		if batch.Err() != nil {
+			return
+		}
 		if l.staged {
-			m.giveUpStaged(ctx, tenantID, l.id, Ref{TenantID: tenantID, Path: l.path})
+			m.giveUpStaged(batch, tenantID, l.id, Ref{TenantID: tenantID, Path: l.path})
 			continue
 		}
-		m.removeValue(ctx, tenantID, l.id, l.path)
+		m.removeValue(batch, tenantID, l.id, l.path)
 	}
 }
 

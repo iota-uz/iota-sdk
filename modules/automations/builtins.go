@@ -83,8 +83,10 @@ func actionsHook(container *composition.Container) composition.Hook {
 	}
 }
 
-// lazySecrets reads secrets through the container's host.SecretResolver (the connections' secret fields
-// and what the application adds behind them).
+// lazySecrets reads secrets through the tenant's Secret connector (secrets.Resolver), then the container's
+// host.SecretResolver (the connections' secret fields and what the application adds behind them). Each is
+// resolved on first use, and the application's only when a name reaches it: a tenant secret resolves even
+// when the application's resolver cannot be built.
 type lazySecrets struct {
 	container *composition.Container
 	mu        sync.Mutex
@@ -92,6 +94,33 @@ type lazySecrets struct {
 }
 
 func (l *lazySecrets) Secret(ctx context.Context, tenantID uuid.UUID, runAs spi.Subject, name string) (string, error) {
+	l.mu.Lock()
+	if l.s == nil {
+		var tenant secrets.Resolver
+		if composition.Has[secrets.Resolver](l.container) {
+			var err error
+			if tenant, err = composition.Resolve[secrets.Resolver](l.container); err != nil {
+				l.mu.Unlock()
+				return "", &host.InfraError{Err: err}
+			}
+		}
+		// The tenant's Secret connector first (for a run-as that may use secrets), then the application's.
+		l.s = access.ChainSecrets(tenant, permissions.SecretsUse.Name(), &lazyAppSecrets{container: l.container})
+	}
+	s := l.s
+	l.mu.Unlock()
+	return s.Secret(ctx, tenantID, runAs, name)
+}
+
+// lazyAppSecrets is the application's chain (access.FromResolver over host.SecretResolver), built when a name
+// first reaches it; a failure to build it is not kept.
+type lazyAppSecrets struct {
+	container *composition.Container
+	mu        sync.Mutex
+	s         access.Secrets
+}
+
+func (l *lazyAppSecrets) Secret(ctx context.Context, tenantID uuid.UUID, runAs spi.Subject, name string) (string, error) {
 	l.mu.Lock()
 	if l.s == nil {
 		var r host.SecretResolver
@@ -102,16 +131,7 @@ func (l *lazySecrets) Secret(ctx context.Context, tenantID uuid.UUID, runAs spi.
 				return "", &host.InfraError{Err: err}
 			}
 		}
-		var tenant secrets.Resolver
-		if composition.Has[secrets.Resolver](l.container) {
-			var err error
-			if tenant, err = composition.Resolve[secrets.Resolver](l.container); err != nil {
-				l.mu.Unlock()
-				return "", &host.InfraError{Err: err}
-			}
-		}
-		// The tenant's Secret connector first (for a run-as that may use secrets), then the application's.
-		l.s = access.ChainSecrets(tenant, permissions.SecretsUse.Name(), access.FromResolver(r))
+		l.s = access.FromResolver(r)
 	}
 	s := l.s
 	l.mu.Unlock()

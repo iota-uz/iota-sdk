@@ -186,6 +186,7 @@
           req.headers = h;
         }
         if (init.body !== undefined && init.body !== null) req.body = Str(init.body);
+        if (init.redirect !== undefined) req.redirect = Str(init.redirect);
       }
       let ticket;
       try {

@@ -43,7 +43,7 @@ func (c *imapConnector) CodeAccess() connectors.CodeAccess {
 	return connectors.CodeAccess{Operations: []connectors.CodeOperation{
 		{
 			Name:        OpListMessages,
-			Description: "List the newest messages of a mailbox folder (headers only; since is the arrival date), without marking them read.",
+			Description: "List the newest messages of a mailbox folder (headers only; since is a day, YYYY-MM-DD: messages that arrived on it or later), without marking them read.",
 			Params:      `{ mailbox?: string; unseen?: boolean; since?: string; limit?: number }`,
 			Result:      `{ messages: { uid: number; message_id: string; from: { address: string; name?: string }; to: { address: string; name?: string }[]; cc: { address: string; name?: string }[]; subject: string; date: string; seen: boolean; size: number }[] }`,
 		},
@@ -125,7 +125,7 @@ func (c *imapConnector) CallCodeOperation(ctx context.Context, call connectors.C
 		if args.Since != "" {
 			var ok bool
 			if since, ok = parseSince(args.Since); !ok {
-				return nil, invalidArgs("since is an ISO date (2026-01-31) or a time (2026-01-31T10:00:00Z)")
+				return nil, invalidArgs("since is a day (2026-01-31): IMAP selects messages that arrived on it or later, so a time of day is not taken")
 			}
 		}
 		return c.codeRead(ctx, call, mailbox, func(s *imapSession) (any, error) {
@@ -151,14 +151,11 @@ func (c *imapConnector) CallCodeOperation(ctx context.Context, call connectors.C
 	return nil, &connectors.CodeOperationError{Code: "unknown_operation", Message: "the connection has no operation " + call.Operation}
 }
 
+// parseSince reads since: a day only. IMAP SEARCH SINCE compares the arrival date, never a time of day, so a
+// time would be silently cut to its day.
 func parseSince(s string) (time.Time, bool) {
-	s = strings.TrimSpace(s)
-	for _, layout := range []string{"2006-01-02", time.RFC3339, "2006-01-02T15:04:05"} {
-		if t, err := time.Parse(layout, s); err == nil {
-			return t, true
-		}
-	}
-	return time.Time{}, false
+	t, err := time.Parse("2006-01-02", strings.TrimSpace(s))
+	return t, err == nil
 }
 
 // codeRead opens the session as a poll does, selects the folder read-only and runs fn.

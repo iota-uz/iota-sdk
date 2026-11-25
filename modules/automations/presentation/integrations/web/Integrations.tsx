@@ -6,7 +6,7 @@ import {
 } from '@iota-uz/sdk/solid-ui'
 import { rpcContracts, type Props, type RPC } from './Integrations.solid.generated'
 import {
-  CATEGORY_KEY, MASKED_VALUE, NAME_RE, secretFieldErrorText, secretFormErrors, secretMeta, secretName, secretSaveErrorText, sortSecrets, changedCredentials, oauthErrorText, reasonSentence, reasonText, errorCode, fieldErrorText, groupByCategory, missingRequired, newCredentials, saveErrorText, warningText,
+  CATEGORY_KEY, MASKED_VALUE, NAME_RE, rebaseSecretDraft, secretFieldErrorText, secretFormErrors, secretMeta, secretName, secretSaveErrorText, sortSecrets, changedCredentials, oauthErrorText, reasonSentence, reasonText, errorCode, fieldErrorText, groupByCategory, missingRequired, newCredentials, saveErrorText, warningText,
   schemaFields, availablePresets, connectionPreset, knownPresets, presetOptions, slugify, translator, usageHref, usedByText,
   type ConnectionView, type ConnectorView, type FormField, type ListResult, type SecretView, type Status, type Translator, type UsageView,
 } from './model'
@@ -1002,15 +1002,19 @@ function SecretsSection(props: { ctx: Ctx }) {
   const [failed, setFailed] = createSignal(false)
   const [form, setForm] = createSignal<SecretFormState>()
   const [deleting, setDeleting] = createSignal<SecretView>()
+  // Loads overlap (a save, a delete, a retry): only the latest request may set the list or the failure, so a
+  // slower earlier response never replaces a newer list.
+  let generation = 0
   const load = async (): Promise<SecretView[] | undefined> => {
+    const current = ++generation
     setFailed(false)
     try {
       const list = sortSecrets((await props.ctx.call('automations.secrets.list', {})).secrets)
-      setSecrets(list)
+      if (current === generation) setSecrets(list)
       return list
     } catch (e) {
       console.warn('automations: secrets.list failed', errorCode(e))
-      setFailed(true)
+      if (current === generation) setFailed(true)
       return undefined
     }
   }
@@ -1151,8 +1155,14 @@ function SecretForm(props: { ctx: Ctx; state: SecretFormState; onClose: () => vo
       setError(secretSaveErrorText(t, r))
       if (r.error === 'version_conflict' && b) {
         // The latest version is loaded: what the person typed stays, the next save applies it to that version.
+        // A field the person did not touch follows the latest version, so the save does not send the old one back.
         const latest = (await props.reload())?.find((x) => x.id === b.id)
-        if (latest) setBase(latest)
+        if (latest) {
+          const next = rebaseSecretDraft({ name: name(), description: description() }, b, latest)
+          setName(next.name)
+          setDescription(next.description)
+          setBase(latest)
+        }
       }
       if (r.fields) focusFirstError(r.fields)
     } catch (e) {
@@ -1166,7 +1176,7 @@ function SecretForm(props: { ctx: Ctx; state: SecretFormState; onClose: () => vo
   const fieldError = (f: string) => (fieldErrors()[f] ? secretFieldErrorText(t, fieldErrors()[f]!) : undefined)
   return (
     <ViewDrawer open onOpenChange={(open) => { if (!open && !busy()) props.onClose() }} busy={busy()} title={title()} closeLabel={t('Close')} data-testid="secret-form">
-      <form ref={formRef} class="flex flex-col gap-4 p-4 md:p-6" onSubmit={(e) => void submit(e)} novalidate>
+      <form ref={formRef} class="flex flex-col gap-4 p-4 md:p-6" onSubmit={(e) => void submit(e)} novalidate data-version={base()?.version}>
         <Show when={mode !== 'rotate'}>
           <Input label={t('Secrets.Form.Name')} value={name()} onInput={(e) => setName(secretName(e.currentTarget.value))}
             description={t('Secrets.Form.NameHint')} placeholder="API_KEY" data-field="name" error={fieldError('name')} disabled={busy()} required autocomplete="off" spellcheck={false} class="font-mono" />

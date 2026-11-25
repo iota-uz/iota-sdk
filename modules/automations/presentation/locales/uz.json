@@ -297,7 +297,7 @@
         },
         "Delete": {
           "Title": "{name} oʻchirilsinmi?",
-          "Text": "{name}ni oʻqiydigan Code va HTTP tugunlari shu nomli sir qayta qoʻshilmaguncha xato beradi. Qiymatni tiklab boʻlmaydi.",
+          "Text": "{name}ni oʻqiydigan Code va HTTP tugunlari shu nomli sir qayta qoʻshilmaguncha «unknown secret» xatosi bilan toʻxtaydi — agar ilovaning oʻzida shu nomli sir boʻlmasa: boʻlsa, tugunlar uni ishlatadi. Qiymatni tiklab boʻlmaydi.",
           "Confirm": "Sirni oʻchirish",
           "Cancel": "Bekor qilish"
         },

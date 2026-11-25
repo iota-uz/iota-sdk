@@ -395,18 +395,19 @@ func (s *runState) connection(ctx context.Context, params json.RawMessage) (json
 		Headers    map[string]string `json:"headers"`
 		Path       string            `json:"path"`
 		Body       *string           `json:"body"`
+		Redirect   string            `json:"redirect"`
 	}
 	if err := json.Unmarshal([]byte(wire), &p); err != nil {
 		return replyError("invalid connection call arguments")
 	}
-	refuse := func(code FailureReason, msg string) (json.RawMessage, error) {
+	refuse := func(code FailureReason, msg string, retryable bool) (json.RawMessage, error) {
 		s.connRefused.Store(code)
-		return json.Marshal(fetchReply{Refused: s.masker.Mask(msg), Code: string(code)})
+		return json.Marshal(fetchReply{Refused: s.masker.Mask(msg), Code: string(code), Retryable: retryable})
 	}
 	cs, declared := s.conns[p.Connection]
 	switch {
 	case !declared:
-		return refuse(ReasonConnectionMissing, "connection "+p.Connection+" is not declared by the node")
+		return refuse(ReasonConnectionMissing, "connection "+p.Connection+" is not declared by the node", false)
 	case p.Fetch && !cs.fetch:
 		return replyError("connection " + p.Connection + " has no fetch")
 	case !p.Fetch && !cs.methods[p.Method]:
@@ -416,7 +417,7 @@ func (s *runState) connection(ctx context.Context, params json.RawMessage) (json
 	case p.Body != nil && len(*p.Body) > maxFetchBodyBytes:
 		return replyError("the body is too large")
 	case s.caller == nil:
-		return refuse(ReasonConnectionMissing, "connections are not available to this node")
+		return refuse(ReasonConnectionMissing, "connections are not available to this node", false)
 	}
 	req := ConnectionRequest{Connection: p.Connection, Method: p.Method, Path: p.Path}
 	if p.Fetch {
@@ -434,7 +435,14 @@ func (s *runState) connection(ctx context.Context, params json.RawMessage) (json
 		if p.Body != nil && (method == http.MethodGet || method == http.MethodHead) {
 			return replyError("a GET or HEAD request cannot have a body")
 		}
-		req.Method, req.Fetch, req.HTTPMethod, req.Header = "fetch", true, method, header
+		switch p.Redirect {
+		case "":
+			p.Redirect = "follow"
+		case "follow", "manual", "error":
+		default:
+			return replyError(`redirect must be "follow", "manual" or "error"`)
+		}
+		req.Method, req.Fetch, req.HTTPMethod, req.Header, req.Redirect = "fetch", true, method, header, p.Redirect
 	}
 	if p.Body != nil {
 		req.Body = []byte(*p.Body)
@@ -454,7 +462,7 @@ func (s *runState) connection(ctx context.Context, params json.RawMessage) (json
 		var blocked *NetworkBlockedError
 		switch {
 		case errors.As(err, &refused):
-			return refuse(refused.Code, refused.Message)
+			return refuse(refused.Code, refused.Message, refused.Retryable)
 		case errors.As(err, &blocked):
 			s.blocked.Store(true)
 			return json.Marshal(fetchReply{Blocked: blocked.Error()})

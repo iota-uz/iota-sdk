@@ -16,8 +16,10 @@ import (
 
 type tenantSecrets struct {
 	values map[string]string
-	err    error
-	reads  *int
+	err    error // the records fail (Has and Resolve)
+	// valueErr: the records find the name, the value store fails (Resolve only).
+	valueErr error
+	reads    *int
 }
 
 func (r tenantSecrets) Has(_ context.Context, _ uuid.UUID, name string) (bool, error) {
@@ -34,6 +36,9 @@ func (r tenantSecrets) Resolve(_ context.Context, _ uuid.UUID, name string) (str
 	}
 	if r.err != nil {
 		return "", r.err
+	}
+	if _, ok := r.values[name]; ok && r.valueErr != nil {
+		return "", r.valueErr
 	}
 	if v, ok := r.values[name]; ok {
 		return v, nil
@@ -115,4 +120,19 @@ func TestReadSecretsSaysUnknownSecret(t *testing.T) {
 	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, access.CodeSecretMissing, ce.Code)
 	assert.Equal(t, "unknown secret NOPE", ce.Message)
+}
+
+// The records find the name and the value store fails: a controlled, retryable outage, never the
+// application's value of the same name.
+func TestChainValueStoreOutageIsControlledAndNeverFallsBack(t *testing.T) {
+	app := &countingSecrets{values: map[string]string{"API_KEY": "from-app"}}
+	reads := 0
+	s := access.ChainSecrets(tenantSecrets{values: map[string]string{"API_KEY": "x"}, valueErr: secrets.ErrUnavailable, reads: &reads}, useSecrets, app)
+	_, err := access.ReadSecrets(context.Background(), s, catalog.CallInput{TenantID: uuid.New(), RunAs: user}, []string{"API_KEY"})
+	var ce *catalog.CallError
+	require.ErrorAs(t, err, &ce)
+	assert.Equal(t, access.CodeUnavailable, ce.Code)
+	assert.True(t, ce.Retryable)
+	assert.Equal(t, 1, reads, "the value was read")
+	assert.Zero(t, app.calls, "no fallback to the application's value")
 }

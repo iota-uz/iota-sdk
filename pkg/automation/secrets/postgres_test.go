@@ -411,6 +411,7 @@ func TestARotationKeepsThePreviousVersion(t *testing.T) {
 func TestALostPublishReplyKeepsThePublishedValue(t *testing.T) {
 	e := newEnv(t)
 	restore := secrets.SetPublishHook(errors.New("connection reset while reading the COMMIT reply"))
+	defer restore()
 	s, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
 	require.NoError(t, err, "the record is published: the create happened")
 	assert.Equal(t, 1, s.ValueVersion)
@@ -623,14 +624,20 @@ func TestAGivenUpCreateKeepsItsReferenceAcrossAStoreOutage(t *testing.T) {
 	assert.Equal(t, 1, n, "the store was down: the value is still there")
 	_, err = e.res.Resolve(e.ctx, e.tenant, "API_KEY")
 	require.ErrorIs(t, err, secrets.ErrNotFound)
-	_, err = e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v2"})
-	require.NoError(t, err, "the name is free")
-
+	// While the store is down a cleanup changes nothing; once it is back, List (the first healthy call)
+	// removes the value.
+	_, err = m.List(e.ctx, e.tenant)
+	require.NoError(t, err)
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`, e.tenant, path).Scan(&n))
+	assert.Equal(t, 1, n, "still down: the value waits")
 	down = false
 	_, err = m.List(e.ctx, e.tenant)
 	require.NoError(t, err)
 	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`, e.tenant, path).Scan(&n))
 	assert.Zero(t, n, "purge removed it once the store was back")
+
+	_, err = e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v2"})
+	require.NoError(t, err, "the name is free")
 	got, err := e.res.Resolve(e.ctx, e.tenant, "API_KEY")
 	require.NoError(t, err)
 	assert.Equal(t, "v2", got)
@@ -652,13 +659,14 @@ func TestTheSealedStoreRefusesAWritePastItsFence(t *testing.T) {
 	assert.Equal(t, 1, md.Version)
 }
 
-// fenceSpy records the fence of every Put and can stall its first Delete until a deadline has passed (and
-// fail the ones after it: the store goes down, so only the first cleanup's decision counts).
+// fenceSpy records the fence of every Put; with expire set, its first Delete first makes the record's claim
+// expire (the clock passing the window while the store deletes) and the Deletes after it fail (the store goes
+// down, so only the first cleanup's decision counts).
 type fenceSpy struct {
 	secrets.Writer
-	fences     *[]time.Time
-	stallUntil *time.Time
-	deletes    *int
+	fences  *[]time.Time
+	expire  func()
+	deletes *int
 }
 
 func (f fenceSpy) Put(ctx context.Context, ref secrets.Ref, data map[string]string) (secrets.Metadata, error) {
@@ -667,59 +675,99 @@ func (f fenceSpy) Put(ctx context.Context, ref secrets.Ref, data map[string]stri
 }
 
 func (f fenceSpy) Delete(ctx context.Context, ref secrets.Ref) error {
-	if f.stallUntil != nil {
+	if f.expire != nil {
 		*f.deletes++
 		if *f.deletes > 1 {
 			return secrets.ErrUnavailable
 		}
-		time.Sleep(time.Until(*f.stallUntil))
+		f.expire()
 	}
 	return f.Writer.Delete(ctx, ref)
 }
 
-// The expiration boundary of a tombstone: a claim that is live when the cleanup decides keeps the tombstone
-// even if it expires while the value is deleted; a write claimed before then is fenced to commit before the
-// claim expires (so the delete that follows the expiry removes it), and is refused after its fence. Only a
-// cleanup that decided on an expired claim retires the tombstone, and nothing is left behind.
+// The expiration boundary of a tombstone. The manager fences each write it claims at the claim plus half the
+// window. A cleanup that decided on a live claim keeps the tombstone even when the claim expires while the
+// value is deleted; a write that lands before its fence after that delete is removed by the next cleanup,
+// which decides on the expired claim and only then retires the tombstone. Expiry is driven by the records'
+// clock (the claim is moved into the past), never by waiting.
 func TestATombstoneOutlivesEveryWriteClaimedBeforeItsRetirement(t *testing.T) {
-	restore := secrets.SetWriteWindow(2 * time.Second)
-	defer restore()
+	t.Parallel()
 	e := newEnv(t)
 	var fences []time.Time
 	m := secrets.NewManager(e.db, fenceSpy{Writer: e.store, fences: &fences}, e.store, secrets.DefaultLocator("test/"))
-	before := time.Now()
 	s, err := m.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "API_KEY", Value: "v1"})
 	require.NoError(t, err)
 	_, err = m.Rotate(e.ctx, e.tenant, secrets.RotateInput{ID: s.ID, Version: s.Version, Value: "v2"})
 	require.NoError(t, err)
 	require.Len(t, fences, 2)
-	for _, f := range fences {
-		assert.False(t, f.IsZero(), "every Put of the manager is fenced")
-		assert.WithinDuration(t, before.Add(time.Second), f, 2*time.Second, "the fence is half the window after the claim")
-	}
 	var claim time.Time
 	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT value_write_at FROM automation.secrets WHERE id = $1`, s.ID).Scan(&claim))
+	window := secrets.WriteWindow()
+	assert.True(t, fences[1].Equal(claim.Add(window/2)), "the rotation's fence is its claim plus half the window: %s, claim %s", fences[1], claim)
+	fence := fences[1]
 
-	// The delete's cleanup decides while the claim is live, and its store delete is stalled past the expiry.
-	expiry := claim.Add(2*time.Second + 200*time.Millisecond)
+	// The delete's cleanup decides while the claim is live; the claim expires while the store deletes.
 	deletes := 0
-	stalled := secrets.NewManager(e.db, fenceSpy{Writer: e.store, fences: &fences, stallUntil: &expiry, deletes: &deletes}, e.store, secrets.DefaultLocator("test/"))
+	stalled := secrets.NewManager(e.db, fenceSpy{Writer: e.store, fences: &fences, deletes: &deletes, expire: func() {
+		_, err := e.db.Exec(e.ctx, `UPDATE automation.secrets SET value_write_at = value_write_at - make_interval(secs => $2) WHERE id = $1`,
+			s.ID, 2*window.Seconds())
+		require.NoError(t, err)
+	}}, e.store, secrets.DefaultLocator("test/"))
 	require.NoError(t, stalled.Delete(e.ctx, e.tenant, s.ID))
-	require.True(t, time.Now().After(expiry))
 	var tombs int
 	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secrets WHERE id = $1 AND deleted_at IS NOT NULL`, s.ID).Scan(&tombs))
 	assert.Equal(t, 1, tombs, "decided on a live claim: the tombstone stays though the claim expired meanwhile")
 
-	// The rotation claimed before the delete writes late: past its fence the store refuses it.
-	_, err = e.store.Put(e.ctx, secrets.Ref{TenantID: e.tenant, Path: s.Ref.Path, NotAfter: claim.Add(time.Second)}, map[string]string{secrets.ValueKey: "late"})
-	require.ErrorIs(t, err, secrets.ErrUnavailable)
+	// The rotation claimed before the delete lands its write before its fence, after the value was deleted.
+	_, err = e.store.Put(e.ctx, secrets.Ref{TenantID: e.tenant, Path: s.Ref.Path, NotAfter: fence}, map[string]string{secrets.ValueKey: "late"})
+	require.NoError(t, err, "the manager's fence has not passed")
+	values := func() int {
+		var n int
+		require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`, e.tenant, s.Ref.Path).Scan(&n))
+		return n
+	}
+	require.Equal(t, 1, values())
 
-	// The next cleanup decides on the expired claim: it removes the value and retires the tombstone.
+	// The next cleanup decides on the expired claim: it removes the late value and retires the tombstone.
 	_, err = m.List(e.ctx, e.tenant)
 	require.NoError(t, err)
 	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secrets WHERE id = $1`, s.ID).Scan(&tombs))
 	assert.Zero(t, tombs)
-	var values int
-	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secret_values WHERE tenant_id = $1 AND path = $2`, e.tenant, s.Ref.Path).Scan(&values))
-	assert.Zero(t, values)
+	assert.Zero(t, values())
+}
+
+// blockingDelete is a store whose Delete hangs until its context ends (a store that times out).
+type blockingDelete struct {
+	secrets.Writer
+	calls *int
+}
+
+func (b blockingDelete) Delete(ctx context.Context, _ secrets.Ref) error {
+	*b.calls++
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+// One cleanup batch is bounded as a whole: a store that hangs on every delete costs a call one cleanup
+// deadline, not one per tombstone, and the rest waits for the next call.
+func TestCleanupIsBoundedAcrossTheBatch(t *testing.T) {
+	restore := secrets.SetCleanupTimeout(300 * time.Millisecond)
+	defer restore()
+	e := newEnv(t)
+	for i := range 4 {
+		s, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: fmt.Sprintf("KEY_%d", i), Value: "v"})
+		require.NoError(t, err)
+		_, err = e.db.Exec(e.ctx, `UPDATE automation.secrets SET deleted_at = now() WHERE id = $1`, s.ID)
+		require.NoError(t, err)
+	}
+	calls := 0
+	m := secrets.NewManager(e.db, blockingDelete{Writer: e.store, calls: &calls}, e.store, secrets.DefaultLocator("test/"))
+	started := time.Now()
+	_, err := m.List(e.ctx, e.tenant)
+	require.NoError(t, err)
+	assert.Less(t, time.Since(started), 2*time.Second, "one deadline for the batch")
+	assert.Equal(t, 1, calls, "the batch stopped at its deadline")
+	var tombs int
+	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM automation.secrets WHERE tenant_id = $1 AND deleted_at IS NOT NULL`, e.tenant).Scan(&tombs))
+	assert.Equal(t, 4, tombs, "unfinished tombstones wait for the next cleanup")
 }

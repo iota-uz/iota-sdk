@@ -143,6 +143,9 @@ func checkDescriptor(kind catalog.ConnectorKind, d Descriptor) error {
 		if _, err := graph.SchemaParams(d.Credentials); err != nil {
 			return fmt.Errorf("%w: connector %s: credentials schema: %v", ErrInvalid, kind, err)
 		}
+		if err := checkAnnotations(kind, d.Credentials); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -171,21 +174,56 @@ func SecretFields(d Descriptor) map[string]bool {
 // secret by name (SecretResolver, a node's CONNECTION__FIELD), so code reaches the API only through the
 // connection, never with the credential itself.
 func AuthorizationOnlyFields(d Descriptor) map[string]bool {
-	var doc struct {
-		Properties map[string]struct {
-			Only bool `json:"x-authorization-only"`
-		} `json:"properties"`
-	}
 	out := map[string]bool{}
-	if len(d.Credentials) == 0 || json.Unmarshal(d.Credentials, &doc) != nil {
-		return out
+	props, ok := schemaProperties(d.Credentials)
+	if !ok {
+		return out // no readable properties: SecretFields has none either, so nothing is served by name
 	}
-	for name, p := range doc.Properties {
-		if p.Only {
+	for name, p := range props {
+		raw, set := p["x-authorization-only"]
+		if !set {
+			continue
+		}
+		// Fail closed: only an explicit false lets the field be served; any other value (true, "false", a
+		// number) withholds it. Directory.Register refuses such a schema anyway.
+		var only bool
+		if json.Unmarshal(raw, &only) != nil || only {
 			out[name] = true
 		}
 	}
 	return out
+}
+
+// schemaProperties are the raw keywords of each property of a credentials schema; a property that is not
+// an object is kept with no keywords.
+func schemaProperties(schema json.RawMessage) (map[string]map[string]json.RawMessage, bool) {
+	var doc struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	if len(schema) == 0 || json.Unmarshal(schema, &doc) != nil {
+		return nil, false
+	}
+	out := make(map[string]map[string]json.RawMessage, len(doc.Properties))
+	for name, raw := range doc.Properties {
+		var kw map[string]json.RawMessage
+		_ = json.Unmarshal(raw, &kw)
+		out[name] = kw
+	}
+	return out, true
+}
+
+// checkAnnotations refuses a credentials schema whose x-authorization-only is not a boolean.
+func checkAnnotations(kind catalog.ConnectorKind, schema json.RawMessage) error {
+	props, _ := schemaProperties(schema)
+	for name, p := range props {
+		if raw, set := p["x-authorization-only"]; set {
+			var only bool
+			if json.Unmarshal(raw, &only) != nil {
+				return fmt.Errorf("%w: connector %s: credentials property %s: x-authorization-only is not a boolean", ErrInvalid, kind, name)
+			}
+		}
+	}
+	return nil
 }
 
 // ValidateCredentials checks credentials against the connector's credentials schema. Issues name the
