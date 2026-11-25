@@ -57,7 +57,13 @@ var eventCoverageByID = map[string]eventCoverage{
 	"warehouse.order.created.v1":            {"OrderCreatedEvent", "OrderCreatedEventID", "warehouse/services/orderservice/events_test.go:TestOrderEvents_CommitAndRollBackWithTheOrder"},
 	"warehouse.order.completed.v1":          {"OrderCompletedEvent", "OrderCompletedEventID", "warehouse/services/orderservice/events_test.go:TestOrderEvents_CommitAndRollBackWithTheOrder"},
 	"projects.acceptance.signed.v1":         {"AcceptanceSignedEvent", "AcceptanceSignedEventID", "projects/services/acceptance_events_test.go:TestAcceptanceEvents_SignedCommitsAndRollsBackWithTheDocument"},
+	// The automation engine publishes it in the transaction of the task change (pkg/automation/engine).
+	"automation.task.assigned.v1": {"TaskAssigned", "EventTaskAssigned", "../pkg/automation/engine/human_test.go:TestTaskAssignedEvents"},
 }
+
+// publisherRoots are the source trees searched for publishers, relative to this directory: the
+// modules, and the automation engine, which publishes the events of human tasks.
+var publisherRoots = []string{".", "../pkg/automation/engine"}
 
 // contractHashes pins the contracts that existed before the events of #1332:
 // their payloads did not change, so their hashes must not.
@@ -141,42 +147,44 @@ func publishedEventVars(t *testing.T) map[string]bool {
 	t.Helper()
 	published := map[string]bool{}
 	fset := token.NewFileSet()
-	require.NoError(t, filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return err
-		}
-		file, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			return err
-		}
-		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Body == nil {
-				continue
+	for _, root := range publisherRoots {
+		require.NoError(t, filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return err
 			}
-			ast.Inspect(fn.Body, func(n ast.Node) bool {
-				call, ok := n.(*ast.CallExpr)
-				if !ok {
+			file, err := parser.ParseFile(fset, path, nil, 0)
+			if err != nil {
+				return err
+			}
+			for _, decl := range file.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if !ok || fn.Body == nil {
+					continue
+				}
+				ast.Inspect(fn.Body, func(n ast.Node) bool {
+					call, ok := n.(*ast.CallExpr)
+					if !ok {
+						return true
+					}
+					sel, ok := call.Fun.(*ast.SelectorExpr)
+					if !ok {
+						return true
+					}
+					// events.PublishInTx(ctx, tenant, ev, ...), events.Publish(ctx, tx, scope, ev, ...)
+					arg, isPublish := map[string]int{"PublishInTx": 2, "Publish": 3}[sel.Sel.Name]
+					pkg, isEvents := sel.X.(*ast.Ident)
+					if !isPublish || !isEvents || pkg.Name != "events" || len(call.Args) <= arg {
+						return true
+					}
+					for name := range resolveEventNames(fn.Body, call.Args[arg]) {
+						published[name] = true
+					}
 					return true
-				}
-				sel, ok := call.Fun.(*ast.SelectorExpr)
-				if !ok {
-					return true
-				}
-				// events.PublishInTx(ctx, tenant, ev, ...), events.Publish(ctx, tx, scope, ev, ...)
-				arg, isPublish := map[string]int{"PublishInTx": 2, "Publish": 3}[sel.Sel.Name]
-				pkg, isEvents := sel.X.(*ast.Ident)
-				if !isPublish || !isEvents || pkg.Name != "events" || len(call.Args) <= arg {
-					return true
-				}
-				for name := range resolveEventNames(fn.Body, call.Args[arg]) {
-					published[name] = true
-				}
-				return true
-			})
-		}
-		return nil
-	}))
+				})
+			}
+			return nil
+		}))
+	}
 	return published
 }
 

@@ -234,11 +234,5 @@ func (c *UploadController) Download(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *UploadController) isPublicUploadPath(storedPath string) bool {
-	root := strings.Trim(filepath.ToSlash(filepath.Clean(c.cfg.Path)), "/")
-	candidate := strings.TrimPrefix(path.Clean("/"+filepath.ToSlash(upload.LayoutPath(storedPath))), "/")
-	if root == "" || root == "." || !strings.HasPrefix(candidate, root+"/") {
-		return false
-	}
-	rest := strings.TrimPrefix(candidate, root+"/")
-	return rest != uploadsconfig.PrivateDirectory && !strings.HasPrefix(rest, uploadsconfig.PrivateDirectory+"/")
+	return services.PublicUploadPath(c.cfg.Path, storedPath)
 }

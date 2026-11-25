@@ -4,7 +4,8 @@
   },
   "NavigationLinks": {
     "Integrations": "Integrações",
-    "Automations": "Automações"
+    "Automations": "Automações",
+    "AutomationTasks": "Minhas tarefas"
   },
   "Permissions": {
     "Automations.Read": "Ver automações",
@@ -131,6 +132,13 @@
         "LoadLatest": "Carregar a versão mais recente",
         "Reloaded": "A versão mais recente foi carregada. Verifique o formulário e salve novamente.",
         "RetryChanged": "O primeiro salvamento pode ter sido concluído com os valores anteriores. Feche o formulário e edite a conexão pela lista.",
+        "Warnings": {
+          "foreign_webhook": "Este bot já é usado por outro serviço. Depois de conectá-lo, esse serviço deixará de receber mensagens.",
+          "polling_unknown": "Não conseguimos saber se outro serviço lê as mensagens deste bot (por polling). Se ler, ele deixará de recebê-las depois que você conectar."
+        },
+        "ConfirmWarning": "Conectar mesmo assim",
+        "ConfirmRequired": "Confirme que deseja conectar este bot apesar dos avisos acima.",
+        "BotInUse": "Este bot já está reservado: ele está conectado aqui como outra conexão, ou pertence a outra conta ou à plataforma. Use outro bot ou peça a um administrador. Se você gerencia a conexão existente, exclua-a primeiro (desativá-la mantém o bot reservado).",
         "Preset": {
           "custom": "Qualquer servidor (login e senha)",
           "gmail": "Gmail (entrar com o Google)",
@@ -138,7 +146,7 @@
         },
         "PresetProvider": {
           "gmail": "Google",
-          "m365": "Microsoft"
+          "m365": "Microsoft 365"
         }
       },
       "Test": {
@@ -425,9 +433,9 @@
         "Waiting": "Aguardando"
       },
       "Runs": {
-        "Empty": "Nenhuma execução ainda.",
-        "NoSteps": "Nenhuma etapa ainda.",
-        "Steps": "Etapas da execução"
+        "NotFound": "Execução não encontrada",
+        "NotFoundText": "Ela foi excluída ou pertence a outro espaço de trabalho.",
+        "Opening": "Abrindo a execução…"
       },
       "Status": {
         "Disabled": "Desativada",
@@ -463,6 +471,148 @@
       "billing": "Cobrança",
       "projects": "Projetos",
       "Misc": "Outros"
+    },
+    "Tasks": {
+      "Title": "Minhas tarefas",
+      "Intro": "Decisões que as automações aguardam de você: atribuídas a você, às suas funções e grupos, ou repassadas a você.",
+      "Tabs": {
+        "Label": "Listas de tarefas",
+        "Mine": "Minhas",
+        "Overdue": "Atrasadas",
+        "Decided": "Decididas por mim"
+      },
+      "Search": {
+        "Label": "Pesquisar tarefas",
+        "Placeholder": "Pesquisar por tarefa ou registro"
+      },
+      "Empty": {
+        "Mine": "Nenhuma tarefa aguardando você",
+        "MineHint": "Quando uma automação pedir uma decisão a você, à sua função ou ao seu grupo, a tarefa aparecerá aqui.",
+        "Overdue": "Nada está atrasado",
+        "OverdueHint": "Tarefas abertas com prazo vencido aparecem aqui.",
+        "Decided": "Você ainda não decidiu nenhuma tarefa",
+        "DecidedHint": "As tarefas que você decidir ficam aqui, com o resultado.",
+        "Filtered": "Nada encontrado para «{{.Query}}»",
+        "Reset": "Limpar filtros",
+        "ToMine": "Abrir minhas tarefas"
+      },
+      "More": "Mostrar mais",
+      "Retry": "Tentar novamente",
+      "Back": "Minhas tarefas",
+      "Overdue": "Atrasada",
+      "Escalated": "Escalada",
+      "Via": {
+        "User": "Atribuída a você",
+        "Role": "Sua função",
+        "Group": "Seu grupo",
+        "Permission": "Sua permissão",
+        "Delegated": "Repassada a você",
+        "DelegatedBy": "Repassada por {{.Name}}"
+      },
+      "Quorum": "{{.Decided}} de {{.Required}}",
+      "MyDecision": "Sua decisão: {{.Outcome}}",
+      "Closed": {
+        "DecidedBy": "Já decidida por {{.Name}} em {{.At}}: {{.Outcome}}",
+        "Decided": "Decidida: {{.Outcome}}",
+        "Expired": "O prazo venceu: a tarefa foi encerrada sem decisão",
+        "Cancelled": "A automação foi interrompida: a tarefa foi cancelada",
+        "Changed": "A tarefa mudou enquanto você decidia. Veja como ela está agora.",
+        "PastDeadline": "O prazo venceu: decisões não são mais aceitas."
+      },
+      "Decision": {
+        "Heading": "Decisão"
+      },
+      "Comment": {
+        "Label": "Comentário",
+        "Required": "obrigatório",
+        "RequiredFor": "(obrigatório para {{.Outcomes}})",
+        "Hint": "Visível para a automação e os demais responsáveis.",
+        "Missing": "Escreva um comentário: esta decisão exige um.",
+        "Shortcut": "⌘/Ctrl+Enter — «{{.Outcome}}»."
+      },
+      "Confirm": {
+        "Label": "Confirmar {{.Outcome}}",
+        "Question": "Decidir «{{.Outcome}}»?",
+        "Hint": "A decisão não pode ser alterada depois de registrada.",
+        "Cancel": "Cancelar"
+      },
+      "Submitting": "Confirmando…",
+      "Slow": "Ainda aguardando o servidor. A decisão não será registrada duas vezes.",
+      "Form": {
+        "Unavailable": "Formulário indisponível",
+        "UnavailableHint": "Esta tarefa é decidida com um formulário que este aplicativo não tem. Peça ao responsável pela automação que corrija a etapa; até lá, ela não pode ser decidida aqui."
+      },
+      "Delegate": {
+        "Open": "Repassar a um colega",
+        "To": "Colega",
+        "Search": "Buscar por nome ou e-mail",
+        "NotFound": "Ninguém corresponde",
+        "Comment": "Comentário para o colega",
+        "Submit": "Repassar a tarefa",
+        "Submitting": "Repassando…",
+        "NothingFor": "Ninguém corresponde a «{{.Query}}»"
+      },
+      "OpenRun": "Abrir a execução",
+      "Copy": "Copiar",
+      "Copied": "Copiado",
+      "Missing": {
+        "Title": "Esta tarefa não está disponível",
+        "Hint": "Ela foi atribuída a outra pessoa, repassada, ou você não está mais entre os responsáveis.",
+        "Back": "Voltar para minhas tarefas"
+      },
+      "Errors": {
+        "ListFailed": "Não foi possível carregar as tarefas",
+        "ListFailedHint": "Verifique a conexão e tente novamente.",
+        "TaskFailed": "Não foi possível abrir a tarefa",
+        "Invalid": "Verifique a decisão: falta um comentário ou campo obrigatório, ou ele está incorreto.",
+        "DecideFailed": "Não foi possível registrar a decisão. Tente novamente em um minuto.",
+        "DelegationDenied": "Esta tarefa não pode ser repassada a essa pessoa. Escolha outro colega.",
+        "DelegateFailed": "Não foi possível repassar a tarefa. Tente novamente em um minuto.",
+        "HumanRequired": "Somente uma pessoa decide uma tarefa, na própria sessão.",
+        "MoreFailed": "Não foi possível carregar mais tarefas."
+      },
+      "Toast": {
+        "Decided": "Decisão registrada",
+        "Delegated": "Repassada",
+        "DelegatedTo": "Repassada a {{.Name}}"
+      },
+      "Badge": {
+        "Open": {
+          "one": "{{.Count}} tarefa aberta",
+          "other": "{{.Count}} tarefas abertas"
+        }
+      },
+      "Time": {
+        "Now": "agora",
+        "In": "em {{.Span}}",
+        "Ago": "há {{.Span}}",
+        "Minutes": {
+          "one": "{{.Count}} min",
+          "other": "{{.Count}} min"
+        },
+        "Hours": {
+          "one": "{{.Count}} h",
+          "other": "{{.Count}} h"
+        },
+        "Days": {
+          "one": "{{.Count}} dia",
+          "other": "{{.Count}} dias"
+        },
+        "Months": "jan,fev,mar,abr,mai,jun,jul,ago,set,out,nov,dez"
+      },
+      "Offline": {
+        "Text": "Sem conexão com o servidor. O que você digitou fica aqui."
+      },
+      "Field": {
+        "Null": "Vazio (null)",
+        "Yes": "Sim",
+        "No": "Não",
+        "Document": "Campos da decisão (JSON)",
+        "DocumentHint": "Informe os campos da decisão como um objeto JSON; eles são verificados pelo formulário da tarefa."
+      },
+      "Unconfirmed": "Confirme a decisão abaixo: ela não foi enviada.",
+      "RetryChooseColleague": "Escolha um colega novamente e pressione «Repassar a tarefa».",
+      "CopyFailed": "Não foi possível copiar. Selecione o ID e copie:"
     }
   }
 }

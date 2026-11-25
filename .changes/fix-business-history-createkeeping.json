@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Business history: list core/UploadService.CreateKeeping with the other file-storage methods that need no business event."}

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"sort"
 	"strconv"
 	"strings"
@@ -174,6 +175,8 @@ type CreateInput struct {
 	// IdempotencyKey identifies the intent: a retry with the same key returns the connection the first
 	// request created.
 	IdempotencyKey string
+	// Confirmed are the codes of the connector's warnings the person confirmed (connectors.Advisor).
+	Confirmed []string
 }
 
 // UpdateInput changes a connection; Credentials nil keeps them, an empty secret field keeps its value.
@@ -184,6 +187,8 @@ type UpdateInput struct {
 	Credentials map[string]any
 	// IdempotencyKey: a retry with the same key returns the connection as the first request left it.
 	IdempotencyKey string
+	// Confirmed are the codes of the connector's warnings the person confirmed (connectors.Advisor).
+	Confirmed []string
 }
 
 // IntegrationsService administers the connections of tenants: it checks credentials with the connector
@@ -200,6 +205,7 @@ type IntegrationsService struct {
 	requests Requests
 	stateTTL time.Duration
 	now      func() time.Time
+	log      *slog.Logger
 }
 
 // IntegrationsDeps are the dependencies of the service; Usage, Platform, Grants and OAuth may be nil.
@@ -213,6 +219,9 @@ type IntegrationsDeps struct {
 	States    OAuthStates
 	Checks    ConnectionChecks
 	Requests  Requests
+	// Logger reports what the service does after a request has been answered (a provider cleanup that failed);
+	// default slog.Default().
+	Logger *slog.Logger
 	// StateTTL is how long an OAuth2 state is accepted (default 10 minutes).
 	StateTTL time.Duration
 	Now      func() time.Time
@@ -222,13 +231,16 @@ type IntegrationsDeps struct {
 func NewIntegrationsService(d IntegrationsDeps) *IntegrationsService {
 	s := &IntegrationsService{
 		dir: d.Directory, store: d.Store, usage: d.Usage, platform: d.Platform, grants: d.Grants,
-		oauth: d.OAuth, states: d.States, checks: d.Checks, requests: d.Requests, stateTTL: d.StateTTL, now: d.Now,
+		oauth: d.OAuth, states: d.States, checks: d.Checks, requests: d.Requests, stateTTL: d.StateTTL, now: d.Now, log: d.Logger,
 	}
 	if s.stateTTL <= 0 {
 		s.stateTTL = 10 * time.Minute
 	}
 	if s.now == nil {
 		s.now = time.Now
+	}
+	if s.log == nil {
+		s.log = slog.Default()
 	}
 	return s
 }
@@ -414,6 +426,7 @@ func (s *IntegrationsService) Create(ctx context.Context, a Actor, in CreateInpu
 	if err != nil || done != nil {
 		return deref(done), err
 	}
+	var run provisionRun
 	saved, err := func() (connectors.Connection, error) {
 		if az, ok := conn.(connectors.ConnectionAuthorizer); ok && az.NeedsAuthorization(creds) {
 			// Saved before its sign-in: the page sends the browser to the connection's own authorization
@@ -427,21 +440,184 @@ func (s *IntegrationsService) Create(ctx context.Context, a Actor, in CreateInpu
 		if err != nil {
 			return connectors.Connection{}, err
 		}
-		return s.store.SaveWith(ctx, connectors.Connection{
+		if err := s.advise(ctx, conn, nil, creds, in.Confirmed); err != nil {
+			return connectors.Connection{}, err
+		}
+		saved, err := s.store.SaveWith(ctx, connectors.Connection{
 			TenantID: a.TenantID, Kind: in.Kind, Name: name, DisplayName: display,
 			Identity: identity, Status: connectors.StatusConnected, CreatedBy: a.UserID,
-		}, creds, req.complete)
+		}, creds, s.within(conn, creds, req, in.Confirmed, &run))
+		if err != nil {
+			s.reconcile(ctx, conn, &run, creds)
+		}
+		return saved, err
 	}()
 	if err != nil {
 		req.release(ctx)
 		var failed *TestFailedError
-		if errors.As(err, &failed) {
+		if errors.As(err, &failed) || errors.Is(err, connectors.ErrConfirmationRequired) {
 			return ConnectionEntry{}, err
 		}
 		return ConnectionEntry{}, mapStoreError(op, err)
 	}
 	s.touch(ctx, a.TenantID, saved.ID)
 	return s.entry(ctx, a.TenantID, saved, true)
+}
+
+// advise asks a connector that reports what connecting credentials would change elsewhere
+// (connectors.Advisor). A warning that cannot be lifted (the bot belongs to another connection) refuses the
+// credentials; the others refuse the save until the person confirmed them. A connector that cannot look
+// refuses the save too: what it would change is not known.
+func (s *IntegrationsService) advise(ctx context.Context, conn connectors.Connector, existing *connectors.Connection, creds connectors.Credentials, confirmed []string) error {
+	adv, ok := conn.(connectors.Advisor)
+	if !ok {
+		return nil
+	}
+	warnings, err := adv.Advise(ctx, existing, creds)
+	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		// Fail closed: without the provider's state there is no knowing what the save would change, so it
+		// is not made (the provider is looked at again when it is changed, too).
+		return &TestFailedError{Reason: classify(err.Error())}
+	}
+	for _, w := range warnings {
+		if w.Blocking {
+			field := w.Field
+			if field == "" {
+				field = "credentials"
+			}
+			return &InvalidInputError{Fields: map[string]string{field: "in_use"}}
+		}
+	}
+	if open := connectors.Unconfirmed(warnings, confirmed); len(open) > 0 {
+		return &connectors.ConfirmationRequiredError{Warnings: open}
+	}
+	return nil
+}
+
+// provisionRun records whether a save changed the provider, for the cleanup of a save that did not commit.
+type provisionRun struct {
+	ran   bool
+	saved connectors.Connection
+}
+
+// identityField is the credentials field an exclusive identity's refusal is shown at: the first secret one.
+func identityField(conn connectors.Connector) string {
+	names := make([]string, 0)
+	for name := range connectors.SecretFields(conn.Descriptor()) {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	if len(names) > 0 {
+		return names[0]
+	}
+	return "credentials"
+}
+
+// within is what a save does in its transaction beside writing the row: the provider account is reserved
+// for the connection, whatever its status (connectors.ExclusiveIdentity, under a lock on it, so two saves for
+// one account run one after the other), and, for a connected one, the provider's side of the connection is set up (connectors.Provisioner) with the
+// confirmations the person gave, what it hands back is kept in the connection's inbound state, and the
+// idempotency key is completed. A provider that refuses fails the save, which rolls the row back. The
+// provider is changed only after the row's version check, which the write of the row has passed by then.
+func (s *IntegrationsService) within(conn connectors.Connector, creds connectors.Credentials, req request, confirmed []string, run *provisionRun) func(ctx context.Context, tx pgx.Tx, saved connectors.Connection) error {
+	return func(ctx context.Context, tx pgx.Tx, saved connectors.Connection) error {
+		if creds != nil {
+			// The provider account is reserved by whatever status the connection saves with: credentials of
+			// another account move the reservation with them, so a disabled connection never keeps the old
+			// account and leaves the new one free to be claimed.
+			if ex, ok := conn.(connectors.ExclusiveIdentity); ok {
+				if err := connectors.ReserveIdentity(ctx, tx, saved.Kind, ex.ExternalID(creds), saved.ID); err != nil {
+					if errors.Is(err, connectors.ErrIdentityTaken) {
+						return &InvalidInputError{Fields: map[string]string{identityField(conn): "in_use"}}
+					}
+					return err
+				}
+			}
+		}
+		if p, ok := conn.(connectors.Provisioner); ok && saved.Status == connectors.StatusConnected && creds != nil {
+			held, err := connectors.InboundTx(ctx, tx, saved.TenantID, saved.ID)
+			if err != nil {
+				return err
+			}
+			state, err := p.Provision(ctx, saved, creds, confirmed, held)
+			if err != nil {
+				var blocked *connectors.BlockedError
+				// A refusal before the provider was touched changed nothing; any other failure (a lost answer
+				// to setWebhook) may have changed it, so the cleanup of an uncommitted save covers it too.
+				if !errors.As(err, &blocked) && !errors.Is(err, connectors.ErrConfirmationRequired) && run != nil {
+					run.ran, run.saved = true, saved
+				}
+				switch {
+				case ctx.Err() != nil:
+					return ctx.Err()
+				case errors.As(err, &blocked):
+					field := blocked.Field
+					if field == "" {
+						field = identityField(conn)
+					}
+					return &InvalidInputError{Fields: map[string]string{field: "in_use"}}
+				case errors.Is(err, connectors.ErrConfirmationRequired):
+					return err
+				}
+				return &TestFailedError{Reason: classify(err.Error())}
+			}
+			if run != nil {
+				run.ran, run.saved = true, saved
+			}
+			if err := connectors.MergeInboundTx(ctx, tx, saved.TenantID, saved.ID, state); err != nil {
+				return err
+			}
+		}
+		return req.complete(ctx, tx, saved)
+	}
+}
+
+// stillServes reports whether the connection as committed now is connected with these very credentials: what
+// a cleanup would remove is then what the connection runs on.
+func stillServes(found bool, latest connectors.Connection, latestCreds, creds connectors.Credentials) bool {
+	return found && latest.Status == connectors.StatusConnected && sameCredentials(latestCreds, creds)
+}
+
+// cleanup removes the provider's side of credentials a connection no longer uses (a disable, a replaced
+// token, a save that did not commit), unless the connection is connected with them again by the time it
+// runs. It decides under the lock of the provider account that a setup holds while it changes the provider,
+// on the connection as committed then: a delayed cleanup never removes what a later enable set up, and a
+// setup never races a cleanup. It never fails the caller.
+func (s *IntegrationsService) cleanup(ctx context.Context, conn connectors.Connector, c connectors.Connection, creds connectors.Credentials) {
+	p, ok := conn.(connectors.Provisioner)
+	if !ok || creds == nil {
+		return
+	}
+	external := ""
+	if ex, ok := conn.(connectors.ExclusiveIdentity); ok {
+		external = ex.ExternalID(creds)
+	}
+	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), releaseTimeout)
+	defer cancel()
+	err := s.store.WithLatest(cctx, c.Kind, c.TenantID, c.ID, external, func(found bool, latest connectors.Connection, latestCreds connectors.Credentials) error {
+		if stillServes(found, latest, latestCreds, creds) {
+			return nil
+		}
+		return p.Deprovision(cctx, c, creds)
+	})
+	if err != nil {
+		// The request has been answered, so the failure is not returned: it is reported, as a webhook that stays
+		// at the provider is only seen there (its updates then fail verification).
+		s.log.Warn("automations: the provider was not cleaned up", "kind", string(c.Kind), "connection", c.ID.String(), "error", err.Error())
+	}
+}
+
+// reconcile undoes the provider's side of a save that changed the provider and did not commit: the webhook
+// of the credentials it set up is removed (a connection whose row was not saved, or is not connected, must
+// not have one), unless the connection is connected with these very credentials by then (cleanup).
+func (s *IntegrationsService) reconcile(ctx context.Context, conn connectors.Connector, run *provisionRun, creds connectors.Credentials) {
+	if run == nil || !run.ran {
+		return
+	}
+	s.cleanup(ctx, conn, run.saved, creds)
 }
 
 // request is a reserved idempotency key; the zero value (no key) completes and releases nothing.
@@ -581,6 +757,9 @@ func (s *IntegrationsService) update(ctx context.Context, a Actor, in UpdateInpu
 			if err != nil {
 				return ConnectionEntry{}, err
 			}
+			if err := s.advise(ctx, conn, &cur, creds, in.Confirmed); err != nil {
+				return ConnectionEntry{}, err
+			}
 			next.Identity = identity
 			if next.Status != connectors.StatusDisabled {
 				next.Status, next.StatusReason = connectors.StatusConnected, ""
@@ -592,12 +771,21 @@ func (s *IntegrationsService) update(ctx context.Context, a Actor, in UpdateInpu
 		// longer be recognised, so it is checked against both.
 		scrubRetained(&next, secretsOf(d), stored, creds)
 	}
-	saved, err := s.store.SaveWith(ctx, next, creds, req.complete)
+	var run provisionRun
+	saved, err := s.store.SaveWith(ctx, next, creds, s.within(conn, creds, req, in.Confirmed, &run))
 	if err != nil {
+		s.reconcile(ctx, conn, &run, creds)
+		var failed *TestFailedError
+		if errors.As(err, &failed) {
+			return ConnectionEntry{}, err
+		}
 		return ConnectionEntry{}, mapStoreError(op, err)
 	}
 	if creds != nil {
 		s.touch(ctx, a.TenantID, saved.ID)
+		if !sameCredentials(stored, creds) {
+			s.cleanup(ctx, conn, saved, stored) // the old credentials' side of the connection
+		}
 	}
 	return s.entry(ctx, a.TenantID, saved, true)
 }
@@ -727,14 +915,20 @@ func (s *IntegrationsService) loadAuthorized(ctx context.Context, az connectors.
 
 // SetDisabled disables a connection (it leaves the catalog of nodes of the tenant) or enables it again:
 // enabling checks it with the provider, so it comes back connected or with the error.
-func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.UUID, disabled bool) (ConnectionEntry, error) {
+func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.UUID, disabled bool, confirmed []string) (ConnectionEntry, error) {
 	const op = serrors.Op("automations.IntegrationsService.SetDisabled")
 	if disabled {
-		if _, err := s.find(ctx, a.TenantID, id); err != nil {
+		cur, err := s.find(ctx, a.TenantID, id)
+		if err != nil {
 			return ConnectionEntry{}, mapStoreError(op, err)
 		}
 		if err := s.store.SetStatus(ctx, a.TenantID, id, connectors.StatusDisabled, ""); err != nil {
 			return ConnectionEntry{}, mapStoreError(op, err)
+		}
+		if conn, ok := s.dir.Get(cur.Kind); ok {
+			if _, creds, err := s.store.Get(ctx, a.TenantID, id); err == nil {
+				s.cleanup(ctx, conn, cur, creds)
+			}
 		}
 	} else {
 		cur, conn, creds, reauth, err := s.load(ctx, a.TenantID, id)
@@ -762,8 +956,29 @@ func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.
 			default:
 				return ConnectionEntry{}, serrors.Wrap(op, testErr)
 			}
-			if _, err := s.store.Save(ctx, next, nil); err != nil {
-				return ConnectionEntry{}, mapStoreError(op, err)
+			if next.Status == connectors.StatusConnected {
+				// Enabled again: the bot may have been given to another service meanwhile, so what a new
+				// connection is asked, this one is asked too, before the provider is changed.
+				if err := s.advise(ctx, conn, &cur, creds, confirmed); err != nil {
+					return ConnectionEntry{}, err
+				}
+			}
+			// One transaction: the version check of the row, the provider's change and the status with the
+			// provider's state commit together; a competing enable loses the version check before it touches
+			// the provider, and a save that does not commit has the provider's change undone.
+			var run provisionRun
+			_, err := s.store.SaveWith(ctx, next, nil, s.within(conn, creds, request{}, confirmed, &run))
+			if err != nil {
+				s.reconcile(ctx, conn, &run, creds)
+				var refused *TestFailedError
+				if !errors.As(err, &refused) {
+					return ConnectionEntry{}, mapStoreError(op, err)
+				}
+				// The provider refused the setup: the connection comes back with that error.
+				next.Status, next.StatusReason = failedStatus(conn, creds, refused.Reason)
+				if _, err := s.store.Save(ctx, next, nil); err != nil {
+					return ConnectionEntry{}, mapStoreError(op, err)
+				}
 			}
 			s.touch(ctx, a.TenantID, id)
 		}
@@ -777,10 +992,62 @@ func (s *IntegrationsService) SetDisabled(ctx context.Context, a Actor, id uuid.
 
 // Delete removes a connection nothing uses; a connection in use is a *connectors.InUseError.
 func (s *IntegrationsService) Delete(ctx context.Context, a Actor, id uuid.UUID) error {
-	if err := s.store.Delete(ctx, a.TenantID, id); err != nil {
+	// What the provider needs to be told is the connection as it was when it was deleted, read in the deleting
+	// transaction under the row's lock: a save that committed before it is what is cleaned up for, and one
+	// that comes after finds no row. A connection that cannot be read (no key, undecryptable) is still
+	// deleted, only the provider is not told.
+	deleted, creds, err := s.store.DeleteReturning(ctx, a.TenantID, id)
+	if err != nil {
 		return mapStoreError("automations.IntegrationsService.Delete", err)
 	}
+	if creds != nil {
+		// Also for a disabled row: a disable that committed its status may not have read the credentials before
+		// this delete removed the row, and then neither would clean up. The teardown removes only the webhook
+		// that is this connection's own (a disabled one's is gone already: nothing is done), and a provider that
+		// refuses it does not fail the delete.
+		if conn, ok := s.dir.Get(deleted.Kind); ok {
+			s.cleanup(ctx, conn, deleted, creds) // the row is gone: under the account's lock, so a replacement's setup is never raced
+		}
+	}
 	return nil
+}
+
+// Options are the choices a connector offers for a param field of a node (the chats of a bot), for one of
+// the tenant's connections; none when the connector offers none.
+func (s *IntegrationsService) Options(ctx context.Context, a Actor, connectionID uuid.UUID, source, query string) ([]connectors.Option, error) {
+	cur, err := s.find(ctx, a.TenantID, connectionID)
+	if err != nil {
+		return nil, mapStoreError("automations.IntegrationsService.Options", err)
+	}
+	conn, ok := s.dir.Get(cur.Kind)
+	if !ok {
+		return nil, connectors.ErrNotFound
+	}
+	src, ok := conn.(connectors.OptionSource)
+	if !ok {
+		return []connectors.Option{}, nil
+	}
+	out, err := src.Options(ctx, a.TenantID, connectionID, source, query)
+	if err != nil {
+		return nil, serrors.Wrap("automations.IntegrationsService.Options", err)
+	}
+	if out == nil {
+		out = []connectors.Option{}
+	}
+	return out, nil
+}
+
+// sameCredentials reports whether two credential sets hold the same values.
+func sameCredentials(a, b connectors.Credentials) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if w, ok := b[k]; !ok || w != v {
+			return false
+		}
+	}
+	return true
 }
 
 // SetPlatformEnabled grants or revokes an opt_in platform credential for the tenant.
@@ -949,19 +1216,6 @@ func (s *IntegrationsService) signInComplete(ctx context.Context, a Actor, az co
 	return saved, pending, nil
 }
 
-// sameCredentials reports whether two credential sets are the same.
-func sameCredentials(a, b connectors.Credentials) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, v := range a {
-		if bv, ok := b[k]; !ok || bv != v {
-			return false
-		}
-	}
-	return true
-}
-
 // OAuthComplete finishes an authorization the same user started in the same tenant: the state is
 // accepted once. The code is exchanged and tested first; then exactly one row is saved — the connection
 // being re-authorized (its version checked, a disabled one stays disabled), or a new connection under
@@ -1040,6 +1294,16 @@ func (s *IntegrationsService) OAuthComplete(ctx context.Context, a Actor, state,
 		}
 		// The settings the grant does not own (the folder of a mailbox) stay as they were.
 		primary = connectors.GroupItem{Connection: cur, Credentials: connectors.KeepSettings(grant.Credentials, old)}
+	} else if pending.Name == "" && len(grant.Companions) > 0 {
+		// A sign-in that names no connection (the page's «Sign in with Google» on a card): the connection of
+		// the same account made by a sign-in with the same provider is signed in again, else a new one takes
+		// the first free name of the kind — a second mailbox never collides with the first.
+		if primary, err = connectors.PlanGrant(ctx, s.store, secret, a.TenantID, grant, a.UserID); err != nil {
+			return connectors.Connection{}, pending, mapStoreError(op, err)
+		}
+		if d := pending.DisplayName; d != "" && primary.Connection.ID == uuid.Nil {
+			primary.Connection.DisplayName = d
+		}
 	} else {
 		name := pending.Name
 		if name == "" {

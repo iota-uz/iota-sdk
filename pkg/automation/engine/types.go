@@ -152,7 +152,23 @@ type Service interface {
 	Cancel(ctx context.Context, a Actor, runID uuid.UUID) error
 	Restart(ctx context.Context, a Actor, runID uuid.UUID, version int) (RunRef, error) // StartV2
 	ListRuns(ctx context.Context, a Actor, f RunFilter) (Page[RunSummary], error)
-	GetRun(ctx context.Context, a Actor, runID uuid.UUID) (RunDetail, error)
+	GetRun(ctx context.Context, a Actor, runID uuid.UUID, opts ...RunDetailOption) (RunDetail, error)
+}
+
+// RunDetailOption adjusts what GetRun returns.
+type RunDetailOption func(*runDetailOptions)
+
+type runDetailOptions struct{ nodes []string }
+
+// MaxStepsOfNodes bounds the nodes StepsOf names.
+const MaxStepsOfNodes = 50
+
+// StepsOf adds, for each node, its latest step the viewer may read (else its latest step, hidden) to the
+// run's latest steps, wherever it is in the run: a node test's example reads the step of its node and of
+// the nodes before it even when more than the detail's bound of steps came after them, and a later visit
+// the viewer may not read does not hide an earlier readable one. The steps are projected as the others.
+func StepsOf(nodes ...string) RunDetailOption {
+	return func(o *runDetailOptions) { o.nodes = append(o.nodes, nodes...) }
 }
 
 // CreateInput is a new graph and its first version.
@@ -286,6 +302,14 @@ type RunFilter struct {
 	Version      int // 0: every version
 	Status       []RunStatus
 	Subject      *SubjectRef
+	// SubjectKeyPrefix keeps the runs whose subject key starts with it, case-insensitively ("": any).
+	SubjectKeyPrefix string
+	// SubjectQuery keeps the runs whose subject key starts with it or whose subject the SubjectSearcher
+	// (an optional interface of Config.Subjects) finds by it with the viewer's rights: the name an author
+	// sees, not only the key. At most MaxSubjectQueryMatches subjects of each entity match by name.
+	SubjectQuery string
+	// Node keeps the runs that took a step on the node ("": any).
+	Node         string
 	Since, Until *time.Time
 	Cursor       string
 	Limit        int // ≤ 100, default 50
@@ -316,6 +340,9 @@ type RunSummary struct {
 // RunDetail is a run with its tokens, steps and waits.
 type RunDetail struct {
 	RunSummary
+	// Event is the event that started the run ({kind, ...payload}), its payload projected for the viewer:
+	// a field the viewer may not read is left out. nil: the run has no event.
+	Event      json.RawMessage
 	Tokens     []TokenView
 	Steps      []StepView // input/output projected for the viewer
 	Waits      []WaitView
@@ -346,6 +373,8 @@ type StepView struct {
 	EndedAt   *time.Time
 	// Warnings are what the step noted without failing (an assignee list cut to its limit).
 	Warnings []string
+	// Logs are what the node logged (a call: Log), masked by the engine with the connection's secrets.
+	Logs []string
 	// Hidden: the step ran after the run read a sensitive field the viewer may not read; its input and
 	// output are left out and its error message is Hidden.
 	Hidden bool
@@ -364,7 +393,9 @@ func (e *StepError) Error() string { return e.Code + ": " + e.Message }
 
 // WaitView is a wait of a run.
 type WaitView struct {
-	TokenID   uuid.UUID
+	TokenID uuid.UUID
+	// NodeID is the node the wait belongs to (a join's timeout wait: the join).
+	NodeID    string
 	WaitID    string
 	Kind      string
 	EventKind string
@@ -695,6 +726,8 @@ type WaitResult struct {
 	Error   *StepError      `json:"error,omitempty"`
 	// Await, set by an ask node's call, opens the wait for its answer instead of applying the outcome.
 	Await *AwaitSpec `json:"await,omitempty"`
+	// Logs are what a call node logged (Log), already masked: they are kept with the call's step.
+	Logs []string `json:"logs,omitempty"`
 }
 
 // Limits bound runs.

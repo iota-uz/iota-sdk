@@ -1,6 +1,7 @@
 package stdconfig_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/config"
@@ -36,8 +37,10 @@ func TestRegisterAll_AllNonNil(t *testing.T) {
 		{"ExtRuntime", b.ExtRuntime},
 		{"GoogleOAuth", b.GoogleOAuth},
 		{"HTTP", b.HTTP},
+		{"Jev", b.Jev},
 		{"Meili", b.Meili},
 		{"OIDC", b.OIDC},
+		{"OpenAI", b.OpenAI},
 		{"Payments", b.Payments},
 		{"RateLimit", b.RateLimit},
 		{"Redis", b.Redis},
@@ -51,7 +54,8 @@ func TestRegisterAll_AllNonNil(t *testing.T) {
 	}
 
 	for _, c := range checks {
-		if c.ptr == nil {
+		// A nil *T in an any is not a nil any: the pointer itself is checked.
+		if v := reflect.ValueOf(c.ptr); !v.IsValid() || (v.Kind() == reflect.Pointer && v.IsNil()) {
 			t.Errorf("Bundle.%s is nil after RegisterAll", c.name)
 		}
 	}

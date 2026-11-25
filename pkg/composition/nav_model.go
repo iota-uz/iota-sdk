@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -285,6 +287,8 @@ func navNodeToItem(node navBuildNode) types.NavigationItem {
 		Permissions: authPermissions(node.auth),
 		Logic:       navItemPermissionLogic(node.auth),
 		IsBeta:      nav.IsBeta,
+		Badge:       nav.Badge,
+		ForEveryone: nav.ForEveryone,
 	}
 }
 
@@ -426,6 +430,11 @@ func routePatternMatches(pattern, routePath string) bool {
 	}
 	for i, part := range patternParts {
 		if strings.HasPrefix(part, "{") && strings.HasSuffix(part, "}") {
+			// A variable with a pattern ({id:[0-9a-f-]{36}}) matches only what its pattern does, as the
+			// router does: /automations/tasks is not /automations/{id:<uuid>}.
+			if !variableMatches(part, pathParts[i]) {
+				return false
+			}
 			continue
 		}
 		if part != pathParts[i] {
@@ -433,6 +442,30 @@ func routePatternMatches(pattern, routePath string) bool {
 		}
 	}
 	return true
+}
+
+var routeVariablePatterns sync.Map // pattern text → *regexp.Regexp (nil when it does not compile)
+
+// variableMatches reports whether a path segment matches a route variable ({name} or {name:pattern}).
+func variableMatches(variable, segment string) bool {
+	inner := variable[1 : len(variable)-1]
+	_, pattern, ok := strings.Cut(inner, ":")
+	if !ok || pattern == "" {
+		return true
+	}
+	cached, found := routeVariablePatterns.Load(pattern)
+	if !found {
+		re, err := regexp.Compile("^(?:" + pattern + ")$")
+		if err != nil {
+			re = nil
+		}
+		cached, _ = routeVariablePatterns.LoadOrStore(pattern, re)
+	}
+	re, _ := cached.(*regexp.Regexp)
+	if re == nil {
+		return true
+	}
+	return re.MatchString(segment)
 }
 
 func splitRoutePath(routePath string) []string {

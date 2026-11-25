@@ -101,6 +101,13 @@ type NavNode struct {
 	Actions    []NavAction
 	IsBeta     bool
 	Visibility *AuthPolicy
+	// Badge is rendered after the title of the item's link in the sidebar (a counter that refreshes
+	// itself, say); nil renders none. It renders with the request's context.
+	Badge templ.Component
+	// ForEveryone keeps the item for a signed-in user who holds no permission at all (whose
+	// navigation is otherwise empty): a page about the user's own work, such as their inbox. The item
+	// still needs no permission of its route.
+	ForEveryone bool
 }
 
 type NavScope struct {

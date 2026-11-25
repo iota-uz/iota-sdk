@@ -813,17 +813,18 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('e2e/pnpm-lock.yaml') }}
+          # WebKit runs the iPad scenarios of the automations inbox (Q4 of docs/automation-ui-standard.md).
+          key: ${{ runner.os }}-playwright-webkit-${{ hashFiles('e2e/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-playwright-
+            ${{ runner.os }}-playwright-webkit-
 
       - name: Install Playwright system dependencies
-        run: npx playwright install-deps chromium
+        run: npx playwright install-deps chromium webkit
         working-directory: e2e
 
       - name: Install Playwright Browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium
+        run: npx playwright install chromium webkit
         working-directory: e2e
 
       # Each Playwright worker owns a database cloned from a sealed baseline

@@ -265,6 +265,9 @@ templ SidebarLinkNode(node NavNode, mode SidebarRenderMode) {
 					if node.IsBeta {
 						@SidebarBetaBadge("ml-auto", false)
 					}
+					if node.Badge != nil {
+						@node.Badge
+					}
 				}
 			</div>
 		</li>
@@ -284,6 +287,9 @@ templ SidebarLinkNode(node NavNode, mode SidebarRenderMode) {
 				{ node.Text }
 				if node.IsBeta {
 					@SidebarBetaBadge("ml-auto", false)
+				}
+				if node.Badge != nil {
+					@node.Badge
 				}
 			}
 		</li>

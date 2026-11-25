@@ -1,6 +1,7 @@
 // The package's bounds, measured as a consumer ships them (minified, gzip, solid-js external):
 // - the entry stays small and holds neither @xyflow/system nor d3;
-// - the lazy canvas chunk with @xyflow/system and d3 is at most 52 KB gzip.
+// - the lazy canvas chunk with @xyflow/system and d3 is at most 52 KB gzip;
+// - d3-color stays out of it (src/xy/d3-color.ts stands in).
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,7 +11,9 @@ import { transformWithEsbuild } from 'vite'
 const dist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../package-dist')
 // 50 KB before Tidy v2 (#1391): the orthogonal router (src/route.ts) runs in the canvas chunk.
 // 51 KB before #1346: validation warnings on the cards, warnings of a passed save and issue fixes that
-// follow their item.
+// follow their item. 51 KB as well before the runs view (#1347): the editor holds the Runs tab, the Dry
+// run / Test node docks and the loaders of their own lazy chunk (the list, the run view, the drawer and
+// both panels live there). 47.7 KB since #1431: d3-color, which the editor never runs, is a stub.
 export const CHUNK_GZIP_LIMIT = 52 * 1024
 // 24 KB before Tidy v2 (#1391), whose layout and its public helpers (tidyLayout, ensureLayout, placeNew) live in the entry.
 const ENTRY_GZIP_LIMIT = 26 * 1024
@@ -47,5 +50,6 @@ if (entryGz > ENTRY_GZIP_LIMIT) throw new Error(`the entry is ${(entryGz / 1024)
 const canvas = [...sizes].filter(([name, file]) => !entry.has(name) && CANVAS.test(file.text))
 if (canvas.length !== 1) throw new Error(`expected one lazy canvas chunk, found ${canvas.length}`)
 const [name, file] = canvas[0]
+if (/aliceblue|rebeccapurple/.test(file.text)) throw new Error(`canvas chunk ${name} bundles d3-color: it must resolve to src/xy/d3-color.ts`)
 if (file.gz > CHUNK_GZIP_LIMIT) throw new Error(`canvas chunk ${name} is ${(file.gz / 1024).toFixed(1)} KB gzip, over the ${CHUNK_GZIP_LIMIT / 1024} KB budget`)
 console.log(`entry ${(entryGz / 1024).toFixed(1)} KB gzip; canvas chunk ${(file.gz / 1024).toFixed(1)} KB gzip (budget ${CHUNK_GZIP_LIMIT / 1024} KB)`)

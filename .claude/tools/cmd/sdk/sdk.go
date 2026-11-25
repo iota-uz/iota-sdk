@@ -146,6 +146,14 @@ func NewCommand() *cobra.Command {
 	controller.AddCommand(&cobra.Command{Use: "phase <sha> <failed|publishing|ready>", Args: cobra.ExactArgs(2), RunE: func(cmd *cobra.Command, args []string) error {
 		return upstream.SetPhase(cmd.Context(), args[0], args[1])
 	}})
+	controller.AddCommand(&cobra.Command{Use: "abandon <sha>", Args: cobra.ExactArgs(1), Short: "Retire a partially published candidate whose Go module can never be downloaded", RunE: func(cmd *cobra.Command, args []string) error {
+		abandoned, proof, err := upstream.Abandon(cmd.Context(), args[0])
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Abandoned v%s (%s): %s\nThe next release takes a version above it.\n", abandoned.Version, abandoned.SHA, proof)
+		return nil
+	}})
 	command.AddCommand(controller)
 	return command
 }

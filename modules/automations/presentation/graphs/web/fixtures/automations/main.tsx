@@ -33,11 +33,13 @@ const fake: FakeOptions = {
   layoutConflict: params.has('layoutConflict'),
   conflictOnce: params.has('conflictOnce'),
   liveFailsOnce: params.has('liveFailsOnce'),
+  testLostOnce: params.has('testLostOnce'),
   reviewFailsAfterChange: params.has('reviewFailsAfterChange'),
   oldVersionDelay: Number(params.get('oldVersionDelay') ?? '0'),
   can,
   calls: [],
   warn: params.has('warn'),
+  telegram: params.has('telegram'),
 }
 ;(window as unknown as { __calls: FakeOptions['calls'] }).__calls = fake.calls
 installFake('/automations/rpc', fake)

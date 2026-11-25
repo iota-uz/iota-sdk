@@ -78,6 +78,29 @@ type LocalizedNode interface {
 	Localize(spec graph.NodeSpec, locale string) graph.NodeSpec
 }
 
+// CompletedNode is an optional interface of a NodeType: its params are completed when a graph is
+// validated for saving, before they are checked. A node pins here a value that must not follow the
+// configuration afterwards: an AI node writes its connector's default model into the version, so a later
+// change of the default does not change a saved graph.
+//
+// CompleteParams returns the params to save; it must not change its argument, must be idempotent and
+// must tolerate params of any shape (the check that follows reports them).
+type CompletedNode interface {
+	CompleteParams(params map[string]any) map[string]any
+}
+
+// ConnectionNode is an optional interface of a NodeType whose params depend on the connection the node will
+// run with: when a graph is saved the engine resolves the connection (as it does at run time) and gives it
+// to the node, which completes the params (a default model of the connection's provider) and refuses params
+// that do not fit it, or a connection it cannot read what it needs from. A node that finds no connection is
+// left to the connection rule.
+type ConnectionNode interface {
+	// PrepareParams is CompletedNode.CompleteParams for the connection conn of the tenant, and the check of
+	// the result; it runs after CompleteParams and looks the connection up once. It must not change params.
+	// An issue's path is a param of the node.
+	PrepareParams(ctx context.Context, tenantID uuid.UUID, conn ConnectionRef, params map[string]any) (map[string]any, []graph.Issue)
+}
+
 // PreparingNode is an optional interface of a NodeType whose params are checked against the outside
 // world when a graph is saved, validated or checked before a dry run or a test: a connector's live data
 // (the tools of an MCP server). Prepare may fill params in (a schema pinned when the node carries none);
@@ -256,6 +279,10 @@ type CallError struct {
 	Code      string
 	Message   string // no secrets
 	Retryable bool
+	// RetryAfter is the delay the provider asked for with a Retryable failure (a 503 with Retry-After):
+	// the engine waits at least that long before it repeats an idempotent call, and keeps Code if the
+	// attempts run out.
+	RetryAfter time.Duration
 }
 
 func (e *CallError) Error() string { return e.Code + ": " + e.Message }
@@ -264,6 +291,21 @@ func (e *CallError) Error() string { return e.Code + ": " + e.Message }
 type TriggerSource interface {
 	Events() []graph.EventSpec
 	Requires() []ConnectorKind
+}
+
+// TenantConnectionNode is an optional interface of a NodeType: the node works only with a tenant's own
+// connection, never with the platform credential (a wait for a message that only a tenant's own bot
+// receives). The catalog neither offers nor accepts the platform credential for it.
+type TenantConnectionNode interface {
+	TenantConnectionOnly() bool
+}
+
+// TenantConnectionTriggers is an optional interface of a TriggerSource: events that only a tenant's own
+// connection can deliver (a platform credential never receives them: a message to the platform bot belongs
+// to no tenant). A graph that triggers on such an event is offered, and valid with, the tenant's own
+// connections only.
+type TenantConnectionTriggers interface {
+	TenantConnectionOnly(eventKey string) bool
 }
 
 // EventAccess is who may see an event in the catalog: an author needs ReadPermission (empty: any
@@ -296,6 +338,13 @@ type ConnectorContribution interface {
 // Refs of a kind are in order of preference: tenant connections before the platform credential.
 type Availability interface {
 	Connected(ctx context.Context, tenantID uuid.UUID) (map[ConnectorKind][]ConnectionRef, error)
+}
+
+// PlatformOffers is an optional part of Availability: the kinds the application offers by platform
+// credential that the tenant cannot use now (an opt_in credential its administrator has not enabled, or
+// has switched off). View.PlatformWithheld is built from it.
+type PlatformOffers interface {
+	PlatformWithheld(ctx context.Context, tenantID uuid.UUID) (map[ConnectorKind]bool, error)
 }
 
 // ConnectionRef is a working connection: a UUID, or "platform:<kind>" for the platform credential.
