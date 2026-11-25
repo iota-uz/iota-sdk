@@ -48,7 +48,7 @@ export function StatePanel(props: { id: string; canEdit: boolean }): JSX.Element
   const [total, setTotal] = createSignal(0)
   const [next, setNext] = createSignal<string | null>(null)
   const [query, setQuery] = createSignal('')
-  const [loading, setLoading] = createSignal(true)
+  const [loading, setLoading] = createSignal(false)
   const [loadError, setLoadError] = createSignal<string>()
   const [draft, setDraft] = createSignal<Draft>()
   const [draftError, setDraftError] = createSignal<string>()
@@ -57,6 +57,9 @@ export function StatePanel(props: { id: string; canEdit: boolean }): JSX.Element
 
   let seq = 0
   const load = async (more = false) => {
+    // No page is asked for while another load runs: a reload of the first page (after a change) would be
+    // dropped, and the next page appended to rows that are out of date.
+    if (more && loading()) return
     const mine = ++seq
     setLoading(true)
     setLoadError(undefined)
@@ -214,7 +217,7 @@ export function StatePanel(props: { id: string; canEdit: boolean }): JSX.Element
       <div class="flex items-center justify-between gap-3 text-xs text-300">
         <span data-testid="state-total">{t('State.Total', { count: total(), max: 10000 })}</span>
         <Show when={next()}>
-          <Button type="button" variant="secondary" loading={loading()} onClick={() => void load(true)}>{t('State.More')}</Button>
+          <Button type="button" variant="secondary" loading={loading()} disabled={loading()} data-testid="state-more" onClick={() => void load(true)}>{t('State.More')}</Button>
         </Show>
       </div>
     </section>

@@ -2,6 +2,8 @@ package state
 
 import (
 	"encoding/json"
+	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,6 +28,20 @@ func TestNULEscapeIsTold(t *testing.T) {
 	var se *Error
 	require.ErrorAs(t, err, &se)
 	assert.Equal(t, CodeValueInvalid, se.Code)
+}
+
+// A value that has no JSON form is invalid, not too large: a graph may branch on the code.
+func TestValueWithoutJSONIsInvalid(t *testing.T) {
+	for _, value := range []any{math.NaN(), func() {}, json.RawMessage(`"a\u0000b"`)} {
+		_, err := Encode(value)
+		var se *Error
+		require.ErrorAs(t, err, &se)
+		assert.Equal(t, CodeValueInvalid, se.Code)
+	}
+	_, err := Encode(strings.Repeat("x", MaxValueBytes))
+	var se *Error
+	require.ErrorAs(t, err, &se)
+	assert.Equal(t, CodeValueTooLarge, se.Code)
 }
 
 // A lifetime too long for a duration is refused, not wrapped into a short one.

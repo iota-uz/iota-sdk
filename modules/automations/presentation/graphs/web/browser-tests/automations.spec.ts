@@ -614,6 +614,21 @@ test.describe('state panel', () => {
     await expect(value).toHaveValue('5')
   })
 
+  test('no next page is asked for while the first one reloads', async ({ page }) => {
+    await settings(page, '&statePage=1&delay=1000')
+    const panel = page.getByTestId('state-panel')
+    const rows = panel.getByTestId('state-list').locator('li')
+    await expect(rows).toHaveCount(1)
+    await panel.getByRole('button', { name: 'Delete: chat:42' }).click()
+    await panel.getByTestId('state-confirm-delete').click()
+    // The key is deleted and the first page is on its way again: «Show more» waits for it.
+    await expect(panel.getByTestId('state-more')).toBeDisabled()
+    await expect(panel.locator('[data-key="release:v2.4"]')).toBeVisible()
+    await panel.getByTestId('state-more').click()
+    await expect(rows).toHaveCount(2)
+    await expect(panel.locator('[data-key="chat:42"]')).toHaveCount(0)
+  })
+
   test('without Automations.Author the keys are read only', async ({ page }) => {
     await settings(page, '&cannot=author')
     const panel = page.getByTestId('state-panel')

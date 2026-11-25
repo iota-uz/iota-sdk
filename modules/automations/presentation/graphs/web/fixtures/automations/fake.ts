@@ -20,6 +20,8 @@ export interface FakeOptions {
   liveFailsOnce: boolean
   /** The answer of the first node test is lost after the test ran (the retry must not run it again). */
   testLostOnce: boolean
+  /** The keys of a page of the graph's memory (0: the request's limit). */
+  statePage?: number
   /** The review after a digest refusal fails once (a network error). */
   reviewFailsAfterChange: boolean
   /** Delay of automations.get for an old version (ms): a request still on the way when Back is pressed. */
@@ -410,7 +412,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       const q = (p.search ?? '').toLowerCase()
       const all = [...memory.values()].filter((e) => e.key.toLowerCase().includes(q)).sort((a, b) => (a.key < b.key ? -1 : 1))
       const after = p.cursor ? all.filter((e) => e.key > p.cursor!) : all
-      const limit = p.limit ?? 100
+      const limit = opts.statePage || (p.limit ?? 100)
       const items = after.slice(0, limit)
       return { items, next_cursor: after.length > limit ? items[items.length - 1]!.key : null, total: memory.size }
     },

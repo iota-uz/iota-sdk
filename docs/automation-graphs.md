@@ -433,7 +433,8 @@ updated_by_run)` holds them per tenant and automation; `pkg/automation/state` is
   the transaction of the step, so the write commits with the step or not at all, and a node that fails
   writes nothing. It declares `DryRun: capture`: a dry run and a backtest trace the rendered key and value
   and write nothing. A refusal is the node's `failed` outcome with `output.error.code`:
-  `state_value_too_large` (over 16 KiB as JSON), `state_key_invalid` (empty or over 200 characters),
+  `state_value_too_large` (over 16 KiB as JSON), `state_value_invalid` (no JSON form, or a NUL character),
+  `state_key_invalid` (empty or over 200 characters),
   `state_ttl_invalid` and `state_limit_exceeded` (more than 10 000 live keys; expired ones do not count, and
   rewriting a key that is there is always allowed).
 - **Read.** In the expressions and templates of a step (not of a trigger's filter), `state` is a lookup-only

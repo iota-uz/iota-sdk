@@ -139,7 +139,7 @@ func Encode(value any) (json.RawMessage, error) {
 	if !ok {
 		b, err := json.Marshal(value)
 		if err != nil {
-			return nil, refuse(CodeValueTooLarge, "the value is not JSON: %v", err)
+			return nil, refuse(CodeValueInvalid, "the value is not JSON: %v", err)
 		}
 		raw = b
 	}
