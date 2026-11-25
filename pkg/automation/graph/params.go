@@ -20,6 +20,9 @@ type ParamsSpec interface {
 type Issue struct {
 	Path    []any
 	Message string
+	// Code is the graph error code of the issue; empty: CodeParams. A custom ParamsSpec sets it for a
+	// refusal the editor tells apart (an unknown model, a model without vision).
+	Code string
 }
 
 type schemaParams struct {

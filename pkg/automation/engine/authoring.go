@@ -131,9 +131,13 @@ type TestNodeInput struct {
 
 // TestNodeResult is what the node did.
 type TestNodeResult struct {
-	Outcome    string
-	Output     json.RawMessage
-	Logs       []string
+	Outcome string
+	Output  json.RawMessage
+	Logs    []string
+	// Request is the rendered params of the call the node made (its prompt, its input), as JSON with the
+	// connection's secrets masked; the credentials themselves are never in it. Empty for a node that
+	// makes no call.
+	Request    json.RawMessage
 	DurationMS int64
 	Error      *StepError // reason: exception | timeout | network_blocked | connection_unavailable | ...
 }
@@ -606,6 +610,9 @@ func (au *authoring) testNode(ctx context.Context, a Actor, in TestNodeInput, ke
 		if dr.masker != nil {
 			masker = dr.masker
 		}
+		if raw, err := json.Marshal(params); err == nil {
+			res.Request = masker.MaskJSON(raw)
+		}
 		// As in a run: a call whose answer names its outcome by a choice field takes it from the output.
 		if dr.err == nil && dr.outcome == "" && interp.View().Catalog().Nodes[node.Type].Answer != nil {
 			out, _ := decodeMap(dr.output)
@@ -856,6 +863,9 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 		switch {
 		case errors.Is(err, connectors.ErrNeedsReauth):
 			return directResult{err: &StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth}}
+		case errors.Is(err, connectors.ErrNotFound) && strings.HasPrefix(ref.ID, catalog.PlatformPrefix):
+			// As in a run: the platform key was switched off since the catalog was read.
+			return directResult{err: &StepError{Code: catalog.CallUnavailable, Message: platformOffMessage}}
 		case errors.Is(err, connectors.ErrNotFound), errors.Is(err, connectors.ErrNotConnected), errors.Is(err, connectors.ErrUndecryptable):
 			return directResult{err: &StepError{Code: CodeConnectionUnavailable, Message: "the connection is not connected"}}
 		case err != nil:
@@ -863,10 +873,13 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 		}
 		info, creds = &ci, cr
 	}
-	masker := code.NewMasker(map[string]string(creds))
+	masker := code.NewMasker(nil)
+	if info != nil {
+		masker = r.credentialMasker(info.Kind, creds)
+	}
 	timeout := r.cfg.CallLimits.DefaultTimeout
-	if ms, ok := graph.DurationMs(c.params["timeout"]); ok {
-		timeout = min(time.Duration(ms)*time.Millisecond, r.cfg.CallLimits.MaxTimeout)
+	if t, ok := paramTimeout(c.params); ok {
+		timeout = min(t, r.cfg.CallLimits.MaxTimeout)
 	}
 	deadline := time.Now().Add(timeout)
 	in := catalog.CallInput{
@@ -928,15 +941,19 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	if err != nil {
 		return called(directResult{masker: masker, err: &StepError{Code: graph.FailInvalidAnswer, Message: "the output is not JSON"}})
 	}
-	out = masker.MaskJSON(out)
+	// One canonical value: what the cache holds (jsonb refuses U+0000) is what a live call returns, so a
+	// cached decision and a fresh one give a downstream expression the same value.
+	output := withoutNUL(masker.MaskJSON(out)) // a json.RawMessage: bytes would be stored as base64
 	if cacheKey != "" {
-		if b, err := json.Marshal(map[string]any{"outcome": res.Outcome, "output": out}); err == nil {
+		// The output is stored as JSON: bytes would be written as a base64 string, and a cached decision
+		// would answer without its output.
+		if b, err := json.Marshal(map[string]any{"outcome": res.Outcome, "output": output}); err == nil {
 			if err := r.cfg.Decisions.Put(ctx, c.tenant, cacheKey, b); err != nil {
 				r.cfg.Logger.Warn("automation: a decision was not cached", "error", err)
 			}
 		}
 	}
-	return called(directResult{masker: masker, outcome: res.Outcome, output: out})
+	return called(directResult{masker: masker, outcome: res.Outcome, output: output})
 }
 
 // logCollector collects the log lines a node writes during a test (Log).

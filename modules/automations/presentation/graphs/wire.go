@@ -457,18 +457,18 @@ type DryRunRequest struct {
 	Subject Subject                    `json:"subject"`
 	Context map[string]json.RawMessage `json:"context,omitempty"`
 	Events  []json.RawMessage          `json:"events"`
-	// Decisions is how execute nodes answer: scripted (default, from the context), cached or live.
-	Decisions DecisionMode `json:"decisions,omitempty"`
+	// Decisions is how the decisions of models (an LLM, a classifier) are taken: scripted (the default: from
+	// the context), cached (from the decision cache, else a real call recorded there) or live (a real call).
+	Decisions Decisions `json:"decisions,omitempty"`
 }
 
-// DecisionMode is how a dry run's execute nodes answer (#1336).
-type DecisionMode string
+// Decisions is how a dry run takes the decisions of models.
+type Decisions string
 
-// Decision modes of a dry run.
 const (
-	DecisionsScripted DecisionMode = "scripted"
-	DecisionsCached   DecisionMode = "cached"
-	DecisionsLive     DecisionMode = "live"
+	DecisionsScripted Decisions = "scripted"
+	DecisionsCached   Decisions = "cached"
+	DecisionsLive     Decisions = "live"
 )
 
 // TraceStep is a step of a dry run.
@@ -510,9 +510,12 @@ type TestNodeError struct {
 
 // TestNodeResponse is TestNodeResult of #1331.
 type TestNodeResponse struct {
-	Outcome    string          `json:"outcome"`
-	Output     json.RawMessage `json:"output,omitempty"`
-	Logs       []string        `json:"logs,omitempty"`
+	Outcome string          `json:"outcome"`
+	Output  json.RawMessage `json:"output,omitempty"`
+	Logs    []string        `json:"logs,omitempty"`
+	// Request is the rendered params of the call the node made (its prompt, its classifier input), the
+	// connection's secrets masked.
+	Request    json.RawMessage `json:"request,omitempty"`
 	DurationMS int64           `json:"duration_ms,omitempty"`
 	Error      *TestNodeError  `json:"error,omitempty"`
 }

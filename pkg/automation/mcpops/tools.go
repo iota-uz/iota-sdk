@@ -533,7 +533,6 @@ func (t *tools) validate(ctx context.Context, a engine.Actor, in validateIn) (va
 		return validateOut{}, tooLarge("/graph")
 	}
 	out := validateOut{OK: true, Errors: []graph.GraphError{}, Warnings: []graph.GraphError{}}
-	// A graph that validates may still carry warnings: they are reported with ok.
 	warnings, err := t.auth.Validate(ctx, a, in.Graph)
 	var ve *engine.ValidationError
 	switch {
