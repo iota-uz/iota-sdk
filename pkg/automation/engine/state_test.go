@@ -327,3 +327,43 @@ func TestStateWritesInOpenTransactions(t *testing.T) {
 	_, err = p.rt.Memory().Set(ctx, a, am.ID, "after", json.RawMessage(`1`), 0)
 	require.ErrorIs(t, err, engine.ErrNotFound)
 }
+
+// The order that would pass the limit if a renewal did not take the memory's lock: a transaction renews a
+// live key and stays open past the key's old expiry, so a writer of a new key does not see the renewal. It
+// waits for it instead, and then counts it.
+func TestStateRenewalAndNewKeyKeepTheLimit(t *testing.T) {
+	e, p := newStateEnv(t)
+	a := e.human()
+	am := e.create(p, a, stateGraph)
+	ctx := context.Background()
+	_, err := e.db.Exec(ctx, `INSERT INTO automation.state (tenant_id, automation_id, key, value)
+		SELECT $1, $2, 'k' || i, '1' FROM generate_series(1, $3) i`, e.tenant, am.ID, state.MaxKeys-1)
+	require.NoError(t, err)
+	_, err = e.db.Exec(ctx, `INSERT INTO automation.state (tenant_id, automation_id, key, value, expires_at)
+		VALUES ($1, $2, 'x', '1', clock_timestamp() + interval '2 seconds')`, e.tenant, am.ID)
+	require.NoError(t, err)
+
+	renewal, err := e.db.Begin(ctx)
+	require.NoError(t, err)
+	defer func() { _ = renewal.Rollback(ctx) }()
+	_, err = state.Put(ctx, renewal, e.tenant, am.ID, "x", 2, 0, nil)
+	require.NoError(t, err)
+	_, err = renewal.Exec(ctx, `SELECT pg_sleep(2.5)`) // the old expiry of x passes
+	require.NoError(t, err)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := state.Put(ctx, e.db, e.tenant, am.ID, "y", 1, 0, nil)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("the new key did not wait for the renewal: %v", err)
+	case <-time.After(time.Second):
+	}
+	require.NoError(t, renewal.Commit(ctx))
+	var se *state.Error
+	require.ErrorAs(t, <-done, &se)
+	assert.Equal(t, state.CodeLimitExceeded, se.Code)
+	assert.Equal(t, state.MaxKeys, e.count(`SELECT count(*) FROM automation.state`))
+}
