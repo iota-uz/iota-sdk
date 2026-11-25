@@ -31,7 +31,7 @@ templ Badge(url string, c tasks.TaskCounts) {
 }
 
 templ BadgeCount(c tasks.TaskCounts) {
-	<input type="hidden" name="n" value={ fmt.Sprint(c.Open) }/>
+	<input type="hidden" name="n" value={ badgeToken(c) }/>
 	if c.Open > 0 {
 		<span
 			class={ "min-w-6 rounded-full px-1.5 text-center text-xs font-semibold leading-5 tabular-nums",
@@ -346,16 +346,24 @@ templ TaskScreen(p *TaskProps) {
 				<span aria-hidden="true">·</span>
 			}
 			<span>ID</span>
-			<button
-				type="button"
-				class="inline-flex min-h-6 items-center [@media(pointer:coarse)]:min-h-11 gap-1 hover:underline"
-				x-data="{ copied: false }"
-				@click={ fmt.Sprintf("navigator.clipboard && navigator.clipboard.writeText('%s'); copied = true; setTimeout(() => copied = false, 2000)", p.Task.ID.String()) }
-			>
-				@icons.Copy(icons.Props{Size: "14"})
-				<span x-show="!copied">{ tr(ctx, "Copy") }</span>
-				<span x-show="copied" x-cloak role="status">{ tr(ctx, "Copied") }</span>
-			</button>
+			// «Copied» only once the clipboard took the ID; without a clipboard (denied, an insecure page)
+			// the ID shows to copy by hand.
+			<span class="inline-flex flex-wrap items-center gap-2" x-data="{ copied: false, failed: false, timer: null }">
+				<button
+					type="button"
+					class="inline-flex min-h-6 items-center [@media(pointer:coarse)]:min-h-11 gap-1 hover:underline"
+					data-testid="automations-task-copy-id"
+					@click={ copyID(p.Task.ID.String()) }
+				>
+					@icons.Copy(icons.Props{Size: "14"})
+					<span x-show="!copied">{ tr(ctx, "Copy") }</span>
+					<span x-show="copied" x-cloak role="status">{ tr(ctx, "Copied") }</span>
+				</button>
+				<span x-show="failed" x-cloak role="status" data-testid="automations-task-id-manual">
+					{ tr(ctx, "CopyFailed") }
+					<code class="select-all break-all text-100">{ p.Task.ID.String() }</code>
+				</span>
+			</span>
 		</p>
 		@relativeTimes()
 	</div>
@@ -413,14 +421,23 @@ templ decisionForm(p *TaskProps) {
 				required = append(required, o.Value)
 			}
 		}
-		state := fmt.Sprintf(`{ pending: '', confirm: '', missing: false, slow: false, timer: null, required: %s,
+		danger := []string{}
+		for _, o := range p.Task.Outcomes {
+			if o.Style == tasks.StyleDanger {
+				danger = append(danger, o.Value)
+			}
+		}
+		// A danger outcome goes only from its confirmation panel (confirm is its value, sent along):
+		// anything else (Enter in a field submitting the hidden button) opens the panel instead.
+		state := fmt.Sprintf(`{ pending: '', confirm: %s, missing: false, slow: false, timer: null, required: %s, danger: %s,
 			check(e) {
 				var params = e.detail.parameters, outcome = params && (params.get ? params.get('outcome') : params.outcome);
+				if (this.danger.indexOf(outcome) >= 0 && this.confirm !== outcome) { e.preventDefault(); this.confirm = outcome; this.$nextTick(() => { var c = this.$refs['cancel_' + outcome]; if (c) c.focus() }); return; }
 				var comment = this.$refs.comment ? this.$refs.comment.value.trim() : '';
 				if (this.required.indexOf(outcome) >= 0 && comment === '') { e.preventDefault(); this.missing = true; this.confirm = ''; this.$nextTick(() => this.$refs.comment.focus()); return; }
 				this.missing = false; this.pending = outcome; this.slow = false; clearTimeout(this.timer); this.timer = setTimeout(() => this.slow = true, 4000);
 			},
-			done() { clearTimeout(this.timer); this.pending = ''; this.slow = false; } }`, jsList(required))
+			done() { clearTimeout(this.timer); this.pending = ''; this.slow = false; } }`, jsString(p.Confirm), jsList(required), jsList(danger))
 	}}
 	<form
 		method="post"
@@ -433,8 +450,12 @@ templ decisionForm(p *TaskProps) {
 		x-data={ state }
 		@htmx:config-request="check($event)"
 		@htmx:after-request="done()"
+		@keydown.enter="if ($event.target.tagName === 'INPUT' && !$event.isComposing) $event.preventDefault()"
 		data-testid="automations-task-form"
 	>
+		// Enter in a one-line field submits nothing (implicit submission would press the first button,
+		// possibly a hidden danger one): an outcome is always a button pressed.
+		<input type="hidden" name="confirm" :value="confirm"/>
 		if len(p.Fields) > 0 {
 			<div class="mb-4 flex flex-col gap-4">
 				for _, f := range p.Fields {
@@ -537,11 +558,30 @@ templ decisionForm(p *TaskProps) {
 templ field(f Field) {
 	{{ id := "automations-task-field-" + f.Name }}
 	<div class="flex flex-col">
-		if f.Kind == "boolean" {
+		if f.Kind == "boolean" && f.Required {
+			// Required: a checkbox, unchecked is an explicit no.
 			<label class="inline-flex min-h-11 items-center gap-2 text-sm text-100">
 				<input type="checkbox" name={ "field." + f.Name } value="true" checked?={ f.Value != "" } class="h-5 w-5"/>
 				{ f.Title }
 			</label>
+		} else if f.Kind == KindDocument {
+			<label for="automations-task-field-document" class="mb-2 text-sm font-medium text-100">
+				{ tr(ctx, "Field.Document") }
+				if f.Required {
+					<span class="text-red-600" aria-hidden="true">*</span>
+				}
+			</label>
+			<textarea
+				id="automations-task-field-document"
+				name={ documentFormName }
+				rows="6"
+				spellcheck="false"
+				class="form-control form-control-input w-full font-mono"
+				aria-describedby="automations-task-field-document-hint"
+				required?={ f.Required }
+				data-testid="automations-task-field-document"
+			>{ f.Value }</textarea>
+			<p id="automations-task-field-document-hint" class="mt-1 text-xs text-200">{ tr(ctx, "Field.DocumentHint") }</p>
 		} else {
 			<label for={ id } class="mb-2 text-sm font-medium text-100">
 				{ f.Title }
@@ -550,6 +590,13 @@ templ field(f Field) {
 				}
 			</label>
 			switch f.Kind {
+				case "boolean":
+					// Optional: unset (left out), yes or no.
+					<select id={ id } name={ "field." + f.Name } class="form-control form-control-input min-h-11 w-full">
+						<option value=""></option>
+						<option value="true" selected?={ f.Value == "true" }>{ tr(ctx, "Field.Yes") }</option>
+						<option value="false" selected?={ f.Value == "false" }>{ tr(ctx, "Field.No") }</option>
+					</select>
 				case "enum":
 					<select id={ id } name={ "field." + f.Name } class="form-control form-control-input min-h-11 w-full" required?={ f.Required }>
 						if !f.Required {
@@ -637,7 +684,7 @@ templ delegatePanel(p *TaskProps) {
 					<p role="alert" class="text-sm text-red-600" data-testid="automations-task-delegate-error">{ p.DelegateError }</p>
 				}
 				<div>
-					<button type="submit" class="btn btn-secondary btn-normal min-h-11 w-full justify-center sm:w-auto" data-testid="automations-task-delegate-submit" :disabled="!chosen">
+					<button type="submit" class="btn btn-secondary btn-normal min-h-11 w-full justify-center sm:w-auto" data-testid="automations-task-delegate-submit" :disabled="!chosen" data-retry-hint={ tr(ctx, "RetryChooseColleague") } data-retry-focus="#automations-task-delegate-search">
 						<span x-show="!pending">{ tr(ctx, "Delegate.Submit") }</span>
 						<span x-show="pending" x-cloak>{ tr(ctx, "Delegate.Submitting") }</span>
 					</button>
@@ -757,6 +804,7 @@ templ connectionBanner() {
 		@icons.WifiSlash(icons.Props{Size: "18"})
 		<span>{ tr(ctx, "Offline.Text") }</span>
 		<button type="button" class="btn btn-secondary btn-normal ml-auto min-h-11" @click="retry()">{ tr(ctx, "Retry") }</button>
+		<span x-show="hint" x-text="hint" x-cloak class="basis-full text-200" data-testid="automations-tasks-retry-hint"></span>
 	</div>
 }
 

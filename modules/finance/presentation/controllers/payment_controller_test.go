@@ -680,6 +680,95 @@ func TestPaymentController_Update_Success(t *testing.T) {
 	require.Equal(t, "Updated payment comment", updatedPayment.Comment())
 }
 
+func TestPaymentController_Update_BlankCategoryClearsIt(t *testing.T) {
+	t.Parallel()
+	adminUser := itf.User(
+		permissions.PaymentRead,
+		permissions.PaymentUpdate,
+		permissions.PaymentCreate,
+	)
+
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewComponent()).Build().
+		AsUser(adminUser)
+
+	env := suite.Environment()
+	createCurrencies(t, env, currency.USD)
+
+	paymentService := itf.GetService[services.PaymentService](env)
+	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
+	counterpartyService := itf.GetService[services.CounterpartyService](env)
+	paymentCategoryService := itf.GetService[services.PaymentCategoryService](env)
+	controller := controllers.NewPaymentsController(paymentService, moneyAccountService, counterpartyService, paymentCategoryService)
+	suite.Register(controller)
+
+	account := moneyAccountEntity.New(
+		"Update Test Account",
+		money.NewFromFloat(1000.00, "USD"),
+		moneyAccountEntity.WithTenantID(env.Tenant.ID),
+	)
+
+	createdAccount, err := moneyAccountService.Create(env.Ctx, account)
+	require.NoError(t, err)
+
+	category := paymentCategoryEntity.New(
+		"Update Test Category",
+		paymentCategoryEntity.WithDescription("Update test category"),
+		paymentCategoryEntity.WithTenantID(env.Tenant.ID),
+	)
+
+	createdCategory := createPaymentCategory(t, env.Ctx, paymentCategoryService, category)
+
+	counterparty1 := counterparty.New(
+		"Update Test Counterparty",
+		counterparty.Customer,
+		counterparty.Individual,
+		counterparty.WithTenantID(env.Tenant.ID),
+	)
+
+	createdCounterparty, err := counterpartyService.Create(env.Ctx, counterparty1)
+	require.NoError(t, err)
+
+	payment1 := paymentAggregate.New(
+		money.NewFromFloat(100.00, "USD"),
+		createdCategory,
+		paymentAggregate.WithTenantID(env.Tenant.ID),
+		paymentAggregate.WithAccount(createdAccount),
+		paymentAggregate.WithCounterpartyID(createdCounterparty.ID()),
+		paymentAggregate.WithUser(adminUser),
+		paymentAggregate.WithComment("Original payment"),
+		paymentAggregate.WithTransactionDate(time.Now()),
+		paymentAggregate.WithAccountingPeriod(time.Now()),
+	)
+
+	createdPayment1, err := paymentService.Create(env.Ctx, payment1)
+	require.NoError(t, err)
+
+	now := time.Now()
+	formData := url.Values{}
+	formData.Set("Amount", "350.75")
+	formData.Set("AccountID", createdAccount.ID().String())
+	formData.Set("PaymentCategoryID", "")
+	formData.Set("CounterpartyID", createdCounterparty.ID().String())
+	formData.Set("Comment", "Updated payment comment")
+	formData.Set("TransactionDate", time.Time(shared.DateOnly(now)).Format(time.DateOnly))
+	formData.Set("AccountingPeriod", time.Time(shared.DateOnly(now)).Format(time.DateOnly))
+
+	suite.POST(fmt.Sprintf("%s/%s", PaymentBasePath, createdPayment1.ID().String())).
+		Form(formData).
+		Expect(t).
+		Status(302).
+		RedirectTo(PaymentBasePath)
+
+	updatedPayment, err := paymentService.GetByID(env.Ctx, createdPayment1.ID())
+	require.NoError(t, err)
+
+	require.Equal(t, int64(35075), updatedPayment.Amount().Amount())
+	require.Equal(t, "Updated payment comment", updatedPayment.Comment())
+	require.Equal(t, uuid.Nil, updatedPayment.Category().ID())
+}
+
 func TestPaymentController_Update_ValidationError(t *testing.T) {
 	t.Parallel()
 	adminUser := itf.User(

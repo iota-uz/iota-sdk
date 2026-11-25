@@ -50,6 +50,9 @@ type TaskProps struct {
 	Error, ErrorOutcome string
 	// Notice "closed": the task closed before the decision.
 	Notice string
+	// Confirm is the danger outcome whose confirmation panel opens with the screen (a danger decision
+	// sent without its confirmation).
+	Confirm string
 
 	DelegateOpen    bool
 	DelegateComment string
@@ -263,6 +266,15 @@ func myDecisionLine(ctx context.Context, v tasks.TaskView) string {
 	return trf(ctx, "MyDecision", map[string]any{"Outcome": v.OutcomeLabel(*v.MyDecision)})
 }
 
+// badgeToken is what the counter shows, as its refresh sends it back: the open count and whether it
+// is red (an overdue task), so a task falling overdue repaints it while the count stays.
+func badgeToken(c tasks.TaskCounts) string {
+	if c.Overdue > 0 {
+		return fmt.Sprintf("%d!", c.Open)
+	}
+	return fmt.Sprint(c.Open)
+}
+
 func badgeText(n int) string {
 	if n > 99 {
 		return "99+"
@@ -315,9 +327,14 @@ func connection(rereadOnline bool) templ.Attributes {
 		reread = "true"
 	}
 	return templ.Attributes{
-		"x-data": `{ offline: !navigator.onLine, lastSubmit: null, lastRead: null, rereadOnline: ` + reread + `,
+		// A button that can no longer send (the delegation whose colleague was cleared) keeps the banner
+		// and asks for what is missing: its data-retry-hint is shown and data-retry-focus focused.
+		"x-data": `{ offline: !navigator.onLine, lastSubmit: null, lastRead: null, hint: '', rereadOnline: ` + reread + `,
 			action(d) { const verb = d.requestConfig && d.requestConfig.verb; return (!!verb && verb.toLowerCase() !== 'get') || (!!d.elt && d.elt.tagName === 'BUTTON') },
-			retry() { this.offline = false; const b = this.lastSubmit || this.lastRead; this.lastSubmit = null; this.lastRead = null;
+			retry() { const b = this.lastSubmit || this.lastRead;
+				if (b && b.tagName === 'BUTTON' && b.disabled && document.body.contains(b)) { this.offline = true; this.hint = b.dataset.retryHint || '';
+					const f = b.dataset.retryFocus && document.querySelector(b.dataset.retryFocus); if (f) f.focus(); return }
+				this.hint = ''; this.offline = false; this.lastSubmit = null; this.lastRead = null;
 				if (!b || !document.body.contains(b)) { location.reload() }
 				else if (b.tagName === 'FORM') { b.requestSubmit() }
 				else if (b.tagName === 'BUTTON') { b.click() }
@@ -328,7 +345,7 @@ func connection(rereadOnline bool) templ.Attributes {
 		// neither replaces the failed action nor clears its banner when it succeeds.
 		"@htmx:before-request": `const d = $event.detail, e = d.requestConfig && d.requestConfig.triggeringEvent;
 			if (action(d)) lastSubmit = (e && e.submitter) || d.elt || null`,
-		"@htmx:after-request": `const d = $event.detail; if (d.successful && action(d)) { offline = false; lastSubmit = null }
+		"@htmx:after-request": `const d = $event.detail; if (d.successful && action(d)) { offline = false; lastSubmit = null; hint = '' }
 			if (d.successful && d.elt === lastRead) { lastRead = null; if (!lastSubmit) offline = false }`,
 		// The screen's banner is the signal: the global error toast (which would cover the decision
 		// buttons on a phone) is not shown for this screen's requests.
@@ -343,4 +360,12 @@ func connection(rereadOnline bool) templ.Attributes {
 		// goes and a list reads itself again.
 		"@online.window": "if (offline && !lastSubmit) { if (lastRead) { retry() } else { offline = false; if (rereadOnline) location.reload() } }",
 	}
+}
+
+// copyID copies the task ID: «Copied» once the clipboard took it, else the ID shows to copy by hand
+// (no clipboard on an insecure page, access denied).
+func copyID(id string) string {
+	return `const done = (ok) => { copied = ok; failed = !ok; clearTimeout(timer); if (ok) timer = setTimeout(() => copied = false, 2000) };
+		try { if (!navigator.clipboard || !navigator.clipboard.writeText) { done(false); return }
+			navigator.clipboard.writeText(` + jsString(id) + `).then(() => done(true), () => done(false)) } catch (e) { done(false) }`
 }

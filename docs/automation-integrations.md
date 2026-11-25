@@ -19,10 +19,13 @@ components := slices.DeleteFunc(modules.Components(), func(c composition.Compone
     return c.Descriptor().Name == "automations"
 })
 components = append(components, automations.NewComponent(
-    automations.WithConnectors(telegram.New(), smtp.New()),
+    automations.WithConnectors(myConnector),
     // automations.WithUsageIndex(engine.Usage) — подключает #1339
 ))
 ```
+
+Коннекторы OpenAI, Jev, SMS (Eskiz, Twilio), MCP, Email (smtp, imap) и Telegram bot модуль регистрирует сам, если приложение не
+зарегистрировало свой коннектор того же вида (`WithoutMCP`, `WithoutEmail`, `WithoutTelegram` их убирают).
 
 Без `WithUsageIndex` модуль берёт `connectors.UsageIndex` из контейнера, если его
 кто-то предоставил; иначе «Используется в» пусто, и удаление не блокируется.

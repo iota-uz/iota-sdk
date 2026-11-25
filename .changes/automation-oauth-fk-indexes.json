@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Index the foreign keys of automation.oauth_states (user_id, connection_id) and automation.connection_requests (connection_id) so deleting a user or a connection no longer scans them."}

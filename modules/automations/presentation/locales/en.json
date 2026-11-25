@@ -553,7 +553,7 @@
       },
       "Empty": {
         "Mine": "No tasks waiting for you",
-        "MineHint": "When an automation asks you, your role or your group to decide, the task appears here and you get a notification.",
+        "MineHint": "When an automation asks you, your role or your group to decide, the task appears here.",
         "Overdue": "Nothing is overdue",
         "OverdueHint": "Open tasks past their due time appear here.",
         "Decided": "You have not decided any task yet",
@@ -670,8 +670,15 @@
         "Text": "No connection to the server. What you typed stays here."
       },
       "Field": {
-        "Null": "Empty (null)"
-      }
+        "Null": "Empty (null)",
+        "Yes": "Yes",
+        "No": "No",
+        "Document": "Decision fields (JSON)",
+        "DocumentHint": "Enter the decision's fields as a JSON object; they are checked against the task's form."
+      },
+      "Unconfirmed": "Confirm the decision below: it was not sent.",
+      "RetryChooseColleague": "Choose a colleague again, then press «Pass the task».",
+      "CopyFailed": "Could not copy. Select the ID and copy it:"
     }
   }
 }

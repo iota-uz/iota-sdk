@@ -8,9 +8,10 @@
 //	components := slices.DeleteFunc(modules.Components(), func(c composition.Component) bool {
 //	    return c.Descriptor().Name == "automations"
 //	})
-//	components = append(components, automations.NewComponent(automations.WithConnectors(telegram.New())))
+//	components = append(components, automations.NewComponent(automations.WithConnectors(myConnector)))
 //
-// or registers connectors on the resolved connectors.Directory before serving requests.
+// or registers connectors on the resolved connectors.Directory before serving requests. The SDK's AI, SMS, MCP,
+// email and Telegram bot connectors are registered by the module itself unless the application registered its own of the kind.
 //
 // The component provides the connector Directory, the catalog Registry with the built-in node types
 // (set, code, http, start_automation, run_automation and the actions modules contribute through
@@ -31,6 +32,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -144,6 +146,7 @@ type component struct {
 	noBackground bool
 	noMCP        bool
 	noEmail      bool
+	noTelegram   bool
 	subjectNames tasks.SubjectResolver
 }
 
@@ -169,6 +172,8 @@ type settingsCfg struct {
 	uploads  uploadsconfig.Config
 	hostPath string
 	origin   string
+	// telegramToken is the platform bot of the Telegram connector (APP_TELEGRAMBOTTOKEN).
+	telegramToken string
 }
 
 func (c *component) readConfig(b *composition.Builder) (settingsCfg, error) {
@@ -227,6 +232,7 @@ func (c *component) readConfig(b *composition.Builder) (settingsCfg, error) {
 		return out, err
 	}
 	out.origin = httpCfg.Origin(appCfg)
+	out.telegramToken = strings.TrimSpace(appCfg.TelegramBotToken)
 	return out, nil
 }
 
@@ -328,7 +334,7 @@ func (c *component) Build(b *composition.Builder) error {
 			}
 			registered[conn.Kind()] = true
 		}
-		// The SDK's own AI, SMS, HTTP/API, MCP and email connectors, unless the application registered its own of the kind.
+		// The SDK's own AI, SMS, HTTP/API, MCP, email and Telegram connectors, unless the application registered its own of the kind.
 		status := lazyStatus{container: container}
 		sdk := []connectors.Connector{
 			openai.New(
@@ -344,6 +350,9 @@ func (c *component) Build(b *composition.Builder) error {
 		}
 		if !c.noEmail {
 			sdk = append(sdk, emailConnectors(container, cfg.smtp, cfg.uploads)...)
+		}
+		if !c.noTelegram {
+			sdk = append(sdk, c.newTelegram(container, cfg))
 		}
 		for _, conn := range sdk {
 			if registered[conn.Kind()] {
@@ -508,7 +517,10 @@ func (c *component) Build(b *composition.Builder) error {
 			if err := startPlatformConnectors(ctx, dir, platform, db, dbErr, warn); err != nil {
 				return nil, err
 			}
-			return nil, nil //nolint:nilnil // a hook with nothing to stop
+			if dbErr != nil {
+				return nil, nil //nolint:nilnil,nilerr // without the database there is no reservation to keep; the start warned
+			}
+			return keepPlatformLeases(dir, platform, db, warn), nil
 		}}}, nil
 	})
 
@@ -834,6 +846,7 @@ func (c *component) buildPages(b *composition.Builder) {
 			Engine:  graphs.Engine{Service: rt.Service(), Authoring: rt.Authoring(), Operations: rt.Operations()},
 			Catalog: reg, Users: persistence.NewUserNames(db), Host: host, Assets: assets, Path: path,
 			IntegrationsPath: integrations.DefaultPath, MessageKeys: keys, Logger: slog.Default(), MCPTools: tools, Links: c.links,
+			Options: connectionOptions{store: store, dir: dir},
 		})
 		if err != nil {
 			return nil, err
@@ -883,54 +896,147 @@ func withConnectorCredentials(creds map[catalog.ConnectorKind]connectors.Platfor
 
 // startPlatformConnectors sets up the platform credential of every connector that has one: the account it names
 // is reserved against the tenants' connections (a credential whose account a tenant's connection holds is
-// withdrawn, and the application does not start when it cannot be withdrawn), and a connector that sets its
-// credential up (a webhook) does it only with the reservation in place. dbErr is the failure to reach the
-// database: no reservation can be made or checked then, so no webhook is set.
+// withdrawn; one that cannot be withdrawn stops the start, ErrPlatformNotWithdrawable), and a connector that sets its
+// credential up (a webhook) does it only with the reservation in place, under the account's lock: two instances
+// that start together (a rolling update) set the webhook one after the other, and a tenant's save of the account
+// waits. dbErr is the failure to reach the database: no reservation can be made or checked then, so no webhook is
+// set. The reservation is a lease (connectors.PlatformLease) that renewPlatformConnectors keeps.
 func startPlatformConnectors(ctx context.Context, dir connectors.Directory, platform connectors.PlatformCredentials, db *pgxpool.Pool, dbErr error, warn func(kind catalog.ConnectorKind, format string, err error)) error {
 	for _, conn := range dir.List() {
 		starter, isStarter := conn.(connectors.PlatformStarter)
 		ex, exclusive := conn.(connectors.ExclusiveIdentity)
 		creds, _, has := platform.Platform(conn.Kind())
 		if !has {
-			// No platform credential is configured (any more): the account it held is nobody's
-			// reservation. Its webhook cannot be removed without its token, which is gone with the
-			// configuration.
+			// No platform credential is configured (any more): the account it held is released once no
+			// instance runs with it (its lease ran out). Its webhook cannot be removed without its token,
+			// which is gone with the configuration.
 			if exclusive && dbErr == nil {
-				if err := connectors.ReleasePlatformIdentities(ctx, db, conn.Kind()); err != nil {
-					warn(conn.Kind(), "automations: the platform reservation of %s was not released: %v", err)
+				if err := connectors.PrunePlatformIdentities(ctx, db, conn.Kind()); err != nil {
+					warn(conn.Kind(), "automations: the platform reservations of %s were not pruned: %v", err)
 				}
 			}
 			continue
 		}
-		// The platform credential in effect (the configuration's, else the connector's own) is the
-		// one that is registered, verified and reserved: an account a tenant's connection holds
-		// cannot be the platform's too, and is then not offered to tenants as a platform credential.
-		if exclusive && dbErr == nil {
-			if err := connectors.ReservePlatformIdentity(ctx, db, conn.Kind(), ex.ExternalID(creds)); err != nil {
-				w, ok := platform.(connectors.PlatformWithdrawer)
-				if !ok {
-					// A credential that cannot be withdrawn would be served next to the account of a
-					// tenant that holds it: the application does not start with it.
-					return fmt.Errorf("automations: the platform credential of %s cannot be used and cannot be withdrawn: %w", conn.Kind(), err)
+		if !exclusive {
+			if isStarter {
+				if err := starter.StartPlatform(ctx, creds); err != nil {
+					// The application starts without it: the platform credential works for sending.
+					warn(conn.Kind(), "automations: the platform credential of %s was not set up: %v", err)
 				}
-				w.Withdraw(conn.Kind())
-				warn(conn.Kind(), "automations: the platform credential of %s is withdrawn: %v", err)
-				continue
 			}
-		}
-		if !isStarter {
 			continue
 		}
-		if exclusive && dbErr != nil {
-			// Without the reservation the webhook could replace one a tenant's connection holds: the
-			// platform credential keeps working for sending, and is set up at the next start.
-			warn(conn.Kind(), "automations: the platform credential of %s was not set up: %v", dbErr)
+		if _, ok := platform.(connectors.PlatformWithdrawer); !ok {
+			// The reservation of an exclusive account is a lease: once it ran out (the database was unreachable
+			// longer than the lease) a tenant's connection may take the account, and the credential must then stop
+			// being served. A set that cannot withdraw it cannot honour that: the application does not start with it.
+			return fmt.Errorf("automations: the platform credential of %s: %w", conn.Kind(), ErrPlatformNotWithdrawable)
+		}
+		if dbErr != nil {
+			if isStarter {
+				// Without the reservation the webhook could replace one a tenant's connection holds: the
+				// platform credential keeps working for sending, and is set up at the next start.
+				warn(conn.Kind(), "automations: the platform credential of %s was not set up: %v", dbErr)
+			}
 			continue
 		}
-		if err := starter.StartPlatform(ctx, creds); err != nil {
+		// The platform credential in effect (the configuration's, else the connector's own) is the one that is
+		// registered, verified and reserved: an account a tenant's connection holds cannot be the platform's
+		// too, and is then not offered to tenants as a platform credential.
+		var start func(context.Context) error
+		if isStarter {
+			start = func(ctx context.Context) error { return starter.StartPlatform(ctx, creds) }
+		}
+		strayKey := ""
+		if k, ok := conn.(connectors.PlatformStrayKeyer); ok {
+			strayKey = k.PlatformStrayKey(creds)
+		}
+		err := connectors.StartPlatformIdentity(ctx, db, conn.Kind(), ex.ExternalID(creds), strayKey, start)
+		switch {
+		case connectors.IsPlatformStartError(err):
 			// The application starts without it: the platform credential works for sending.
 			warn(conn.Kind(), "automations: the platform credential of %s was not set up: %v", err)
+		case errors.Is(err, connectors.ErrIdentityTaken):
+			// A tenant's connection holds the account: the credential is served to nobody.
+			withdrawPlatform(platform, conn.Kind())
+			warn(conn.Kind(), "automations: the platform credential of %s is withdrawn: %v", err)
+			continue
+		case err != nil:
+			// The reservation could not be checked (the database failed): no webhook is set, and the credential keeps
+			// sending; the renewal reserves it once the database answers.
+			warn(conn.Kind(), "automations: the platform credential of %s was not set up: %v", err)
+			continue
+		}
+		// Accounts a previous platform credential held are released once no instance runs with them.
+		if err := connectors.PrunePlatformIdentities(ctx, db, conn.Kind()); err != nil {
+			warn(conn.Kind(), "automations: the platform reservations of %s were not pruned: %v", err)
 		}
 	}
 	return nil
+}
+
+// ErrPlatformNotWithdrawable is a platform credential of an exclusive account (a Telegram bot) in a
+// connectors.PlatformCredentials that is not a connectors.PlatformWithdrawer: its reservation is a lease, and a
+// credential whose account a tenant takes after the lease ran out must stop being served.
+var ErrPlatformNotWithdrawable = errors.New("a platform credential of an exclusive account needs a PlatformCredentials that can withdraw it")
+
+// withdrawPlatform takes the platform credential of a kind out of service; false when the set cannot withdraw.
+func withdrawPlatform(platform connectors.PlatformCredentials, kind catalog.ConnectorKind) bool {
+	w, ok := platform.(connectors.PlatformWithdrawer)
+	if ok {
+		w.Withdraw(kind)
+	}
+	return ok
+}
+
+// renewPlatformConnectors renews the lease of the platform credential's reservation of every exclusive connector
+// this instance runs with, and releases the reservations whose lease ran out (accounts no instance runs with any
+// more). An account a tenant's connection took meanwhile (the lease ran out while the database was unreachable)
+// withdraws the credential, as at the start; one that cannot be withdrawn is logged.
+func renewPlatformConnectors(ctx context.Context, dir connectors.Directory, platform connectors.PlatformCredentials, db *pgxpool.Pool, warn func(kind catalog.ConnectorKind, format string, err error)) {
+	for _, conn := range dir.List() {
+		ex, exclusive := conn.(connectors.ExclusiveIdentity)
+		if !exclusive {
+			continue
+		}
+		if creds, _, has := platform.Platform(conn.Kind()); has {
+			err := connectors.ReservePlatformIdentity(ctx, db, conn.Kind(), ex.ExternalID(creds))
+			switch {
+			case errors.Is(err, connectors.ErrIdentityTaken):
+				// The start refuses a set that cannot withdraw (ErrPlatformNotWithdrawable), so the credential
+				// stops being served here.
+				withdrawPlatform(platform, conn.Kind())
+				warn(conn.Kind(), "automations: the platform credential of %s is withdrawn: %v", err)
+			case err != nil:
+				warn(conn.Kind(), "automations: the platform reservation of %s was not renewed: %v", err)
+			}
+		}
+		if err := connectors.PrunePlatformIdentities(ctx, db, conn.Kind()); err != nil {
+			warn(conn.Kind(), "automations: the platform reservations of %s were not pruned: %v", err)
+		}
+	}
+}
+
+// keepPlatformLeases renews the platform reservations every quarter of the lease until stop is called.
+func keepPlatformLeases(dir connectors.Directory, platform connectors.PlatformCredentials, db *pgxpool.Pool, warn func(kind catalog.ConnectorKind, format string, err error)) composition.StopFn {
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		t := time.NewTicker(connectors.PlatformLease / 4)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				renewPlatformConnectors(ctx, dir, platform, db, warn)
+			}
+		}
+	}()
+	return func(context.Context) error {
+		cancel()
+		<-done
+		return nil
+	}
 }

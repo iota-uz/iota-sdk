@@ -669,6 +669,26 @@ type RunRef struct {
 	RunID string `json:"run_id"`
 }
 
+// SearchOptionsRequest is automations.search_options: the choices of a param field with x-options-source (its
+// source) for the step's connection.
+type SearchOptionsRequest struct {
+	Source     string `json:"source"`
+	Query      string `json:"query"`
+	Connection string `json:"connection"`
+}
+
+// SearchOptionsResponse are the choices; none for a connection that offers none (a platform credential).
+type SearchOptionsResponse struct {
+	Options []OptionView `json:"options"`
+}
+
+// OptionView is a choice; Group is a key the editor names (private, group).
+type OptionView struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+	Group string `json:"group,omitempty"`
+}
+
 // MCPToolsRequest is automations.mcp_tools: the tools of an MCP connection.
 type MCPToolsRequest struct {
 	Connection string `json:"connection"`

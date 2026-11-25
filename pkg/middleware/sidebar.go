@@ -4,7 +4,6 @@ package middleware
 import (
 	"context"
 	"net/http"
-	"slices"
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
@@ -93,6 +92,27 @@ func filterItems(items []types.NavigationItem, user user.User) []types.Navigatio
 		}
 	}
 	return filteredItems
+}
+
+// forEveryone keeps the items marked ForEveryone and the folders that contain one, with only those
+// descendants; other leaves are dropped. The mark is not inherited: a marked folder keeps only its
+// marked descendants, and a marked folder left with none is dropped like any empty folder (a marked
+// leaf is kept).
+func forEveryone(items []types.NavigationItem) []types.NavigationItem {
+	out := make([]types.NavigationItem, 0, len(items))
+	for _, item := range items {
+		if len(item.Children) == 0 {
+			if item.ForEveryone {
+				out = append(out, item)
+			}
+			continue
+		}
+		if children := forEveryone(item.Children); len(children) > 0 {
+			item.Children = children
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func getEnabledNavItems(items []types.NavigationItem) []types.NavigationItem {
@@ -193,7 +213,7 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 				filtered := filterItems(items, u)
 				if len(user.EffectivePermissions(u)) == 0 {
 					// Without any permission only the pages about the user's own work stay.
-					filtered = slices.DeleteFunc(filtered, func(item types.NavigationItem) bool { return !item.ForEveryone })
+					filtered = forEveryone(filtered)
 				}
 				pinnedItems, unpinnedItems := splitPinnedItems(filtered)
 				enabledPinnedItems := getEnabledNavItems(pinnedItems)

@@ -101,12 +101,20 @@ export async function decisions(task: string): Promise<number> {
 }
 
 
-/** The ID of the open task a graph started with this title, once the engine opened it. */
-export async function taskIDOf(title: string): Promise<string> {
+/**
+ * The ID of the open task the run (startTask's result) opened, once the engine opened it. The run picks
+ * the task, not its title: an open task of an earlier run with the same title is never returned.
+ */
+export async function taskIDOf(run: string): Promise<string> {
 	let id = '';
 	await expect.poll(async () => {
 		id = await withDatabase(async (db) => {
-			const { rows } = await db.query(`SELECT id FROM extruntime.human_tasks WHERE title->>'en' = $1 AND status = 'open'`, [title]);
+			const { rows } = await db.query(
+				`SELECT t.id FROM extruntime.human_tasks t
+				 JOIN automation.runs r ON r.tenant_id = t.tenant_id AND r.instance_id = t.instance_id
+				 WHERE r.id = $1 AND t.status = 'open'`,
+				[run],
+			);
 			return (rows[0]?.id as string | undefined) ?? '';
 		});
 		return id;

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -196,6 +198,10 @@ type Task struct {
 	Title     manifest.Label
 	CreatedAt time.Time
 	DecidedAt *time.Time
+	// Position is where Tasks listed the task (CursorAfter): its due time as
+	// the traversal's first snapshot saw it, and that snapshot. Zero outside
+	// Tasks.
+	Position TaskCursor
 }
 
 // TaskAudience judges membership in role and group assignees by current
@@ -660,9 +666,20 @@ func (e *Engine) TasksByID(ctx context.Context, tenant uuid.UUID, ids []uuid.UUI
 	if len(ids) == 0 {
 		return []Task{}, nil
 	}
-	tasks, err := e.queryTasks(ctx, e.cfg.DB, tenant, `t.id = ANY($2)`, ids)
+	// The task rows and their assignees, delegations and decisions come from
+	// one snapshot: a vote that closes a task between the reads is either
+	// wholly seen (the task decided) or not at all.
+	tx, err := e.cfg.DB.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return nil, serrors.FromDB(opManage, err)
+	}
+	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+	tasks, err := e.queryTasks(ctx, tx, tenant, `t.id = ANY($2)`, ids)
 	if err != nil {
 		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, serrors.FromDB(opManage, err)
 	}
 	at := make(map[uuid.UUID]Task, len(tasks))
 	for _, t := range tasks {
@@ -786,8 +803,8 @@ func (e *Engine) dueTask(ctx context.Context, tx pgx.Tx, rs *runState, taskID uu
 	if level < len(steps) {
 		step := steps[level]
 		tag, err := tx.Exec(ctx, `
-			INSERT INTO extruntime.human_task_escalations (task_id, tenant_id, step, added, applied_at)
-			VALUES ($1, $2, $3, $4, clock_timestamp()) ON CONFLICT (task_id, step) DO NOTHING`,
+			INSERT INTO extruntime.human_task_escalations (task_id, tenant_id, step, added, applied_at, due_before)
+			VALUES ($1, $2, $3, $4, clock_timestamp(), (SELECT due_at FROM extruntime.human_tasks WHERE id = $1)) ON CONFLICT (task_id, step) DO NOTHING`,
 			taskID, rs.inst.TenantID, level, []byte(marshal(step.Add)))
 		if err != nil {
 			return false, nil, serrors.FromDB(opCall, err)
@@ -1054,17 +1071,25 @@ func (e *Engine) assigned(ctx context.Context, subj spi.Subject, list []TaskAssi
 	if e.cfg.TaskAudience == nil {
 		return false, nil
 	}
+	// A failed lookup proves nothing either way: the other role and group
+	// assignees are still asked, and the failure is the answer only when none
+	// of them covers the user.
+	var lookupErr error
 	for _, a := range list {
 		if a.Kind != TaskAssignRole && a.Kind != TaskAssignGroup {
 			continue
 		}
 		ok, err := e.cfg.TaskAudience.IsMember(ctx, subj.TenantID, subj.UserID, a)
 		if err != nil {
-			return false, serrors.Wrap(opManage, err)
+			lookupErr = errors.Join(lookupErr, err)
+			continue
 		}
 		if ok {
 			return true, nil
 		}
+	}
+	if lookupErr != nil {
+		return false, serrors.Wrap(opManage, lookupErr)
 	}
 	return false, nil
 }
@@ -1091,6 +1116,41 @@ func (e *Engine) currentSubject(ctx context.Context, actor spi.Subject) (spi.Sub
 }
 
 // ---- management ----
+
+// AuthorizeTask judges, as DecideTask does under the task's lock, whether
+// the actor may decide the task now: it is open and not past its final
+// deadline by the database clock, the actor has not decided it, and their
+// current rights (the SubjectLoader asked again; a blocked user is refused)
+// cover them; the deadline is judged again after the rights lookup. It
+// waits for a run that is escalating or closing the task to commit, so it
+// judges the task after that transition. The deadline can still pass after
+// it returns: the caller does not start its effect past it. It records nothing
+// and returns the task as read under the lock, or the error DecideTask
+// would return. A caller that performs an external effect before
+// DecideTask (a task form's action) asks it right before the effect.
+func (e *Engine) AuthorizeTask(ctx context.Context, actor spi.Subject, taskID uuid.UUID) (Task, error) {
+	var t Task
+	err := e.inTx(ctx, func(tx pgx.Tx) error {
+		var err error
+		if t, _, err = e.authorizeLocked(ctx, tx, actor, taskID, "decide"); err != nil {
+			return err
+		}
+		// The rights lookup takes time: the final deadline is judged again,
+		// after it and still under the lock, as the answer's last word.
+		var late bool
+		if err := tx.QueryRow(ctx, `SELECT `+pastFinalDeadline+` FROM extruntime.human_tasks t WHERE t.id = $1`, taskID).Scan(&late); err != nil {
+			return serrors.FromDB(opManage, err)
+		}
+		if late {
+			return serrors.Wrap(opManage, fmt.Errorf("%w: task %s passed its deadline while it was authorized", ErrTaskClosed, taskID))
+		}
+		return nil
+	})
+	if err != nil {
+		return Task{}, err
+	}
+	return t, nil
+}
 
 // DecideTask records the decision of one assignee. The actor must be
 // covered by an assignee by their CURRENT rights (a user, a permission they
@@ -1321,41 +1381,107 @@ func lockTask(ctx context.Context, tx pgx.Tx, tenant, id uuid.UUID) (string, err
 type TaskCursor struct {
 	DueAt *time.Time
 	ID    uuid.UUID
+	// Snapshot is the PostgreSQL snapshot (pg_snapshot text) of the
+	// traversal's first page. A page after the cursor orders each task by its
+	// due time as that snapshot saw it: an escalation it did not see (applied
+	// later, or still uncommitted then) counts with the due time it replaced,
+	// so a task it moved is neither listed again after a page that held it
+	// nor skipped. Empty: by the current due times (a cursor of the
+	// contract's older form).
+	Snapshot string
 }
 
-// CursorAfter is the cursor after a task of a page.
-func CursorAfter(t Task) TaskCursor { return TaskCursor{DueAt: t.DueAt, ID: t.ID} }
+// snapshotText is the text of a pg_snapshot: xmin:xmax:xip,...
+var snapshotText = regexp.MustCompile(`^[0-9]{1,20}:[0-9]{1,20}:([0-9]{1,20}(,[0-9]{1,20})*)?$`)
 
-// String encodes the cursor as "<RFC 3339 due time>/<id>" ("/<id>" without a
-// due time).
+// validSnapshot checks a pg_snapshot text as PostgreSQL reads it: 0 < xmin
+// <= xmax, and each in-progress xid in [xmin, xmax), ascending. Its length is
+// not capped: the inbox writes the whole snapshot (every in-progress xid) into
+// its cursors, and a shortened one would change what counts as seen; the
+// request carrying it is bounded by the HTTP server.
+func validSnapshot(s string) bool {
+	if !snapshotText.MatchString(s) {
+		return false
+	}
+	parts := strings.SplitN(s, ":", 3)
+	xmin, err1 := strconv.ParseUint(parts[0], 10, 64)
+	xmax, err2 := strconv.ParseUint(parts[1], 10, 64)
+	if err1 != nil || err2 != nil || xmin == 0 || xmin > xmax || xmax > math.MaxInt64 {
+		return false
+	}
+	if parts[2] == "" {
+		return true
+	}
+	last := uint64(0)
+	for _, x := range strings.Split(parts[2], ",") {
+		v, err := strconv.ParseUint(x, 10, 64)
+		if err != nil || v < xmin || v >= xmax || v < last {
+			return false
+		}
+		last = v
+	}
+	return true
+}
+
+// CursorAfter is the cursor after a task of a page: its Position when Tasks
+// returned it, else its current sort key.
+func CursorAfter(t Task) TaskCursor {
+	if t.Position.ID == t.ID && t.ID != uuid.Nil {
+		return t.Position
+	}
+	return TaskCursor{DueAt: t.DueAt, ID: t.ID}
+}
+
+// String encodes the cursor as "<RFC 3339 due time>/<id>[/<snapshot>]"
+// (an empty due time for a task without one).
 func (c TaskCursor) String() string {
 	due := ""
 	if c.DueAt != nil {
 		due = c.DueAt.UTC().Format(time.RFC3339Nano)
 	}
-	return due + "/" + c.ID.String()
+	s := due + "/" + c.ID.String()
+	if c.Snapshot != "" {
+		s += "/" + c.Snapshot
+	}
+	return s
 }
 
 // ParseTaskCursor reads a TaskCursor.String.
 func ParseTaskCursor(s string) (TaskCursor, error) {
-	due, id, ok := strings.Cut(s, "/")
-	if !ok {
+	parts := strings.Split(s, "/")
+	if len(parts) < 2 || len(parts) > 3 {
 		return TaskCursor{}, fmt.Errorf("%w: task cursor %q", ErrInvalid, s)
 	}
 	var c TaskCursor
 	var err error
-	if c.ID, err = uuid.Parse(id); err != nil {
+	if c.ID, err = uuid.Parse(parts[1]); err != nil {
 		return TaskCursor{}, fmt.Errorf("%w: task cursor %q", ErrInvalid, s)
 	}
-	if due != "" {
-		t, err := time.Parse(time.RFC3339Nano, due)
+	if parts[0] != "" {
+		t, err := time.Parse(time.RFC3339Nano, parts[0])
 		if err != nil {
 			return TaskCursor{}, fmt.Errorf("%w: task cursor %q", ErrInvalid, s)
 		}
 		c.DueAt = &t
 	}
+	if len(parts) == 3 {
+		if !validSnapshot(parts[2]) {
+			return TaskCursor{}, fmt.Errorf("%w: task cursor %q", ErrInvalid, s)
+		}
+		c.Snapshot = parts[2]
+	}
 	return c, nil
 }
+
+// dueAsOf is the sort key of the inbox ($13 is the snapshot of the
+// traversal's first page): a task's due time as that snapshot saw it. Each
+// escalation records the transaction that applied it (applied_xact) and the
+// due time it replaced (due_before); the earliest step the snapshot did not
+// see tells the due time it saw. A step recorded before applied_xact existed
+// counts as seen.
+const dueAsOf = ` CROSS JOIN LATERAL (SELECT COALESCE((SELECT e.due_before FROM extruntime.human_task_escalations e
+		WHERE e.task_id = t.id AND e.applied_xact IS NOT NULL AND e.due_before IS NOT NULL
+		  AND NOT pg_visible_in_snapshot(e.applied_xact, $13::pg_snapshot) ORDER BY e.step LIMIT 1), t.due_at) AS due) k `
 
 // cursorOf is the cursor after a task of the tenant, from its current sort
 // key; ErrNotFound for an unknown task.
@@ -1427,7 +1553,15 @@ func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, stat
 		}
 		cursor = &c
 	}
+	// The traversal's snapshot: the cursor's, else this read's.
+	var snapshot string
+	if cursor != nil && cursor.Snapshot != "" {
+		snapshot = cursor.Snapshot
+	} else if err := tx.QueryRow(ctx, `SELECT pg_current_snapshot()::text`).Scan(&snapshot); err != nil {
+		return nil, serrors.FromDB(opManage, err)
+	}
 	var ids []uuid.UUID
+	keys := map[uuid.UUID]*time.Time{}
 	for len(ids) < f.Limit {
 		var (
 			hasCursor bool
@@ -1438,23 +1572,23 @@ func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, stat
 			hasCursor, afterDue, afterID = true, cursor.DueAt, cursor.ID
 		}
 		rows, err := tx.Query(ctx, `
-			SELECT t.id, t.due_at,
+			SELECT t.id, k.due,
 				EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id
 					AND ((a.kind = 'user' AND a.user_id = $2) OR (a.kind = 'permission' AND a.ref = ANY($3))))
-			`+taskFrom+`
+			`+taskFrom+dueAsOf+`
 			WHERE t.tenant_id = $1 AND t.status = ANY($4)
 			  AND ($5 = '' OR i.workflow = $5)
 			  AND ($6::boolean IS NULL OR (t.due_at IS NOT NULL AND t.due_at < now()) = $6)
-			  AND (NOT $7 OR (COALESCE(t.due_at, 'infinity'::timestamptz), t.id) > (COALESCE($8::timestamptz, 'infinity'::timestamptz), $9::uuid))
+			  AND (NOT $7 OR (COALESCE(k.due, 'infinity'::timestamptz), t.id) > (COALESCE($8::timestamptz, 'infinity'::timestamptz), $9::uuid))
 			  AND (t.status <> 'open' OR $12 OR NOT `+pastFinalDeadline+`)
 			  AND NOT EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id AND a.delegated_from = $2)
 			  AND (t.status <> 'open' OR NOT EXISTS (SELECT 1 FROM extruntime.human_task_decisions d WHERE d.task_id = t.id AND d.user_id = $2))
 			  AND EXISTS (SELECT 1 FROM extruntime.human_task_assignees a WHERE a.task_id = t.id
 					AND ((a.kind = 'user' AND a.user_id = $2) OR (a.kind = 'permission' AND a.ref = ANY($3))
 					     OR (a.kind IN ('role', 'group') AND a.delegated_from IS NULL AND $10)))
-			ORDER BY COALESCE(t.due_at, 'infinity'::timestamptz), t.id
+			ORDER BY COALESCE(k.due, 'infinity'::timestamptz), t.id
 			LIMIT $11`,
-			current.TenantID, current.UserID, perms, statuses, f.Workflow, f.Overdue, hasCursor, afterDue, afterID, audience, batch, f.PastDeadline)
+			current.TenantID, current.UserID, perms, statuses, f.Workflow, f.Overdue, hasCursor, afterDue, afterID, audience, batch, f.PastDeadline, snapshot)
 		if err != nil {
 			return nil, serrors.FromDB(opManage, err)
 		}
@@ -1489,18 +1623,26 @@ func (e *Engine) inbox(ctx context.Context, tx pgx.Tx, current spi.Subject, stat
 			}
 			if c.direct || covered[c.id] {
 				ids = append(ids, c.id)
+				keys[c.id] = c.due
 			}
 		}
 		if len(cands) < batch {
 			break
 		}
 		last := cands[len(cands)-1]
-		cursor = &TaskCursor{DueAt: last.due, ID: last.id}
+		cursor = &TaskCursor{DueAt: last.due, ID: last.id, Snapshot: snapshot}
 	}
 	if len(ids) == 0 {
 		return []Task{}, nil
 	}
-	return e.queryTasks(ctx, tx, current.TenantID, `t.id = ANY($2) ORDER BY COALESCE(t.due_at, 'infinity'::timestamptz), t.id`, ids)
+	tasks, err := e.queryTasks(ctx, tx, current.TenantID, `t.id = ANY($2) ORDER BY array_position($2::uuid[], t.id)`, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range tasks {
+		tasks[i].Position = TaskCursor{DueAt: keys[tasks[i].ID], ID: tasks[i].ID, Snapshot: snapshot}
+	}
+	return tasks, nil
 }
 
 // coveredByAudience reports which tasks a role or group assignee covers the
@@ -1524,18 +1666,33 @@ func (e *Engine) coveredByAudience(ctx context.Context, q taskQueryer, subj spi.
 	if err != nil {
 		return nil, serrors.FromDB(opManage, err)
 	}
+	// A failed lookup fails only a task no other of its assignees covers the
+	// subject in.
 	member := map[TaskAssignee]bool{}
+	lookupErr := map[TaskAssignee]error{}
 	out := map[uuid.UUID]bool{}
+	failed := map[uuid.UUID]error{}
 	for _, r := range refs {
 		ok, seen := member[r.a]
-		if !seen {
-			if ok, err = e.cfg.TaskAudience.IsMember(ctx, subj.TenantID, subj.UserID, r.a); err != nil {
-				return nil, serrors.Wrap(opManage, err)
+		ferr, errSeen := lookupErr[r.a]
+		if !seen && !errSeen {
+			ok, ferr = e.cfg.TaskAudience.IsMember(ctx, subj.TenantID, subj.UserID, r.a)
+			if ferr != nil {
+				lookupErr[r.a] = ferr
+			} else {
+				member[r.a] = ok
 			}
-			member[r.a] = ok
 		}
-		if ok {
+		switch {
+		case ferr != nil:
+			failed[r.task] = errors.Join(failed[r.task], ferr)
+		case ok:
 			out[r.task] = true
+		}
+	}
+	for task, ferr := range failed {
+		if !out[task] {
+			return nil, serrors.Wrap(opManage, ferr)
 		}
 	}
 	return out, nil

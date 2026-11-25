@@ -539,135 +539,142 @@
       "Misc": "其他"
     },
     "Tasks": {
-      "Title": "My tasks",
-      "Intro": "Decisions automations are waiting for from you: assigned to you, your roles and groups, or passed to you.",
+      "Title": "我的任务",
+      "Intro": "自动化正在等待您做出的决定：分配给您、您的角色和群组，或转交给您的任务。",
       "Tabs": {
-        "Label": "Task lists",
-        "Mine": "Mine",
-        "Overdue": "Overdue",
-        "Decided": "Decided by me"
+        "Label": "任务列表",
+        "Mine": "我的",
+        "Overdue": "已逾期",
+        "Decided": "我已决定"
       },
       "Search": {
-        "Label": "Search tasks",
-        "Placeholder": "Search by task or record"
+        "Label": "搜索任务",
+        "Placeholder": "按任务或记录搜索"
       },
       "Empty": {
-        "Mine": "No tasks waiting for you",
-        "MineHint": "When an automation asks you, your role or your group to decide, the task appears here and you get a notification.",
-        "Overdue": "Nothing is overdue",
-        "OverdueHint": "Open tasks past their due time appear here.",
-        "Decided": "You have not decided any task yet",
-        "DecidedHint": "Tasks you decide stay here, with how they ended.",
-        "Filtered": "Nothing found for «{{.Query}}»",
-        "Reset": "Reset filters",
-        "ToMine": "Open my tasks"
+        "Mine": "没有等待您处理的任务",
+        "MineHint": "当自动化请求您、您的角色或群组做出决定时，任务会显示在这里。",
+        "Overdue": "没有逾期任务",
+        "OverdueHint": "超过截止时间的未完成任务会显示在这里。",
+        "Decided": "您还没有决定任何任务",
+        "DecidedHint": "您决定过的任务会保留在这里，并显示其结果。",
+        "Filtered": "未找到与“{{.Query}}”相关的结果",
+        "Reset": "重置筛选",
+        "ToMine": "打开我的任务"
       },
-      "More": "Show more",
-      "Retry": "Retry",
-      "Back": "My tasks",
-      "Overdue": "Overdue",
-      "Escalated": "Escalated",
+      "More": "显示更多",
+      "Retry": "重试",
+      "Back": "我的任务",
+      "Overdue": "已逾期",
+      "Escalated": "已升级",
       "Via": {
-        "User": "Assigned to you",
-        "Role": "Your role",
-        "Group": "Your group",
-        "Permission": "Your permission",
-        "Delegated": "Passed to you",
-        "DelegatedBy": "Passed from {{.Name}}"
+        "User": "分配给您",
+        "Role": "您的角色",
+        "Group": "您的群组",
+        "Permission": "您的权限",
+        "Delegated": "转交给您",
+        "DelegatedBy": "由 {{.Name}} 转交"
       },
-      "Quorum": "{{.Decided}} of {{.Required}}",
-      "MyDecision": "You decided: {{.Outcome}}",
+      "Quorum": "{{.Decided}} / {{.Required}}",
+      "MyDecision": "您的决定：{{.Outcome}}",
       "Closed": {
-        "DecidedBy": "Already decided by {{.Name}} at {{.At}}: {{.Outcome}}",
-        "Decided": "Decided: {{.Outcome}}",
-        "Expired": "The due time passed: the task closed without a decision",
-        "Cancelled": "The automation was stopped: the task is cancelled",
-        "Changed": "The task changed while you were deciding. Here is how it stands now.",
-        "PastDeadline": "The due time passed: decisions are no longer taken."
+        "DecidedBy": "{{.Name}} 已于 {{.At}} 做出决定：{{.Outcome}}",
+        "Decided": "已决定：{{.Outcome}}",
+        "Expired": "已超过截止时间：任务未经决定即关闭",
+        "Cancelled": "自动化已停止：任务已取消",
+        "Changed": "您做决定期间任务已发生变化。以下是当前状态。",
+        "PastDeadline": "已超过截止时间：不再接受决定。"
       },
       "Decision": {
-        "Heading": "Decision"
+        "Heading": "决定"
       },
       "Comment": {
-        "Label": "Comment",
-        "Required": "required",
-        "RequiredFor": "(required for {{.Outcomes}})",
-        "Hint": "Visible to the automation and the other assignees.",
-        "Missing": "Write a comment: this decision needs one.",
-        "Shortcut": "⌘/Ctrl+Enter — «{{.Outcome}}»."
+        "Label": "备注",
+        "Required": "必填",
+        "RequiredFor": "（{{.Outcomes}} 时必填）",
+        "Hint": "自动化和其他处理人可见。",
+        "Missing": "请填写备注：此决定需要备注。",
+        "Shortcut": "⌘/Ctrl+Enter — “{{.Outcome}}”。"
       },
       "Confirm": {
-        "Label": "Confirm {{.Outcome}}",
-        "Question": "Decide «{{.Outcome}}»?",
-        "Hint": "The decision cannot be changed once it is recorded.",
-        "Cancel": "Cancel"
+        "Label": "确认 {{.Outcome}}",
+        "Question": "确定决定“{{.Outcome}}”吗？",
+        "Hint": "决定一经记录便无法更改。",
+        "Cancel": "取消"
       },
-      "Submitting": "Confirming…",
-      "Slow": "Still waiting for the server. The decision will not be recorded twice.",
+      "Submitting": "正在确认…",
+      "Slow": "仍在等待服务器。决定不会被重复记录。",
       "Form": {
-        "Unavailable": "Form unavailable",
-        "UnavailableHint": "This task is decided with a form this application does not have. Ask the automation's owner to fix the step; until then it cannot be decided here."
+        "Unavailable": "表单不可用",
+        "UnavailableHint": "此任务需要使用本应用中不存在的表单来决定。请联系自动化负责人修复该步骤；在此之前无法在此处决定。"
       },
       "Delegate": {
-        "Open": "Pass to a colleague",
-        "To": "Colleague",
-        "Search": "Find by name or email",
-        "NotFound": "No one matches",
-        "Comment": "Comment for the colleague",
-        "Submit": "Pass the task",
-        "Submitting": "Passing…",
-        "NothingFor": "No one matches «{{.Query}}»"
+        "Open": "转交给同事",
+        "To": "同事",
+        "Search": "按姓名或邮箱查找",
+        "NotFound": "没有匹配的人",
+        "Comment": "给同事的备注",
+        "Submit": "转交任务",
+        "Submitting": "正在转交…",
+        "NothingFor": "没有与“{{.Query}}”匹配的人"
       },
-      "OpenRun": "Open the run",
-      "Copy": "Copy",
-      "Copied": "Copied",
+      "OpenRun": "打开运行记录",
+      "Copy": "复制",
+      "Copied": "已复制",
       "Missing": {
-        "Title": "This task is not available",
-        "Hint": "It was assigned to someone else, passed on, or you are no longer among its assignees.",
-        "Back": "Back to my tasks"
+        "Title": "此任务不可用",
+        "Hint": "它已分配给其他人、已被转交，或者您已不再是其处理人。",
+        "Back": "返回我的任务"
       },
       "Errors": {
-        "ListFailed": "Could not load the tasks",
-        "ListFailedHint": "Check the connection and retry.",
-        "TaskFailed": "Could not open the task",
-        "Invalid": "Check the decision: a required comment or field is missing or wrong.",
-        "DecideFailed": "Could not record the decision. Try again in a minute.",
-        "DelegationDenied": "This task cannot be passed to that person. Pick another colleague.",
-        "DelegateFailed": "Could not pass the task on. Try again in a minute.",
-        "HumanRequired": "Only a person decides a task, in their own session.",
-        "MoreFailed": "Could not load more tasks."
+        "ListFailed": "无法加载任务",
+        "ListFailedHint": "请检查网络连接后重试。",
+        "TaskFailed": "无法打开任务",
+        "Invalid": "请检查决定：缺少必填的备注或字段，或填写有误。",
+        "DecideFailed": "无法记录决定。请稍后重试。",
+        "DelegationDenied": "此任务无法转交给该人员。请选择其他同事。",
+        "DelegateFailed": "无法转交任务。请稍后重试。",
+        "HumanRequired": "任务只能由本人在自己的会话中决定。",
+        "MoreFailed": "无法加载更多任务。"
       },
       "Toast": {
-        "Decided": "Decision recorded",
-        "Delegated": "Passed on",
-        "DelegatedTo": "Passed to {{.Name}}"
+        "Decided": "决定已记录",
+        "Delegated": "已转交",
+        "DelegatedTo": "已转交给 {{.Name}}"
       },
       "Badge": {
         "Open": {
-          "other": "{{.Count}} open tasks"
+          "other": "{{.Count}} 个待处理任务"
         }
       },
       "Time": {
-        "Now": "now",
-        "In": "in {{.Span}}",
-        "Ago": "{{.Span}} ago",
+        "Now": "刚刚",
+        "In": "{{.Span}}后",
+        "Ago": "{{.Span}}前",
         "Minutes": {
-          "other": "{{.Count}} min"
+          "other": "{{.Count}} 分钟"
         },
         "Hours": {
-          "other": "{{.Count}} h"
+          "other": "{{.Count}} 小时"
         },
         "Days": {
-          "other": "{{.Count}} days"
+          "other": "{{.Count}} 天"
         },
-        "Months": "Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec"
+        "Months": "1月,2月,3月,4月,5月,6月,7月,8月,9月,10月,11月,12月"
       },
       "Offline": {
-        "Text": "No connection to the server. What you typed stays here."
+        "Text": "无法连接服务器。您输入的内容会保留在这里。"
       },
       "Field": {
-        "Null": "Empty (null)"
-      }
+        "Null": "空 (null)",
+        "Yes": "是",
+        "No": "否",
+        "Document": "决定字段 (JSON)",
+        "DocumentHint": "以 JSON 对象填写决定字段；将按任务表单校验。"
+      },
+      "Unconfirmed": "请在下方确认决定：尚未发送。",
+      "RetryChooseColleague": "请重新选择同事，然后点击「转交任务」。",
+      "CopyFailed": "无法复制。请选中 ID 手动复制："
     }
   }
 }

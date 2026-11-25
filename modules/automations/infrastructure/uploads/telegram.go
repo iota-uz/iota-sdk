@@ -2,7 +2,6 @@
 package uploads
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -13,67 +12,50 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iota-uz/iota-sdk/modules/automations/services"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/telegram"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 // CoreUploads is the part of the SDK's upload service (modules/core) the Telegram connector uses.
 type CoreUploads interface {
-	CreateKeeping(ctx context.Context, data *upload.CreateDTO) (upload.Upload, error)
-	DownloadableByRoute(storedPath string) bool
+	services.AttachmentUploadService
 	GetByID(ctx context.Context, id uint) (upload.Upload, error)
 	OpenReader(ctx context.Context, storedPath string) (io.ReadCloser, upload.ObjectInfo, error)
 }
 
-// storedSuffix is added to the name an inbound file is stored under. The public file handler picks a file's type by
-// its extension, and for one it does not know sniffs the content, so a document from a chat (HTML, SVG) would be
-// served on the application's origin as the page it contains. Under this suffix the stored file is plain text there,
-// whatever its name was; the name the person and Telegram know is kept in the connector's event, and restored on
-// Open.
-const storedSuffix = ".tg.txt"
-
-// downloadPath is the signed-in, tenant-checked download route of the core upload controller, which serves a file
-// with a sandboxing policy and as an attachment of its detected type. A file is opened by people through it.
-const downloadPath = "/uploads/"
+// legacySuffix is the suffix files of chats were stored under in the public root before they were private: Open
+// gives such a file back under its own name.
+const legacySuffix = ".tg.txt"
 
 // maxTelegramFile is what a bot sends: 50 MB.
 const maxTelegramFile = 50 << 20
 
 type telegramUploads struct {
-	svc  CoreUploads
-	pool *pgxpool.Pool
+	svc   CoreUploads
+	store services.PrivateAttachments
 }
 
 // NewTelegramUploads is the uploads storage of the Telegram connector (telegram.Config.Uploads) over the
-// SDK's upload service: files of incoming messages are saved as the tenant's uploads, and the files of a
-// send are read from them, never from another tenant's.
+// SDK's upload service. The files of incoming messages are saved as the tenant's uploads in a private namespace
+// (services.TelegramAttachmentsNamespace below privateRoot, which is uploadsconfig.Config.PrivatePath()), like the
+// attachments of email: no anonymous URL names them, and the event's link is the attachments route
+// (/automations/attachments/<id>), which serves a file only to a user of its tenant who may read automations, as a
+// sandboxed download. The files of a send are read from the tenant's uploads that route serves (its public uploads
+// and the files connectors received), never from another tenant's or from another feature's private files.
 //
 // The upload repository reads its database scope from the context, which a webhook request or a call
 // worker does not carry: the adapter binds the pool and the tenant itself on every call.
-func NewTelegramUploads(svc CoreUploads, pool *pgxpool.Pool) telegram.Uploads {
-	return telegramUploads{svc: svc, pool: pool}
-}
-
-// scope is a context the SDK's upload service can run in: the tenant and the database pool.
-func (u telegramUploads) scope(ctx context.Context, tenantID uuid.UUID) context.Context {
-	return composables.WithPool(composables.WithTenantID(ctx, tenantID), u.pool)
+func NewTelegramUploads(svc CoreUploads, pool *pgxpool.Pool, privateRoot string) telegram.Uploads {
+	return telegramUploads{svc: svc, store: services.NewPrivateAttachments(svc, pool, privateRoot, services.TelegramAttachmentsNamespace, "tgattachment")}
 }
 
 func (u telegramUploads) Save(ctx context.Context, tenantID uuid.UUID, f telegram.UploadFile) (telegram.Stored, error) {
-	ctx = u.scope(ctx, tenantID)
-	created, err := u.svc.CreateKeeping(ctx, &upload.CreateDTO{File: bytes.NewReader(f.Data), Name: f.Name + storedSuffix, Size: len(f.Data)})
+	id, err := u.store.Save(ctx, tenantID, f.Name, f.Data)
 	if err != nil {
 		return telegram.Stored{}, err
 	}
-	id := strconv.FormatUint(uint64(created.ID()), 10)
-	if !u.svc.DownloadableByRoute(created.Path()) {
-		// The same content is a private upload of the tenant's: it stays as it is, with its access, and the
-		// signed-in download route does not serve it. The attachment has its id (a graph sends it on, Open reads it)
-		// and no link, rather than a link that answers 404.
-		return telegram.Stored{ID: id}, nil
-	}
-	return telegram.Stored{ID: id, URL: downloadPath + id}, nil
+	return telegram.Stored{ID: id, URL: services.AttachmentPath(id)}, nil
 }
 
 func (u telegramUploads) Open(ctx context.Context, tenantID uuid.UUID, id string) (telegram.UploadFile, error) {
@@ -81,12 +63,13 @@ func (u telegramUploads) Open(ctx context.Context, tenantID uuid.UUID, id string
 	if err != nil {
 		return telegram.UploadFile{}, errors.New("not an upload id")
 	}
-	ctx = u.scope(ctx, tenantID)
+	ctx = u.store.Scope(ctx, tenantID)
 	found, err := u.svc.GetByID(ctx, uint(n))
 	if err != nil {
 		return telegram.UploadFile{}, err
 	}
-	if found.TenantID() != tenantID {
+	// Another tenant's upload, and another feature's private file, are not there for a graph to send.
+	if found.TenantID() != tenantID || !services.AttachmentServable(found.Path()) {
 		return telegram.UploadFile{}, errors.New("upload not found")
 	}
 	body, _, err := u.svc.OpenReader(ctx, found.Path())
@@ -105,5 +88,5 @@ func (u telegramUploads) Open(ctx context.Context, tenantID uuid.UUID, id string
 	if m := found.Mimetype(); m != nil {
 		mime = m.String()
 	}
-	return telegram.UploadFile{Name: strings.TrimSuffix(found.Name(), storedSuffix), Mime: mime, Data: data}, nil
+	return telegram.UploadFile{Name: strings.TrimSuffix(found.Name(), legacySuffix), Mime: mime, Data: data}, nil
 }
