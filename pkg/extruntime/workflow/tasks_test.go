@@ -937,22 +937,26 @@ func TestTasks_AuthorizeTask(t *testing.T) {
 	require.ErrorIs(t, err, workflow.ErrTaskClosed, "past the final deadline")
 }
 
-// lingeringSubjects delays LoadSubject while delay is set: a rights lookup
-// that takes its time.
+// lingeringSubjects runs hook, when set, inside every LoadSubject and counts
+// the lookups that ran it: a rights lookup that takes its time.
 type lingeringSubjects struct {
 	*hosttest.Subjects
-	delay atomic.Int64
+	hook    atomic.Pointer[func()]
+	entered atomic.Int32
 }
 
 func (s *lingeringSubjects) LoadSubject(ctx context.Context, tenant uuid.UUID, user int64, kind spi.SubjectKind) (spi.Subject, error) {
-	if d := time.Duration(s.delay.Load()); d > 0 {
-		time.Sleep(d)
+	if h := s.hook.Load(); h != nil {
+		s.entered.Add(1)
+		(*h)()
 	}
 	return s.Subjects.LoadSubject(ctx, tenant, user, kind)
 }
 
 // A final deadline that passes while AuthorizeTask looks the actor's rights
-// up is judged after the lookup: the answer is ErrTaskClosed.
+// up is judged after the lookup: the answer is ErrTaskClosed. The lookup runs
+// (the initial deadline check let the call through) and returns only once the
+// database clock is past the deadline.
 func TestTasks_AuthorizeTaskJudgesTheDeadlineAfterTheRightsLookup(t *testing.T) {
 	env := newNativeEnv(t)
 	subjects := &lingeringSubjects{Subjects: env.subjects}
@@ -969,10 +973,23 @@ func TestTasks_AuthorizeTaskJudgesTheDeadlineAfterTheRightsLookup(t *testing.T) 
 
 	_, err = eng.AuthorizeTask(ctx, env.subject(99), task.ID)
 	require.NoError(t, err)
-	_, err = env.db.Exec(ctx, `UPDATE extruntime.human_tasks SET due_at = clock_timestamp() + interval '300 milliseconds' WHERE id = $1`, task.ID)
-	require.NoError(t, err)
-	subjects.delay.Store(int64(700 * time.Millisecond))
+	// The deadline is far enough ahead for the initial check to pass; the
+	// lookup then waits until the database clock is past it.
+	var due time.Time
+	require.NoError(t, env.db.QueryRow(ctx,
+		`UPDATE extruntime.human_tasks SET due_at = clock_timestamp() + interval '2 seconds' WHERE id = $1 RETURNING due_at`, task.ID).Scan(&due))
+	waitPast := func() {
+		for {
+			var past bool
+			if err := env.db.QueryRow(ctx, `SELECT clock_timestamp() > $1`, due).Scan(&past); err != nil || past {
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
+	subjects.hook.Store(&waitPast)
 	_, err = eng.AuthorizeTask(ctx, env.subject(99), task.ID)
+	require.Equal(t, int32(1), subjects.entered.Load(), "the rights lookup ran: the initial deadline check let the call through")
 	require.ErrorIs(t, err, workflow.ErrTaskClosed, "the deadline passed during the rights lookup")
 }
 
