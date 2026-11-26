@@ -185,6 +185,25 @@ test('AL9: a required field is explained next to it', async ({ page }) => {
   expect((await calls(page)).some((c) => c.method === 'automations.run_manual')).toBe(false)
 })
 
+test('AL9 / K5: Escape on an option of the run dialog closes only its list; the next Escape closes the dialog', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${WELCOME}`)
+  await page.getByTestId('run-manual').click()
+  const dialog = page.getByTestId('run-dialog')
+  await dialog.getByLabel('Kind of object').selectOption('core.user')
+  await dialog.getByPlaceholder('Find an object').fill('many')
+  const pick = dialog.getByRole('combobox', { name: 'Choose the object' })
+  await pick.click()
+  await expect(pick).toHaveAttribute('aria-expanded', 'true')
+  const option = dialog.getByRole('option', { name: 'Subject 2' })
+  await option.focus()
+  await page.keyboard.press('Escape')
+  await expect(pick).toHaveAttribute('aria-expanded', 'false')
+  await expect(pick).toBeFocused()
+  await expect(dialog).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+})
+
 test('AL10: 390 px has no horizontal scroll and keeps the header on one line', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
