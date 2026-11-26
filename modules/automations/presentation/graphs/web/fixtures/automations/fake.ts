@@ -11,7 +11,10 @@ export interface FakeOptions {
   scenario: 'default' | 'empty' | 'loading' | 'error'
   /** Delay of every action (ms); lists answer at once. */
   delay: number
-  /** With delay: the read waits after reading, so its answer holds the state at its start (?staleReads). */
+  /** Calls of these methods wait until the scenario releases them, oldest first (?holdOn=<method>,<method>;
+   * window.__releaseCall(method), window.__heldCalls(method)). */
+  holdOn?: string
+  /** A call waits (held or delayed) after its answer is read, so it holds the state at its start (?staleReads). */
   staleReads?: boolean
   /** With delay: only these methods wait, lists among them (?delayOnly=<method>,<method>). */
   delayOnly?: string
@@ -243,6 +246,12 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
   let btSeq = 0
   const backtestOf = (id: string) => bt.backtests.find((b) => b.id === id) ?? rpcError('not_found', 'not found')
   const datasetOf = (id: string) => bt.datasets.find((d) => d.id === id) ?? rpcError('not_found', 'not found')
+  // The revision of an estimate, as the server's: the examples by id (a dataset seeded without its rows by
+  // their count) and the version.
+  const revisionOf = (d: { id: string; examples: number }, version: number) => {
+    const ids = (bt.examples.get(d.id) ?? []).map((x) => x.id).sort()
+    return `rev-${ids.length > 0 ? ids.join(',') : `n${d.examples}`}.v${version || 3}`
+  }
   const find = (id: string) => store.find((s) => s.item.id === id) ?? hidden.find((s) => s.item.id === id) ?? rpcError('not_found', 'automation not found')
   const digestOf = (s: Stored) => (s.code.length > 0 ? `digest-${s.item.latest_version}-${s.code.map((c) => c.source.length).join('.')}` : '')
   const handlers: { [K in keyof RPC]?: (p: RPC[K]['params']) => RPC[K]['result'] } = {
@@ -309,12 +318,12 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     },
     'automations.backtest_estimate': (p) => {
       const d = datasetOf(p.dataset_id)
-      return { examples: d.examples, revision: `rev-${d.examples}`, decision_nodes: ['intent'], max_calls: d.examples, per_item: false, cost_usd: p.decisions === 'live' ? d.examples * 0.0021 : null }
+      return { examples: d.examples, revision: revisionOf(d, p.version ?? 0), decision_nodes: ['intent'], max_calls: d.examples, per_item: false, cost_usd: p.decisions === 'live' ? d.examples * 0.0021 : null }
     },
     'automations.backtest_run': (p) => {
       const d = datasetOf(p.dataset_id)
       if (p.decisions === 'live' && opts.agent) rpcError('HUMAN_REQUIRED', 'only a person runs a backtest with live decisions')
-      if (p.revision && p.revision !== `rev-${d.examples}`) rpcError('estimate_stale', 'the dataset changed since the estimate')
+      if (p.revision && p.revision !== revisionOf(d, p.version ?? 0)) rpcError('estimate_stale', 'the dataset changed since the estimate')
       const id = `00000000-0000-4000-8000-0000000e${String(++btSeq).padStart(4, '0')}`
       bt.backtests.unshift({ id, dataset_id: d.id, dataset_name: d.name, version: p.version || 3, decisions: p.decisions === 'live' ? 'live' : 'cached', status: 'queued', total: d.examples, done: 0,
         live_calls: 0, error: null, created_by: 'You', by_agent: opts.agent ?? false, created_at: now, finished_at: null })
@@ -588,6 +597,14 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       reject(abortError())
     }, { once: true })
   })
+  const heldCalls = new Map<string, (() => void)[]>()
+  const calls = window as unknown as { __releaseCall: (method: string) => boolean; __heldCalls: (method: string) => number }
+  calls.__releaseCall = (method) => {
+    const next = heldCalls.get(method)?.shift()
+    next?.()
+    return next !== undefined
+  }
+  calls.__heldCalls = (method) => heldCalls.get(method)?.length ?? 0
   // Another user's call, straight to the store (browser scenarios: a change made elsewhere).
   ;(window as unknown as { __elsewhere: (method: keyof RPC, params: unknown) => unknown }).__elsewhere = (method, params) =>
     (handlers[method] as ((p: unknown) => unknown) | undefined)?.(params)
@@ -602,8 +619,19 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     const signal = init?.signal
     if (body.method === 'automations.get' && (gets++ > 0 || opts.holdFirst) && opts.hold) await hold((body.params as { version?: number }).version ?? 0, signal)
     if (opts.oldVersionDelay > 0 && body.method === 'automations.get' && (body.params as { version?: number }).version) await pause(opts.oldVersionDelay, signal)
+    const held = opts.holdOn?.split(',').includes(body.method) ?? false
+    const holdCall = () => new Promise<void>((resolve) => {
+      const q = heldCalls.get(body.method) ?? []
+      q.push(resolve)
+      heldCalls.set(body.method, q)
+    })
     const waits = opts.delay > 0 && (opts.delayOnly ? opts.delayOnly.split(',').includes(body.method) : !isList)
-    if (waits && !opts.staleReads) await pause(opts.delay, signal)
+    // staleReads: the answer is read first and then waits (held or delayed), so it holds the state at
+    // the call's start.
+    if (!opts.staleReads) {
+      if (held) await holdCall()
+      if (waits) await pause(opts.delay, signal)
+    }
     let payload: unknown
     try {
       if (opts.scenario === 'error' && isList) rpcError('internal', 'internal error')
@@ -614,7 +642,10 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       payload = { jsonrpc: '2.0', id: body.id, error }
     }
     const text = JSON.stringify(payload)
-    if (waits && opts.staleReads) await pause(opts.delay, signal)
+    if (opts.staleReads) {
+      if (held) await holdCall()
+      if (waits) await pause(opts.delay, signal)
+    }
     return new Response(text, { status: 200, headers: { 'content-type': 'application/json' } })
   }
 }

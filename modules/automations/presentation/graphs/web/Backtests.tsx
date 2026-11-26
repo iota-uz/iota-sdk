@@ -481,7 +481,8 @@ function DatasetPanel(props: {
         props.onChanged()
       } catch (e) {
         if (edits.get(key) === mine) { latest.set(key, confirmed.get(key)); patchNode(confirmed.get(key)) }
-        app.toast.notify({ variant: 'error', title: backtestErrorText(t, e, t('Backtests.Actions.Label')), action: { label: t('Common.Retry'), onAction: () => void setLabel(ex, node, outcome) } })
+        // Retry repeats this edit only while it is still the node's latest: a later edit stands.
+        app.toast.notify({ variant: 'error', title: backtestErrorText(t, e, t('Backtests.Actions.Label')), action: { label: t('Common.Retry'), onAction: () => { if (edits.get(key) === mine) void setLabel(ex, node, outcome) } } })
       } finally {
         const left = (pending.get(key) ?? 1) - 1
         if (left > 0) pending.set(key, left)
@@ -1310,7 +1311,8 @@ function RunBacktestDialog(props: { datasets: DatasetView[]; dataset?: DatasetVi
   // The estimate is read again when the dataset's contents move (an import brought more), not only
   // when the dataset, the version or the mode change; again names a refresh after a stale run.
   const [again, setAgain] = createSignal(0)
-  const contents = () => props.datasets.find((d) => d.id === dataset())?.examples ?? 0
+  // A scalar memo: a fresh overview (another job's progress) with the same count changes nothing.
+  const contents = createMemo(() => props.datasets.find((d) => d.id === dataset())?.examples ?? 0)
   createEffect(on(() => [dataset(), version(), decisions(), contents(), again()] as const, async ([ds, v, d]) => {
     const mine = ++seq
     setEstimate(undefined)

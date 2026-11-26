@@ -122,20 +122,30 @@ test('BT3: a label is a choice per classifier, saved at once; the open dataset i
   await expect(page.locator('[data-testid^="example-"]').nth(3).getByTestId('label-intent')).toHaveValue('refund')
 })
 
+// Calls held by the fixture (?holdOn): how many wait, and the oldest released.
+const heldCalls = (page: Page, method: string) => page.evaluate((m) => (window as unknown as { __heldCalls: (m: string) => number }).__heldCalls(m), method)
+const releaseCall = (page: Page, method: string) => page.evaluate((m) => (window as unknown as { __releaseCall: (m: string) => boolean }).__releaseCall(m), method)
+const elsewhere = (page: Page, params: Record<string, unknown>) => page.evaluate((p) => (window as unknown as { __elsewhere: (m: string, p: unknown) => unknown }).__elsewhere('automations.example_label', p), params)
+
 test('BT3b: saves of one label run in order; a failed later save restores the label the server saved', async ({ page }) => {
-  await page.goto(`/?${base}&dataset=${DS}&delay=400&labelFails=support`)
+  await page.goto(`/?${base}&dataset=${DS}&holdOn=automations.example_label&labelFails=support`)
   const row = page.locator('[data-testid^="example-"]').nth(3)
   await expect(row).toContainText('Do you have a discount for schools?')
   const select = row.getByTestId('label-intent')
+  const labels = async () => (await calls(page)).filter((c) => c.method === 'automations.example_label').map((c) => c.params.outcome)
   await select.selectOption('refund')
   await select.selectOption('support')
   await expect(select).toHaveValue('support')
-  // While the first save is on the way (400 ms) the second waits for it.
-  const labels = async () => (await calls(page)).filter((c) => c.method === 'automations.example_label').map((c) => c.params.outcome)
+  // The first save is held: the second waits for it, unsent.
+  await expect.poll(() => heldCalls(page, 'automations.example_label')).toBe(1)
   expect(await labels()).toEqual(['refund'])
-  // The second save starts after the first one is saved, and its failure restores «refund».
+  // The first one is saved; then the second is sent, and its failure restores «refund».
+  await releaseCall(page, 'automations.example_label')
+  await expect.poll(labels).toEqual(['refund', 'support'])
+  await expect.poll(() => heldCalls(page, 'automations.example_label')).toBe(1)
+  await expect(select).toHaveValue('support')
+  await releaseCall(page, 'automations.example_label')
   await expect(select).toHaveValue('refund')
-  expect(await labels()).toEqual(['refund', 'support'])
 })
 
 test('BT3c: a failed save restores the label the examples read last, after another user changed it', async ({ page }) => {
@@ -161,61 +171,85 @@ test('BT3c: a failed save restores the label the examples read last, after anoth
 })
 
 test('BT3d: examples read while a save is pending keep the edit on screen; its failure restores the label they read', async ({ page }) => {
-  await page.goto(`/?${base}&dataset=${DS}&labelFails=support&delay=1500&delayOnly=automations.example_label`)
+  await page.goto(`/?${base}&dataset=${DS}&labelFails=support&holdOn=automations.example_label`)
   const rows = page.locator('[data-testid^="example-"]')
   await expect(rows.nth(3)).toContainText('Do you have a discount for schools?')
   const testid = (await rows.nth(3).getAttribute('data-testid'))!
-  const other = (await rows.nth(5).getAttribute('data-testid'))!.replace('example-', '')
+  const otherID = (await rows.nth(5).getAttribute('data-testid'))!
   const select = page.getByTestId(testid).getByTestId('label-intent')
   await select.selectOption('support')
-  // While the save is on the way another user labels the example «refund» (and another one, which moves
-  // the count), and the examples are read again.
-  const reads = async () => (await calls(page)).filter((c) => c.method === 'automations.dataset_examples').length
-  const before = await reads()
-  await page.evaluate(([exampleId, otherId]) => {
-    const elsewhere = (window as unknown as { __elsewhere: (m: string, p: unknown) => unknown }).__elsewhere
-    elsewhere('automations.example_label', { example_id: exampleId, node: 'intent', outcome: 'refund' })
-    elsewhere('automations.example_label', { example_id: otherId, node: 'intent', outcome: 'sales' })
-    window.dispatchEvent(new Event('online'))
-  }, [testid.replace('example-', ''), other] as const)
-  await expect.poll(reads).toBeGreaterThan(before)
+  await expect.poll(() => heldCalls(page, 'automations.example_label')).toBe(1)
+  // While the save is held another user labels the example «refund» (and another one «sales», which
+  // moves the count), and the examples are read again: the other row shows its label, this one the edit.
+  await elsewhere(page, { example_id: testid.replace('example-', ''), node: 'intent', outcome: 'refund' })
+  await elsewhere(page, { example_id: otherID.replace('example-', ''), node: 'intent', outcome: 'sales' })
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await expect(page.getByTestId(otherID).getByTestId('label-intent')).toHaveValue('sales')
   await expect(select).toHaveValue('support')
   // The save fails: the rollback shows the label the examples read, not the one before the edit.
-  await expect.poll(() => select.inputValue(), { timeout: 5000 }).not.toBe('support')
+  await releaseCall(page, 'automations.example_label')
+  await expect.poll(() => select.inputValue()).not.toBe('support')
   expect(await select.inputValue()).toBe('refund')
 })
 
 test('BT3e: examples read before a save committed are not shown over it; they are read again', async ({ page }) => {
-  await page.goto(`/?${base}&dataset=${DS}&delay=1500&delayOnly=automations.dataset_examples,automations.backtests&staleReads`)
+  // The examples and the overview are held, and each answers with the state at its call.
+  const EX = 'automations.dataset_examples'
+  const OV = 'automations.backtests'
+  await page.goto(`/?${base}&dataset=${DS}&holdOn=${EX},${OV}&staleReads`)
   const rows = page.locator('[data-testid^="example-"]')
-  // An example labeled already: its save does not move the count, so nothing else reads the examples.
+  await expect.poll(async () => {
+    for (const m of [OV, EX]) while (await releaseCall(page, m));
+    return rows.count()
+  }).toBeGreaterThan(5)
+  // An example labeled already: its save does not move the count.
   await expect(rows.nth(0)).toContainText('I want to buy 20 licenses')
   const testid = (await rows.nth(0).getAttribute('data-testid'))!
   const other = (await rows.nth(5).getAttribute('data-testid'))!.replace('example-', '')
   const select = page.getByTestId(testid).getByTestId('label-intent')
-  const reads = async () => (await calls(page)).filter((c) => c.method === 'automations.dataset_examples').length
-  const before = await reads()
-  // Another user's label moves the count: the examples are read again, and that read answers 1.5 s
-  // later with the state at its start. The overview answers 1.5 s late too.
-  await page.evaluate((otherId) => {
-    ;(window as unknown as { __elsewhere: (m: string, p: unknown) => unknown }).__elsewhere('automations.example_label', { example_id: otherId, node: 'intent', outcome: 'sales' })
-    window.dispatchEvent(new Event('online'))
-  }, other)
-  await expect.poll(reads).toBeGreaterThan(before)
-  // Meanwhile the panel saves «support», at once; every value the field shows from then on is recorded.
+  // Another user's label moves the count: the overview, then the examples are read again; that read
+  // holds the state before the save below.
+  await elsewhere(page, { example_id: other, node: 'intent', outcome: 'sales' })
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await expect.poll(async () => { await releaseCall(page, OV); return heldCalls(page, EX) }).toBe(1)
+  // Meanwhile the panel saves «support» (at once); the overview it reloads stays held.
   await select.selectOption('support')
   await expect.poll(async () => (await calls(page)).filter((c) => c.method === 'automations.example_label').length).toBe(1)
+  await expect.poll(() => heldCalls(page, OV)).toBe(1)
   await page.evaluate((id) => {
     const w = window as unknown as { __seen: string[] }
     w.__seen = []
-    const el = document.querySelector(`[data-testid="${id}"] [data-testid="label-intent"]`) as HTMLSelectElement | null
-    setInterval(() => { const v = (document.querySelector(`[data-testid="${id}"] [data-testid="label-intent"]`) as HTMLSelectElement | null ?? el)?.value; if (v !== undefined) w.__seen.push(v) }, 20)
+    setInterval(() => { const v = (document.querySelector(`[data-testid="${id}"] [data-testid="label-intent"]`) as HTMLSelectElement | null)?.value; if (v !== undefined) w.__seen.push(v) }, 10)
   }, testid)
-  // The older read answers (1.5 s after it began); the overview read after the save answers later.
-  await page.waitForTimeout(4500)
+  // The older read answers: it is not shown, the examples are read again.
+  const reads = async () => (await calls(page)).filter((c) => c.method === EX).length
+  const before = await reads()
+  await releaseCall(page, EX)
+  await expect.poll(reads).toBe(before + 1)
+  await expect.poll(() => heldCalls(page, EX)).toBe(1)
+  await releaseCall(page, EX)
+  await expect.poll(() => heldCalls(page, EX)).toBe(0)
+  await page.waitForTimeout(300)
   const seen = await page.evaluate(() => (window as unknown as { __seen: string[] }).__seen)
-  expect(seen.length).toBeGreaterThan(10)
+  expect(seen.length).toBeGreaterThan(5)
   expect([...new Set(seen)]).toEqual(['support'])
+})
+
+test('BT3f: Retry of a failed label repeats it only while no later edit of the label took its place', async ({ page }) => {
+  await page.goto(`/?${base}&dataset=${DS}&labelFails=support`)
+  const row = page.locator('[data-testid^="example-"]').nth(3)
+  await expect(row).toContainText('Do you have a discount for schools?')
+  const select = row.getByTestId('label-intent')
+  const labels = async () => (await calls(page)).filter((c) => c.method === 'automations.example_label').map((c) => c.params.outcome)
+  await select.selectOption('support')
+  const retry = page.getByRole('button', { name: 'Retry' }).last()
+  await expect(retry).toBeVisible()
+  await select.selectOption('refund')
+  await expect.poll(labels).toEqual(['support', 'refund'])
+  await retry.click()
+  await page.waitForTimeout(300)
+  expect(await labels()).toEqual(['support', 'refund'])
+  await expect(select).toHaveValue('refund')
 })
 
 test('BT4: the cases table filters by classifier and mismatches, in the URL; «Reset filters» clears only them', async ({ page }) => {
@@ -265,4 +299,20 @@ test('BT5: live decisions show their cost before the run; an agent is offered ca
   await page.getByTestId('backtest-new').click()
   await expect(page.getByTestId('backtest-run-dialog').getByTestId('decisions-live')).toHaveCount(0)
   await expect(page.getByTestId('live-note')).toContainText('run by a person')
+})
+
+test('BT5b: a fresh overview with the same examples keeps the estimate on screen', async ({ page }) => {
+  await page.goto(`/?${base}`)
+  await page.getByTestId(`dataset-${DS}`).getByTestId('dataset-run').click()
+  const dlg = page.getByTestId('backtest-run-dialog')
+  await expect(dlg.getByTestId('backtest-estimate')).toContainText('At most 6 calls to models')
+  const estimates = async () => (await calls(page)).filter((c) => c.method === 'automations.backtest_estimate').length
+  const before = await estimates()
+  const overviews = async () => (await calls(page)).filter((c) => c.method === 'automations.backtests').length
+  const seen = await overviews()
+  for (let i = 0; i < 2; i++) await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await expect.poll(overviews).toBeGreaterThanOrEqual(seen + 2)
+  await page.waitForTimeout(300)
+  expect(await estimates()).toBe(before)
+  await expect(dlg.getByTestId('backtest-estimate')).toContainText('At most 6 calls to models')
 })

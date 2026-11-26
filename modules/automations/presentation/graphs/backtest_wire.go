@@ -234,7 +234,8 @@ type BacktestRunRequest struct {
 	DatasetID string    `json:"dataset_id"`
 	Version   int       `json:"version,omitempty"`
 	Decisions Decisions `json:"decisions,omitempty"`
-	// Revision is the estimate's: a run is refused with estimate_stale when the examples changed since.
+	// Revision is the estimate's: a run is refused with estimate_stale when the examples or the version
+	// run (the latest, for 0) changed since. A run with live decisions requires it.
 	Revision string `json:"revision,omitempty"`
 }
 

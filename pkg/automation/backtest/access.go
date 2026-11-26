@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
-	"slices"
 	"strings"
 	"sync"
 
@@ -64,7 +63,12 @@ func (r *reader) mayRead(ctx context.Context, origin string) bool {
 				ok = r.s.cfg.ConnectionAccess(r.a, conn)
 			}
 		}
+		// Lookups of one origin may run at once: a denial recorded by one is never replaced by another's
+		// allow (rights may have been revoked between them).
 		r.mu.Lock()
+		if prev, seen := r.conns[origin]; seen {
+			ok = ok && prev
+		}
 		r.conns[origin] = ok
 		r.mu.Unlock()
 		return ok
@@ -179,7 +183,8 @@ func (r *reader) subjectOK(ctx context.Context, ref engine.SubjectRef, snapshot 
 // depth: each key of a stored object is in the current object and covered there; a scalar is covered by
 // any scalar, its value may have changed since. A loader may filter a list's items by the reader's
 // rights, and an item's position or values say nothing about which item it is: each item of a stored
-// list must be in the current list as it is (unchanged), or the list is not covered. A field the
+// list must be in the current list as it is (unchanged), a distinct one for each (equal items count),
+// or the list is not covered. A field the
 // reader's rights withhold is missing from the current record, so a stored snapshot that holds it is
 // not covered.
 func covers(now, stored any) bool {
@@ -201,8 +206,17 @@ func covers(now, stored any) bool {
 		if !ok {
 			return false
 		}
+		// Each current item matches one stored item at most: two equal stored items need two.
+		used := make([]bool, len(n))
 		for _, item := range st {
-			if !slices.ContainsFunc(n, func(x any) bool { return reflect.DeepEqual(x, item) }) {
+			found := false
+			for i, x := range n {
+				if !used[i] && reflect.DeepEqual(x, item) {
+					used[i], found = true, true
+					break
+				}
+			}
+			if !found {
 				return false
 			}
 		}

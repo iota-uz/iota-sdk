@@ -294,14 +294,16 @@ type RunInput struct {
 	Version   int    // 0: the latest version
 	Decisions string // cached (default) | live
 	// Revision, when set, is Estimate.Revision: the run is refused (ErrStaleEstimate) when the dataset's
-	// examples changed since, so it never runs more than the estimate counted.
+	// examples or the version run (the latest, for 0) changed since, so it never runs more than the
+	// estimate counted. A run with live decisions requires it.
 	Revision string
 }
 
 // Estimate is what a backtest would do before it runs.
 type Estimate struct {
 	Examples int
-	// Revision names the examples counted; Run takes it back.
+	// Revision names the examples counted and the version whose decision nodes were counted; Run takes it
+	// back. It is never empty.
 	Revision string
 	// DecisionNodes are the graph's nodes whose answers are decisions of models.
 	DecisionNodes []string
@@ -488,7 +490,10 @@ type Comparison struct {
 
 // Event is an event a history importer emits. Key is its identity in the source (a message id): an
 // event already in the dataset is not imported again. An event without a key is identified by its kind,
-// time, subject and the payload kept of it. Snapshot, when set, is the subject's state at the
+// time, subject, BySelf and its whole Payload as emitted (before the fields the importer may not read
+// or no schema declares are dropped): two emissions that differ in any of them, a dropped field
+// included, are two examples, even when what is stored of them is the same. A source whose events carry
+// volatile fields (a delivery attempt, a fetch time) should give each its Key. Snapshot, when set, is the subject's state at the
 // event as the source knows it (exact).
 type Event struct {
 	Kind       string

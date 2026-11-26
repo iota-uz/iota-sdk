@@ -710,7 +710,7 @@
             "Plural": "{count} chamadas"
           },
           "CachedCost": "No máximo {calls} a modelos, só para decisões que faltam no cache.",
-          "CachedCostUSD": "No máximo {calls} a modelos, só para decisões que faltam no cache: até {cost}.",
+          "CachedCostUSD": "No máximo {calls} a modelos, só para decisões que faltam no cache; custo estimado {cost}.",
           "LiveCost": "Até {calls} a modelos, cerca de {cost}.",
           "LiveCostUnknown": "Até {calls} a modelos; o custo ainda não é conhecido.",
           "PerItem": "O grafo tem um «Para cada»: uma decisão dentro dele conta até 20 vezes por evento.",

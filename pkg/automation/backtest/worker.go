@@ -80,9 +80,13 @@ func (s *Svc) actorOf(ctx context.Context, tenant uuid.UUID, user int64, origin 
 // publicError is what a failed job tells its author: the engine's message without its package prefix.
 func publicError(err error) string {
 	var ve *engine.ValidationError
+	var ce *catalog.CallError
 	switch {
 	case errors.As(err, &ve):
 		return "the version does not validate against the current catalog"
+	case errors.As(err, &ce) && ce.Code == catalog.CallInvalidRequest:
+		// What the source refused in the request (a filter of the import): the author can correct it.
+		return ce.Message
 	case errors.Is(err, engine.ErrForbidden), errors.Is(err, engine.ErrNotFound), errors.Is(err, engine.ErrInvalidInput),
 		errors.Is(err, engine.ErrLimitExceeded), errors.Is(err, engine.ErrHumanRequired), errors.Is(err, ErrUnsupported):
 		return strings.TrimPrefix(err.Error(), "automation: ")
@@ -216,7 +220,7 @@ func (im *importer) add(ev Event) error {
 	// An event without a key in the source is identified by its whole content, not by the projection the
 	// actor's rights give now: a pass that resumes the import (another worker's takeover, perhaps after
 	// the rights changed) finds it again; an identical event is a duplicate.
-	key := ev.Key
+	key := sourceKey(ev.Key)
 	if key == "" {
 		key = contentKey(ev, whole)
 	}
@@ -241,6 +245,15 @@ func (im *importer) add(ev Event) error {
 		return im.flush()
 	}
 	return nil
+}
+
+// sourceKey keeps a source's own keys apart from the keys contentKey derives: a key of the source that
+// starts with a reserved prefix is escaped with "key:", which keeps distinct keys distinct.
+func sourceKey(k string) string {
+	if strings.HasPrefix(k, "content:") || strings.HasPrefix(k, "key:") {
+		return "key:" + k
+	}
+	return k
 }
 
 // contentKey identifies an event that has no key in its source by its kind, time, subject, whether the

@@ -843,17 +843,25 @@ func (s *Svc) DeleteExample(ctx context.Context, a Actor, ex ExampleID) error {
 	if err := s.authorize(a); err != nil {
 		return err
 	}
-	if _, err := s.exampleOf(ctx, a, ex); err != nil {
+	x, err := s.exampleOf(ctx, a, ex)
+	if err != nil {
 		return err
 	}
 	// An example a backtest's result refers to, or a queued or running backtest will run, leaves the
-	// dataset but stays for that backtest: it keeps its total, its results and its report.
-	_, err := s.cfg.DB.Exec(ctx, `
-		WITH used AS (SELECT EXISTS (SELECT 1 FROM automation.backtest_results WHERE tenant_id = $1 AND example_id = $2)
-			OR EXISTS (SELECT 1 FROM automation.backtests WHERE tenant_id = $1 AND status IN ('queued', 'running') AND $2 = ANY(example_ids)) AS yes),
-		soft AS (UPDATE automation.dataset_examples SET deleted_at = now() WHERE tenant_id = $1 AND id = $2 AND (SELECT yes FROM used))
-		DELETE FROM automation.dataset_examples WHERE tenant_id = $1 AND id = $2 AND NOT (SELECT yes FROM used)`, a.TenantID, ex)
-	return dbErr(err)
+	// dataset but stays for that backtest: it keeps its total, its results and its report. The dataset's
+	// row orders the delete with Run, which lists the examples under it: a run either committed (the
+	// check sees it) or reads the dataset without the example.
+	return pgx.BeginFunc(ctx, s.cfg.DB, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT 1 FROM automation.datasets WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, a.TenantID, x.DatasetID); err != nil {
+			return dbErr(err)
+		}
+		_, err := tx.Exec(ctx, `
+			WITH used AS (SELECT EXISTS (SELECT 1 FROM automation.backtest_results WHERE tenant_id = $1 AND example_id = $2)
+				OR EXISTS (SELECT 1 FROM automation.backtests WHERE tenant_id = $1 AND status IN ('queued', 'running') AND $2 = ANY(example_ids)) AS yes),
+			soft AS (UPDATE automation.dataset_examples SET deleted_at = now() WHERE tenant_id = $1 AND id = $2 AND (SELECT yes FROM used))
+			DELETE FROM automation.dataset_examples WHERE tenant_id = $1 AND id = $2 AND NOT (SELECT yes FROM used)`, a.TenantID, ex)
+		return dbErr(err)
+	})
 }
 
 func (s *Svc) Label(ctx context.Context, a Actor, ex ExampleID, node string, outcome string) error {
@@ -942,12 +950,30 @@ func sortedKeys(m map[string]bool) []string {
 	return out
 }
 
-// revisionSQL is the revision of a dataset's examples (alias e): what a run checks against its estimate.
-const revisionSQL = `coalesce(md5(string_agg(e.id::text, ',' ORDER BY e.id)), '')`
+// revisionSQL is the digest of a dataset's examples (alias e), an empty set's too: with the version of
+// the graph (revisionOf) it is what a run checks against its estimate.
+const revisionSQL = `md5(coalesce(string_agg(e.id::text, ',' ORDER BY e.id), ''))`
+
+// revisionOf is the revision of an estimate: the examples counted and the version of the graph whose
+// decision nodes were counted. It is never empty (an empty RunInput.Revision names no estimate).
+func revisionOf(examples string, version int) string {
+	return fmt.Sprintf("%s.v%d", examples, version)
+}
+
+func validDecisions(mode string) error {
+	switch mode {
+	case "", DecisionsCached, DecisionsLive:
+		return nil
+	}
+	return invalid("decisions is cached or live")
+}
 
 func (s *Svc) Estimate(ctx context.Context, a Actor, in RunInput) (Estimate, error) {
 	var revision string
 	if err := s.authorize(a); err != nil {
+		return Estimate{}, err
+	}
+	if err := validDecisions(in.Decisions); err != nil {
 		return Estimate{}, err
 	}
 	d, err := s.datasetRow(ctx, a, in.DatasetID)
@@ -965,7 +991,7 @@ func (s *Svc) Estimate(ctx context.Context, a Actor, in RunInput) (Estimate, err
 		WHERE e.tenant_id = $1 AND e.dataset_id = $2 AND e.deleted_at IS NULL`, a.TenantID, d.ID).Scan(&d.Examples, &revision); err != nil {
 		return Estimate{}, dbErr(err)
 	}
-	est := Estimate{Examples: d.Examples, Revision: revision, DecisionNodes: sortedKeys(nodes), MaxCalls: d.Examples * perExample,
+	est := Estimate{Examples: d.Examples, Revision: revisionOf(revision, v.Version), DecisionNodes: sortedKeys(nodes), MaxCalls: d.Examples * perExample,
 		PerItem: perExample > len(nodes), AgentCallsBlocked: a.Origin != engine.OriginHuman}
 	if len(nodes) == 0 || d.Examples == 0 {
 		return est, nil
@@ -1012,17 +1038,21 @@ func (s *Svc) Run(ctx context.Context, a Actor, in RunInput) (BacktestID, error)
 	if err := s.authorize(a); err != nil {
 		return uuid.Nil, err
 	}
+	if err := validDecisions(in.Decisions); err != nil {
+		return uuid.Nil, err
+	}
 	mode := in.Decisions
-	switch mode {
-	case "":
+	if mode == "" {
 		mode = DecisionsCached
-	case DecisionsCached:
-	case DecisionsLive:
+	}
+	if mode == DecisionsLive {
 		if a.Origin != engine.OriginHuman {
 			return uuid.Nil, fmt.Errorf("%w: only a person runs a backtest with live decisions", engine.ErrHumanRequired)
 		}
-	default:
-		return uuid.Nil, invalid("decisions is cached or live")
+		// Paid calls start only after their estimate was shown.
+		if in.Revision == "" {
+			return uuid.Nil, invalid("a backtest with live decisions names its estimate (revision)")
+		}
 	}
 	d, err := s.datasetRow(ctx, a, in.DatasetID)
 	if err != nil {
@@ -1062,8 +1092,8 @@ func (s *Svc) Run(ctx context.Context, a Actor, in RunInput) (BacktestID, error)
 		if len(ids) == 0 {
 			return invalid("the dataset has no examples")
 		}
-		if in.Revision != "" && in.Revision != revision {
-			return fmt.Errorf("%w: the dataset changed since the estimate", ErrStaleEstimate)
+		if in.Revision != "" && in.Revision != revisionOf(revision, v.Version) {
+			return fmt.Errorf("%w: the dataset or the latest version changed since the estimate", ErrStaleEstimate)
 		}
 		_, err := tx.Exec(ctx, `
 			INSERT INTO automation.backtests (tenant_id, id, automation_id, dataset_id, version, decisions, status, example_ids, total, created_by, created_origin)

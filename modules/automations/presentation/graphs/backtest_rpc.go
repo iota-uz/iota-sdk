@@ -43,7 +43,7 @@ func backtestErr(err error) error {
 	case err == nil:
 		return nil
 	case errors.Is(err, backtest.ErrStaleEstimate):
-		return rpcError(ErrEstimateStale, "the dataset changed since the estimate", nil)
+		return rpcError(ErrEstimateStale, "the dataset or the latest version changed since the estimate", nil)
 	case errors.Is(err, backtest.ErrUnsupported):
 		return rpcError(ErrUnsupportedSource, "the source cannot import history", nil)
 	case errors.Is(err, engine.ErrHumanRequired):

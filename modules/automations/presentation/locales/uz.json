@@ -710,7 +710,7 @@
             "Plural": "{count} ta chaqiruv"
           },
           "CachedCost": "Modellarga koʻpi bilan {calls} va faqat keshda yoʻq qarorlar uchun.",
-          "CachedCostUSD": "Modellarga koʻpi bilan {calls} va faqat keshda yoʻq qarorlar uchun: {cost} gacha.",
+          "CachedCostUSD": "Modellarga koʻpi bilan {calls} va faqat keshda yoʻq qarorlar uchun; taxminiy narxi {cost}.",
           "LiveCost": "Modellarga {calls} gacha, taxminan {cost}.",
           "LiveCostUnknown": "Modellarga {calls} gacha; narxi hozircha nomaʼlum.",
           "PerItem": "Grafda «Har biri uchun» bor: uning ichidagi qaror har bir hodisaga 20 martagacha hisoblanadi.",

@@ -608,9 +608,10 @@ anything out and reports what the graph would have done for each of them.
   cached backtest also shows its bound in calls and dollars before it runs; an agent's cached
   backtest reads the cache only (`RealCallsNone`: a missing decision is reported `missing`, never a
   mismatch); `live` asks every decision again and is a person's (`HUMAN_REQUIRED`). `Service.Estimate`
-  shows before the run how many calls it may make and their cost from earlier backtests. The estimate names the
-  dataset's examples (`Estimate.Revision`); a run given that revision is refused when they changed since
-  (`ErrStaleEstimate`), so it never runs more than the estimate counted.
+  shows before the run how many calls it may make (a bound) and their estimated cost from earlier backtests
+  (an average, not a bound). The estimate names the dataset's examples and the version whose decision nodes it
+  counted (`Estimate.Revision`, never empty); a run given that revision is refused when either changed since
+  (`ErrStaleEstimate`), so it never runs more than the estimate counted. A live run requires it.
 - **Reads** apply the reader's current rights, the importer's included: an example from a connection or a
   module source the reader may not read keeps its kind only (no title, subject, effects or trace); any
   other event is projected on the reader's catalog view, and when that drops a field the effects' params
