@@ -489,7 +489,7 @@ func decodeContent(channel notifications.Channel, raw json.RawMessage) (notifica
 		if content.Subject == "" || (content.HTML == "" && content.Text == "") {
 			return notifications.ChannelContent{}, permanent(errors.New("email template needs a subject and html or text"))
 		}
-	case notifications.ChannelInApp, notifications.ChannelPush:
+	case notifications.ChannelInApp, notifications.ChannelPush, notifications.ChannelTelegram:
 		if content.Title == "" && content.Body == "" {
 			return notifications.ChannelContent{}, permanent(errors.New("template returned no title or body"))
 		}
