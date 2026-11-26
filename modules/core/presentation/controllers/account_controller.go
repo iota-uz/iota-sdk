@@ -172,6 +172,7 @@ func (c *AccountController) Get(w http.ResponseWriter, r *http.Request) {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
+	props.ShowNotifications = true
 
 	templ.Handler(account.Index(props)).ServeHTTP(w, r)
 }

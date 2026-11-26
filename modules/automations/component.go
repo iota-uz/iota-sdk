@@ -526,6 +526,7 @@ func (c *component) Build(b *composition.Builder) error {
 	})
 
 	c.contributeNotifyNodes(b, cfg.origin)
+	c.contributeTelegramChannel(b, cfg.origin)
 
 	if !b.Context().HasCapability(composition.CapabilityAPI) {
 		return nil
@@ -595,7 +596,13 @@ func (c *component) contributeNotifyNodes(b *composition.Builder, origin string)
 		if err != nil {
 			return nil, err
 		}
-		return nil, notify.Register(reg, notify.Config{Sender: sender, Catalog: definitions, Pool: db, BaseURL: origin})
+		var channels notifications.ChannelRegistry
+		if composition.Has[notifications.ChannelRegistry](container) {
+			if channels, err = composition.Resolve[notifications.ChannelRegistry](container); err != nil {
+				return nil, err
+			}
+		}
+		return nil, notify.Register(reg, notify.Config{Sender: sender, Catalog: definitions, Pool: db, BaseURL: origin, Channels: channels})
 	})
 }
 

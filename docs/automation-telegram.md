@@ -281,3 +281,11 @@ CONTRACT_TARGET=live TELEGRAM_CONTRACT_TOKEN=… TELEGRAM_CONTRACT_CHAT=… go t
 ```
 
 Сценарии с движком и базой — `pkg/automation/engine/telegram_test.go`.
+
+## Канал уведомлений и привязка пользователей (#1349)
+
+Коннектор Telegram, который модуль `automations` регистрирует по умолчанию (или свой коннектор приложения того же
+вида, `WithConnectors(tg)`), автоматически становится каналом уведомлений `telegram`
+(`modules/core/notifications/telegramchannel`), а модуль регистрирует в нём `StartHandler` с префиксом `u_`, который
+привязывает личный чат пользователя по одноразовой ссылке из профиля. С `WithoutTelegram()` нет ни коннектора, ни
+канала. Подробности — в `docs/notifications-mvp.md`, раздел «Telegram».
