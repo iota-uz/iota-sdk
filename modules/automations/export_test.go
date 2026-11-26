@@ -19,11 +19,8 @@ func EngineConnectors(container *composition.Container) connectors.Directory {
 	return containerEngineConfig(container, nil, nil, nil, nil).Connectors
 }
 
-// EngineLinks are the links the composition's engine runs with; nil without an engine.
+// EngineLinks are the links the composition's engine runs with.
 func EngineLinks(container *composition.Container) (engine.Links, error) {
-	if !composition.Has[*engineHolder](container) {
-		return nil, nil
-	}
 	h, err := composition.Resolve[*engineHolder](container)
 	if err != nil {
 		return nil, err

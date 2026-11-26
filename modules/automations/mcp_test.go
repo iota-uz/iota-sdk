@@ -54,9 +54,10 @@ func (a *flakyAuditor) RecordConfirmed(_ context.Context, e mcp.AuditEntry) erro
 	return nil
 }
 
-func (a *flakyAuditor) tools() (refused int, tools []string) {
+func (a *flakyAuditor) tools() (int, []string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	tools := make([]string, 0, len(a.confirmed))
 	for _, e := range a.confirmed {
 		tools = append(tools, e.Tool)
 	}
@@ -87,7 +88,7 @@ func (strayTool) Spec() mcp.Spec {
 	return mcp.Spec{Name: "automation_list", Input: &jsonschema.Schema{Type: "object"}}
 }
 
-func (strayTool) Call(context.Context, json.RawMessage) (any, error) { return nil, nil }
+func (strayTool) Call(context.Context, json.RawMessage) (any, error) { return map[string]any{}, nil }
 
 func mcpAgent(tenant uuid.UUID) user.User {
 	email, err := internet.NewEmail("agent@example.test")

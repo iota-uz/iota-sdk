@@ -195,7 +195,7 @@ func (c *component) Build(b *composition.Builder) error {
 			}
 			holder.set(svc)
 			if !background {
-				return nil, nil
+				return func(context.Context) error { return nil }, nil
 			}
 			return c.dispatch(composition.LifecycleContext(ctx), svc, log), nil
 		}}}, nil
