@@ -2,7 +2,7 @@
 // multi selection it acts on the whole selection ("Delete 3 steps"). Shortcuts are shown only for a
 // mouse (T3).
 import { createSignal, For, onCleanup, onMount, Show, type JSX } from 'solid-js'
-import { isCoarse, useDismiss } from './layer'
+import { createFocusReturn, isCoarse, useDismiss, useLeaving } from './layer'
 import { isMac } from './locale'
 import { keyLabel, strings } from './strings'
 import type { EditorLocale } from './types'
@@ -18,6 +18,8 @@ export type MenuItem = {
 }
 
 export interface ContextMenuProps {
+  /** Closing: it plays its leaving animation, inert (#1352). */
+  leaving?: boolean
   x: number
   y: number
   bounds: { width: number; height: number }
@@ -37,10 +39,10 @@ export function ContextMenu(props: ContextMenuProps): JSX.Element {
 
   onMount(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const restore = createFocusReturn(() => root, opener)
+    useLeaving(() => root, () => props.leaving, restore)
     root?.querySelector<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"]), [role="menuitemcheckbox"]')?.focus({ preventScroll: true })
-    onCleanup(() => {
-      if (opener?.isConnected) opener.focus({ preventScroll: true })
-    })
+    onCleanup(restore)
   })
 
   const focusAt = (index: number) => {

@@ -1,7 +1,7 @@
 // The canvas: a controlled Solid wrapper over @xyflow/system (through ./xy/adapter). It never mutates
 // `graph` or `layout`; it emits intents (onChange, onMove, onDrop, onMenu, onSelect). One edge per
 // (node, outcome): a new connection replaces the old one. The DOM is read only after mount.
-import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, type Accessor, type JSX } from 'solid-js'
+import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, untrack, type Accessor, type JSX } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { cardGeometry, GRID, HANDLE_SIZE, normalizeRect, OUTCOME_ROW_Y, rectsOverlap, snap, TARGET_HANDLE, type CardGeometry, type Rect } from './geometry'
 import { connect, edgeKey, FIRED, findItem, IGNORE, nodeOutcomes, parentOf, pathOf, removeItems } from './graph'
@@ -10,6 +10,7 @@ import { backEdges, ensureLayout, unmarked } from './layout'
 import { isMac } from './locale'
 import { describeAll, type ItemName } from './names'
 import { createRouter, directPath, routePath, type RouteLink, type Router } from './route'
+import { motionMs } from './motion'
 import { keyLabel, strings } from './strings'
 import type { AutomationLayout, CanvasApi, CanvasItem, CanvasProps, ItemState, XY } from './types'
 import { connectionLost, errorsByItem } from './validation'
@@ -54,6 +55,8 @@ const STATE_ICON: Record<ItemState, string> = {
   passed: 'passed', running: 'running', waiting: 'waiting', failed: 'failed', skipped: 'skipped', cancelled: 'cancelled',
 }
 
+const coarsePointer = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+
 export function Canvas(props: CanvasProps): JSX.Element {
   const flowId = `ae${++flowCounter}`
   const t = () => strings(props.locale)
@@ -79,6 +82,27 @@ export function Canvas(props: CanvasProps): JSX.Element {
   const [press, setPress] = createSignal<XY | null>(null)
   const [altSnapOff, setAltSnapOff] = createSignal(false)
   const [tidying, setTidying] = createSignal(false)
+  // Motion (#1352): the cards a drag lifts, the ones landing on the grid, an edge just connected (it flashes),
+  // a card that answers with a visual click, and a draft line pulling back into its handle.
+  const [lifted, setLifted] = createSignal<ReadonlySet<string>>(new Set())
+  const [landing, setLanding] = createSignal<ReadonlySet<string>>(new Set())
+  const [flashEdge, setFlashEdge] = createSignal<string | null>(null)
+  const [clicked, setClicked] = createSignal<string | null>(null)
+  const [retract, setRetract] = createSignal<{ d: string; x: number; y: number } | null>(null)
+  const motionTimers = new Set<ReturnType<typeof setTimeout>>()
+  const later = (ms: number, run: () => void) => {
+    const timer = setTimeout(() => {
+      motionTimers.delete(timer)
+      run()
+    }, ms)
+    motionTimers.add(timer)
+  }
+  onCleanup(() => motionTimers.forEach((timer) => clearTimeout(timer)))
+  const click = (id: string) => {
+    setClicked(null)
+    queueMicrotask(() => setClicked(id))
+    later(motionMs('fast'), () => setClicked((current) => (current === id ? null : current)))
+  }
 
   // ——— derived graph view ———
 
@@ -122,22 +146,68 @@ export function Canvas(props: CanvasProps): JSX.Element {
         })
       }
     }
-    setPositions(reconcile(structuredClone(next)))
+    // A layout change that should animate (Tidy, and undo or redo of one) glides the cards to their new
+    // places in one --motion-slow tween, and the edges follow them frame by frame (they read `positions`).
+    const token = untrack(() => props.layoutTransition)
+    const animate = token !== undefined && token !== appliedTransition && measured()
+    appliedTransition = token
+    const from: AutomationLayout | null = animate ? untrack(() => Object.fromEntries(Object.entries(positions).map(([id, p]) => [id, { x: p.x, y: p.y }]))) : null
     setCommitted(reconcile(structuredClone(next)))
+    // The token is read only for a change that animates: reading it costs a style recalculation.
+    const ms = from ? motionMs('slow') : 0
+    if (!from || ms <= 0) {
+      cancelAnimationFrame(tweenFrame)
+      setTidying(false)
+      setPositions(reconcile(structuredClone(next)))
+      return
+    }
+    tween(from, next, ms)
   }))
 
-  // A Tidy moves the cards with a 200 ms transition (CSS; none under prefers-reduced-motion) while the
-  // edges fade back in once the cards have landed.
-  const TIDY_MS = 200
-  let tidyTimer: ReturnType<typeof setTimeout> | undefined
-  createEffect(on(() => props.layoutTransition, (token, previous) => {
-    if (token === undefined || token === previous) return
-    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  let appliedTransition = props.layoutTransition
+  let tweenFrame = 0
+  // --ease-standard, cubic-bezier(0.2, 0, 0.2, 1), sampled for the tween.
+  const easeStandard = (t: number) => {
+    let lo = 0, hi = 1, u = t
+    for (let i = 0; i < 12; i++) {
+      u = (lo + hi) / 2
+      const x = 3 * (1 - u) * (1 - u) * u * 0.2 + 3 * (1 - u) * u * u * 0.2 + u * u * u
+      if (x < t) lo = u
+      else hi = u
+    }
+    return 3 * (1 - u) * u * u + u * u * u
+  }
+  const tween = (from: AutomationLayout, to: AutomationLayout, ms: number) => {
+    cancelAnimationFrame(tweenFrame)
+    const moving = Object.keys(to).filter((id) => from[id] && (from[id]!.x !== to[id]!.x || from[id]!.y !== to[id]!.y))
+    if (moving.length === 0) {
+      setPositions(reconcile(structuredClone(to)))
+      return
+    }
+    // Cards that do not move (and new ones) take their place at once.
+    setPositions(reconcile(Object.fromEntries(Object.entries(to).map(([id, p]) => [id, moving.includes(id) ? { ...from[id]! } : { ...p }]))))
     setTidying(true)
-    clearTimeout(tidyTimer)
-    tidyTimer = setTimeout(() => setTidying(false), TIDY_MS + 40)
-  }, { defer: true }))
-  onCleanup(() => clearTimeout(tidyTimer))
+    const start = performance.now()
+    // The frame's own clock, not the rAF timestamp: some hosts start that one elsewhere.
+    const frame = () => {
+      const k = Math.min(1, (performance.now() - start) / ms)
+      const e = easeStandard(k)
+      batch(() => {
+        for (const id of moving) {
+          const a = from[id]!
+          const b = to[id]!
+          setPositions(id, { x: Math.round(a.x + (b.x - a.x) * e), y: Math.round(a.y + (b.y - a.y) * e) })
+        }
+      })
+      if (k < 1) tweenFrame = requestAnimationFrame(frame)
+      else {
+        setTidying(false)
+        setPositions(reconcile(structuredClone(to)))
+      }
+    }
+    tweenFrame = requestAnimationFrame(frame)
+  }
+  onCleanup(() => cancelAnimationFrame(tweenFrame))
 
   const errorMap = createMemo(() => errorsByItem(props.graph, props.errors))
   const lost = createMemo(() => connectionLost(props.graph, props.errors))
@@ -415,11 +485,22 @@ export function Canvas(props: CanvasProps): JSX.Element {
     onStart: () => setDragging(true),
     onMove: (moved) => {
       batch(() => {
+        if (lifted().size === 0) {
+          setLifted(new Set(moved.keys()))
+          if (coarsePointer()) for (const id of moved.keys()) click(id)
+        }
         for (const [id, p] of moved) setPositions(id, { x: p.x, y: p.y })
       })
     },
     onEnd: (moved) => {
       setDragging(false)
+      // The cards land on the grid with a short glide instead of a jump.
+      const landed = new Set(moved.keys())
+      batch(() => {
+        setLifted(new Set<string>())
+        setLanding(landed)
+      })
+      later(motionMs('fast'), () => setLanding((current) => (current === landed ? new Set<string>() : current)))
       const out: AutomationLayout = {}
       let changed = false
       for (const [id, p] of moved) {
@@ -521,7 +602,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
     const topLeft = toBox(p, vp)
     const bottomRight = toBox({ x: p.x + g.width, y: p.y + g.height }, vp)
     if (topLeft.x < 0 || topLeft.y < 0 || bottomRight.x > width || bottomRight.y > height) {
-      panZoom.set({ x: width / 2 - (p.x + g.width / 2) * vp.zoom, y: height / 2 - (p.y + g.height / 2) * vp.zoom, zoom: vp.zoom }, 150)
+      panZoom.set({ x: width / 2 - (p.x + g.width / 2) * vp.zoom, y: height / 2 - (p.y + g.height / 2) * vp.zoom, zoom: vp.zoom }, motionMs('fast'))
     }
   }
 
@@ -850,6 +931,22 @@ export function Canvas(props: CanvasProps): JSX.Element {
     event.stopPropagation()
     syncLookup()
     const from = { node: id, outcome }
+    let last: ConnectionState | null = null
+    const key = edgeKey(id, outcome)
+    // Released on a target: the new edge flashes and the target answers with a click.
+    const connected = (target: string) => {
+      props.onChange?.(connect(props.graph, from, target))
+      setFlashEdge(key)
+      click(target)
+      later(motionMs('slow'), () => setFlashEdge((current) => (current === key ? null : current)))
+    }
+    // Released off a target: the line pulls back into its handle.
+    const missed = () => {
+      const state = last
+      if (!state || motionMs('fast') <= 0) return
+      setRetract({ d: edgePath(state.from, state.to), x: state.from.x, y: state.from.y })
+      later(motionMs('fast'), () => setRetract(null))
+    }
     startConnection(event, {
       container,
       lookup,
@@ -860,19 +957,25 @@ export function Canvas(props: CanvasProps): JSX.Element {
       viewport: () => viewport(),
       panBy,
       isValid: (target) => findItem(props.graph, target)?.kind === 'node',
-      onUpdate: setConnection,
-      onConnect: (target) => props.onChange?.(connect(props.graph, from, target)),
+      onUpdate: (state) => {
+        if (state) last = state
+        setConnection(state)
+      },
+      onConnect: (target) => connected(target),
       onRelease: (point, flow) => {
         const root = container!.getRootNode() as Document | ShadowRoot
         const target = nodeIdAt(root, point.clientX, point.clientY)
         if (target) {
-          if (findItem(props.graph, target)?.kind === 'node') props.onChange?.(connect(props.graph, from, target))
+          if (findItem(props.graph, target)?.kind === 'node') connected(target)
+          else missed()
           return
         }
         if (isPaneAt(root, container!, point.clientX, point.clientY)) {
           const rect = container!.getBoundingClientRect()
           props.onDrop?.({ from, x: point.clientX - rect.left, y: point.clientY - rect.top, flow })
+          return
         }
+        missed()
       },
     })
   }
@@ -894,8 +997,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
   const hint = () => {
     if (connectionHint()) return connectionHint()
     if (!editable()) return t().canvas.hintReadOnly
-    const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
-    return coarse ? t().canvas.hintTouch : t().canvas.hintMouse
+    return coarsePointer() ? t().canvas.hintTouch : t().canvas.hintMouse
   }
 
   const edgeView = (source: string) => {
@@ -924,14 +1026,27 @@ export function Canvas(props: CanvasProps): JSX.Element {
     const className = createMemo(() => {
       let c = 'ae-edge'
       const taken = props.overlay?.taken.has(source) ?? false
-      if (connectingKey() === source) c += ' ae-edge--hidden'
+      if (connectingKey() === source) c += ' ae-edge--rewiring'
+      if (flashEdge() === source) c += ' ae-edge--flash'
       if (taken) c += ' ae-edge--taken'
+      if (taken && props.overlay?.states.get(to()) === 'waiting') c += ' ae-edge--waiting'
       if (loop()) c += ' ae-edge--loop'
       const h = highlight()
       if (props.overlay ? !taken : h ? !h.edges.has(source) : false) c += ' ae-dim'
       return c
     })
-    return <path class={className()} d={path()} data-edge={source} data-to={to()} />
+    // The run's path lights up edge by edge in the order of its steps.
+    const step = () => {
+      const taken = props.overlay?.taken
+      if (!taken?.has(source)) return undefined
+      let i = 0
+      for (const k of taken) {
+        if (k === source) return `--ae-step:${i}`
+        i++
+      }
+      return undefined
+    }
+    return <path class={className()} d={path()} style={step()} data-edge={source} data-to={to()} />
   }
 
   const NodeCard = (cardProps: { id: string }) => {
@@ -948,6 +1063,11 @@ export function Canvas(props: CanvasProps): JSX.Element {
       if (selected()) c += ' ae-card--selected'
       if (it?.error || unavailable()) c += ' ae-card--error'
       if (it?.state) c += ` ae-card--${it.state}`
+      if (lifted().has(id)) c += ' ae-card--lifted'
+      if (landing().has(id)) c += ' ae-card--landing'
+      if (clicked() === id) c += ' ae-card--click'
+      const over = connection()
+      if (over && over.overTarget === id && over.valid) c += ' ae-card--drop'
       const h = highlight()
       if (props.overlay ? !props.overlay.states.has(id) : h ? !h.items.has(id) : false) c += ' ae-dim'
       return c
@@ -1173,6 +1293,9 @@ export function Canvas(props: CanvasProps): JSX.Element {
           <Show when={connection()}>
             <path class="ae-edge ae-edge--draft" classList={{ 'ae-edge--valid': connection()?.valid === true }} d={connectionPath()} />
           </Show>
+          <Show when={retract()}>
+            {(r) => <path class="ae-edge ae-edge--draft ae-edge--retract" d={r().d} style={`transform-origin:${r().x}px ${r().y}px`} />}
+          </Show>
         </svg>
         <For each={visibleIds()}>{(id) => <NodeCard id={id} />}</For>
       </div>
@@ -1180,7 +1303,13 @@ export function Canvas(props: CanvasProps): JSX.Element {
         {(rect) => <div class="ae-box" style={{ left: `${rect().x}px`, top: `${rect().y}px`, width: `${rect().width}px`, height: `${rect().height}px` }} />}
       </Show>
       <Show when={press()}>
-        {(p) => <div class="ae-press" style={{ left: `${p().x}px`, top: `${p().y}px` }} aria-hidden="true" />}
+        {(p) => (
+          // The ring fills over the long-press time; a full static ring under reduced motion.
+          <svg class="ae-press" viewBox="0 0 56 56" style={{ left: `${p().x}px`, top: `${p().y}px`, '--ae-long-press': `${LONG_PRESS_MS}ms` }} aria-hidden="true">
+            <circle class="ae-press__track" cx="28" cy="28" r="25" />
+            <circle class="ae-press__fill" cx="28" cy="28" r="25" pathLength="100" />
+          </svg>
+        )}
       </Show>
       <div class={`ae-hint ${NOPAN}`} classList={{ 'ae-hint--active': connection() !== null }} role="status" aria-live="polite">
         {hint()}

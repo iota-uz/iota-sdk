@@ -33,6 +33,8 @@ type Entry = {
 }
 
 export interface PaletteProps {
+  /** Closing: it plays its leaving animation, inert (#1352). */
+  leaving?: boolean
   mode: PaletteMode
   catalog: EditorCatalog
   graph: AutomationGraph
@@ -70,7 +72,7 @@ export function Palette(props: PaletteProps): JSX.Element {
 
   useDismiss(() => root, () => props.onClose())
   // On touch the search is not focused: the keyboard would cover the list.
-  useFocusTrap(() => root, { autofocus: !coarse })
+  useFocusTrap(() => root, { autofocus: !coarse, leaving: () => props.leaving })
 
   const entries = createMemo<Entry[]>(() => {
     const mode = props.mode
@@ -128,18 +130,32 @@ export function Palette(props: PaletteProps): JSX.Element {
 
   const selectable = createMemo(() => filtered().filter((e) => !e.disabled))
 
-  const groups = createMemo(() => {
-    const out: { section: Entry['section']; group: string; items: Entry[] }[] = []
+  // Filtering reflows the list without a jump: a group and an entry that stay in the results keep their
+  // elements (the group objects are cached by key, the entries come from one memo), only new ones fade in.
+  type Group = { key: string; section: Entry['section']; group: string }
+  const groupCache = new Map<string, Group>()
+  const grouped = createMemo(() => {
+    const items = new Map<string, Entry[]>()
+    const order: Group[] = []
     for (const entry of filtered()) {
-      let bucket = out.find((g) => g.section === entry.section && g.group === entry.group)
-      if (!bucket) {
-        bucket = { section: entry.section, group: entry.group, items: [] }
-        out.push(bucket)
+      const key = `${entry.section}\u0000${entry.group}`
+      let list = items.get(key)
+      if (!list) {
+        list = []
+        items.set(key, list)
+        let group = groupCache.get(key)
+        if (!group) {
+          group = { key, section: entry.section, group: entry.group }
+          groupCache.set(key, group)
+        }
+        order.push(group)
       }
-      bucket.items.push(entry)
+      list.push(entry)
     }
-    return out
+    return { order, items }
   })
+  const groups = () => grouped().order
+  const itemsOf = (group: Group) => grouped().items.get(group.key) ?? []
 
   const activeEntry = () => selectable()[Math.min(active(), selectable().length - 1)]
 
@@ -244,7 +260,7 @@ export function Palette(props: PaletteProps): JSX.Element {
                   {group.section === 'triggers' ? `${t().palette.triggers} · ` : ''}{group.group}
                 </div>
               </Show>
-              <For each={group.items}>
+              <For each={itemsOf(group)}>
                 {(entry) => {
                   const selected = () => activeEntry()?.key === entry.key
                   return (

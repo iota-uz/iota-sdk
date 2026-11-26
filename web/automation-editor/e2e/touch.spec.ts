@@ -109,7 +109,7 @@ test.describe('touch (CDP)', () => {
     expect(box.y).toBeLessThan(140)
     await palette.getByRole('button', { name: 'Close' }).tap()
     const small = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('.ae-editor button, .ae-editor [role="tab"]')]
-      .filter((el) => el.offsetParent !== null)
+      .filter((el) => el.offsetParent !== null && !el.closest('[inert]'))
       .map((el) => ({ name: el.getAttribute('aria-label') ?? el.textContent?.trim(), h: el.getBoundingClientRect().height }))
       .filter((el) => el.h > 0 && el.h < 44))
     expect(small, JSON.stringify(small)).toEqual([])

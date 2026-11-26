@@ -16,6 +16,7 @@ import {
 } from '@xyflow/system'
 import type { XY } from '../types'
 import { LIB, NODRAG, NOPAN, NOWHEEL } from './dom'
+import { motionMs } from '../motion'
 
 export type Viewport = { x: number; y: number; zoom: number }
 
@@ -153,8 +154,8 @@ export function createPanZoom(domNode: Element, options: PanZoomOptions): PanZoo
     update: apply,
     set: (viewport, duration) => void instance.setViewport(viewport, duration ? { duration } : undefined),
     get: () => instance.getViewport(),
-    scaleBy: (factor) => void instance.scaleBy(factor, { duration: 150 }),
-    scaleTo: (zoom) => void instance.scaleTo(zoom, { duration: 150 }),
+    scaleBy: (factor) => void instance.scaleBy(factor, { duration: motionMs('fast') }),
+    scaleTo: (zoom) => void instance.scaleTo(zoom, { duration: motionMs('fast') }),
     destroy: () => instance.destroy(),
   }
 }

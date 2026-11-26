@@ -1,7 +1,7 @@
 // Shared behaviour of menus, popovers and palettes (K3, K4): close on any pointerdown outside (capture
 // phase, and that press does not reach the element under it), on wheel/zoom outside, on window blur and
 // on a change of the window width (not height: the on-screen keyboard changes the height).
-import { onCleanup, onMount } from 'solid-js'
+import { createEffect, onCleanup, onMount } from 'solid-js'
 
 export function useDismiss(element: () => HTMLElement | undefined, close: () => void, options: { swallow?: boolean } = {}): void {
   onMount(() => {
@@ -46,10 +46,41 @@ export function useDismiss(element: () => HTMLElement | undefined, close: () => 
   })
 }
 
+/**
+ * Gives focus back to the opener as a layer closes (K3), once: when it starts leaving (A7: the leaving layer is
+ * inert and holds no focus) or when it unmounts. Focus that already moved elsewhere (a card the pick created)
+ * is left where it is.
+ */
+export function createFocusReturn(element: () => HTMLElement | undefined, opener: HTMLElement | null): () => void {
+  let done = false
+  return () => {
+    if (done) return
+    done = true
+    const active = document.activeElement
+    const root = element()
+    if (active && active !== document.body && root && !root.contains(active)) return
+    if (opener && opener.isConnected) opener.focus({ preventScroll: true })
+  }
+}
+
+/** A leaving layer (A7): the shared leaving animation, `inert`, and focus back to the opener at once. */
+export function useLeaving(element: () => HTMLElement | undefined, leaving: (() => boolean | undefined) | undefined, restore: () => void): void {
+  createEffect(() => {
+    const el = element()
+    const now = Boolean(leaving?.())
+    if (!el) return
+    el.classList.toggle('ae-layer--leaving', now)
+    el.toggleAttribute('inert', now)
+    if (now) restore()
+  })
+}
+
 /** Keeps Tab inside a layer and returns focus to the opener when it closes (K3). */
-export function useFocusTrap(element: () => HTMLElement | undefined, options: { autofocus?: boolean } = {}): void {
+export function useFocusTrap(element: () => HTMLElement | undefined, options: { autofocus?: boolean; leaving?: () => boolean | undefined } = {}): void {
   onMount(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const restore = createFocusReturn(element, opener)
+    useLeaving(element, options.leaving, restore)
     const el = element()
     if (el && options.autofocus !== false) {
       const first = el.querySelector<HTMLElement>('[data-autofocus]') ?? focusables(el)[0]
@@ -76,7 +107,7 @@ export function useFocusTrap(element: () => HTMLElement | undefined, options: { 
     el?.addEventListener('keydown', onKey)
     onCleanup(() => {
       el?.removeEventListener('keydown', onKey)
-      if (opener && opener.isConnected) opener.focus({ preventScroll: true })
+      restore()
     })
   })
 }

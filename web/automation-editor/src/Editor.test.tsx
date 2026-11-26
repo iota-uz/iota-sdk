@@ -83,21 +83,21 @@ describe('Tidy button (ED2)', () => {
     expect(tidy.getAttribute('aria-keyshortcuts')).toMatch(/Shift\+L$/)
     const before = positions(container)
     fireEvent.click(tidy)
-    const after = positions(container)
-    expect(after).not.toBe(before)
-    // The cards glide for 200 ms: the canvas carries the class until they have landed.
+    // The cards glide for --motion-slow, edges following: the canvas carries the class until they have landed.
     expect(container.querySelector('.ae-canvas--tidying')).not.toBeNull()
     await waitFor(() => expect(container.querySelector('.ae-canvas--tidying')).toBeNull())
+    expect(positions(container)).not.toBe(before)
+    // Undo glides them back the same way, as one step.
     fireEvent.click(screen.getByLabelText('Undo'))
-    expect(positions(container)).toBe(before)
+    await waitFor(() => expect(positions(container)).toBe(before))
     expect(screen.getByLabelText('Undo')).toBeDisabled()
   })
 
-  it('runs on Shift+Ctrl+L and stays out of fields', () => {
+  it('runs on Shift+Ctrl+L and stays out of fields', async () => {
     const { container } = start()
     const before = positions(container)
     fireEvent.keyDown(document.body, { key: 'L', ctrlKey: true, shiftKey: true })
-    expect(positions(container)).not.toBe(before)
+    await waitFor(() => expect(positions(container)).not.toBe(before))
   })
 
   it('is absent from a read-only editor', () => {

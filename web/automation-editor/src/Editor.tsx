@@ -24,6 +24,7 @@ import {
   removeItems,
   setIgnore,
 } from './graph'
+import { createLeaving } from './motion'
 import { amend, canRedo, canUndo, createHistory, record, redo, undo, type History, type Snapshot } from './history'
 import { Icon } from './icons'
 import { ensureLayout, placeNew, tidied, tidyLayout } from './layout'
@@ -154,6 +155,11 @@ function EditorBody(props: EditorProps): JSX.Element {
   const [versionsMenu, setVersionsMenu] = createSignal<XY | null>(null)
   // The docked Dry run or Test node panel, and the overlay of its result on the draft.
   const [dock, setDock] = createSignal<{ kind: 'dry' } | { kind: 'test'; node: string } | null>(null)
+  // Layers leave by their reverse animation (--motion-fast), inert meanwhile (A7, #1352).
+  const paletteLayer = createLeaving(palette)
+  const menuLayer = createLeaving(menu)
+  const validationLayer = createLeaving(() => validationOpen())
+  const sideLayer = createLeaving(selected)
   const [localOverlay, setLocalOverlay] = createSignal<{ overlay: Overlay; graph: AutomationGraph } | null>(null)
   let canvasApi: CanvasApi | null = null
   let area: HTMLDivElement | undefined
@@ -516,7 +522,7 @@ function EditorBody(props: EditorProps): JSX.Element {
     setSelected(result.ids[0] ?? null)
   }
 
-  // Tidy is one history step: the whole layout is replaced at once, and the cards glide there (200 ms).
+  // Tidy is one history step: the whole layout is replaced at once, and the cards glide there (--motion-slow).
   const [layoutTransition, setLayoutTransition] = createSignal(0)
   const tidy = () => {
     if (readOnly() || mobile()) return
@@ -529,8 +535,9 @@ function EditorBody(props: EditorProps): JSX.Element {
 
   // A read-only editor (an old version, a switch the host is opening) keeps its draft as it is:
   // undo and redo are edits too.
-  const doUndo = () => { if (!editingBlocked()) setHistory((h) => undo(h)) }
-  const doRedo = () => { if (!editingBlocked()) setHistory((h) => redo(h)) }
+  // Undo and redo move the cards back the same way a Tidy moved them (#1352): one glide, edges following.
+  const doUndo = () => { if (!editingBlocked()) batch(() => { setLayoutTransition((n) => n + 1); setHistory((h) => undo(h)) }) }
+  const doRedo = () => { if (!editingBlocked()) batch(() => { setLayoutTransition((n) => n + 1); setHistory((h) => redo(h)) }) }
 
   const openPanelFocus = (id: string) => {
     setSelected(id)
@@ -950,16 +957,17 @@ function EditorBody(props: EditorProps): JSX.Element {
                   </Show>
                 </div>
               </Show>
-              <Show when={palette()}>
-                {(mode) => <Suspense><Palette mode={mode()} catalog={props.catalog} graph={draft()} locale={props.locale} bounds={areaSize()} onPick={addFromPalette} onClose={() => setPalette(null)} /></Suspense>}
+              <Show when={paletteLayer.value()}>
+                {(mode) => <Suspense><Palette leaving={paletteLayer.leaving()} mode={mode()} catalog={props.catalog} graph={draft()} locale={props.locale} bounds={areaSize()} onPick={addFromPalette} onClose={() => setPalette(null)} /></Suspense>}
               </Show>
-              <Show when={menu()}>
-                {(m) => <Suspense><ContextMenu x={m().x} y={m().y} bounds={areaSize()} items={menuItems()} locale={props.locale} onClose={() => setMenu(null)} /></Suspense>}
+              <Show when={menuLayer.value()}>
+                {(m) => <Suspense><ContextMenu leaving={menuLayer.leaving()} x={m().x} y={m().y} bounds={areaSize()} items={menuItems()} locale={props.locale} onClose={() => setMenu(null)} /></Suspense>}
               </Show>
             </div>
-            <Show when={validationOpen()}>
+            <Show when={validationLayer.value()}>
               <Suspense>
               <ValidationPanel
+                leaving={validationLayer.leaving()}
                 state={validationView()}
                 graph={draft()}
                 catalog={props.catalog}
@@ -1004,11 +1012,13 @@ function EditorBody(props: EditorProps): JSX.Element {
             </Show>
             {props.panels}
           </div>
-          <Show when={selected()}>
+          <Show when={sideLayer.value()}>
             {(id) => (
               <div
                 ref={panelRef}
                 class="ae-side"
+                classList={{ 'ae-layer--leaving': sideLayer.leaving() }}
+                inert={sideLayer.leaving()}
                 onKeyDown={(event) => {
                   if (event.key === 'Escape' && !event.defaultPrevented && !(event.target as HTMLElement).closest('[role="listbox"], [aria-expanded="true"]')) {
                     event.preventDefault()

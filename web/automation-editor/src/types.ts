@@ -296,7 +296,7 @@ export interface CanvasProps {
   selecting?: boolean; snap?: boolean; minimap?: boolean
   /** Shows the Tidy button next to Fit; absent → no button. */
   onTidy?(): void
-  /** Bump it just before a layout change that should animate (Tidy): the cards glide for 200 ms. */
+  /** Bump it just before a layout change that should animate (Tidy, undo, redo): the cards glide for --motion-slow and the edges follow. */
   layoutTransition?: number
   renderNode?(item: Accessor<CanvasItem>): JSX.Element
   label?: string

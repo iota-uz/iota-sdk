@@ -72,13 +72,19 @@
   }
   .ae-btn--secondary:hover:not(:disabled) { background: oklch(var(--clr-secondary-btn-bg-hover)); }
 }
-.ae-btn:active:not(:disabled), .ae-iconbtn:active:not(:disabled) { background: oklch(var(--clr-text-100) / 14%); }
-.ae-editor :focus-visible { outline: 2px solid oklch(var(--clr-border-brand)); outline-offset: 2px; }
+.ae-btn, .ae-iconbtn, .ae-tab, .ae-issue, .ae-menu__item, .ae-palette__item {
+  transition: background-color var(--motion-instant) var(--ease-standard), transform var(--motion-instant) var(--ease-standard);
+}
+.ae-btn:active:not(:disabled), .ae-iconbtn:active:not(:disabled) { background: oklch(var(--clr-text-100) / 14%); transform: scale(0.96); }
+.ae-tab:active, .ae-menu__item:active:not([aria-disabled="true"]), .ae-palette__item:active:not(.ae-palette__item--disabled) { transform: scale(0.98); }
+/* One focus ring on every screen (K2): the shared token, no animation in. */
+.ae-editor :focus-visible { outline: var(--focus-ring-width) solid oklch(var(--clr-border-brand)); outline-offset: var(--focus-ring-offset); transition: none; }
 
 .ae-spinner {
   width: 14px; height: 14px; border-radius: 9999px; flex: none;
   border: 2px solid oklch(var(--clr-border-default)); border-top-color: oklch(var(--clr-border-brand));
-  animation: ae-spin 0.8s linear infinite;
+  /* motion-allow: an indefinite spinner turns at one revolution per 4 × --motion-base; none under reduced motion. */
+  animation: ae-spin calc(var(--motion-base) * 4) linear infinite; /* motion-allow: spinner */
 }
 @keyframes ae-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ae-spinner { animation: none; } }
@@ -101,7 +107,11 @@
 .ae-side {
   flex: none; width: min(420px, 40vw); min-width: 320px; border-left: 1px solid oklch(var(--clr-border-subtle));
   background: oklch(var(--clr-surface-300)); display: flex; min-height: 0;
+  animation: ae-slide-in var(--motion-base) var(--ease-out);
 }
+.ae-side.ae-layer--leaving { animation: ae-slide-out var(--motion-fast) var(--ease-in) both; }
+@keyframes ae-slide-in { from { opacity: 0; transform: translateX(16px); } }
+@keyframes ae-slide-out { to { opacity: 0; transform: translateX(16px); } }
 
 /* ——— canvas ——— */
 .ae-canvas {
@@ -126,17 +136,27 @@
 .ae-edge--valid { stroke-dasharray: none; }
 .ae-edge--taken { stroke: oklch(var(--clr-canvas-edge-active)); stroke-width: 2.5; }
 .ae-dim { opacity: 0.35; }
-/* Tidy: the cards glide to their new places in 200 ms and the edges fade back in once they have landed. */
-.ae-canvas--tidying .ae-card { transition: transform 200ms ease-out; }
-.ae-canvas--tidying .ae-edges { opacity: 0; }
-.ae-edges { transition: opacity 160ms ease-out; }
-@media (prefers-reduced-motion: reduce) {
-  .ae-canvas--tidying .ae-card, .ae-edges { transition: none; }
-  .ae-canvas--tidying .ae-edges { opacity: 1; }
-}
+.ae-edge { transition: opacity var(--motion-fast) var(--ease-standard); }
+/* Rewiring: the old edge fades to 0.3 while the new one is drawn; Esc brings it back. */
+.ae-edge--rewiring { opacity: 0.3; }
+/* A connection made: the new edge flashes once. */
+.ae-edge--flash { stroke: oklch(var(--clr-canvas-edge-active)); stroke-width: 2.5; animation: ae-edge-flash var(--motion-slow) var(--ease-out); }
+@keyframes ae-edge-flash { from { opacity: 0.2; } 40% { opacity: 1; } }
+/* Released off a target: the draft line pulls back into its handle. */
+.ae-edge--retract { transform-box: view-box; animation: ae-retract var(--motion-fast) var(--ease-in) both; }
+@keyframes ae-retract { to { opacity: 0; transform: scale(0); } }
+/* Run overlay (#1347): the path taken lights up edge by edge in step order (--ae-step set per edge). */
+.ae-edge--taken { animation: ae-edge-flash var(--motion-slow) var(--ease-out) both; animation-delay: calc(var(--ae-step, 0) * var(--motion-fast)); }
+/* An edge into a step that is waiting moves along its dashes; static under reduced motion. */
+.ae-edge--waiting { stroke-dasharray: 6 4; animation: ae-edge-wait calc(var(--motion-slow) * 3) linear infinite; } /* motion-allow: waiting edge */
+@keyframes ae-edge-wait { to { stroke-dashoffset: -20; } }
+@media (prefers-reduced-motion: reduce) { .ae-edge--waiting { animation: none; } }
 
 .ae-card {
   position: absolute; left: 0; top: 0; box-sizing: border-box;
+  /* Only opacity at rest (path highlight); lift, landing and run states add theirs while they apply, so a
+     200-card replace pays for no transitions it does not run. */
+  transition: opacity var(--motion-fast) var(--ease-standard);
   border: 1px solid oklch(var(--clr-border-default)); border-radius: 12px;
   background: oklch(var(--clr-surface-300)); box-shadow: var(--shadow-200);
   cursor: grab; outline: none;
@@ -151,6 +171,23 @@
 .ae-card--failed { border-color: oklch(var(--clr-border-danger)); }
 .ae-card--running, .ae-card--waiting { border-color: oklch(var(--clr-border-brand)); }
 .ae-card--passed { border-color: oklch(var(--clr-border-success)); }
+/* Dragging: the card lifts (shadow from the tokens on its own layer, ~1.02) and lands softly on the grid when
+   released. The shadow layer exists only while it shows; only its opacity animates. */
+.ae-card--lifted::before, .ae-card--drop::before, .ae-canvas--connecting .ae-card:not(.ae-card--trigger):hover::before {
+  content: ''; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+  box-shadow: var(--shadow-100); animation: ae-fade var(--motion-fast) var(--ease-out);
+}
+.ae-card--lifted { scale: 1.02; cursor: grabbing; z-index: 1; transition: opacity var(--motion-fast) var(--ease-standard), scale var(--motion-fast) var(--ease-out); }
+.ae-card--landing { transition: transform var(--motion-fast) var(--ease-out), scale var(--motion-fast) var(--ease-out); }
+.ae-card--running, .ae-card--waiting, .ae-card--passed, .ae-card--failed { transition: opacity var(--motion-fast) var(--ease-standard), border-color var(--motion-base) var(--ease-standard); }
+/* A valid drop target while a connection is drawn: its input handle (near it) or its body (under the pointer). */
+.ae-card--drop, .ae-canvas--connecting .ae-card:not(.ae-card--trigger):hover { border-color: oklch(var(--clr-border-brand)); }
+/* A visual click in place of a haptic one (touch: drag start, a connection made). */
+.ae-card--click { animation: ae-click var(--motion-fast) var(--ease-standard); }
+@keyframes ae-click { 50% { scale: 0.96; } }
+/* Run state change (running → done): the badge crossfades in, the card's border colour eases over. */
+.ae-card .ae-state { animation: ae-fade var(--motion-base) var(--ease-out); }
+@keyframes ae-fade { from { opacity: 0; } }
 .ae-card__body { position: absolute; left: 12px; right: 12px; top: 10px; height: 40px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ae-card__head { display: flex; align-items: center; gap: 0.375rem; min-width: 0; height: 20px; }
 .ae-card__icon { display: inline-flex; color: oklch(var(--clr-text-200)); }
@@ -167,6 +204,8 @@
   content: ''; position: absolute; left: 50%; top: 30px; width: 12px; height: 12px; margin-left: -6px; box-sizing: border-box;
   border-radius: 9999px; border: 2px solid oklch(var(--clr-canvas-edge)); background: oklch(var(--clr-surface-300));
 }
+/* Press: a squeeze to about 0.96; the transition is declared on the state, so idle chips carry none. */
+.ae-out.connectable:active { transform: scale(0.96); transition: transform var(--motion-instant) var(--ease-standard); }
 /* A larger invisible hit area: ≥ 36 px for a cursor, ≥ 44 px for a finger (T1). */
 .ae-out::before { content: ''; position: absolute; inset: -6px -2px -14px; }
 @media (pointer: coarse) { .ae-out::before { inset: -10px -4px -20px; } }
@@ -176,7 +215,10 @@
 .ae-out--ignore .ae-out__label { text-decoration: line-through; }
 .ae-out--taken { border-color: oklch(var(--clr-canvas-edge-active)); color: oklch(var(--clr-text-100)); }
 .ae-out--taken::after { border-color: oklch(var(--clr-canvas-edge-active)); }
-@media (hover: hover) { .ae-out.connectable:hover, .ae-out.connectable:hover::after { border-color: oklch(var(--clr-canvas-edge-active)); } }
+@media (hover: hover) {
+  .ae-out.connectable:hover, .ae-out.connectable:hover::after { border-color: oklch(var(--clr-border-brand)); }
+  .ae-out.connectable:hover::after { transform: scale(1.33); transition: transform var(--motion-instant) var(--ease-out); }
+}
 .ae-out-note {
   position: absolute; transform: translateX(-50%); white-space: nowrap; font-size: 0.6875rem;
   color: oklch(var(--clr-text-200)); pointer-events: none;
@@ -189,6 +231,7 @@
 }
 .ae-handle--target { pointer-events: none; }
 .ae-canvas--connecting .ae-handle--target { pointer-events: auto; border-color: oklch(var(--clr-canvas-edge-active)); }
+.ae-card--drop .ae-handle--target { transform: scale(1.33); background: oklch(var(--clr-border-brand)); transition: transform var(--motion-instant) var(--ease-out); }
 
 .ae-state, .ae-badge {
   display: inline-flex; align-items: center; gap: 0.25rem; flex: none; font-size: 0.6875rem; line-height: 1;
@@ -205,10 +248,16 @@
   position: absolute; pointer-events: none; border: 1px solid oklch(var(--clr-border-brand));
   background: oklch(var(--clr-border-brand) / 8%); border-radius: 4px;
 }
-.ae-press {
-  position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 9999px; pointer-events: none;
-  border: 3px solid oklch(var(--clr-border-brand)); box-sizing: border-box; opacity: 0.8;
+.ae-press { position: absolute; width: 56px; height: 56px; margin: -28px 0 0 -28px; pointer-events: none; overflow: visible; }
+.ae-press__track { fill: none; stroke: oklch(var(--clr-border-brand) / 25%); stroke-width: 3; }
+/* The ring fills over the long-press time (LONG_PRESS_MS, set inline); a full static ring under reduced motion. */
+.ae-press__fill {
+  fill: none; stroke: oklch(var(--clr-border-brand)); stroke-width: 3; stroke-linecap: round;
+  stroke-dasharray: 100; stroke-dashoffset: 100; transform: rotate(-90deg); transform-origin: center;
+  animation: ae-press-fill var(--ae-long-press) linear forwards; /* motion-allow: long-press gesture time */
 }
+@keyframes ae-press-fill { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .ae-press__fill { animation: none; stroke-dashoffset: 0; } }
 .ae-hint {
   position: absolute; left: 0.75rem; bottom: 0.75rem; max-width: calc(100% - 15rem); pointer-events: none;
   font-size: 0.75rem; color: oklch(var(--clr-text-200)); background: oklch(var(--clr-surface-300) / 90%);
@@ -263,7 +312,10 @@
 .ae-paths__type { font-size: 0.75rem; color: oklch(var(--clr-text-300)); }
 
 /* ——— validation dock ——— */
-.ae-validation { flex: none; max-height: 40%; display: flex; flex-direction: column; border-top: 1px solid oklch(var(--clr-border-subtle)); background: oklch(var(--clr-surface-300)); }
+.ae-validation { flex: none; max-height: 40%; display: flex; flex-direction: column; border-top: 1px solid oklch(var(--clr-border-subtle)); background: oklch(var(--clr-surface-300)); animation: ae-rise-in var(--motion-base) var(--ease-out); }
+.ae-validation.ae-layer--leaving { animation: ae-rise-out var(--motion-fast) var(--ease-in) both; }
+@keyframes ae-rise-in { from { opacity: 0; transform: translateY(12px); } }
+@keyframes ae-rise-out { to { opacity: 0; transform: translateY(12px); } }
 .ae-validation__head { display: flex; align-items: center; gap: 0.75rem; padding: 0.375rem 0.5rem 0.375rem 1rem; }
 .ae-validation__title { margin: 0; font-size: 0.875rem; font-weight: 600; }
 .ae-validation__summary { flex: 1 1 auto; color: oklch(var(--clr-text-200)); font-variant-numeric: tabular-nums; }
@@ -287,8 +339,15 @@
   display: flex; flex-direction: column; overflow: hidden;
   background: oklch(var(--clr-surface-300)); border: 1px solid oklch(var(--clr-border-default)); border-radius: 12px; box-shadow: var(--shadow-100);
 }
-.ae-palette--anchored { transform: none; }
+.ae-palette--anchored { transform: none; transform-origin: top left; }
 .ae-palette--sheet { left: 0.5rem; right: 0.5rem; top: 0.5rem; width: auto; transform: none; max-height: calc(100% - 1rem); }
+/* Layers (palette, menu, panel, validation): they grow from where they were called, leave by the reverse, shorter. */
+.ae-palette, .ae-menu { transform-origin: top center; animation: ae-pop-in var(--motion-base) var(--ease-out); }
+.ae-palette--anchored, .ae-menu { transform-origin: top left; }
+.ae-layer--leaving { animation: ae-pop-out var(--motion-fast) var(--ease-in) both; pointer-events: none; }
+@keyframes ae-pop-in { from { opacity: 0; scale: 0.96; } }
+@keyframes ae-pop-out { to { opacity: 0; scale: 0.96; } }
+.ae-palette__item { animation: ae-fade var(--motion-fast) var(--ease-out); }
 .ae-palette__head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.625rem 0.75rem 0; }
 .ae-palette__title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ae-palette__search { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid oklch(var(--clr-border-subtle)); color: oklch(var(--clr-text-300)); }
@@ -359,7 +418,8 @@ body > .ae-menu, .ae-editor > .ae-menu { position: fixed; }
 .ae-outline__empty { color: oklch(var(--clr-text-200)); }
 .ae-editor--mobile .ae-toolbar { padding: 0.5rem 0.75rem; }
 
-/* ——— skeleton (S2) ——— */
+/* ——— skeleton (S2): the content crossfades in over it in the same box ——— */
+.ae-editor > .ae-work, .ae-mobile { animation: ae-fade var(--motion-fade) var(--ease-out); }
 .ae-skeleton__bar { display: inline-block; height: 20px; border-radius: 6px; background: oklch(var(--clr-surface-400)); }
 .ae-skeleton__canvas { position: absolute; inset: 0; }
 .ae-skeleton__card { position: absolute; border-radius: 12px; background: oklch(var(--clr-surface-300)); border: 1px solid oklch(var(--clr-border-subtle)); }
