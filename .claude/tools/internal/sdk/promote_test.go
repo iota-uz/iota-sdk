@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -8,13 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-// False green: a ready release before watch skips waiting, and an unchecked
-// fake Go runner hides repository slugs being passed as module paths.
-func TestPromote_DispatchesWaitsAndIsIdempotent(t *testing.T) {
+func TestPromote_WaitsForExternalReleaseAndAppliesDependenciesOnce(t *testing.T) {
 	moduleName, err := (ExecRunner{}).Run(context.Background(), "../../../..", nil, "env", "GOWORK=off", "go", "list", "-m")
 	require.NoError(t, err)
 	modulePath := strings.TrimSpace(string(moduleName))
@@ -25,8 +25,7 @@ func TestPromote_DispatchesWaitsAndIsIdempotent(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(root, "go.work"), []byte("// Managed by sdk-tools sdk preview\n"), 0600))
 	sha := strings.Repeat("a", 40)
 	ready := &Candidate{Version: "0.6.0", SHA: sha, Source: sha, Phase: "ready"}
-	watched, updates := false, 0
-	dispatched := false
+	runChecks, updates := 0, 0
 	runner := fakeRunner{call: func(_ string, _ []byte, name string, args []string) ([]byte, error) {
 		if name == "git" {
 			require.Equal(t, "status", args[0])
@@ -46,21 +45,9 @@ func TestPromote_DispatchesWaitsAndIsIdempotent(t *testing.T) {
 				return nil, nil
 			}
 		}
-		if name == "gh" && args[0] == "run" {
-			require.Equal(t, []string{"run", "watch", "123", "--repo", Repository, "--exit-status"}, args)
-			watched = true
-			return nil, nil
-		}
-		if name != "gh" || args[0] != "api" {
-			return nil, fmt.Errorf("unexpected command %s %v", name, args)
-		}
-		if args[2] == "POST" {
-			require.False(t, dispatched)
-			require.Equal(t, "repos/"+Repository+"/actions/workflows/release.yml/dispatches", args[3])
-			dispatched = true
-			return nil, nil
-		}
-		require.Equal(t, "GET", args[2], "promotion must not modify a consumer repository")
+		require.Equal(t, "gh", name)
+		require.Equal(t, "api", args[0])
+		require.Equal(t, "GET", args[2], "promotion must only read from GitHub")
 
 		endpoint := strings.TrimPrefix(args[3], "repos/"+Repository+"/")
 		switch {
@@ -68,16 +55,14 @@ func TestPromote_DispatchesWaitsAndIsIdempotent(t *testing.T) {
 			return encoded(Pull{Merged: true, Merge: sha}), nil
 		case strings.HasPrefix(endpoint, "contents/state.json"):
 			state := State{}
-			if watched {
+			if runChecks >= 2 {
 				state.Ready = ready
 				state.Releases = map[string]*Candidate{ready.Version: ready}
 			}
 			return fileResponse(state, "state"), nil
 		case strings.HasPrefix(endpoint, "actions/workflows/"):
-			if !dispatched {
-				return []byte(`{"workflow_runs":[]}`), nil
-			}
-			return []byte(`{"workflow_runs":[{"id":123,"status":"in_progress","html_url":"https://github.com/example/run/123"}]}`), nil
+			runChecks++
+			return []byte(`{"workflow_runs":[]}`), nil
 		case strings.HasPrefix(endpoint, "compare/"):
 			return []byte(`{"status":"identical"}`), nil
 		case endpoint == "commits/v0.6.0":
@@ -86,14 +71,18 @@ func TestPromote_DispatchesWaitsAndIsIdempotent(t *testing.T) {
 		return nil, fmt.Errorf("unexpected API %s", endpoint)
 	}}
 	g := GitHub{Runner: runner, Repo: Repository}
-	require.NoError(t, g.Promote(context.Background(), root, false, io.Discard))
-	require.True(t, dispatched)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	var output bytes.Buffer
+	require.NoError(t, g.promote(ctx, root, &output, time.Millisecond))
+	require.Equal(t, 2, runChecks)
+	require.Contains(t, output.String(), "Waiting for a verified SDK release containing PR #12")
 	got, err := ReadDependency(root)
 	require.NoError(t, err)
 	require.Equal(t, "release", got.Channel)
 	require.Equal(t, ready.Version, got.Version)
 	require.NoFileExists(t, filepath.Join(root, "go.work"))
-	require.NoError(t, g.Promote(context.Background(), root, false, io.Discard))
+	require.NoError(t, g.Promote(context.Background(), root, io.Discard))
 	require.Equal(t, 1, updates)
 }
 
@@ -152,44 +141,57 @@ func TestPromote_RejectsUnmergedPR(t *testing.T) {
 		require.Equal(t, "repos/"+Repository+"/pulls/12", args[3])
 		return encoded(Pull{State: "open"}), nil
 	}}
-	require.Error(t, (GitHub{Runner: runner, Repo: Repository}).Promote(context.Background(), root, false, io.Discard))
+	require.Error(t, (GitHub{Runner: runner, Repo: Repository}).Promote(context.Background(), root, io.Discard))
 }
 
-// False green: observing only the first dispatch would miss an unbounded second release run.
-func TestPromote_DoesNotRedispatchWhenItsRunFinishesWithoutReadyRelease(t *testing.T) {
+func TestPromote_StopsWaitingWhenCanceled(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, WriteDependency(root, Dependency{PR: 12, Channel: "preview", GoDir: "."}))
-	sha := strings.Repeat("a", 40)
-	dispatches := 0
-	watched := false
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	runner := fakeRunner{call: func(_ string, _ []byte, name string, args []string) ([]byte, error) {
-		if name == "gh" && args[0] == "run" {
-			watched = true
-			return nil, nil
-		}
-		if name != "gh" || args[0] != "api" {
-			return nil, fmt.Errorf("unexpected command %s %v", name, args)
-		}
-		method := args[2]
-		endpoint := strings.TrimPrefix(args[3], "repos/"+Repository+"/")
-		if method == "POST" {
-			dispatches++
-			return nil, nil
-		}
-		switch {
+		require.Equal(t, "gh", name)
+		require.Equal(t, "api", args[0])
+		require.Equal(t, "GET", args[2])
+		switch endpoint := strings.TrimPrefix(args[3], "repos/"+Repository+"/"); {
 		case endpoint == "pulls/12":
-			return encoded(Pull{Merged: true, Merge: sha}), nil
+			return encoded(Pull{Merged: true, Merge: strings.Repeat("a", 40)}), nil
 		case strings.HasPrefix(endpoint, "contents/state.json"):
 			return fileResponse(State{}, "state"), nil
 		case strings.HasPrefix(endpoint, "actions/workflows/"):
-			if dispatches == 0 || watched {
-				return []byte(`{"workflow_runs":[]}`), nil
-			}
-			return []byte(`{"workflow_runs":[{"id":123,"status":"in_progress"}]}`), nil
+			cancel()
+			return []byte(`{"workflow_runs":[]}`), nil
+		default:
+			return nil, fmt.Errorf("unexpected API %s", endpoint)
 		}
-		return nil, fmt.Errorf("unexpected API %s %s", method, endpoint)
 	}}
-	err := (GitHub{Runner: runner, Repo: Repository}).Promote(context.Background(), root, false, io.Discard)
-	require.Error(t, err)
-	require.Equal(t, 1, dispatches)
+	require.ErrorIs(t, (GitHub{Runner: runner, Repo: Repository}).Promote(ctx, root, io.Discard), context.Canceled)
+}
+
+func TestPromote_ReportsFailedVerificationAtCurrentSource(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, WriteDependency(root, Dependency{PR: 12, Channel: "preview", GoDir: "."}))
+	sha := strings.Repeat("a", 40)
+	runner := fakeRunner{call: func(_ string, _ []byte, name string, args []string) ([]byte, error) {
+		require.Equal(t, "gh", name)
+		require.Equal(t, "api", args[0])
+		require.Equal(t, "GET", args[2])
+		switch endpoint := strings.TrimPrefix(args[3], "repos/"+Repository+"/"); {
+		case endpoint == "pulls/12":
+			return encoded(Pull{Merged: true, Merge: sha}), nil
+		case strings.HasPrefix(endpoint, "contents/state.json"):
+			return fileResponse(State{Candidate: &Candidate{Source: sha, Phase: "failed"}}, "state"), nil
+		case strings.HasPrefix(endpoint, "actions/workflows/"):
+			return []byte(`{"workflow_runs":[]}`), nil
+		case endpoint == "commits/main":
+			return encoded(map[string]string{"sha": sha}), nil
+		default:
+			return nil, fmt.Errorf("unexpected API %s", endpoint)
+		}
+	}}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err := (GitHub{Runner: runner, Repo: Repository}).Promote(ctx, root, io.Discard)
+	require.ErrorContains(t, err, "SDK verification failed at "+sha)
+	require.ErrorContains(t, err, "inspect release.yml")
 }
