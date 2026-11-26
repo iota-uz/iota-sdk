@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -68,7 +69,15 @@ const humanParamsSchema = `{
         "additionalProperties": false
       }
     },
+    "assignees_from": {
+      "type": "string", "minLength": 1, "maxLength": 2000,
+      "description": "CEL: the users who decide, from the run's data — a list of user ids, or of assignees like the items of assignees; added to assignees"
+    },
     "required": {"type": "integer", "minimum": 1, "maximum": 100},
+    "required_from": {
+      "type": "string", "minLength": 1, "maxLength": 2000,
+      "description": "CEL: the quorum from the run's data, an integer 1..100 (size(nodes.x.output.ids) for all of them); in place of required"
+    },
     "buttons": {
       "type": "array", "minItems": 1, "maxItems": 20,
       "items": {
@@ -99,7 +108,8 @@ const humanParamsSchema = `{
     },
     "allow_delegate": {"type": "boolean"}
   },
-  "required": ["title", "assignees", "buttons"],
+  "required": ["title", "buttons"],
+  "anyOf": [{"required": ["assignees"]}, {"required": ["assignees_from"]}],
   "additionalProperties": false
 }`
 
@@ -121,6 +131,7 @@ func (humanNode) Spec() graph.NodeSpec {
 		OutcomesFrom: &graph.ParamRef{Param: "buttons", Field: "outcome"},
 		Optional:     &graph.OptionalOutcome{Param: "timeout", Outcome: CodeTimeout},
 		Templates:    []string{"title", "body"},
+		Values:       []string{"assignees_from", "required_from"},
 		Output: expr.Fields{
 			{Name: "outcome", Field: expr.StringField},
 			{Name: "decisions", Field: expr.ListOf(expr.ObjectOf(expr.Fields{
@@ -157,8 +168,12 @@ func ParseHumanParams(raw json.RawMessage) (HumanParams, error) {
 		Title     string         `json:"title"`
 		Body      string         `json:"body"`
 		Assignees []assigneeJSON `json:"assignees"`
-		Required  int            `json:"required"`
-		Buttons   []struct {
+		// AssigneesFrom is the value of the CEL expression assignees_from: user ids or assignees.
+		AssigneesFrom json.RawMessage `json:"assignees_from"`
+		Required      int             `json:"required"`
+		// RequiredFrom is the value of the CEL expression required_from: the quorum.
+		RequiredFrom json.RawMessage `json:"required_from"`
+		Buttons      []struct {
 			Outcome        string `json:"outcome"`
 			Label          string `json:"label"`
 			Style          string `json:"style"`
@@ -180,6 +195,22 @@ func ParseHumanParams(raw json.RawMessage) (HumanParams, error) {
 	for _, a := range p.Assignees {
 		out.Assignees = append(out.Assignees, a.assignee())
 	}
+	if len(p.RequiredFrom) > 0 && string(p.RequiredFrom) != "null" {
+		var n float64
+		if err := json.Unmarshal(p.RequiredFrom, &n); err != nil || n != float64(int(n)) || n < 1 || n > 100 {
+			return HumanParams{}, errors.New("required_from: the expression's value is an integer 1..100")
+		}
+		out.Required = int(n)
+	}
+	from, err := assigneesFrom(p.AssigneesFrom)
+	if err != nil {
+		return HumanParams{}, err
+	}
+	for _, a := range from {
+		if !slices.ContainsFunc(out.Assignees, func(b workflow.TaskAssignee) bool { return sameAssignee(a, b) }) {
+			out.Assignees = append(out.Assignees, a)
+		}
+	}
 	for _, b := range p.Buttons {
 		out.Buttons = append(out.Buttons, HumanButton{Outcome: b.Outcome, Label: b.Label, Style: b.Style, RequireComment: b.RequireComment})
 	}
@@ -198,6 +229,55 @@ func ParseHumanParams(raw json.RawMessage) (HumanParams, error) {
 		out.Escalation = append(out.Escalation, step)
 	}
 	return out, nil
+}
+
+// assigneesFrom reads the value of assignees_from: a list of user ids (numbers or decimal strings) or of
+// assignees ({kind, user_id, ref}); null or absent is none.
+func assigneesFrom(raw json.RawMessage) ([]workflow.TaskAssignee, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(raw, &items); err != nil {
+		return nil, errors.New("assignees_from: the expression's value is a list")
+	}
+	out := make([]workflow.TaskAssignee, 0, len(items))
+	for i, item := range items {
+		var obj assigneeJSON
+		if err := json.Unmarshal(item, &obj); err == nil && obj.Kind != "" {
+			out = append(out, obj.assignee())
+			continue
+		}
+		var id json.Number
+		dec := json.NewDecoder(bytes.NewReader(item))
+		dec.UseNumber()
+		var v any
+		if err := dec.Decode(&v); err == nil {
+			switch t := v.(type) {
+			case json.Number:
+				id = t
+			case string:
+				id = json.Number(strings.TrimSpace(t))
+			}
+		}
+		n, err := id.Int64()
+		if err != nil || n <= 0 {
+			return nil, fmt.Errorf("assignees_from: item %d is neither a user id nor an assignee", i)
+		}
+		out = append(out, workflow.TaskAssignee{Kind: workflow.TaskAssignUser, UserID: &n})
+	}
+	return out, nil
+}
+
+// sameAssignee reports two assignees that name the same user, role, group or permission.
+func sameAssignee(a, b workflow.TaskAssignee) bool {
+	if a.Kind != b.Kind {
+		return false
+	}
+	if a.Kind == workflow.TaskAssignUser {
+		return a.UserID != nil && b.UserID != nil && *a.UserID == *b.UserID
+	}
+	return a.Ref == b.Ref
 }
 
 type assigneeJSON struct {
