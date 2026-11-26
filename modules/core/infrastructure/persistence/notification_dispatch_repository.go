@@ -87,7 +87,16 @@ func (r *NotificationDispatchRepository) Enqueue(ctx context.Context, req notifi
 	if event.DedupeKey != "" {
 		identity = event.DedupeKey
 	}
-	job, err := scanDispatch(db.QueryRow(ctx, `INSERT INTO core.notification_dispatches(id,tenant_id,event_key,event_id,event,rule,mode,recipient_ids,addressees,completed_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,CASE WHEN jsonb_array_length($8::jsonb)+jsonb_array_length($9::jsonb)=0 THEN NOW() ELSE NULL END) ON CONFLICT(tenant_id,event_key,event_id) DO UPDATE SET event_id=EXCLUDED.event_id RETURNING `+dispatchColumns, uuid.New(), tenant, event.Key, identity, eventJSON, ruleJSON, string(req.Mode), idsJSON, addresseesJSON))
+	// An existing job is read, never locked: a worker claims it FOR UPDATE and
+	// then ensures its notice, while an enqueue ensures the notice first. A
+	// locking upsert (DO UPDATE) here would wait on the claimed job while
+	// holding the notice the worker needs, and deadlock (40P01).
+	job, err := scanDispatch(db.QueryRow(ctx, `INSERT INTO core.notification_dispatches(id,tenant_id,event_key,event_id,event,rule,mode,recipient_ids,addressees,completed_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,CASE WHEN jsonb_array_length($8::jsonb)+jsonb_array_length($9::jsonb)=0 THEN NOW() ELSE NULL END) ON CONFLICT(tenant_id,event_key,event_id) DO NOTHING RETURNING `+dispatchColumns, uuid.New(), tenant, event.Key, identity, eventJSON, ruleJSON, string(req.Mode), idsJSON, addresseesJSON))
+	if errors.Is(err, pgx.ErrNoRows) {
+		// ON CONFLICT waited for a concurrent insert to commit; this statement
+		// takes a new snapshot that sees it.
+		job, err = scanDispatch(db.QueryRow(ctx, `SELECT `+dispatchColumns+` FROM core.notification_dispatches WHERE tenant_id=$1 AND event_key=$2 AND event_id=$3`, tenant, event.Key, identity))
+	}
 	return job, serrors.Wrap(op, err)
 }
 func (r *NotificationDispatchRepository) Find(ctx context.Context, eventKey, eventID string) (notifications.DispatchJob, bool, error) {

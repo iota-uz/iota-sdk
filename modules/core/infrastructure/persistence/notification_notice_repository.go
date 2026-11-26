@@ -55,8 +55,14 @@ func (r *NotificationNoticeRepository) Ensure(ctx context.Context, n notificatio
 		return n, serrors.Wrap(op, err)
 	}
 	version := max(n.Version, 1)
-	stored, err := scanNotice(db.QueryRow(ctx, `INSERT INTO core.notification_notices(id,tenant_id,event_key,event_version,snapshot_ref,event_id,mode,subject_entity,subject_key,producer_invocation_id,producer_event_id,producer_instance_id,producer_occurrence,event) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT(tenant_id,event_key,event_id) DO UPDATE SET event_id=EXCLUDED.event_id RETURNING `+noticeColumns,
+	stored, err := scanNotice(db.QueryRow(ctx, `INSERT INTO core.notification_notices(id,tenant_id,event_key,event_version,snapshot_ref,event_id,mode,subject_entity,subject_key,producer_invocation_id,producer_event_id,producer_instance_id,producer_occurrence,event) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT(tenant_id,event_key,event_id) DO NOTHING RETURNING `+noticeColumns,
 		uuid.New(), tenant, n.EventKey, version, n.SnapshotRef, n.EventID, string(n.Mode), n.Subject.Entity, n.Subject.Key, n.Producer.InvocationID, n.Producer.EventID, n.Producer.InstanceID, n.Producer.Occurrence, event))
+	if errors.Is(err, pgx.ErrNoRows) {
+		// An existing notice is read, never locked (see
+		// NotificationDispatchRepository.Enqueue): a dispatch worker ensures
+		// it while holding its claimed job, and deliveries reference it.
+		stored, err = scanNotice(db.QueryRow(ctx, `SELECT `+noticeColumns+` FROM core.notification_notices WHERE tenant_id=$1 AND event_key=$2 AND event_id=$3`, tenant, n.EventKey, n.EventID))
+	}
 	return stored, serrors.Wrap(op, err)
 }
 
