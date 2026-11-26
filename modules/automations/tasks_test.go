@@ -712,7 +712,10 @@ func TestSubjectRunsOfCancelsTheRunsOfARecord(t *testing.T) {
 	live, err = runs.Live(ctx, env.Tenant.ID, about)
 	require.NoError(t, err)
 	assert.Empty(t, live)
-	assert.NotEqual(t, "cancelled", runStatus(t, container, otherRun), "the run about another record stays")
+	otherLive, err := runs.Live(ctx, env.Tenant.ID, engine.SubjectRef{Entity: "core.user", Key: strconv.FormatUint(uint64(boris.ID()), 10)})
+	require.NoError(t, err)
+	require.Len(t, otherLive, 1)
+	assert.Equal(t, otherRun, otherLive[0].RunID, "the run about another record stays")
 
 	_, err = runs.Live(ctx, env.Tenant.ID, engine.SubjectRef{})
 	assert.Equal(t, serrors.Invalid, serrors.CodeOf(err), "a subject of nothing is refused")
