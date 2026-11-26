@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/url"
 	"sort"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -55,11 +54,9 @@ func WithSubjectLink(entity string, resolve engine.SubjectURLResolver) Option {
 
 // newLinks is the link registry of runs and subjects under origin (an empty origin keeps links relative).
 func (c *component) newLinks(origin string) (*engine.LinkRegistry, error) {
-	path := c.automationsPath
-	if path == "" {
-		path = "/automations"
-	}
-	links := engine.NewLinks(origin, strings.TrimRight(path, "/")+"/%s/runs/%s")
+	// The run pages are the ones pageURLs links to (the same origin and path).
+	pages := c.pages(origin)
+	links := engine.NewLinks(pages.origin, pages.path+"/%s/runs/%s")
 	resolvers := map[string]engine.SubjectURLResolver{
 		"core.user": func(_ context.Context, _ uuid.UUID, key string) (string, error) {
 			return "/users/" + url.PathEscape(key), nil
@@ -101,7 +98,10 @@ func (unavailableStarter) StartFromStep(context.Context, pgx.Tx, engine.StepCont
 // engineHolder is the composition's engine; rt is nil when the composition cannot run one (the module's
 // engine is turned off, or no extension core provides the workflow engine and the subject loader).
 type engineHolder struct {
-	rt    *engine.Runtime
+	rt *engine.Runtime
+	// behaviors are the behaviors the engine runs graphs with (Config.Behaviors after the tuning).
+	behaviors *graph.Behaviors
+	// links are the engine's links (Config.Links after the tuning).
 	links engine.Links
 }
 
@@ -172,7 +172,7 @@ func (c *component) buildEngine(b *composition.Builder) {
 		if err != nil {
 			return nil, err
 		}
-		return &engineHolder{rt: rt, links: cfg.Links}, nil
+		return &engineHolder{rt: rt, behaviors: cfg.Behaviors, links: cfg.Links}, nil
 	})
 	// start_automation and run_automation start the runs of other graphs through the engine (builtins.go).
 	composition.Provide[engine.RunStarter](b, func(container *composition.Container) (engine.RunStarter, error) {

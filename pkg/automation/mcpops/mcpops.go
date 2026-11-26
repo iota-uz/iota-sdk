@@ -11,7 +11,9 @@
 // (workflow.NativeContract.HumanOnly), so the extension runtime's workflow tools (pkg/extruntime/mcptools)
 // refuse the same actions on their instances and tasks wherever they are registered.
 //
-// Composition:
+// Composition: the automations module (modules/automations) contributes Tools and Kinds to the
+// application's MCP composition (pkg/mcp/mcpwiring), with the module's pages as URLs and the engine's
+// Config.Links set to the editor's run pages. By hand:
 //
 //	tools, err := mcpops.Tools(rt.Service(), rt.Authoring(), catalogRegistry, urls)
 //	registry.Register(tools...)
