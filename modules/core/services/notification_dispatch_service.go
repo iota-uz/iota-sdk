@@ -340,10 +340,21 @@ func (s *NotificationDispatchService) envelope(ctx context.Context, req notifica
 		event.Producer = req.Producer
 	}
 	channels := notifications.NormalizeChannels(req.Channels)
-	available := s.router.Channels()
+	available, err := s.router.Channels(ctx)
+	if err != nil {
+		return preparedAudience{}, err
+	}
+	registry := s.router.ChannelRegistry()
 	for _, c := range channels {
 		if !c.Valid() {
 			return invalid("invalid notification channel")
+		}
+		// A channel no component registered is a wrong request; a registered one the tenant cannot use now
+		// (no adapter, no connection) is a precondition.
+		if registry != nil {
+			if _, _, ok := registry.Lookup(c); !ok {
+				return invalid("unknown notification channel")
+			}
 		}
 		if !slices.Contains(available, c) {
 			return preparedAudience{}, serrors.New(serrors.FailedPrecondition, "notification channel is not available: "+string(c))
@@ -352,7 +363,7 @@ func (s *NotificationDispatchService) envelope(ctx context.Context, req notifica
 	if event.DedupeKey == "" {
 		event.DedupeKey = notifications.DeriveAudienceDedupeKey(event.Producer, event, req.Audience, req.Source, channels)
 	}
-	event, err := s.router.Catalog().Normalize(event)
+	event, err = s.router.Catalog().Normalize(event)
 	if err != nil {
 		return invalid(err.Error())
 	}

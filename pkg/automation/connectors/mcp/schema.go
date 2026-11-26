@@ -152,13 +152,17 @@ func checkArguments(input json.RawMessage, args map[string]Argument, typeOf func
 	}
 	var holders []holder
 	base := assemble(root, nil, &holders, typeOf)
-	for _, leaf := range leaves(schema, base) {
+	idx := indexSchema(schema)
+	for _, lf := range leafChains(schema, base) {
+		leaf := lf.err
 		if underHolder(leaf.InstanceLocation, holders) {
 			continue
 		}
-		// A branch (if/then/else, oneOf, anyOf, not, dependentSchemas) may be chosen by a value known
-		// only at run time: its failures are not reported while any argument is dynamic.
-		if len(holders) > 0 && inBranch(leaf.SchemaURL) {
+		// A branch (if/then/else, oneOf, anyOf, not) may be chosen by a value known only at run time:
+		// its failures are not reported while a template or an expression decides it. The branch is
+		// found on the way to the failure (a $ref inside then leads elsewhere), and one whose choice
+		// reads only literals is judged as it is.
+		if idx.dynamicBranch(lf.chain, holders) {
 			continue
 		}
 		out = append(out, issuesOf(root, leaf)...)
@@ -314,14 +318,228 @@ func leaves(s *jsonschema.Schema, v any) []*jsonschema.ValidationError {
 	return out
 }
 
-// inBranch reports whether a schema location lies inside a conditional or alternative keyword.
-func inBranch(schemaURL string) bool {
-	_, frag, _ := strings.Cut(schemaURL, "#")
-	for _, seg := range strings.Split(frag, "/") {
-		switch seg {
-		case "if", "then", "else", "oneOf", "anyOf", "not", "dependentSchemas", "dependentRequired":
+// leafChain is an innermost failure with the failures on the way to it (the outermost first, the
+// leaf last).
+type leafChain struct {
+	err   *jsonschema.ValidationError
+	chain []*jsonschema.ValidationError
+}
+
+// leafChains are the innermost failures of validating v, each with its ancestors.
+func leafChains(s *jsonschema.Schema, v any) []leafChain {
+	err := s.Validate(v)
+	var ve *jsonschema.ValidationError
+	if !errors.As(err, &ve) {
+		return nil
+	}
+	var out []leafChain
+	var walk func(e *jsonschema.ValidationError, path []*jsonschema.ValidationError)
+	walk = func(e *jsonschema.ValidationError, path []*jsonschema.ValidationError) {
+		path = append(path, e)
+		if len(e.Causes) == 0 {
+			out = append(out, leafChain{err: e, chain: append([]*jsonschema.ValidationError(nil), path...)})
+			return
+		}
+		for _, c := range e.Causes {
+			walk(c, path)
+		}
+	}
+	walk(ve, nil)
+	return out
+}
+
+// branchRole is where a subschema sits in its owner when it is a branch: then, else, or an
+// alternative of anyOf or oneOf.
+type branchRole struct {
+	owner *jsonschema.Schema
+	kw    string
+}
+
+// schemaIndex is every subschema of a compiled schema by its location, and the branches among them.
+type schemaIndex struct {
+	at       map[string]*jsonschema.Schema
+	branches map[string]branchRole
+}
+
+func indexSchema(root *jsonschema.Schema) schemaIndex {
+	idx := schemaIndex{at: map[string]*jsonschema.Schema{}, branches: map[string]branchRole{}}
+	var walk func(s *jsonschema.Schema)
+	walk = func(s *jsonschema.Schema) {
+		if s == nil {
+			return
+		}
+		if _, seen := idx.at[s.Location]; seen {
+			return
+		}
+		idx.at[s.Location] = s
+		role := func(sub *jsonschema.Schema, kw string) {
+			if sub != nil {
+				idx.branches[sub.Location] = branchRole{owner: s, kw: kw}
+			}
+		}
+		role(s.Then, "then")
+		role(s.Else, "else")
+		for _, a := range s.AnyOf {
+			role(a, "anyOf")
+		}
+		for _, a := range s.OneOf {
+			role(a, "oneOf")
+		}
+		for _, sub := range subschemas(s) {
+			walk(sub)
+		}
+	}
+	walk(root)
+	return idx
+}
+
+// subschemas are the schemas a schema applies (to itself or to its members).
+func subschemas(s *jsonschema.Schema) []*jsonschema.Schema {
+	out := []*jsonschema.Schema{s.Ref, s.RecursiveRef, s.Not, s.If, s.Then, s.Else, s.PropertyNames, s.UnevaluatedProperties,
+		s.Contains, s.Items2020, s.UnevaluatedItems, s.ContentSchema}
+	if s.DynamicRef != nil {
+		out = append(out, s.DynamicRef.Ref)
+	}
+	out = append(out, s.AllOf...)
+	out = append(out, s.AnyOf...)
+	out = append(out, s.OneOf...)
+	out = append(out, s.PrefixItems...)
+	for _, p := range s.Properties {
+		out = append(out, p)
+	}
+	for _, p := range s.PatternProperties {
+		out = append(out, p)
+	}
+	for _, p := range s.DependentSchemas {
+		out = append(out, p)
+	}
+	for _, d := range s.Dependencies {
+		if p, ok := d.(*jsonschema.Schema); ok {
+			out = append(out, p)
+		}
+	}
+	for _, x := range []any{s.AdditionalProperties, s.AdditionalItems, s.Items} {
+		switch v := x.(type) {
+		case *jsonschema.Schema:
+			out = append(out, v)
+		case []*jsonschema.Schema:
+			out = append(out, v...)
+		}
+	}
+	return out
+}
+
+// dynamicBranch reports whether a failure lies in a branch whose choice a template or an expression
+// may change: on the way to it there is then or else of a condition, an alternative of anyOf or oneOf,
+// or a failed not, anyOf or oneOf, that reads a value of the holders under its instance.
+func (idx schemaIndex) dynamicBranch(chain []*jsonschema.ValidationError, holders []holder) bool {
+	if len(holders) == 0 {
+		return false
+	}
+	reads := func(conds []*jsonschema.Schema, inst []string) bool {
+		for _, h := range holders {
+			if !within(h.loc, inst) {
+				continue
+			}
+			for _, c := range conds {
+				if dependsOn(c, h.loc[len(inst):], map[depKey]bool{}) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	for _, e := range chain {
+		if r, ok := idx.branches[e.SchemaURL]; ok {
+			conds := []*jsonschema.Schema{r.owner.If}
+			switch r.kw {
+			case "anyOf":
+				conds = r.owner.AnyOf
+			case "oneOf":
+				conds = r.owner.OneOf
+			}
+			if reads(conds, e.InstanceLocation) {
+				return true
+			}
+		}
+		owner := idx.at[e.SchemaURL]
+		if owner == nil {
+			continue
+		}
+		var conds []*jsonschema.Schema
+		switch e.ErrorKind.(type) {
+		case *kind.Not:
+			conds = []*jsonschema.Schema{owner.Not}
+		case *kind.AnyOf:
+			conds = owner.AnyOf
+		case *kind.OneOf:
+			conds = owner.OneOf
+		}
+		if len(conds) > 0 && reads(conds, e.InstanceLocation) {
 			return true
 		}
+	}
+	return false
+}
+
+type depKey struct {
+	s     *jsonschema.Schema
+	depth int
+}
+
+// dependsOn reports whether whether an instance passes s may change with the value at rel under it
+// (conservatively: true when it cannot tell). The keys of an object are known when it is saved; only
+// the values under rel are not.
+func dependsOn(s *jsonschema.Schema, rel []string, seen map[depKey]bool) bool {
+	if s == nil || s.Bool != nil {
+		return false
+	}
+	k := depKey{s, len(rel)}
+	if seen[k] {
+		return false
+	}
+	seen[k] = true
+	if len(rel) == 0 {
+		return true // the value itself
+	}
+	if s.Const != nil || s.Enum != nil || s.UnevaluatedProperties != nil || s.RecursiveRef != nil || s.DynamicRef != nil || len(s.Extensions) > 0 {
+		return true
+	}
+	same := []*jsonschema.Schema{s.Ref, s.Not, s.If, s.Then, s.Else}
+	same = append(same, s.AllOf...)
+	same = append(same, s.AnyOf...)
+	same = append(same, s.OneOf...)
+	for _, d := range s.DependentSchemas {
+		same = append(same, d)
+	}
+	for _, d := range s.Dependencies {
+		if p, ok := d.(*jsonschema.Schema); ok {
+			same = append(same, p)
+		}
+	}
+	for _, sub := range same {
+		if dependsOn(sub, rel, seen) {
+			return true
+		}
+	}
+	name, rest := rel[0], rel[1:]
+	matched := false
+	if p, ok := s.Properties[name]; ok {
+		matched = true
+		if dependsOn(p, rest, seen) {
+			return true
+		}
+	}
+	for re, p := range s.PatternProperties {
+		if re.MatchString(name) {
+			matched = true
+			if dependsOn(p, rest, seen) {
+				return true
+			}
+		}
+	}
+	if add, ok := s.AdditionalProperties.(*jsonschema.Schema); ok && !matched {
+		return dependsOn(add, rest, seen)
 	}
 	return false
 }
@@ -616,17 +834,39 @@ func coerceTemplates(input json.RawMessage, args map[string]any, locs [][]string
 		}
 		return true
 	}
-	for _, loc := range locs {
-		text, ok := valueAtLoc(args, loc).(string)
-		if !ok || fits(loc) {
-			continue
-		}
-		for _, cand := range readings(text) {
-			setAtLoc(args, loc, cand)
-			if fits(loc) {
-				break
+	texts := make([]string, len(locs))
+	isText := make([]bool, len(locs))
+	for i, loc := range locs {
+		texts[i], isText[i] = valueAtLoc(args, loc).(string)
+	}
+	// The reading of one template may choose the branch another lands in: each is read again against the
+	// others' readings until none changes (at most once per template more), so the result does not
+	// depend on the order of the names.
+	for pass := 0; pass <= len(locs); pass++ {
+		changed := false
+		for i, loc := range locs {
+			if !isText[i] {
+				continue
 			}
-			setAtLoc(args, loc, text)
+			was := valueAtLoc(args, loc)
+			var choice any = texts[i]
+			setAtLoc(args, loc, texts[i])
+			if !fits(loc) {
+				for _, cand := range readings(texts[i]) {
+					setAtLoc(args, loc, cand)
+					if fits(loc) {
+						choice = cand
+						break
+					}
+				}
+			}
+			setAtLoc(args, loc, choice)
+			if was != choice {
+				changed = true
+			}
+		}
+		if !changed {
+			return
 		}
 	}
 }

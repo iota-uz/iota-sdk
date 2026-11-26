@@ -527,8 +527,10 @@ function EditorBody(props: EditorProps): JSX.Element {
     queueMicrotask(() => canvasApi?.fit())
   }
 
-  const doUndo = () => setHistory((h) => undo(h))
-  const doRedo = () => setHistory((h) => redo(h))
+  // A read-only editor (an old version, a switch the host is opening) keeps its draft as it is:
+  // undo and redo are edits too.
+  const doUndo = () => { if (!editingBlocked()) setHistory((h) => undo(h)) }
+  const doRedo = () => { if (!editingBlocked()) setHistory((h) => redo(h)) }
 
   const openPanelFocus = (id: string) => {
     setSelected(id)
@@ -771,8 +773,8 @@ function EditorBody(props: EditorProps): JSX.Element {
             <span>{validation().status === 'checking' ? t().toolbar.validating : t().toolbar.validate}</span>
             <Show when={issueCount() > 0}><span class="ae-count ae-count--danger">{issueCount()}</span></Show>
           </button>
-          <button type="button" class="ae-iconbtn" aria-label={t().toolbar.undo} title={`${t().toolbar.undo} (${keyLabel('⌘Z', mac)})`} disabled={!canUndo(history())} onClick={doUndo}><Icon name="undo" /></button>
-          <button type="button" class="ae-iconbtn" aria-label={t().toolbar.redo} title={`${t().toolbar.redo} (${keyLabel('⇧⌘Z', mac)})`} disabled={!canRedo(history())} onClick={doRedo}><Icon name="redo" /></button>
+          <button type="button" class="ae-iconbtn" aria-label={t().toolbar.undo} title={`${t().toolbar.undo} (${keyLabel('⌘Z', mac)})`} disabled={editingBlocked() || !canUndo(history())} onClick={doUndo}><Icon name="undo" /></button>
+          <button type="button" class="ae-iconbtn" aria-label={t().toolbar.redo} title={`${t().toolbar.redo} (${keyLabel('⇧⌘Z', mac)})`} disabled={editingBlocked() || !canRedo(history())} onClick={doRedo}><Icon name="redo" /></button>
           <Show when={!readOnly()}>
             <button type="button" class="ae-btn ae-btn--ghost" onClick={() => setPalette({ kind: 'add' })} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'}>
               <Icon name="plus" /><span>{t().toolbar.add}</span><Show when={!coarse()}><kbd class="ae-kbd">{keyLabel('⌘K', mac)}</kbd></Show>
@@ -1054,6 +1056,7 @@ function EditorBody(props: EditorProps): JSX.Element {
         graph={draft()}
         locale={props.locale}
         readOnly={editingBlocked()}
+        slot={props.settingsSlot}
         onChange={(patch, key) => commitGraph({ ...draft(), ...patch }, key)}
         onClose={() => setSettingsOpen(false)}
       />

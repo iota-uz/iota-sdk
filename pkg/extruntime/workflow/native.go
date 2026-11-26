@@ -145,6 +145,10 @@ type NativeRun interface {
 	// every attempt of the occurrence is that invocation, so the host returns a recorded outcome instead of
 	// running the command again.
 	CallAs(ctx context.Context, name string, n int, command string, input json.RawMessage, invocationID string) (json.RawMessage, error)
+	// CallDispatches reports whether a Call or CallAs of the occurrence (name, n) would send its command to
+	// the host: the occurrence is new, or it started and the host never recorded its invocation (a crash
+	// before the dispatch). A recorded, ambiguous or operator-held occurrence is resolved without a dispatch.
+	CallDispatches(ctx context.Context, name string, n int) (bool, error)
 	// Start starts a child instance with start key instance:name:n and the
 	// current instance as parent.
 	Start(ctx context.Context, name string, n int, workflow string, input json.RawMessage, opts StartOptions) (uuid.UUID, error)
@@ -574,6 +578,21 @@ func (r *nativeRun) CallAs(ctx context.Context, name string, n int, command stri
 		return nil, serrors.Wrap(opNative, fmt.Errorf("%w: invocation ID %q is not a UUID", ErrInvalid, invocationID))
 	}
 	return r.call(ctx, name, n, command, input, invocationID)
+}
+
+func (r *nativeRun) CallDispatches(ctx context.Context, name string, n int) (bool, error) {
+	o, ok, err := r.lookup(ctx, name, n, KindCall)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return true, nil
+	}
+	if o.Status != OccStarted {
+		return false, nil
+	}
+	dispatches, err := r.e.startedDispatches(ctx, r.rs, o)
+	return dispatches, r.exit(err)
 }
 
 func (r *nativeRun) call(ctx context.Context, name string, n int, command string, input json.RawMessage, preset string) (json.RawMessage, error) {

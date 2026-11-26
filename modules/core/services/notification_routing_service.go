@@ -71,12 +71,28 @@ func (s *NotificationRoutingService) SetUserChannels(ctx context.Context, userID
 	return s.channels.SetEnabled(ctx, userID, enabled)
 }
 
-// Channels lists the channels a rule can select.
-func (s *NotificationRoutingService) Channels() []notifications.Channel {
+// Channels lists the channels a rule of the tenant in ctx can select.
+func (s *NotificationRoutingService) Channels(ctx context.Context) ([]notifications.Channel, error) {
 	if s.channels == nil {
-		return []notifications.Channel{notifications.ChannelInApp}
+		return []notifications.Channel{notifications.ChannelInApp}, nil
 	}
-	return s.channels.Available()
+	return s.channels.Available(ctx)
+}
+
+// ChannelSpecs lists the specs of the channels of Channels.
+func (s *NotificationRoutingService) ChannelSpecs(ctx context.Context) ([]notifications.ChannelSpec, error) {
+	if s.channels == nil {
+		return notifications.BuiltinChannelSpecs()[:1], nil
+	}
+	return s.channels.AvailableSpecs(ctx)
+}
+
+// ChannelRegistry is the registry of the channel service (nil without one).
+func (s *NotificationRoutingService) ChannelRegistry() notifications.ChannelRegistry {
+	if s.channels == nil {
+		return nil
+	}
+	return s.channels.Registry()
 }
 
 func NewNotificationRoutingService(catalog *notifications.Catalog, rules notifications.RuleRepository, users user.Repository, delivery NotificationDelivery, audience notifications.AudienceRepository, directory notifications.RecipientDirectory) *NotificationRoutingService {
@@ -143,7 +159,7 @@ func (s *NotificationRoutingService) SaveRule(ctx context.Context, rule notifica
 	if rule.Level != "" && !rule.Level.Valid() {
 		return serrors.New(serrors.Invalid, "invalid notification level").WithOp(op)
 	}
-	if err := s.validateChannels(rule.Channels); err != nil {
+	if err := s.validateChannels(ctx, rule.Channels); err != nil {
 		return err
 	}
 	keys := map[string]bool{}
@@ -588,7 +604,7 @@ func (s *NotificationRoutingService) actorAvailable(ctx context.Context, event n
 	return len(actors) == 1 && actors[0].TenantID() == tenant, nil
 }
 
-func (s *NotificationRoutingService) validateChannels(channels []notifications.Channel) error {
+func (s *NotificationRoutingService) validateChannels(ctx context.Context, channels []notifications.Channel) error {
 	if s.channels == nil {
 		for _, c := range channels {
 			if c != notifications.ChannelInApp {
@@ -597,7 +613,7 @@ func (s *NotificationRoutingService) validateChannels(channels []notifications.C
 		}
 		return nil
 	}
-	return s.channels.Validate(channels)
+	return s.channels.Validate(ctx, channels)
 }
 
 func (s *NotificationRoutingService) Groups(ctx context.Context) ([]notifications.GroupOption, error) {

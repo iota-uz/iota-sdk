@@ -81,6 +81,9 @@ func NewManager(db *pgxpool.Pool, writer Writer, locator Locator) Manager {
 	return &manager{db: db, writer: writer, locator: locator}
 }
 
+// Configured is whether the manager's writer can write (Configurable).
+func (m *manager) Configured() bool { return IsConfigured(m.writer) }
+
 func validateValue(v string) error {
 	switch {
 	case v == "":
@@ -138,8 +141,9 @@ const (
 // writeFence after its claim (Ref.NotAfter, on the database's clock), well inside the window. Variables only
 // so a test can shorten them.
 var (
-	// cleanupTimeout bounds the best-effort steps that run after the caller's context is done (one purge
-	// batch as a whole).
+	// cleanupTimeout bounds the best-effort steps of one call of the manager: a purge as a whole (bounded
+	// by the caller's context too), and the steps after a write that run detached from it (settling,
+	// pruning, removing a deleted secret's value).
 	cleanupTimeout = 5 * time.Second
 	writeWindow    = 10 * time.Minute
 	writeFence     = writeWindow / 2
@@ -211,6 +215,7 @@ func (m *manager) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 	}
 	ref.Version = 0
 	var claim time.Time
+	claimed := time.Now() // before the claim: a deadline counted from here ends before the claim's fence
 	if err := m.db.QueryRow(ctx, `INSERT INTO automation.secrets (id, tenant_id, name, description, ref_path, value_version, created_by, value_write_at)
 		VALUES ($1, $2, $3, $4, $5, 0, $6, now()) RETURNING value_write_at`, id, tenantID, in.Name, in.Description, ref.Path, in.CreatedBy).Scan(&claim); err != nil {
 		if isUnique(err) {
@@ -220,7 +225,7 @@ func (m *manager) Create(ctx context.Context, tenantID uuid.UUID, in CreateInput
 		return Secret{}, unavailable(err)
 	}
 	ref.NotAfter = claim.Add(writeFence)
-	md, err := m.writer.Put(ctx, ref, map[string]string{ValueKey: in.Value})
+	md, err := m.put(ctx, claimed, ref, in.Value)
 	ref.NotAfter = time.Time{}
 	if err != nil {
 		m.settleCreate(ctx, tenantID, id, ref)
@@ -249,7 +254,7 @@ func (m *manager) settleCreate(ctx context.Context, tenantID, id uuid.UUID, ref 
 	case err == nil && s.ValueVersion > 0 && s.DeletedAt == nil:
 		return s, true
 	case err == nil && s.ValueVersion == 0:
-		m.giveUpStaged(ctx, tenantID, id, ref)
+		m.giveUpStaged(ctx, context.WithoutCancel(ctx), tenantID, id, ref)
 	case errors.Is(err, pgx.ErrNoRows):
 		_ = m.writer.Delete(ctx, ref) // no record names it: the path is this secret's own
 	}
@@ -259,13 +264,15 @@ func (m *manager) settleCreate(ctx context.Context, tenantID, id uuid.UUID, ref 
 // giveUpStaged turns a staged record into a tombstone (one statement: it can no longer be published, and
 // its name is free), then removes its value. The tombstone keeps the reference until the value is gone, so a
 // store that fails here, or a process that stops, leaves it for purge.
-func (m *manager) giveUpStaged(ctx context.Context, tenantID, id uuid.UUID, ref Ref) {
+//
+// bump bounds the queue-position update of a failed value delete (removeValue).
+func (m *manager) giveUpStaged(ctx, bump context.Context, tenantID, id uuid.UUID, ref Ref) {
 	tag, err := m.db.Exec(ctx, `UPDATE automation.secrets SET deleted_at = now(), updated_at = now()
 		WHERE tenant_id = $1 AND id = $2 AND value_version = 0 AND deleted_at IS NULL`, tenantID, id)
 	if err != nil || tag.RowsAffected() == 0 {
 		return
 	}
-	m.removeValue(ctx, tenantID, id, ref.Path)
+	m.removeValue(ctx, bump, tenantID, id, ref.Path)
 }
 
 func (m *manager) Update(ctx context.Context, tenantID uuid.UUID, in UpdateInput) (Secret, error) {
@@ -333,6 +340,7 @@ func (m *manager) Rotate(ctx context.Context, tenantID uuid.UUID, in RotateInput
 	// The claim of the write, before the store is called: a delete that overtakes this rotation keeps its
 	// tombstone until the value written here can no longer land, and removes it then.
 	var claim time.Time
+	claimed := time.Now()
 	cur, err := scanSecret(m.db.QueryRow(ctx, `UPDATE automation.secrets SET value_write_at = now()
 		WHERE tenant_id = $1 AND id = $2 AND `+live+` RETURNING `+secretColumns+`, value_write_at`, tenantID, in.ID), &claim)
 	switch {
@@ -344,23 +352,33 @@ func (m *manager) Rotate(ctx context.Context, tenantID uuid.UUID, in RotateInput
 		return Secret{}, ErrVersionConflict
 	}
 	ref := Ref{TenantID: tenantID, Path: cur.Ref.Path}
-	md, err := m.writer.Put(ctx, Ref{TenantID: tenantID, Path: cur.Ref.Path, NotAfter: claim.Add(writeFence)}, map[string]string{ValueKey: in.Value})
+	// A value is written only under a root the sweep lists: a record created under a root the locator has
+	// since dropped (a prefix change without FormerRoots) would otherwise take a write no sweep finds once
+	// the secret is deleted. Refused before anything is written; the operator keeps the root in FormerRoots.
+	if !m.covered(tenantID, cur.Ref.Path) {
+		return Secret{}, fmt.Errorf("%w: the secret's value lies under no root the locator sweeps (keep its former root in FormerRoots)", ErrUnavailable)
+	}
+	md, err := m.put(ctx, claimed, Ref{TenantID: tenantID, Path: cur.Ref.Path, NotAfter: claim.Add(writeFence)}, in.Value)
 	if err != nil {
 		return Secret{}, unavailable(err)
 	}
 	out, err := scanSecret(m.db.QueryRow(ctx, `UPDATE automation.secrets
 		SET value_version = $4, rotated_at = now(), version = version + 1, updated_at = now()
 		WHERE tenant_id = $1 AND id = $2 AND version = $3 AND `+live+` RETURNING `+secretColumns, tenantID, in.ID, in.Version, md.Version))
+	// One cleanup budget for the steps after the publication attempt (settling a lost reply, pruning),
+	// started only now so a publication that waited on a lock does not use it up: a caller that gave up
+	// waits for at most one cleanupTimeout.
+	cleanup, cancelCleanup := cleanupContext(ctx)
+	defer cancelCleanup()
 	if err = afterPublish(err); err != nil {
-		settle, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
-		defer cancel()
+		settle := cleanup
 		now, rerr := scanSecret(m.db.QueryRow(settle, `SELECT `+secretColumns+` FROM automation.secrets WHERE tenant_id = $1 AND id = $2`, tenantID, in.ID))
 		switch {
 		case rerr == nil && now.ValueVersion == md.Version && now.DeletedAt == nil:
 			out = now // published: the error was the reply's
 		case rerr == nil && now.DeletedAt != nil:
 			// Deleted while the value was written: the value written here goes with the rest.
-			m.removeValue(settle, tenantID, in.ID, now.Ref.Path)
+			m.removeValue(settle, context.WithoutCancel(ctx), tenantID, in.ID, now.Ref.Path)
 			return Secret{}, ErrNotFound
 		case errors.Is(err, pgx.ErrNoRows):
 			return Secret{}, m.missOrConflict(settle, tenantID, in.ID)
@@ -372,9 +390,7 @@ func (m *manager) Rotate(ctx context.Context, tenantID uuid.UUID, in RotateInput
 	// interrupted rotation may have left an unpublished version between them, and the version readers may
 	// still hold is cur's.
 	if cur.ValueVersion > 1 {
-		prune, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
-		defer cancel()
-		_ = m.writer.Prune(prune, ref, cur.ValueVersion)
+		_ = m.writer.Prune(cleanup, ref, cur.ValueVersion)
 	}
 	return out, nil
 }
@@ -399,7 +415,7 @@ func (m *manager) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 		return unavailable(err)
 	}
 	cleanup, cancel := cleanupContext(ctx)
-	m.removeValue(cleanup, tenantID, id, path)
+	m.removeValue(cleanup, context.WithoutCancel(ctx), tenantID, id, path)
 	cancel()
 	m.purge(ctx, tenantID)
 	return nil
@@ -409,6 +425,27 @@ func (m *manager) Delete(ctx context.Context, tenantID, id uuid.UUID) error {
 // bounded by cleanupTimeout.
 func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+}
+
+// put writes a value under a claim made at claimed (local time, taken before the claiming statement), with
+// a context deadline at claimed + writeFence: the client side of the write gives up before the claim's
+// fence, so well before writeWindow, after which the tombstone may be retired. The store may still commit
+// a write it had admitted (Ref.NotAfter is an admission deadline); the sweep removes such a value.
+func (m *manager) put(ctx context.Context, claimed time.Time, ref Ref, value string) (Metadata, error) {
+	ctx, cancel := context.WithDeadline(ctx, claimed.Add(writeFence))
+	defer cancel()
+	return m.writer.Put(ctx, ref, map[string]string{ValueKey: value})
+}
+
+// covered reports whether path lies under one of the roots the sweep lists (the current one or a former
+// one).
+func (m *manager) covered(tenantID uuid.UUID, path string) bool {
+	for _, r := range m.roots(tenantID) {
+		if strings.HasPrefix(path, r.Path) {
+			return true
+		}
+	}
+	return false
 }
 
 // removeValue deletes a tombstone's value, then the tombstone once no claimed write can still land; a
@@ -421,7 +458,11 @@ func cleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
 // the tombstone for the next purge.
 //
 // ctx bounds the whole step; callers pass a cleanup context (cleanupContext, or purge's batch deadline).
-func (m *manager) removeValue(ctx context.Context, tenantID, id uuid.UUID, path string) {
+// bump bounds the update that moves a tombstone whose value delete failed to the back of the queue: it must
+// still run when the delete used up ctx (a store that hangs until the deadline), so it outlives ctx: purge's
+// whole budget (bounded by the caller), or a detached context for the detached cleanups. lastUsedTimeout
+// bounds it further.
+func (m *manager) removeValue(ctx, bump context.Context, tenantID, id uuid.UUID, path string) {
 	var (
 		claim   *time.Time
 		expired bool
@@ -433,8 +474,8 @@ func (m *manager) removeValue(ctx context.Context, tenantID, id uuid.UUID, path 
 	}
 	if err := m.writer.Delete(ctx, Ref{TenantID: tenantID, Path: path}); err != nil {
 		// To the back of the queue: a tombstone the store keeps failing on never holds up the others.
-		bump, cancel := context.WithTimeout(context.WithoutCancel(ctx), lastUsedTimeout)
-		_, _ = m.db.Exec(bump, `UPDATE automation.secrets SET updated_at = now() WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NOT NULL`, tenantID, id)
+		bounded, cancel := context.WithTimeout(bump, lastUsedTimeout)
+		_, _ = m.db.Exec(bounded, `UPDATE automation.secrets SET updated_at = now() WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NOT NULL`, tenantID, id)
 		cancel()
 		return
 	}
@@ -449,9 +490,19 @@ func (m *manager) removeValue(ctx context.Context, tenantID, id uuid.UUID, path 
 const purgeBatch = 20
 
 // purge settles the tenant's records a failure left behind: tombstones whose value is still there, and
-// staged records older than stagedFor (a create that never published). Rows are read first and the
-// connection released before the value store is called.
+// staged records older than stagedFor (a create that never published), then sweeps the roots. Rows are
+// read first and the connection released before the value store is called.
+//
+// It is best effort and every call of the manager repeats it, so it is not detached from the caller: it
+// ends when the caller's context does (a cancelled request does not wait for it), and in any case after
+// one cleanupTimeout for the whole purge, whatever the number of tombstones and roots.
 func (m *manager) purge(ctx context.Context, tenantID uuid.UUID) {
+	if ctx.Err() != nil {
+		return
+	}
+	budget, cancelBudget := context.WithTimeout(ctx, cleanupTimeout)
+	defer cancelBudget()
+	ctx = budget
 	type left struct {
 		id     uuid.UUID
 		path   string
@@ -471,24 +522,23 @@ func (m *manager) purge(ctx context.Context, tenantID uuid.UUID) {
 		}
 	}
 	rows.Close()
-	// One deadline for the tombstones and one for the sweep: a slow or failing store costs the caller at
-	// most twice cleanupTimeout, what is left waits for the next call, and neither phase can use up the
-	// other's time.
-	batch, cancel := cleanupContext(ctx)
+	// The tombstones get half of the budget and the sweep the rest: a store that hangs on a tombstone's
+	// value cannot use up the sweep's time, and what is left waits for the next call.
+	batch, cancel := context.WithTimeout(ctx, cleanupTimeout/2)
 	for _, l := range found {
 		if batch.Err() != nil {
 			break
 		}
 		if l.staged {
-			m.giveUpStaged(batch, tenantID, l.id, Ref{TenantID: tenantID, Path: l.path})
+			m.giveUpStaged(batch, ctx, tenantID, l.id, Ref{TenantID: tenantID, Path: l.path})
 			continue
 		}
-		m.removeValue(batch, tenantID, l.id, l.path)
+		m.removeValue(batch, ctx, tenantID, l.id, l.path)
 	}
 	cancel()
-	// One deadline for the whole sweep, whatever the number of roots, and the root it starts with rotates
-	// from purge to purge: a root whose deletes keep timing out uses up one purge's sweep at most, and the
-	// next purge starts with the next root (a former root after a prefix change is never starved).
+	// The rest of the budget for the whole sweep, whatever the number of roots, and the root it starts with
+	// rotates from purge to purge: a root whose deletes keep timing out uses up one purge's sweep at most,
+	// and the next purge starts with the next root (a former root after a prefix change is never starved).
 	roots := m.roots(tenantID)
 	if len(roots) == 0 {
 		return
@@ -500,13 +550,11 @@ func (m *manager) purge(ctx context.Context, tenantID uuid.UUID) {
 	}
 	m.rootTurn[tenantID] = first + 1
 	m.mu.Unlock()
-	sweep, cancelSweep := cleanupContext(ctx)
-	defer cancelSweep()
 	for i := range roots {
-		if sweep.Err() != nil {
+		if ctx.Err() != nil {
 			return
 		}
-		m.sweep(sweep, tenantID, roots[(first+i)%len(roots)])
+		m.sweep(ctx, tenantID, roots[(first+i)%len(roots)])
 	}
 }
 

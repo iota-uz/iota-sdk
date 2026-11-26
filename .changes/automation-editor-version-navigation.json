@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Automations editor: a version navigation aborts the request of the one it replaces, Back or Forward to the version on screen loads nothing and keeps the draft, a confirmed switch makes the editor read only (Undo and Redo included) until the version arrives, and a declined Back or Forward returns to the entry it left instead of adding one."
+}

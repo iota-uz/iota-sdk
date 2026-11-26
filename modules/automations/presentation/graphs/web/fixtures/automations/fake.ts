@@ -20,10 +20,16 @@ export interface FakeOptions {
   liveFailsOnce: boolean
   /** The answer of the first node test is lost after the test ran (the retry must not run it again). */
   testLostOnce: boolean
+  /** The keys of a page of the graph's memory (0: the request's limit). */
+  statePage?: number
   /** The review after a digest refusal fails once (a network error). */
   reviewFailsAfterChange: boolean
   /** Delay of automations.get for an old version (ms): a request still on the way when Back is pressed. */
   oldVersionDelay: number
+  /** Every automations.get after the first waits until the scenario releases it (window.__release). */
+  hold: boolean
+  /** With hold: the first automations.get (the page's initial load) is held too (?hold=all). */
+  holdFirst: boolean
   can: { author: boolean; enable: boolean; operate: boolean }
   calls: { method: string; params: unknown }[]
   /** Validation warns about the first node (a pinned tool schema the server changed), with its fix. */
@@ -203,6 +209,12 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
   let runSeq = 0
   let liveFails = opts.liveFailsOnce
   let reviewFails = false
+  // The graph's memory between runs (#1390): what its Set state nodes keep.
+  const memory = new Map<string, RPC['automations.state_list']['result']['items'][number]>([
+    ['chat:42', { key: 'chat:42', value: { task: 'T-17', opened: '2026-11-19' }, expires_at: '2026-11-27T10:00:00Z', updated_at: '2026-11-20T09:00:00Z', updated_by_run: '00000000-0000-4000-8000-0000000000f1' }],
+    ['release:v2.4', { key: 'release:v2.4', value: true, expires_at: null, updated_at: '2026-11-18T08:30:00Z', updated_by_run: '00000000-0000-4000-8000-0000000000f2' }],
+    ['rule:daily:count', { key: 'rule:daily:count', value: 3, expires_at: '2026-11-21T00:00:00Z', updated_at: '2026-11-20T09:55:00Z', updated_by_run: null }],
+  ])
   const runs: RunData[] = opts.scenario === 'empty' ? [] : seedRuns()
   const tests = new Map<string, RPC['automations.test_node']['result']>()
   let testRuns = 0
@@ -399,7 +411,58 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       }
       return res
     },
+    'automations.state_list': (p) => {
+      find(p.id)
+      const q = (p.search ?? '').toLowerCase()
+      const all = [...memory.values()].filter((e) => e.key.toLowerCase().includes(q)).sort((a, b) => (a.key < b.key ? -1 : 1))
+      const after = p.cursor ? all.filter((e) => e.key > p.cursor!) : all
+      const limit = opts.statePage || (p.limit ?? 100)
+      const items = after.slice(0, limit)
+      return { items, next_cursor: after.length > limit ? items[items.length - 1]!.key : null, total: memory.size }
+    },
+    'automations.state_set': (p) => {
+      find(p.id)
+      if (JSON.stringify(p.value).length > 16384) rpcError('invalid_input', 'state_value_too_large: the value has more than 16384 bytes')
+      const entry = { key: p.key, value: p.value, expires_at: p.ttl ? '2026-11-20T12:00:00Z' : null, updated_at: '2026-11-20T10:00:00Z', updated_by_run: null }
+      memory.set(p.key, entry)
+      return { entry }
+    },
+    'automations.state_delete': (p) => {
+      find(p.id)
+      if (!memory.delete(p.key)) rpcError('not_found', 'the key is not found')
+      return { ok: true }
+    },
   }
+  // Held answers: the scenario sees which versions are on the way (__held), releases one (__release)
+  // and reads which were aborted by the page (__aborted). 0 is the latest.
+  const held: { version: number; release: () => void }[] = []
+  const aborted: number[] = []
+  let gets = 0
+  const w = window as unknown as { __held: () => number[]; __release: (v?: number) => boolean; __aborted: number[] }
+  w.__held = () => held.map((h) => h.version)
+  w.__release = (v) => {
+    const i = v === undefined ? 0 : held.findIndex((h) => h.version === v)
+    const h = i >= 0 ? held.splice(i, 1)[0] : undefined
+    h?.release()
+    return Boolean(h)
+  }
+  w.__aborted = aborted
+  const abortError = () => new DOMException('The request was aborted', 'AbortError')
+  const pause = (ms: number, signal?: AbortSignal | null) => new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) { reject(abortError()); return }
+    const timer = setTimeout(resolve, ms)
+    signal?.addEventListener('abort', () => { clearTimeout(timer); reject(abortError()) }, { once: true })
+  })
+  const hold = (version: number, signal?: AbortSignal | null) => new Promise<void>((resolve, reject) => {
+    const entry = { version, release: resolve }
+    held.push(entry)
+    signal?.addEventListener('abort', () => {
+      const i = held.indexOf(entry)
+      if (i >= 0) held.splice(i, 1)
+      aborted.push(version)
+      reject(abortError())
+    }, { once: true })
+  })
   const original = window.fetch.bind(window)
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
@@ -408,8 +471,10 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     opts.calls.push({ method: body.method, params: body.params })
     const isList = body.method === 'automations.list' || body.method === 'automations.get' || body.method === 'automations.catalog'
     if (opts.scenario === 'loading' && isList) await new Promise(() => {})
-    if (opts.oldVersionDelay > 0 && body.method === 'automations.get' && (body.params as { version?: number }).version) await new Promise((r) => setTimeout(r, opts.oldVersionDelay))
-    if (opts.delay > 0 && !isList) await new Promise((r) => setTimeout(r, opts.delay))
+    const signal = init?.signal
+    if (body.method === 'automations.get' && (gets++ > 0 || opts.holdFirst) && opts.hold) await hold((body.params as { version?: number }).version ?? 0, signal)
+    if (opts.oldVersionDelay > 0 && body.method === 'automations.get' && (body.params as { version?: number }).version) await pause(opts.oldVersionDelay, signal)
+    if (opts.delay > 0 && !isList) await pause(opts.delay, signal)
     let payload: unknown
     try {
       if (opts.scenario === 'error' && isList) rpcError('internal', 'internal error')

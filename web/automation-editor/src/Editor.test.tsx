@@ -118,4 +118,50 @@ describe('Editor dirty state', () => {
     fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })
     await waitFor(() => expect(changes.at(-1)).toBe(false))
   })
+
+  it('keeps the draft when it turns read only: undo and redo neither by button nor by shortcut', async () => {
+    const changes: boolean[] = []
+    const [readOnly, setReadOnly] = createSignal<{ reason: string } | undefined>()
+    const { container } = render(() => (
+      <Editor graph={connected} version={1} catalog={catalog} api={api} layout={{}} locale="en" enabled save={vi.fn()} reload={vi.fn()}
+        onDirtyChange={(d) => changes.push(d)} {...(readOnly() ? { readOnly: readOnly()! } : {})} />
+    ))
+    const card = container.querySelector<HTMLElement>('.iota-flow__node[data-id="yes"]')!
+    fireEvent.click(card)
+    fireEvent.keyDown(card, { key: 'Delete' })
+    await waitFor(() => expect(changes.at(-1)).toBe(true))
+    // The host opens another version: the draft it drops stays as it is until the version arrives.
+    setReadOnly({ reason: 'Opening v2' })
+    expect(screen.getByLabelText('Undo')).toBeDisabled()
+    expect(screen.getByLabelText('Redo')).toBeDisabled()
+    const settle = () => new Promise((r) => setTimeout(r, 20))
+    // Each shortcut is checked on its own: an unguarded ⌘Z would restore the saved graph here.
+    fireEvent.click(screen.getByLabelText('Undo'))
+    await settle()
+    expect(changes.at(-1)).toBe(true)
+    fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })
+    await settle()
+    expect(changes.at(-1)).toBe(true)
+    // Editable again (the switch was dropped): undo works as before and leaves a step to redo.
+    setReadOnly(undefined)
+    expect(screen.getByLabelText('Undo')).not.toBeDisabled()
+    fireEvent.click(screen.getByLabelText('Undo'))
+    await waitFor(() => expect(changes.at(-1)).toBe(false))
+    expect(screen.getByLabelText('Redo')).not.toBeDisabled()
+    // Read only with a step to redo: neither the button nor ⇧⌘Z nor ⌘Y redoes it.
+    setReadOnly({ reason: 'Opening v2' })
+    expect(screen.getByLabelText('Redo')).toBeDisabled()
+    fireEvent.click(screen.getByLabelText('Redo'))
+    await settle()
+    expect(changes.at(-1)).toBe(false)
+    fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true, shiftKey: true })
+    await settle()
+    expect(changes.at(-1)).toBe(false)
+    fireEvent.keyDown(document.body, { key: 'y', ctrlKey: true })
+    await settle()
+    expect(changes.at(-1)).toBe(false)
+    setReadOnly(undefined)
+    fireEvent.keyDown(document.body, { key: 'y', ctrlKey: true })
+    await waitFor(() => expect(changes.at(-1)).toBe(true))
+  })
 })

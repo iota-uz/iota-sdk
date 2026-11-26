@@ -83,6 +83,9 @@ const (
 	MethodRunRetry       = "automations.run_retry"
 	MethodRunRestart     = "automations.run_restart"
 	MethodMCPTools       = "automations.mcp_tools"
+	MethodStateList      = "automations.state_list"
+	MethodStateSet       = "automations.state_set"
+	MethodStateDelete    = "automations.state_delete"
 	MethodSearchOptions  = "automations.search_options"
 )
 
@@ -112,6 +115,9 @@ var screen = solid.Import[Props]("./web/Automations.tsx", solid.WithRPC(
 	solid.Action[RunRetryRequest, OKResponse]("automations.run_retry", solid.Invalidates("automations.runs", "automations.run")),
 	solid.Action[RunRestartRequest, RunRef]("automations.run_restart", solid.Invalidates("automations.runs", "automations.list")),
 	solid.Query[MCPToolsRequest, MCPToolsResponse]("automations.mcp_tools"),
+	solid.Query[StateListRequest, StateListResponse]("automations.state_list"),
+	solid.Action[StateSetRequest, StateSetResponse]("automations.state_set", solid.Invalidates("automations.state_list")),
+	solid.Action[StateKeyRequest, OKResponse]("automations.state_delete", solid.Invalidates("automations.state_list")),
 	solid.Query[SearchOptionsRequest, SearchOptionsResponse]("automations.search_options"),
 ))
 
@@ -120,6 +126,9 @@ type Engine struct {
 	Service    engine.Service
 	Authoring  engine.Authoring
 	Operations engine.Operations
+	// Memory lists and edits the keys a graph keeps between runs (Runtime.Memory); nil: the screen has no
+	// memory panel and its methods answer unavailable.
+	Memory engine.Memory
 }
 
 // UserNames are the display names of a tenant's users.
@@ -323,6 +332,7 @@ func (c *Controller) build(view View) func(context.Context, *http.Request) (clie
 			props.Can = canOf(sub, agent)
 		}
 		props.Agent = agent
+		props.State = c.cfg.Engine.Memory != nil
 		title := intl.TWithDefault(ctx, "Automations.Title", "Automations")
 		return clienthost.RoutePayload{Title: title, Screen: screen.Render(props)}, nil
 	}

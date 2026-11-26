@@ -22,15 +22,24 @@ import (
 
 // Fetch defaults.
 const (
-	DefaultMaxFetchBody    = 10 << 20
+	DefaultMaxFetchBody = 10 << 20
+	// DefaultMaxFetchHeaders caps the header section of a response, in bytes, as the transport reads it
+	// (net/http's own default is 1 MiB): a caller that budgets a response (the http node's output) counts
+	// its headers with this limit.
+	DefaultMaxFetchHeaders = 64 << 10
 	DefaultMaxRedirects    = 20
 	defaultFetchTimeout    = 60 * time.Second
 	defaultTLSHandshake    = 10 * time.Second
 	defaultResponseHeaders = 30 * time.Second
 )
 
-// ErrResponseTooLarge is a response whose body exceeds the fetcher's limit after decoding.
+// ErrResponseTooLarge is a response whose body exceeds the fetcher's limit after decoding, or whose
+// headers exceed its header limit (ErrResponseHeadersTooLarge).
 var ErrResponseTooLarge = errors.New("response body is too large")
+
+// ErrResponseHeadersTooLarge is a response whose header section exceeds the fetcher's header limit; it
+// is an ErrResponseTooLarge.
+var ErrResponseHeadersTooLarge = fmt.Errorf("%w: its headers exceed the limit", ErrResponseTooLarge)
 
 // Resolver resolves host names. *net.Resolver implements it.
 type Resolver interface {
@@ -48,6 +57,16 @@ func WithMaxBody(n int64) FetchOption {
 	return func(f *guardedFetcher) {
 		if n > 0 {
 			f.maxBody = n
+		}
+	}
+}
+
+// WithMaxHeaderBytes caps the header section of a response, in bytes (default 64 KiB); over the cap the
+// fetch fails with ErrResponseHeadersTooLarge.
+func WithMaxHeaderBytes(n int64) FetchOption {
+	return func(f *guardedFetcher) {
+		if n > 0 {
+			f.maxHeaders = n
 		}
 	}
 }
@@ -92,6 +111,7 @@ func withTLSConfig(cfg *tls.Config) FetchOption {
 
 type guardedFetcher struct {
 	maxBody      int64
+	maxHeaders   int64
 	maxRedirects int
 	ports        []uint16
 	resolver     Resolver
@@ -110,6 +130,7 @@ type guardedFetcher struct {
 func NewGuardedFetcher(opts ...FetchOption) Fetcher {
 	f := &guardedFetcher{
 		maxBody:      DefaultMaxFetchBody,
+		maxHeaders:   DefaultMaxFetchHeaders,
 		maxRedirects: DefaultMaxRedirects,
 		ports:        []uint16{443},
 		resolver:     net.DefaultResolver,
@@ -143,6 +164,8 @@ func NewGuardedFetcher(opts ...FetchOption) Fetcher {
 		TLSHandshakeTimeout:   defaultTLSHandshake,
 		ResponseHeaderTimeout: defaultResponseHeaders,
 		ExpectContinueTimeout: time.Second,
+		// HTTP/2 advertises it as SETTINGS_MAX_HEADER_LIST_SIZE and enforces it too.
+		MaxResponseHeaderBytes: f.maxHeaders,
 	}
 	return f
 }
@@ -234,6 +257,18 @@ func (f *guardedFetcher) dialContext(ctx context.Context, network, address strin
 		}
 	}
 	return nil, lastErr
+}
+
+// headersTooLarge reports the transport's refusal of a response header section over MaxResponseHeaderBytes,
+// which net/http reports only as text: HTTP/1 for the headers and the 1xx responses before them; HTTP/2 for
+// a response header list over the advertised limit and for 1xx responses that add up past it (a request
+// whose own headers pass the peer's limit is a request error, not this one). An HTTP/2 field larger
+// than the whole limit fails the connection's HPACK decoding with a bare COMPRESSION_ERROR, the same error a
+// broken encoder gives: it stays an ordinary fetch error.
+func headersTooLarge(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "server response headers exceeded") || strings.Contains(msg, "response header list larger than") ||
+		strings.Contains(msg, "header list too large")
 }
 
 func origin(u *url.URL) string {
@@ -346,6 +381,9 @@ func (f *guardedFetcher) Fetch(ctx context.Context, req FetchRequest) (*FetchRes
 		}
 		if errors.Is(err, errRedirectMode) {
 			return nil, errRedirectMode
+		}
+		if headersTooLarge(err) {
+			return nil, fmt.Errorf("%w: %d bytes", ErrResponseHeadersTooLarge, f.maxHeaders)
 		}
 		var uerr *url.Error
 		if errors.As(err, &uerr) {

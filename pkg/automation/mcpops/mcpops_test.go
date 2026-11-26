@@ -269,12 +269,12 @@ func newEnv(t *testing.T) *env {
 	})
 	e.authz = authz
 	registry := mcp.NewRegistry()
-	tools, err := mcpops.Tools(rt.Service(), rt.Authoring(), reg, urls{})
+	tools, err := mcpops.Tools(rt.Service(), rt.Authoring(), reg, urls{}, mcpops.WithMemory(rt.Memory()))
 	require.NoError(t, err)
 	require.NoError(t, registry.Register(tools...))
 	e.changes, err = changes.NewService(changes.Config{
 		Store: changes.NewPostgresStore(e.db), Authorizer: authz,
-		Kinds:       mcpops.Kinds(rt.Service(), rt.Authoring(), urls{}),
+		Kinds:       mcpops.Kinds(rt.Service(), rt.Authoring(), urls{}, mcpops.WithMemory(rt.Memory())),
 		ApprovalURL: func(id string) string { return "https://app.test/approvals/" + id },
 	})
 	require.NoError(t, err)

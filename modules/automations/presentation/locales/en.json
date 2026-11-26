@@ -258,6 +258,7 @@
         "Category": "Secrets",
         "Title": "Secret",
         "Kind": "Built-in",
+        "NotConfigured": "Secrets cannot be saved: the application has no encryption key configured. Ask the administrator of the application to set it up.",
         "Summary": "Values such as API keys that Code and HTTP nodes read by name. A saved value is never shown again.",
         "Empty": "No secrets yet. Add one, then read it in a Code or HTTP node by its name.",
         "Add": "Add secret",
@@ -320,7 +321,10 @@
         "LoadReview": "load the review",
         "LoadRuns": "load runs",
         "Run": "start the run",
-        "LoadLive": "count the pending runs"
+        "LoadLive": "count the pending runs",
+        "LoadState": "load the memory",
+        "SaveState": "save the key",
+        "DeleteState": "delete the key"
       },
       "Columns": {
         "Attention": "Needs attention",
@@ -389,6 +393,7 @@
         "OnlyConnection": "The only one: {name}",
         "OpenIntegrations": "Open integrations",
         "OpenLatest": "Open the current version v{version}",
+        "OpeningVersion": "Opening v{version}: your changes were discarded",
         "PendingVersion": "Version v{version} is saved and waits for a review.",
         "PickConnection": "Choose a connection",
         "ReviewAndEnable": "Review and enable v{version}",
@@ -512,6 +517,33 @@
       "Enable": {
         "NoRight": "Turning automations on and off needs the right «Enable automations».",
         "AgentNote": "An agent does not turn automations on: a person does it from their own session."
+      },
+      "State": {
+        "Title": "Memory between runs",
+        "Hint": "What this automation remembers for its next runs. The «Set state» node writes it; expressions read it as state.get(key) and state.has(key).",
+        "Add": "Add a key",
+        "Key": "Key",
+        "KeyRequired": "The key is required.",
+        "Value": "Value",
+        "ValueHint": "JSON, at most 16 KiB: \"text\", 42, true, {\"a\": 1}.",
+        "InvalidJSON": "The value is not valid JSON.",
+        "Ttl": "Lifetime",
+        "TtlHint": "20m, 2h or 7d, from 1 minute to 365 days. Empty: the key does not expire.",
+        "Save": "Save",
+        "Saved": "Key saved",
+        "Deleted": "Key deleted",
+        "Edit": "Edit",
+        "Delete": "Delete",
+        "ConfirmDelete": "Delete the key",
+        "Search": "Search by key",
+        "Loading": "Loading…",
+        "Empty": "Nothing is remembered yet.",
+        "NoMatch": "No key matches.",
+        "ExpiresAt": "expires {when}",
+        "NoExpiry": "does not expire",
+        "UpdatedAt": "changed {when}",
+        "Total": "{count} of {max} keys",
+        "More": "Show more"
       }
     },
     "Title": "Automations",

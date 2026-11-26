@@ -47,6 +47,53 @@
     }
   },
   "Account": {
+      "Notifications": {
+        "Retry": "重试",
+        "Title": "通知",
+        "Intro": "选择接收通知的方式。",
+        "Channels": "通知渠道",
+        "NeedsLink": "在下方连接 {{.Channel}} 以接收通知。",
+        "Linked": "{{.Channel}} 已连接为 {{.Account}}。",
+        "Waiting": "正在等待 {{.Channel}} 中的确认…",
+        "ExpiresIn": "· 链接剩余",
+        "Expired": "链接已过期。",
+        "Gone": "{{.Channel}} 已断开：机器人在 {{.Channel}} 中被屏蔽。",
+        "NotLinked": "{{.Channel}} 未连接。",
+        "Link": "连接 {{.Channel}}",
+        "LinkAgain": "重新连接",
+        "GetNewLink": "获取新链接",
+        "OpenAgain": "再次打开 {{.Channel}}",
+        "Cancel": "取消",
+        "Unlink": "断开 {{.Channel}}",
+        "UnlinkHeading": "断开 {{.Channel}}？",
+        "UnlinkText": "通知将不再发送到 {{.Account}}。如需恢复，需要新的链接。",
+        "UnlinkConfirm": "断开",
+        "SendTest": "发送测试通知",
+        "Errors": {
+          "Load": "无法加载通知设置。",
+          "Toggle": "无法保存设置。请一分钟后重试。",
+          "Unavailable": "目前无法连接：管理员尚未配置机器人。",
+          "Unlink": "无法断开。请一分钟后重试。"
+        },
+        "Toast": {
+          "LinkedTitle": "{{.Channel}} 已连接",
+          "Linked": "{{.Channel}} 已连接为 {{.Account}}。",
+          "UnlinkedTitle": "{{.Channel}} 已断开"
+        },
+        "Test": {
+          "Starting": "正在发送…",
+          "Sending": "正在向 {{.Channel}} 发送测试通知…",
+          "StillWaiting": "仍在等待 {{.Channel}} 接收消息。消息不会重复发送。",
+          "Sent": "测试通知已送达 {{.Channel}}。",
+          "Failed": {
+            "NoAddress": "未发送：{{.Channel}} 未连接。",
+            "Gone": "{{.Channel}} 拒绝了消息：机器人可能已被屏蔽。请重新连接。",
+            "Disabled": "未发送：{{.Channel}} 已在上方关闭。",
+            "Unavailable": "未发送：您的组织未设置 {{.Channel}}。",
+            "Unknown": "无法向 {{.Channel}} 发送测试通知。请一分钟后重试。"
+          }
+        }
+      },
     "Meta": {
       "Index": {
         "Title": "账户"
@@ -1780,6 +1827,29 @@
     "Configure": "设置"
   },
   "NotificationSettings": {
+      "Connection": {
+        "Choose": "选择机器人",
+        "Title": "{{.Channel}} 机器人",
+        "Hint": "{{.Channel}} 通知由此机器人发送，员工将账户连接到它。",
+        "None": "尚无 {{.Channel}} 机器人：请在此页面连接：",
+        "Integrations": "集成",
+        "Unavailable": "所选机器人当前不可用，{{.Channel}} 通知不会发送。请选择其他机器人。",
+        "Label": "机器人",
+        "NotFound": "没有匹配的机器人",
+        "Platform": "平台机器人",
+        "Saving": "正在保存…",
+        "ConfirmHeading": "更换 {{.Channel}} 机器人？",
+        "ConfirmText": "所有员工已连接的 {{.Channel}} 账户都将被移除：与一个机器人的聊天无法用于另一个。员工需要重新连接 {{.Channel}}。",
+        "ConfirmButton": "更换机器人"
+      },
+      "ConnectionSaved": "机器人已保存。",
+      "ConnectionSavedLinksRemoved": "机器人已保存。员工的已连接账户已移除，需要重新连接。",
+      "ConnectionInvalid": "目前无法选择此机器人。请选择其他。",
+      "LinkState": {
+        "Linked": "已连接",
+        "NotLinked": "未连接",
+        "Gone": "已断开：机器人被屏蔽"
+      },
     "AudienceHint": "既在群组中又单独列出的人只会收到一条通知。",
     "UnavailableRecipients": "部分接收人已不可用，将不会收到通知。",
     "Title": "通知设置",

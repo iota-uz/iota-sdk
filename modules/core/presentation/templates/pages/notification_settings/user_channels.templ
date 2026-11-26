@@ -30,11 +30,27 @@ func ChannelLabelKey(channel notifications.Channel) string {
 type UserChannelRow struct {
 	Recipient Recipient
 	Disabled  []notifications.Channel
+	// Links is the state of the person's account on each linked channel:
+	// "linked", "not_linked" or "gone" (the provider ended it).
+	Links map[notifications.Channel]string
+}
+
+// linkStateKey is the locale key of a link state.
+func linkStateKey(state string) string {
+	switch state {
+	case "linked":
+		return "NotificationSettings.LinkState.Linked"
+	case "gone":
+		return "NotificationSettings.LinkState.Gone"
+	}
+	return "NotificationSettings.LinkState.NotLinked"
 }
 
 type UserChannelsProps struct {
-	Rows       []UserChannelRow
-	Channels   []notifications.Channel
+	Rows     []UserChannelRow
+	Channels []notifications.Channel
+	// Labels name the registered channels in the page's language.
+	Labels     map[notifications.Channel]string
 	Search     string
 	CanManage  bool
 	MessageKey string
@@ -159,12 +175,17 @@ templ UserChannelRows(props *UserChannelsProps) {
 				}
 			</span>
 			for _, channel := range props.Channels {
-				@input.Checkbox(&input.CheckboxProps{
-					Label:   pageCtx.T(ChannelLabelKey(channel)),
-					Class:   templ.Classes("text-sm font-normal"),
-					Checked: channelEnabled(row, channel),
-					Attrs:   templ.Attributes{"name": "channels", "value": string(channel), "disabled": !props.CanManage},
-				})
+				<span class="inline-flex flex-col">
+					@input.Checkbox(&input.CheckboxProps{
+						Label:   ChannelLabel(pageCtx, props.Labels, channel),
+						Class:   templ.Classes("text-sm font-normal"),
+						Checked: channelEnabled(row, channel),
+						Attrs:   templ.Attributes{"name": "channels", "value": string(channel), "disabled": !props.CanManage},
+					})
+					if state, ok := row.Links[channel]; ok {
+						<span class="text-xs text-200" data-testid={ "link-state-" + string(channel) }>{ pageCtx.T(linkStateKey(state)) }</span>
+					}
+				</span>
 			}
 			if props.CanManage {
 				@button.Primary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "submit"}}) {

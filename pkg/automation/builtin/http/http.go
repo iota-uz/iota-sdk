@@ -15,6 +15,7 @@ import (
 	nethttp "net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -44,12 +45,16 @@ const CodeRedirectRefused = "redirect_refused"
 // MaxResponseBytes is the largest response body the node reads.
 const MaxResponseBytes = 10 << 20
 
-// MaxOutputBytes is the largest output the node returns: any body up to MaxResponseBytes with its status,
-// headers and url, whatever its JSON escaping costs (a control character of a text body is 6 bytes,
-// \u00XX); graph.NodeSpec.MaxOutputBytes lifts the engine's payload limit for the node. An output larger
-// than the node's limit (Deps.MaxOutputBytes set lower) keeps its outcome and returns its status, headers
-// and url with body null and body_omitted true.
-const MaxOutputBytes = 6*MaxResponseBytes + 1<<20
+// MaxResponseHeaderBytes is the largest header section of a response the node reads (the transport's
+// limit, sandbox.WithMaxHeaderBytes): a larger one fails the request with response_too_large.
+const MaxResponseHeaderBytes = sandbox.DefaultMaxFetchHeaders
+
+// MaxOutputBytes is the largest output the node returns: any body up to MaxResponseBytes with headers up
+// to MaxResponseHeaderBytes, its status and url, whatever their JSON escaping costs (a control character
+// or an invalid byte is 6 bytes, \u00XX or \ufffd); graph.NodeSpec.MaxOutputBytes lifts the engine's
+// payload limit for the node. An output larger than the node's limit (Deps.MaxOutputBytes set lower)
+// keeps its outcome and returns its status, headers and url with body null and body_omitted true.
+const MaxOutputBytes = 6*(MaxResponseBytes+MaxResponseHeaderBytes) + 1<<20
 
 // staticOrigin is a URL whose scheme and host are written out before any template: a request with a
 // secret or a connection goes only to the host the author wrote, whatever the run's data.
@@ -87,7 +92,7 @@ const paramsSchema = `{"type": "object", "properties": {
 type Deps struct {
 	// MaxOutputBytes is the largest output the node returns (default MaxOutputBytes, the engine's limit).
 	MaxOutputBytes int
-	Fetcher        sandbox.Fetcher // default sandbox.NewGuardedFetcher(sandbox.WithMaxBody(MaxResponseBytes))
+	Fetcher        sandbox.Fetcher // default NewFetcher()
 	Secrets        access.Secrets
 	Connections    access.Connections
 	// ConnectionUse is the permission the run-as subject needs to use the tenant's connections from the
@@ -108,9 +113,16 @@ var (
 // New is the http node type.
 func New(d Deps) *Node {
 	if d.Fetcher == nil {
-		d.Fetcher = sandbox.NewGuardedFetcher(sandbox.WithMaxBody(MaxResponseBytes))
+		d.Fetcher = NewFetcher()
 	}
 	return &Node{d: d}
+}
+
+// NewFetcher is the guarded fetcher of the node's budget: a body up to MaxResponseBytes, headers up to
+// MaxResponseHeaderBytes.
+func NewFetcher(opts ...sandbox.FetchOption) sandbox.Fetcher {
+	return sandbox.NewGuardedFetcher(append([]sandbox.FetchOption{sandbox.WithMaxBody(MaxResponseBytes),
+		sandbox.WithMaxHeaderBytes(MaxResponseHeaderBytes)}, opts...)...)
 }
 
 func (n *Node) Spec() graph.NodeSpec {
@@ -121,7 +133,7 @@ func (n *Node) Spec() graph.NodeSpec {
 		Outcomes:    []string{OutcomeSuccess, OutcomeFailed}, FailedOutcome: OutcomeFailed,
 		Templates: []string{"url", "headers.*", "query.*", "body.template"},
 		// body.value is CEL or, with {{ }}, a template (the contract's cel|tpl); body.template is always one.
-		Mixed: []string{"body.value"},
+		Mixed: []string{bodyValue},
 		Output: expr.Fields{
 			{Name: "status", Field: expr.IntField},
 			{Name: "headers", Field: expr.MapOf(expr.StringField)},
@@ -317,7 +329,7 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 			header.Set(k, fmt.Sprint(h[k]))
 		}
 	}
-	body, err := encodeBody(p, header)
+	body, err := encodeBody(p, slices.Contains(in.Templated, bodyValue), header)
 	if err != nil {
 		return catalog.CallResult{}, err
 	}
@@ -374,6 +386,8 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 			return catalog.CallResult{}, fail(CodeRedirectRefused, "the request was redirected off its origin, where its idempotency key does not go: %s", left.To)
 		case errors.As(err, &blocked):
 			return catalog.CallResult{}, fail(access.CodeNetworkBlocked, "%s", access.BlockedMessage(blocked))
+		case errors.Is(err, sandbox.ErrResponseHeadersTooLarge):
+			return catalog.CallResult{}, fail(access.CodeResponseTooLarge, "the response headers are larger than %d KiB", MaxResponseHeaderBytes>>10)
 		case errors.Is(err, sandbox.ErrResponseTooLarge):
 			return catalog.CallResult{}, fail(access.CodeResponseTooLarge, "the response is larger than %d MiB", MaxResponseBytes>>20)
 		case ctx.Err() != nil:
@@ -455,8 +469,13 @@ func (n *Node) authorize(ctx context.Context, in catalog.CallInput, a *auth, u *
 	}
 }
 
-// encodeBody is the request body of the node's body param and its content type.
-func encodeBody(p map[string]any, header nethttp.Header) ([]byte, error) {
+// bodyValue is the Mixed param of the body: CEL, or with {{ }} a template (CallInput.Templated).
+const bodyValue = "body.value"
+
+// encodeBody is the request body of the node's body param and its content type. templated is how the
+// step evaluated body.value: a rendered {{ }} template, or (false) the value of its CEL, whose string
+// is a JSON string whatever its text.
+func encodeBody(p map[string]any, templated bool, header nethttp.Header) ([]byte, error) {
 	b, ok := p["body"].(map[string]any)
 	if !ok {
 		return nil, nil
@@ -486,8 +505,9 @@ func encodeBody(p map[string]any, header nethttp.Header) ([]byte, error) {
 	case "", "none":
 		return nil, nil
 	case "json":
-		// A value that is the text of a JSON object or array (a {{ }} template of one) is that JSON.
-		if s, ok := value.(string); ok && jsonText(s) {
+		// A rendered template that is the text of a JSON object or array is that JSON; a CEL string stays
+		// a string, whatever its text.
+		if s, ok := value.(string); ok && templated && jsonText(s) {
 			setType("application/json")
 			return []byte(s), nil
 		}

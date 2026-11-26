@@ -180,3 +180,11 @@ func callCode(err error) string {
 	}
 	return ""
 }
+
+// has reports whether the cache keeps a list of the connection, for any version or identity.
+func (c *toolCache) has(k cacheKey) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, ok := c.entries[k]
+	return ok
+}

@@ -1,5 +1,5 @@
 // Package builtin registers the built-in node types every tenant's catalog has without a connector:
-// set (values by CEL), code (JavaScript/TypeScript in the sandbox), http (an HTTPS request with SSRF
+// set (values by CEL), set_state (the automation's memory between runs), code (JavaScript/TypeScript in the sandbox), http (an HTTPS request with SSRF
 // protection and secrets), start_automation and run_automation (another graph, without or with waiting for
 // its result), and the actions modules contribute (package actions).
 //
@@ -16,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/flow"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/http"
 	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/set"
+	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/setstate"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	sandbox "github.com/iota-uz/iota-sdk/pkg/automation/code"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -29,7 +30,8 @@ type Deps struct {
 	Engines func(ctx context.Context) (sandbox.Engine, error)
 	// Compiler compiles Code nodes (default sandbox.NewCompiler with a cache).
 	Compiler sandbox.Compiler
-	// Fetcher is the network of Code and HTTP nodes (default sandbox.NewGuardedFetcher).
+	// Fetcher is the network of Code and HTTP nodes (default http.NewFetcher: the guarded fetcher with the
+	// http node's body and header limits).
 	Fetcher sandbox.Fetcher
 	// Secrets and Connections are the tenant's secrets and connections (nil: none).
 	Secrets     access.Secrets
@@ -49,11 +51,11 @@ func Nodes(d Deps) ([]catalog.NodeType, error) {
 		d.Compiler = sandbox.NewCompiler(sandbox.WithCache(256))
 	}
 	if d.Fetcher == nil {
-		d.Fetcher = sandbox.NewGuardedFetcher(sandbox.WithMaxBody(http.MaxResponseBytes))
+		d.Fetcher = http.NewFetcher()
 	}
 	start, run := flow.New(d.Runs)
 	out := []catalog.NodeType{
-		set.New(),
+		set.New(), setstate.New(),
 		code.New(code.Deps{Engine: d.Engine, Engines: d.Engines, Compiler: d.Compiler, Fetcher: d.Fetcher, Secrets: d.Secrets, Connections: d.Connections, ConnectionUse: d.ConnectionUse}),
 		http.New(http.Deps{Fetcher: d.Fetcher, Secrets: d.Secrets, Connections: d.Connections, ConnectionUse: d.ConnectionUse}),
 		start, run, actions.Front(),

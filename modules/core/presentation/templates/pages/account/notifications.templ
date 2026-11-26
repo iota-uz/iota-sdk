@@ -1,0 +1,446 @@
+package account
+
+import (
+	"strconv"
+	"time"
+
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+// NotificationsSectionID is the element the section's actions swap.
+const NotificationsSectionID = "account-notifications"
+
+// NotificationsPath is where the section lives.
+const NotificationsPath = "/account/notifications"
+
+// NotificationChannel is one channel the person can turn on or off.
+type NotificationChannel struct {
+	Channel string
+	Label   string
+	Enabled bool
+	// External channels can be tested; in-app cannot.
+	External bool
+	// Linked channels need the person's account first (Telegram).
+	Linked bool
+	// HasAddress is false for a linked channel without a link.
+	HasAddress bool
+}
+
+// LinkState is the state of a linked channel's account.
+type LinkState string
+
+const (
+	LinkNone    LinkState = "none"
+	LinkPending LinkState = "pending"
+	LinkExpired LinkState = "expired"
+	LinkGone    LinkState = "gone"
+	LinkActive  LinkState = "linked"
+)
+
+// NotificationLink is the person's account on a linked channel.
+type NotificationLink struct {
+	Channel string
+	Label   string
+	State   LinkState
+	Display string
+	// ExpiresAt is when a pending link stops working.
+	ExpiresAt time.Time
+	// ErrorKey names a failed action (a locale key under Account.Notifications.Errors).
+	ErrorKey string
+}
+
+// NotificationsProps is the «Notifications» section of the profile.
+type NotificationsProps struct {
+	Channels []NotificationChannel
+	Links    []NotificationLink
+	// ErrorKey names a failed action of the section.
+	ErrorKey string
+}
+
+func linkURL(channel, action string) string {
+	return NotificationsPath + "/links/" + channel + "/" + action
+}
+
+func pollID(channel string) string { return "link-poll-" + channel }
+
+// switchState saves a channel switch at once. Only the save's 204 counts as stored: a redirect (an expired
+// session sent to the login page) or any other answer rolls the switch back. Changes of one switch are sent
+// one after another, each with the value the switch had when it changed, so the last one is the one stored;
+// a refused save puts the switch back to that save's previous value and says so. A saved change refreshes the accounts block (ChannelsChangedEvent);
+// the switches themselves are never re-rendered, so no change is lost to a swap.
+func switchState(url string) string {
+	return "{ failed: false, chain: Promise.resolve(), save(el) { const enabled = el.checked; this.failed = false; " +
+		"this.chain = this.chain.then(() => fetch('" + url + "', { method: 'POST', credentials: 'same-origin', redirect: 'manual', " +
+		"headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'HX-Request': 'true' }, body: 'enabled=' + enabled })" +
+		".then((r) => { if (r.status !== 204 || r.redirected) throw new Error(String(r.status)); htmx.trigger(document.body, '" + ChannelsChangedEvent + "') })" +
+		".catch(() => { if (el.checked === enabled) el.checked = !enabled; this.failed = true })) } }"
+}
+
+// startWatch reads the link state after the start form opened the provider in
+// another tab: until the new link shows up as waiting (or linked), it asks
+// again a few times, so a slow start request does not leave the section on
+// «not connected».
+func startWatch(channel string) string {
+	return "(() => { const url = '" + linkURL(channel, "status") + "'; let n = 0; " +
+		"const tick = () => htmx.ajax('GET', url, {target: '#" + NotificationsSectionID + "', swap: 'outerHTML'}).finally(() => { " +
+		"const el = document.querySelector('[data-testid=link-" + channel + "]'); " +
+		"if ((!el || el.dataset.state === 'none' || el.dataset.state === 'expired' || el.dataset.state === 'gone') && ++n < 8) setTimeout(tick, 1500) }); " +
+		"setTimeout(tick, 1000) })()"
+}
+
+func secondsLeft(t time.Time) int {
+	left := int(time.Until(t).Seconds())
+	if left < 0 {
+		return 0
+	}
+	return left
+}
+
+// NotificationsPage is the section on a page of its own.
+templ NotificationsPage(props *NotificationsProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Account.Notifications.Title")},
+	}) {
+		<div class="flex flex-col">
+			<h1 class="px-4 pt-4 text-2xl font-bold text-100 md:px-6 md:pt-6">{ pageCtx.T("Account.Meta.Index.Title") }</h1>
+			@Notifications(props)
+		</div>
+	}
+}
+
+// NotificationsPlaceholder loads the section into the profile, holding its place meanwhile.
+templ NotificationsPlaceholder() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<section
+		id={ NotificationsSectionID }
+		class="px-4 pb-4 md:px-6 md:pb-6"
+		hx-get={ NotificationsPath }
+		hx-trigger="load, retry"
+		hx-swap="outerHTML"
+		aria-busy="true"
+		x-data="{ failed: false }"
+		x-on:htmx:before-request="failed = false; $el.setAttribute('aria-busy', 'true')"
+		x-on:htmx:response-error="failed = true; $el.setAttribute('aria-busy', 'false')"
+		x-on:htmx:send-error="failed = true; $el.setAttribute('aria-busy', 'false')"
+	>
+		@card.Card(card.Props{Class: "flex flex-col gap-3"}) {
+			<h2 class="text-lg font-semibold text-100">{ pageCtx.T("Account.Notifications.Title") }</h2>
+			<div x-show="failed" x-cloak role="alert" class="flex flex-wrap items-center gap-3 text-sm text-red-600">
+				<span>{ pageCtx.T("Account.Notifications.Errors.Load") }</span>
+				@button.Secondary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "button", "@click": "htmx.trigger($root, 'retry')"}}) {
+					{ pageCtx.T("Account.Notifications.Retry") }
+				}
+			</div>
+			for range 3 {
+				<div x-show="!failed" class="flex min-h-11 items-center justify-between gap-3">
+					<div class="h-4 w-40 animate-pulse rounded bg-surface-200"></div>
+					<div class="h-6 w-11 animate-pulse rounded-full bg-surface-200"></div>
+				</div>
+			}
+		}
+	</section>
+}
+
+// Notifications is the section: a switch per channel the tenant offers and the
+// person's linked accounts.
+templ Notifications(props *NotificationsProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<section id={ NotificationsSectionID } class="px-4 pb-4 md:px-6 md:pb-6" data-testid="account-notifications">
+		@card.Card(card.Props{Class: "flex flex-col gap-4"}) {
+			<div>
+				<h2 class="text-lg font-semibold text-100">{ pageCtx.T("Account.Notifications.Title") }</h2>
+				<p class="mt-1 text-sm text-200">{ pageCtx.T("Account.Notifications.Intro") }</p>
+			</div>
+			if props.ErrorKey != "" {
+				<p role="alert" class="text-sm text-red-600">{ pageCtx.T("Account.Notifications.Errors." + props.ErrorKey) }</p>
+			}
+			<ul class="flex flex-col" role="list" aria-label={ pageCtx.T("Account.Notifications.Channels") }>
+				for _, c := range props.Channels {
+					@notificationChannelRow(c)
+				}
+			</ul>
+			@NotificationLinks(props)
+		}
+	</section>
+}
+
+// ChannelsChangedEvent is the event a saved switch triggers: the accounts block follows it.
+const ChannelsChangedEvent = "notification-channels-changed"
+
+// NotificationLinksID is the block of the person's linked accounts.
+const NotificationLinksID = "account-notification-links"
+
+// NotificationLinks is the block of linked accounts; it re-renders alone after a switch is saved, so
+// the test action follows the switch without replacing the switches.
+templ NotificationLinks(props *NotificationsProps) {
+	<div
+		id={ NotificationLinksID }
+		class="flex flex-col gap-4 empty:hidden"
+		hx-get={ NotificationsPath + "?part=links" }
+		hx-trigger={ ChannelsChangedEvent + " from:body" }
+		hx-swap="outerHTML"
+		hx-disinherit="*"
+	>
+		for _, l := range props.Links {
+			@notificationLink(l, channelOf(props, l.Channel))
+		}
+	</div>
+}
+
+func channelOf(props *NotificationsProps, channel string) NotificationChannel {
+	for _, c := range props.Channels {
+		if c.Channel == channel {
+			return c
+		}
+	}
+	return NotificationChannel{Channel: channel}
+}
+
+// notificationChannelRow switches a channel at once and rolls the switch back
+// when the server refuses.
+templ notificationChannelRow(c NotificationChannel) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<li
+		class="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-subtle py-2 last:border-b-0"
+		x-data={ switchState(NotificationsPath + "/channels/" + c.Channel) }
+		data-testid={ "channel-row-" + c.Channel }
+	>
+		<div class="min-w-0">
+			<span class="font-medium text-100">{ c.Label }</span>
+			if c.Linked && !c.HasAddress {
+				<span class="block text-xs text-200">{ pageCtx.T("Account.Notifications.NeedsLink", map[string]any{"Channel": c.Label}) }</span>
+			}
+		</div>
+		@input.Switch(&input.SwitchProps{
+			ID:           "notification-channel-" + c.Channel,
+			Checked:      c.Enabled,
+			LabelClasses: templ.Classes("min-h-11"),
+			Attrs: templ.Attributes{
+				"role":        "switch",
+				"aria-label":  c.Label,
+				"data-testid": "channel-switch-" + c.Channel,
+				"@change":     "save($el)",
+			},
+		})
+		<p x-show="failed" x-cloak role="alert" class="basis-full text-sm text-red-600">
+			{ pageCtx.T("Account.Notifications.Errors.Toggle") }
+		</p>
+	</li>
+}
+
+templ notificationLink(l NotificationLink, c NotificationChannel) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ args := map[string]any{"Channel": l.Label, "Account": l.Display} }}
+	<div class="flex flex-col gap-3 border-t border-subtle pt-4" data-testid={ "link-" + l.Channel } data-state={ string(l.State) }>
+		<div class="flex items-start gap-2" role="status" aria-live="polite">
+			switch l.State {
+				case LinkActive:
+					@icons.CheckCircle(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-green-600"})
+					<p class="text-sm text-100">{ pageCtx.T("Account.Notifications.Linked", args) }</p>
+				case LinkPending:
+					@icons.HourglassMedium(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-200"})
+					<p class="text-sm text-100">
+						{ pageCtx.T("Account.Notifications.Waiting", args) }
+						<span
+							class="tabular-nums text-200"
+							x-data={ "{ left: " + strconv.Itoa(secondsLeft(l.ExpiresAt)) + " }" }
+							x-init={ "const t = setInterval(() => { if (!$el.isConnected) { clearInterval(t); return } left = Math.max(0, left - 1); if (left === 0) { clearInterval(t); const poll = document.getElementById('" + pollID(l.Channel) + "'); if (poll) htmx.trigger(poll, 'expired') } }, 1000)" }
+						>
+							{ pageCtx.T("Account.Notifications.ExpiresIn") }
+							<span x-text="String(Math.floor(left / 60)).padStart(2, '0') + ':' + String(left % 60).padStart(2, '0')"></span>
+						</span>
+					</p>
+				case LinkExpired:
+					@icons.Clock(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-200"})
+					<p class="text-sm text-100">{ pageCtx.T("Account.Notifications.Expired") }</p>
+				case LinkGone:
+					@icons.WarningCircle(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-amber-600"})
+					<p class="text-sm text-100">{ pageCtx.T("Account.Notifications.Gone", args) }</p>
+				default:
+					@icons.Info(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-200"})
+					<p class="text-sm text-100">{ pageCtx.T("Account.Notifications.NotLinked", args) }</p>
+			}
+		</div>
+		if l.ErrorKey != "" {
+			<p role="alert" class="text-sm text-red-600">{ pageCtx.T("Account.Notifications.Errors." + l.ErrorKey) }</p>
+		}
+		if l.State == LinkPending {
+			<!-- Polls the link while it waits; a 204 keeps the section, a change replaces it. -->
+			<div
+				id={ pollID(l.Channel) }
+				data-poll
+				hx-get={ linkURL(l.Channel, "status") + "?pending=1" }
+				hx-trigger="every 3s, expired, visibilitychange[document.visibilityState === 'visible'] from:document"
+				hx-target={ "#" + NotificationsSectionID }
+				hx-swap="outerHTML"
+			></div>
+		}
+		<div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+			switch l.State {
+				case LinkActive:
+					if c.External {
+						@testButton(l, c)
+					}
+					@button.Secondary(button.Props{
+						Class: "min-h-11 justify-center",
+						Attrs: templ.Attributes{"type": "button", "@click": "$dispatch('confirm-unlink-" + l.Channel + "')", "data-testid": "unlink-" + l.Channel},
+					}) {
+						{ pageCtx.T("Account.Notifications.Unlink", args) }
+					}
+				case LinkPending:
+					@linkStartForm(l, pageCtx.T("Account.Notifications.OpenAgain", args), false)
+					@button.Ghost(button.Props{
+						Class: "min-h-11 justify-center",
+						Attrs: templ.Attributes{
+							"type": "button", "hx-post": linkURL(l.Channel, "cancel"), "hx-target": "#" + NotificationsSectionID,
+							"hx-swap": "outerHTML", "hx-disabled-elt": "this", "data-testid": "cancel-" + l.Channel,
+						},
+					}) {
+						{ pageCtx.T("Account.Notifications.Cancel") }
+					}
+				case LinkExpired:
+					@linkStartForm(l, pageCtx.T("Account.Notifications.GetNewLink"), true)
+				case LinkGone:
+					@linkStartForm(l, pageCtx.T("Account.Notifications.LinkAgain"), true)
+				default:
+					@linkStartForm(l, pageCtx.T("Account.Notifications.Link", args), true)
+			}
+		</div>
+		if l.State == LinkActive {
+			<div id={ "test-result-" + l.Channel } class="min-h-5"></div>
+			@dialog.Confirmation(&dialog.Props{
+				Heading:     pageCtx.T("Account.Notifications.UnlinkHeading", args),
+				Text:        pageCtx.T("Account.Notifications.UnlinkText", args),
+				CancelText:  pageCtx.T("Account.Notifications.Cancel"),
+				ConfirmText: pageCtx.T("Account.Notifications.UnlinkConfirm"),
+				Danger:      true,
+				Action:      "confirm-unlink-" + l.Channel,
+				Attrs: templ.Attributes{
+					"@closing": `({target}) => { if (target.returnValue === "confirm") { htmx.trigger(document.getElementById("unlink-form-` + l.Channel + `"), "submit") } }`,
+				},
+			})
+			<form
+				id={ "unlink-form-" + l.Channel }
+				class="hidden"
+				hx-post={ linkURL(l.Channel, "unlink") }
+				hx-target={ "#" + NotificationsSectionID }
+				hx-swap="outerHTML"
+			>
+				@composables.CSRFTokenField()
+			</form>
+		}
+	</div>
+}
+
+// linkStartForm opens the provider's confirmation link in a new tab (on a
+// phone: the app) and turns the section into «waiting».
+templ linkStartForm(l NotificationLink, label string, primary bool) {
+	<form
+		method="post"
+		action={ templ.SafeURL(linkURL(l.Channel, "start")) }
+		target="_blank"
+		rel="noopener"
+		@submit={ startWatch(l.Channel) }
+	>
+		@composables.CSRFTokenField()
+		if primary {
+			@button.Primary(button.Props{Class: "min-h-11 w-full justify-center sm:w-auto", Icon: icons.TelegramLogo(icons.Props{Size: "18"}), Attrs: templ.Attributes{"type": "submit", "data-testid": "link-start-" + l.Channel}}) {
+				{ label }
+			}
+		} else {
+			@button.Secondary(button.Props{Class: "min-h-11 w-full justify-center sm:w-auto", Attrs: templ.Attributes{"type": "submit", "data-testid": "link-start-" + l.Channel}}) {
+				{ label }
+			}
+		}
+	</form>
+}
+
+templ testButton(l NotificationLink, c NotificationChannel) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	if c.Enabled {
+		<div x-data="{ busy: false }" class="contents">
+			@button.Primary(button.Props{
+				Class: "min-h-11 justify-center",
+				Attrs: templ.Attributes{
+					"type": "button", "hx-post": NotificationsPath + "/test/" + l.Channel, "hx-target": "#test-result-" + l.Channel,
+					"hx-swap": "innerHTML", "hx-disabled-elt": "this", "data-testid": "test-" + l.Channel,
+					// The result polls on its own; the button shows only its own request.
+					"hx-indicator":             "#test-result-" + l.Channel,
+					"x-on:htmx:before-request": "busy = true", "x-on:htmx:after-request": "busy = false",
+					":aria-busy": "busy",
+				},
+			}) {
+				<span x-show="!busy">{ pageCtx.T("Account.Notifications.SendTest") }</span>
+				<span x-show="busy" x-cloak>{ pageCtx.T("Account.Notifications.Test.Starting") }</span>
+			}
+		</div>
+	}
+}
+
+// NotificationTestResult is the outcome of a test notice.
+type NotificationTestResult struct {
+	Channel string
+	Label   string
+	EventID string
+	// Status is "" while the notice is on its way.
+	Status string
+	// Polls counts the checks made so far.
+	Polls int
+}
+
+templ TestResult(r NotificationTestResult) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ args := map[string]any{"Channel": r.Label} }}
+	switch r.Status {
+		case "":
+			<p
+				class="text-sm text-200"
+				role="status"
+				data-testid={ "test-status-" + r.Channel }
+				data-status="sending"
+				hx-get={ NotificationsPath + "/test/" + r.Channel + "/" + r.EventID + "?polls=" + strconv.Itoa(r.Polls+1) }
+				hx-trigger="load delay:1s, retry delay:2s"
+				hx-swap="outerHTML"
+				hx-on::response-error="this.dataset.failures = (+this.dataset.failures || 0) + 1; if (this.dataset.failures < 6) htmx.trigger(this, 'retry')"
+				hx-on::send-error="this.dataset.failures = (+this.dataset.failures || 0) + 1; if (this.dataset.failures < 6) htmx.trigger(this, 'retry')"
+			>
+				if r.Polls >= 4 {
+					{ pageCtx.T("Account.Notifications.Test.StillWaiting", args) }
+				} else {
+					{ pageCtx.T("Account.Notifications.Test.Sending", args) }
+				}
+			</p>
+		case "sent":
+			<p class="flex items-center gap-2 text-sm text-100" role="status" data-testid={ "test-status-" + r.Channel } data-status="sent">
+				@icons.CheckCircle(icons.Props{Size: "18", Class: "text-green-600"})
+				{ pageCtx.T("Account.Notifications.Test.Sent", args) }
+			</p>
+		default:
+			<p class="flex items-center gap-2 text-sm text-red-600" role="alert" data-testid={ "test-status-" + r.Channel } data-status={ r.Status }>
+				@icons.WarningCircle(icons.Props{Size: "18"})
+				{ pageCtx.T("Account.Notifications.Test.Failed."+testFailure(r.Status), args) }
+			</p>
+	}
+}
+
+// testFailure is the locale key of a failed test outcome.
+func testFailure(status string) string {
+	switch status {
+	case "no_address":
+		return "NoAddress"
+	case "gone":
+		return "Gone"
+	case "disabled":
+		return "Disabled"
+	case "unavailable":
+		return "Unavailable"
+	}
+	return "Unknown"
+}

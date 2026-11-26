@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -47,6 +48,9 @@ type transportError struct {
 	Method string
 	kind   string
 	ctx    error // context.Canceled or context.DeadlineExceeded, when that was the cause
+	// dial is set when the connection to the Bot API was never made (a dial or a DNS failure): the request
+	// did not reach Telegram.
+	dial bool
 }
 
 func (e *transportError) Error() string { return "telegram " + e.Method + ": " + e.kind }
@@ -91,6 +95,8 @@ func (c *client) RequestWithContext(ctx context.Context, token, method string, p
 		out.kind, out.ctx = "the request timed out", context.DeadlineExceeded
 	case strings.Contains(err.Error(), "failed to decode"):
 		out.kind = "the answer is not a Bot API answer"
+	case notConnected(err):
+		out.kind, out.dial = "the connection to the Bot API failed", true
 	}
 	return nil, out
 }
@@ -240,3 +246,13 @@ func (b *bot) download(ctx context.Context, f *gotgbot.File, limit int64) ([]byt
 }
 
 var errTooLarge = errors.New("the file is larger than the Bot API allows")
+
+// notConnected reports a request that failed before a connection to the Bot API was made.
+func notConnected(err error) bool {
+	var dns *net.DNSError
+	if errors.As(err, &dns) {
+		return true
+	}
+	var op *net.OpError
+	return errors.As(err, &op) && op.Op == "dial"
+}

@@ -278,3 +278,76 @@ func TestCustomHeaderReachesTheWire(t *testing.T) {
 		t.Fatalf("the server saw %q", got)
 	}
 }
+
+// A response whose header section passes the fetcher's header limit is refused as too large, over
+// HTTP/1 and HTTP/2, so a caller's budget of the headers (the http node's output) holds: many headers, 1xx
+// informational responses that add up past the limit, and one field larger than it. Headers under the limit
+// come back.
+func TestFetchHeadersOverTheLimitAreTooLarge(t *testing.T) {
+	for _, h2 := range []bool{false, true} {
+		var proto atomic.Int32
+		srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			proto.Store(int32(r.ProtoMajor))
+			switch r.URL.Path {
+			case "/many":
+				for i := 0; i < 40; i++ {
+					w.Header().Add("X-Pad", strings.Repeat("a", 1000))
+				}
+			case "/hints":
+				for i := 0; i < 40; i++ {
+					w.Header().Set("Link", "<"+strings.Repeat("a", 1000)+">; rel=preload")
+					w.WriteHeader(http.StatusEarlyHints)
+				}
+				w.Header().Del("Link")
+			case "/field":
+				w.Header().Set("X-Big", strings.Repeat("a", 20000))
+			default:
+				w.Header().Add("X-Pad", strings.Repeat("a", 1000))
+				w.Header().Set("Link", "<"+strings.Repeat("a", 1000)+">; rel=preload")
+				w.WriteHeader(http.StatusEarlyHints)
+				w.Header().Del("Link")
+			}
+			_, _ = w.Write([]byte("ok"))
+		}))
+		srv.EnableHTTP2 = h2
+		srv.StartTLS()
+		f := testFetcher(srv, WithMaxHeaderBytes(16<<10))
+		resp, err := f.Fetch(context.Background(), FetchRequest{URL: "https://example.com/small"})
+		if err != nil || string(resp.Body) != "ok" {
+			t.Fatalf("h2=%v: headers under the limit: %v", h2, err)
+		}
+		if want := map[bool]int32{false: 1, true: 2}[h2]; proto.Load() != want {
+			t.Fatalf("h2=%v: the request went over HTTP/%d", h2, proto.Load())
+		}
+		for _, path := range []string{"/many", "/hints"} {
+			_, err = f.Fetch(context.Background(), FetchRequest{URL: "https://example.com" + path})
+			if !errors.Is(err, ErrResponseHeadersTooLarge) || !errors.Is(err, ErrResponseTooLarge) {
+				t.Fatalf("h2=%v %s: want ErrResponseHeadersTooLarge, got %v", h2, path, err)
+			}
+		}
+		// One field over the limit: HTTP/1 names it; HTTP/2 fails the connection's HPACK decoding with a bare
+		// COMPRESSION_ERROR, which nothing tells apart from a broken encoder. Either way nothing comes back.
+		_, err = f.Fetch(context.Background(), FetchRequest{URL: "https://example.com/field"})
+		if h2 && err == nil || !h2 && !errors.Is(err, ErrResponseHeadersTooLarge) {
+			t.Fatalf("h2=%v /field: got %v", h2, err)
+		}
+		srv.Close()
+	}
+}
+
+// A compression error that is no header limit, and a request whose own headers pass the peer's limit,
+// stay ordinary fetch errors; the response's own limits are named.
+func TestHeadersTooLargeLeavesOtherErrors(t *testing.T) {
+	for _, msg := range []string{"connection error: COMPRESSION_ERROR", "stream error: stream ID 1; PROTOCOL_ERROR", "EOF",
+		"fetch https://example.com/: request header list larger than peer's advertised limit"} {
+		if headersTooLarge(errors.New(msg)) {
+			t.Fatalf("%q is no header limit", msg)
+		}
+	}
+	for _, msg := range []string{"http2: response header list larger than advertised limit",
+		"net/http: server response headers exceeded 16384 bytes; aborted", "stream error: stream ID 1; PROTOCOL_ERROR; header list too large"} {
+		if !headersTooLarge(errors.New(msg)) {
+			t.Fatalf("%q is the response's header limit", msg)
+		}
+	}
+}
