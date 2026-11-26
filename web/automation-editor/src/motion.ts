@@ -27,29 +27,29 @@ export function motionMs(token: MotionToken): number {
  * --motion-fast exit; `leaving()` is true meanwhile (the layer gets `ae-layer--leaving` and `inert`).
  */
 export function createLeaving<T>(source: Accessor<T | null | undefined | false>): { value: Accessor<T | null>; leaving: Accessor<boolean> } {
-  const initial = source()
-  const [value, setValue] = createSignal<T | null>(initial ? initial : null)
-  const [leaving, setLeaving] = createSignal(false)
+  // The layer follows `source` in the same pass; only its last value is held for the exit.
+  const [held, setHeld] = createSignal<T | null>(null)
+  let last: T | null = null
   let timer: ReturnType<typeof setTimeout> | undefined
   createEffect(on(source, (next) => {
     clearTimeout(timer)
     if (next) {
-      setLeaving(false)
-      setValue(() => next)
+      last = next
+      setHeld(null)
       return
     }
-    if (value() === null) return
+    if (last === null) return
+    const gone = last
+    last = null
     const ms = motionMs('fast')
-    if (ms <= 0) {
-      setValue(null)
-      return
-    }
-    setLeaving(true)
-    timer = setTimeout(() => {
-      setLeaving(false)
-      setValue(null)
-    }, ms)
-  }, { defer: true }))
+    if (ms <= 0) return
+    setHeld(() => gone)
+    timer = setTimeout(() => setHeld(null), ms)
+  }))
   onCleanup(() => clearTimeout(timer))
-  return { value, leaving }
+  const value = (): T | null => {
+    const now = source()
+    return now ? now : held()
+  }
+  return { value, leaving: () => !source() && held() !== null }
 }

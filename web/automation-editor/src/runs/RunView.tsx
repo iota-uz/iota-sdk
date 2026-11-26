@@ -2,7 +2,7 @@
 // with its subject, state, connection indicator and version, the node drawer, and Cancel / Retry /
 // Resolve for an operator. A live run is polled every 2 s while it runs or waits; the poll stops for
 // good when the run ends, and a finished run kept in the cache is not asked for again.
-import { Combobox, ConfirmationDialog, Dialog, DialogBusyStatus, useToast } from '@iota-uz/sdk/solid-ui'
+import { Combobox, ConfirmationDialog, createPresence, Dialog, DialogBusyStatus, useToast } from '@iota-uz/sdk/solid-ui'
 import { createEffect, createMemo, createSignal, Match, on, onCleanup, onMount, Show, Switch, type JSX } from 'solid-js'
 import { Canvas } from '../Canvas'
 import { findItem, itemOutcomes } from '../graph'
@@ -12,7 +12,7 @@ import { describeItem } from '../names'
 import { Outline } from '../Outline'
 import { strings } from '../strings'
 import type { AutomationGraph, AutomationLayout, CanvasApi, EditorApi, EditorCatalog, EditorLocale, Overlay, RunData, RunWait, Subject } from '../types'
-import { CopyText } from './Data'
+import { CopyText, Swap } from './Data'
 import { isFinal, isLive, overlaysEqual, POLL_MS, runOverlay, sameRun } from './model'
 import { NodeDrawer } from './NodeDrawer'
 import { STATE_ICON } from './RunsList'
@@ -206,6 +206,10 @@ export function RunView(props: RunViewProps): JSX.Element {
   })
 
   let canvasApi: CanvasApi | null = null
+  // The drawer enters with --motion-base and leaves with --motion-fast (A7): it stays mounted, inert, through
+  // its exit, drawing the node it showed; the focus has gone back to the canvas or the outline by then.
+  const shownNode = createMemo<string | null>((prev) => props.node ?? prev, null)
+  const drawer = createPresence(() => Boolean(props.node && view()), { enter: 'base', exit: 'fast' })
   const nodeName = (id: string) => (view() && findItem(view()!.graph, id) ? describeItem(view()!.graph, props.catalog, id, props.locale).title : id)
   // On a phone the drawer is a sheet over the outline (K3): it takes the focus, keeps it inside, and gives
   // it back to the outline item that opened it.
@@ -251,29 +255,40 @@ export function RunView(props: RunViewProps): JSX.Element {
     if (current) queueMicrotask(() => canvasApi?.focus(current))
   }
 
-  const strip = (d: RunData) => {
-    const subject = () => subjectName(d.subject)
-    const href = () => (d.subject ? d.subject.url || props.subjectHref?.(d.subject) : undefined)
+  // The strip takes the run as an accessor: a poll updates its texts in place and never rebuilds it (P4),
+  // so a focused Cancel keeps the focus while the run is polled.
+  const strip = (d: () => RunData) => {
+    const subject = () => subjectName(d().subject)
+    const href = () => {
+      const subject = d().subject
+      return subject ? subject.url || props.subjectHref?.(subject) : undefined
+    }
     return (
-      <div class="ae-runstrip" data-testid="run-strip">
+      <div class="ae-runstrip iota-fade-in" data-testid="run-strip">
         <Show when={props.mobile && props.onBack}>
           <button type="button" class="ae-btn ae-btn--ghost ae-runstrip__back" onClick={() => props.onBack?.()}><Icon name="undo" />{t().run.back}</button>
         </Show>
-        <span class={`ae-runstate ae-runstate--${d.state}`} data-testid="run-state">
-          <Icon name={STATE_ICON[d.state]} size={14} />{t().list.states[d.state]}
+        <span class="ae-runstrip__state" data-testid="run-state">
+          <Swap key={d().state}>
+            {(state) => (
+              <span class={`ae-runstate ae-runstate--${state}`}>
+                <Icon name={STATE_ICON[state as RunData['state']]} size={14} />{t().list.states[state as RunData['state']]}
+              </span>
+            )}
+          </Swap>
         </span>
         <span class="ae-runstrip__subject" title={subject() ?? t().list.noSubject}>{subject() ?? t().list.noSubject}</span>
         <Show when={subject() && href()}>
           <a class="ae-link" href={href()} data-testid="open-subject">{t().run.openSubject(subject()!)}</a>
         </Show>
-        <span class="ae-tag">v{d.version}</span>
+        <span class="ae-tag">v{d().version}</span>
         <span class="ae-muted ae-runstrip__time">
-          <time datetime={d.created_at} title={absoluteTime(d.created_at, props.locale)}>{t().run.started(relativeTime(d.created_at, props.now, props.locale))}</time>
-          <Show when={view() && findItem(view()!.graph, d.trigger)}> · {t().run.startedBy(nodeName(d.trigger))}</Show>
+          <time datetime={d().created_at} title={absoluteTime(d().created_at, props.locale)}>{t().run.started(relativeTime(d().created_at, props.now, props.locale))}</time>
+          <Show when={view() && findItem(view()!.graph, d().trigger)}> · {t().run.startedBy(nodeName(d().trigger))}</Show>
         </span>
         <span class="ae-runstrip__conn" role="status" aria-live="polite" data-testid="run-conn">
           <Show when={conn()}>
-            {(c) => <span class={`ae-conn ae-conn--${c()}`}><span class="ae-conn__dot" aria-hidden="true" />{c() === 'live' ? t().run.live : c() === 'reconnecting' ? t().run.reconnecting : t().run.finished}</span>}
+            {(c) => <span class={`ae-conn ae-conn--${c()}`} data-conn={c()}><span class="ae-conn__dot" aria-hidden="true" />{c() === 'live' ? t().run.live : c() === 'reconnecting' ? t().run.reconnecting : t().run.finished}</span>}
           </Show>
         </span>
         <span class="ae-runstrip__actions">
@@ -298,7 +313,7 @@ export function RunView(props: RunViewProps): JSX.Element {
           <p class="ae-runstrip__line" role="status">{t().run.stillWaiting(t().run.what.retry)}</p>
         </Show>
         <Show when={retryError()}>{(e) => <p class="ae-runstrip__line ae-danger" role="alert">{e()}</p>}</Show>
-        <Show when={d.state === 'failed' && d.error}>
+        <Show when={d().state === 'failed' && d().error}>
           {(e) => <p class="ae-runstrip__line ae-danger" data-testid="run-error"><Icon name="error" size={14} />{e()}</p>}
         </Show>
       </div>
@@ -309,14 +324,14 @@ export function RunView(props: RunViewProps): JSX.Element {
     <div class="ae-runview" classList={{ 'ae-runview--mobile': props.mobile }} data-testid="run-view">
       <Switch>
         <Match when={missing()}>
-          <div class="ae-runlist__state" role="alert" data-testid="run-not-found">
+          <div class="ae-runlist__state iota-fade-in" role="alert" data-testid="run-not-found">
             <p class="ae-runlist__title">{t().run.notFound}</p>
             <p class="ae-muted">{t().run.notFoundText}</p>
             <Show when={props.onBack}><button type="button" class="ae-btn ae-btn--secondary" onClick={() => props.onBack?.()}>{t().run.back}</button></Show>
           </div>
         </Match>
         <Match when={!data() && failed()}>
-          <div class="ae-runlist__state" role="alert" data-testid="run-error-state">
+          <div class="ae-runlist__state iota-fade-in" role="alert" data-testid="run-error-state">
             <p>{t().run.loadFailed}</p>
             <button type="button" class="ae-btn ae-btn--secondary" onClick={() => void fetchRun()}>{base().common.retry}</button>
           </div>
@@ -330,7 +345,7 @@ export function RunView(props: RunViewProps): JSX.Element {
         <Match when={data()}>
           {(d) => (
             <>
-              {strip(d())}
+              {strip(d)}
               <Show when={d().version !== props.version}>
                 <div class="ae-banner" role="status" data-testid="run-version-banner">
                   <Icon name="dot" /><span>{t().run.onVersion(d().version)}</span>
@@ -351,7 +366,7 @@ export function RunView(props: RunViewProps): JSX.Element {
                     <div class="ae-runview__canvas"><div class="ae-canvas ae-skeleton__canvas" role="status" aria-busy="true" aria-label={base().states.loading} /></div>
                   </Match>
                   <Match when={props.mobile}>
-                    <div class="ae-mobile">
+                    <div class="ae-mobile iota-fade-in">
                       <Outline graph={view()!.graph} catalog={props.catalog} overlay={overlay()} locale={props.locale} onPick={(id) => props.onNode(id)} />
                     </div>
                   </Match>
@@ -375,21 +390,23 @@ export function RunView(props: RunViewProps): JSX.Element {
                     )}
                   </Match>
                 </Switch>
-                <Show when={props.node && view()}>
+                <Show when={drawer.mounted() && shownNode() && view()}>
                   <div
                     ref={mountSheet}
-                    class="ae-side"
-                    classList={{ 'ae-side--sheet': props.mobile }}
-                    {...(props.mobile ? { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': `ae-run-node-${props.node}` } : {})}
+                    class="ae-side ae-run-side"
+                    classList={{ 'ae-side--sheet': props.mobile, 'ae-layer--leaving': drawer.leaving() }}
+                    inert={drawer.leaving() || undefined}
+                    data-presence={drawer.state()}
+                    {...(props.mobile ? { role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': `ae-run-node-${shownNode()}` } : {})}
                     onKeyDown={(event) => {
                       trapFocus(event)
-                      if (event.key === 'Escape' && !event.defaultPrevented) {
+                      if (event.key === 'Escape' && !event.defaultPrevented && !drawer.leaving()) {
                         event.preventDefault()
                         closeNode()
                       }
                     }}
                   >
-                    <NodeDrawer graph={view()!.graph} catalog={props.catalog} run={d()} node={props.node!} state={overlay()?.states.get(props.node!)} locale={props.locale} onClose={closeNode} sheet={props.mobile} />
+                    <NodeDrawer graph={view()!.graph} catalog={props.catalog} run={d()} node={shownNode()!} state={overlay()?.states.get(shownNode()!)} locale={props.locale} onClose={closeNode} sheet={props.mobile} />
                   </div>
                 </Show>
               </div>

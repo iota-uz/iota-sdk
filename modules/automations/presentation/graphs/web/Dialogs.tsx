@@ -112,7 +112,7 @@ export function ReviewDialog(props: { id: string; version: number; name: string;
             {(r) => (
               <>
                 <Show when={notice()}>
-                  <p role="alert" class="flex items-start gap-2 text-red-600" data-testid="review-notice"><Icon name="alert" class="mt-0.5" />{notice()}</p>
+                  <p role="alert" class="flex items-start gap-2 text-danger" data-testid="review-notice"><Icon name="alert" class="mt-0.5" />{notice()}</p>
                 </Show>
                 <Show when={errors().length > 0}>
                   <ul class="list-disc pl-5 text-sm" data-testid="review-errors"><For each={errors()}>{(e) => <li>{e.message}</li>}</For></ul>
@@ -224,7 +224,7 @@ function SafeConfirm(props: {
             <Button variant="secondary" size="sm" onClick={props.onRetry}>{t('Common.Retry')}</Button>
           </div>
         </Show>
-        <Show when={props.error}><p role="alert" class="text-sm text-red-600">{props.error}</p></Show>
+        <Show when={props.error}><p role="alert" class="text-sm text-danger">{props.error}</p></Show>
       </div>
       <footer class="border-t border-subtle px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <DialogBusyStatus class="mb-2" />

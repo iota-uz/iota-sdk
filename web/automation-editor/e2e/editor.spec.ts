@@ -595,6 +595,17 @@ test.describe('motion', () => {
     await expect(card(page, 'send_email')).toBeFocused()
   })
 
+  test('the Dry run dock leaves inert and gives the focus back to its button', async ({ page }) => {
+    await open(page)
+    await page.getByTestId('open-dry-run').click()
+    const dock = page.getByTestId('dry-run')
+    await expect(dock).toBeVisible()
+    await dock.locator('.ae-iconbtn').first().click()
+    await expect(dock).toHaveClass(/ae-layer--leaving/)
+    await expect(dock).toHaveCount(0)
+    await expect(page.getByTestId('open-dry-run')).toBeFocused()
+  })
+
   test('prefers-reduced-motion: no animation has an in-between frame on any layer', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await open(page, 'overlay=1')

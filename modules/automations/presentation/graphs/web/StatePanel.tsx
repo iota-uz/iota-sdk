@@ -1,5 +1,5 @@
 import { For, Show, createSignal, onCleanup, onMount, type JSX } from 'solid-js'
-import { Button, Input, Textarea } from '@iota-uz/sdk/solid-ui'
+import { Button, Input, Skeleton, Textarea } from '@iota-uz/sdk/solid-ui'
 import type { RPC } from './Automations.solid.generated'
 import { useApp } from './context'
 import { absoluteTime, errorCode, errorText, relativeTime } from './model'
@@ -53,7 +53,24 @@ export function StatePanel(props: { id: string; canEdit: boolean }): JSX.Element
   const [draft, setDraft] = createSignal<Draft>()
   const [draftError, setDraftError] = createSignal<string>()
   const [confirming, setConfirming] = createSignal<string>()
+  const [deleteError, setDeleteError] = createSignal<string>()
   const [busy, setBusy] = createSignal(false)
+  let list: HTMLUListElement | undefined
+  let section: HTMLElement | undefined
+  // The inline confirmation takes the focus on «Cancel» (U1); closing it gives the focus back to «Delete»
+  // of the same key, so the keyboard never falls to the page's start (K3).
+  const ask = (key: string) => { setDeleteError(undefined); setConfirming(key) }
+  const dismiss = () => {
+    const key = confirming()
+    setConfirming(undefined)
+    setDeleteError(undefined)
+    if (key === undefined) return
+    queueMicrotask(() => {
+      for (const li of list?.querySelectorAll<HTMLElement>('li[data-key]') ?? []) {
+        if (li.dataset.key === key) { li.querySelector<HTMLElement>('[data-action="state-delete"]')?.focus(); return }
+      }
+    })
+  }
 
   let seq = 0
   const load = async (more = false) => {
@@ -130,22 +147,26 @@ export function StatePanel(props: { id: string; canEdit: boolean }): JSX.Element
   const remove = async (key: string) => {
     if (busy()) return
     setBusy(true)
+    setDeleteError(undefined)
     try {
       await app.call('automations.state_delete', { id: props.id, key })
       app.toast.notify({ variant: 'success', title: t('State.Deleted') })
       setConfirming(undefined)
+      // The row and its buttons go: the focus moves to the search, not to the page's start.
+      queueMicrotask(() => section?.querySelector<HTMLElement>('[data-testid="state-search"]')?.focus())
       await load()
     } catch (e) {
       // A key that expired meanwhile is gone either way.
       if (errorCode(e) === 'not_found') { setConfirming(undefined); await load() }
-      else setLoadError(errorText(t, e, t('Actions.DeleteState')))
+      // The refusal is told next to the action it answers (F3), the confirmation stays open.
+      else setDeleteError(errorText(t, e, t('Actions.DeleteState')))
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <section class="flex flex-col gap-3" aria-labelledby="ae-state-title" data-testid="state-panel">
+    <section ref={section} class="flex flex-col gap-3" aria-labelledby="ae-state-title" data-testid="state-panel">
       <div class="flex items-start justify-between gap-3">
         <div class="flex flex-col gap-1">
           <h3 id="ae-state-title" class="text-sm font-medium">{t('State.Title')}</h3>
@@ -158,7 +179,7 @@ export function StatePanel(props: { id: string; canEdit: boolean }): JSX.Element
 
       <Show when={draft()}>
         {(d) => (
-          <form class="flex flex-col gap-3 rounded-md border border-subtle p-3" data-testid="state-editor"
+          <form class="iota-reveal flex flex-col gap-3 rounded-md border border-subtle p-3" data-testid="state-editor"
             onSubmit={(e) => { e.preventDefault(); void save() }}>
             <Input label={t('State.Key')} value={d().key} maxLength={200} readOnly={d().original !== null} data-field="state-key"
               onInput={(e) => patch({ key: e.currentTarget.value })} />
@@ -166,7 +187,7 @@ export function StatePanel(props: { id: string; canEdit: boolean }): JSX.Element
               onInput={(e) => patch({ value: e.currentTarget.value })} />
             <Input label={t('State.Ttl')} description={t('State.TtlHint')} value={d().ttl} placeholder="2h" data-field="state-ttl"
               onInput={(e) => patch({ ttl: e.currentTarget.value })} />
-            <Show when={draftError()}><p role="alert" class="text-sm text-red-600" data-testid="state-error">{draftError()}</p></Show>
+            <Show when={draftError()}><p role="alert" class="text-sm text-danger" data-testid="state-error">{draftError()}</p></Show>
             <div class="flex justify-end gap-2">
               <Button type="button" variant="secondary" onClick={() => setDraft(undefined)}>{t('Common.Cancel')}</Button>
               <Button type="submit" variant="primary" loading={busy()} data-testid="state-save">{t('State.Save')}</Button>
@@ -178,12 +199,15 @@ export function StatePanel(props: { id: string; canEdit: boolean }): JSX.Element
       <Input type="text" aria-label={t('State.Search')} placeholder={t('State.Search')} value={query()} data-testid="state-search"
         onInput={(e) => search(e.currentTarget.value)} />
 
-      <Show when={loadError()}><p role="alert" class="text-sm text-red-600">{loadError()}</p></Show>
+      <Show when={loadError()}><p role="alert" class="text-sm text-danger">{loadError()}</p></Show>
 
       <Show when={items().length > 0} fallback={
-        <p class="text-sm text-300" data-testid="state-empty">{loading() ? t('State.Loading') : query().trim() ? t('State.NoMatch') : t('State.Empty')}</p>
+        // The first load draws the rows' shape (S2); an empty answer says so in words.
+        <Show when={!(loading() && total() === 0 && !query().trim())} fallback={<div role="status" aria-busy="true" aria-label={t('State.Loading')} data-testid="state-loading"><Skeleton lines={3} /></div>}>
+          <p class="text-sm text-300" data-testid="state-empty">{loading() ? t('State.Loading') : query().trim() ? t('State.NoMatch') : t('State.Empty')}</p>
+        </Show>
       }>
-        <ul class="flex max-h-72 flex-col divide-y divide-subtle overflow-y-auto rounded-md border border-subtle" data-testid="state-list">
+        <ul ref={list} class="iota-fade-in flex max-h-72 flex-col divide-y divide-subtle overflow-y-auto rounded-md border border-subtle" data-testid="state-list">
           <For each={items()}>
             {(e) => (
               <li class="flex items-start justify-between gap-3 px-3 py-2" data-key={e.key}>
@@ -196,15 +220,20 @@ export function StatePanel(props: { id: string; canEdit: boolean }): JSX.Element
                   </span>
                 </div>
                 <Show when={props.canEdit}>
-                  <div class="flex shrink-0 gap-2">
+                  <div class="flex shrink-0 flex-col items-end gap-1">
                     <Show when={confirming() === e.key} fallback={
-                      <>
+                      <div class="flex gap-2">
                         <Button type="button" variant="secondary" aria-label={`${t('State.Edit')}: ${e.key}`} onClick={() => edit(e)}>{t('State.Edit')}</Button>
-                        <Button type="button" variant="secondary" aria-label={`${t('State.Delete')}: ${e.key}`} onClick={() => setConfirming(e.key)}>{t('State.Delete')}</Button>
-                      </>
+                        <Button type="button" variant="secondary" aria-label={`${t('State.Delete')}: ${e.key}`} data-action="state-delete" onClick={() => ask(e.key)}>{t('State.Delete')}</Button>
+                      </div>
                     }>
-                      <Button type="button" variant="primary" loading={busy()} data-testid="state-confirm-delete" onClick={() => void remove(e.key)}>{t('State.ConfirmDelete')}</Button>
-                      <Button type="button" variant="secondary" onClick={() => setConfirming(undefined)}>{t('Common.Cancel')}</Button>
+                      {/* U3: the confirmation opens in place; deleting a key is irreversible, so it is danger-toned. */}
+                      <div class="iota-reveal flex gap-2" onKeyDown={(ev) => { if (ev.key === 'Escape' && !busy()) { ev.stopPropagation(); dismiss() } }}>
+                        <Button type="button" variant="danger" loading={busy()} data-testid="state-confirm-delete" onClick={() => void remove(e.key)}>{t('State.ConfirmDelete')}</Button>
+                        <Button ref={(el: HTMLButtonElement) => queueMicrotask(() => el.focus())} type="button" variant="secondary" aria-disabled={busy() || undefined}
+                          onClick={() => { if (!busy()) dismiss() }}>{t('Common.Cancel')}</Button>
+                      </div>
+                      <Show when={deleteError()}><p role="alert" class="text-xs text-danger" data-testid="state-delete-error">{deleteError()}</p></Show>
                     </Show>
                   </div>
                 </Show>

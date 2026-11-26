@@ -1,6 +1,6 @@
 // Strings of the runs view, the Dry run and Test node panels in en, ru, uz and uz-Cyrl (C4). They live
 // apart from the editor's table: they load with the runs chunk.
-import { pick, plural } from '../locale'
+import { intlLocale, pick, plural } from '../locale'
 import type { DecisionMode, EditorLocale, RunState, RunWait } from '../types'
 
 type Plural = { one: string; few?: string; many?: string; other: string }
@@ -161,6 +161,10 @@ export type RunStrings = {
 }
 
 const n = (locale: EditorLocale, count: number, forms: Plural) => plural(locale, count, forms)
+/** A duration in milliseconds by the locale's number format (C4). */
+const millis = (locale: EditorLocale, ms: number) => new Intl.NumberFormat(intlLocale(locale), { style: 'unit', unit: 'millisecond', unitDisplay: 'short' }).format(ms)
+/** A sentence that starts with a phrase written for the middle of one. */
+const lead = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
 const en: RunStrings = {
   list: {
@@ -301,7 +305,7 @@ const en: RunStrings = {
     stillWaiting: 'Still waiting for the step. It will not run twice.',
     result: 'Result',
     outcome: 'Outcome',
-    duration: (ms) => `${ms} ms`,
+    duration: (ms) => millis('en', ms),
     failed: 'Could not test the step. Try again in a minute.',
     secretMissing: (name) => `Secret ${name} is not set`,
     secretUnset: 'not set',
@@ -333,7 +337,7 @@ const ru: RunStrings = {
     emptyText: 'Запуск появляется здесь каждый раз, когда срабатывает триггер графа.',
     start: 'Запустить',
     emptyFilter: 'Нет запусков под фильтром',
-    reset: 'Сбросить',
+    reset: 'Сбросить фильтры',
     more: 'Показать ещё',
     loading: 'Загружаем запуски…',
     loadFailed: 'Не удалось загрузить запуски. Повторите через минуту.',
@@ -383,7 +387,7 @@ const ru: RunStrings = {
     logs: 'Логи',
     outcome: 'Исход',
     error: 'Ошибка',
-    noData: 'У ноды нет данных',
+    noData: 'У шага нет данных',
     hidden: 'Шаг прочёл данные, которые вам не видны: его вход и выход скрыты.',
     notReached: 'Запуск не дошёл до этого шага.',
     filterLogs: 'Фильтр логов',
@@ -460,7 +464,7 @@ const ru: RunStrings = {
     stillWaiting: 'Всё ещё ждём шаг. Он не выполнится дважды.',
     result: 'Результат',
     outcome: 'Исход',
-    duration: (ms) => `${ms} мс`,
+    duration: (ms) => millis('ru', ms),
     failed: 'Не удалось проверить шаг. Повторите через минуту.',
     secretMissing: (name) => `Секрет ${name} не задан`,
     secretUnset: 'не задан',
@@ -528,12 +532,12 @@ const uz: RunStrings = {
     outcome: 'Natija',
     pickOutcome: 'Natijani tanlang',
     stillWaiting: (what) => `Hali kutilmoqda: ${what}. Hech narsa ikki marta bajarilmaydi.`,
-    actionFailed: (what) => `${what} amalga oshmadi. Bir daqiqadan keyin qayta urinib ko‘ring.`,
+    actionFailed: (what) => `${lead(what)} amalga oshmadi. Bir daqiqadan keyin qayta urinib ko‘ring.`,
     finishedAlready: 'Ishga tushirish allaqachon tugagan.',
     cancelled: 'Ishga tushirish bekor qilindi',
     retried: 'Chaqiruv takrorlanmoqda',
     resolved: 'Ishga tushirish davom etmoqda',
-    what: { cancel: 'Bekor qilish', retry: 'Chaqiruvni takrorlash', resolve: 'Qadamni hal qilish' },
+    what: { cancel: 'bekor qilish', retry: 'chaqiruvni takrorlash', resolve: 'qadamni hal qilish' },
     nodeLabel: 'Qadam',
   },
   node: {
@@ -542,7 +546,7 @@ const uz: RunStrings = {
     logs: 'Loglar',
     outcome: 'Natija',
     error: 'Xato',
-    noData: 'Tugunda ma’lumot yo‘q',
+    noData: 'Qadamda ma’lumot yo‘q',
     hidden: 'Qadam siz ko‘ra olmaydigan ma’lumotni o‘qigan: uning kirishi va chiqishi yashirilgan.',
     notReached: 'Ishga tushirish bu qadamga yetmadi.',
     filterLogs: 'Loglarni filtrlash',
@@ -619,7 +623,7 @@ const uz: RunStrings = {
     stillWaiting: 'Qadam hali kutilmoqda. U ikki marta bajarilmaydi.',
     result: 'Natija',
     outcome: 'Natija',
-    duration: (ms) => `${ms} ms`,
+    duration: (ms) => millis('uz', ms),
     failed: 'Qadamni sinab bo‘lmadi. Bir daqiqadan keyin qayta urinib ko‘ring.',
     secretMissing: (name) => `${name} siri berilmagan`,
     secretUnset: 'berilmagan',
@@ -687,12 +691,12 @@ const uzCyrl: RunStrings = {
     outcome: 'Натижа',
     pickOutcome: 'Натижани танланг',
     stillWaiting: (what) => `Ҳали кутилмоқда: ${what}. Ҳеч нарса икки марта бажарилмайди.`,
-    actionFailed: (what) => `${what} амалга ошмади. Бир дақиқадан кейин қайта уриниб кўринг.`,
+    actionFailed: (what) => `${lead(what)} амалга ошмади. Бир дақиқадан кейин қайта уриниб кўринг.`,
     finishedAlready: 'Ишга тушириш аллақачон тугаган.',
     cancelled: 'Ишга тушириш бекор қилинди',
     retried: 'Чақирув такрорланмоқда',
     resolved: 'Ишга тушириш давом этмоқда',
-    what: { cancel: 'Бекор қилиш', retry: 'Чақирувни такрорлаш', resolve: 'Қадамни ҳал қилиш' },
+    what: { cancel: 'бекор қилиш', retry: 'чақирувни такрорлаш', resolve: 'қадамни ҳал қилиш' },
     nodeLabel: 'Қадам',
   },
   node: {
@@ -701,7 +705,7 @@ const uzCyrl: RunStrings = {
     logs: 'Логлар',
     outcome: 'Натижа',
     error: 'Хато',
-    noData: 'Тугунда маълумот йўқ',
+    noData: 'Қадамда маълумот йўқ',
     hidden: 'Қадам сиз кўра олмайдиган маълумотни ўқиган: унинг кириши ва чиқиши яширилган.',
     notReached: 'Ишга тушириш бу қадамга етмади.',
     filterLogs: 'Логларни фильтрлаш',
@@ -778,7 +782,7 @@ const uzCyrl: RunStrings = {
     stillWaiting: 'Қадам ҳали кутилмоқда. У икки марта бажарилмайди.',
     result: 'Натижа',
     outcome: 'Натижа',
-    duration: (ms) => `${ms} мс`,
+    duration: (ms) => millis('uz-Cyrl', ms),
     failed: 'Қадамни синаб бўлмади. Бир дақиқадан кейин қайта уриниб кўринг.',
     secretMissing: (name) => `${name} сири берилмаган`,
     secretUnset: 'берилмаган',

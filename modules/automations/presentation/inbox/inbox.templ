@@ -35,7 +35,7 @@ templ BadgeCount(c tasks.TaskCounts) {
 	if c.Open > 0 {
 		<span
 			class={ "min-w-6 rounded-full px-1.5 text-center text-xs font-semibold leading-5 tabular-nums",
-				templ.KV("bg-red-500 text-white", c.Overdue > 0), templ.KV("bg-primary-500 text-white", c.Overdue == 0) }
+				templ.KV("bg-danger text-white", c.Overdue > 0), templ.KV("bg-primary-500 text-white", c.Overdue == 0) }
 		>
 			<span aria-hidden="true">{ badgeText(c.Open) }</span>
 			<span class="sr-only">{ trn(ctx, "Badge.Open", c.Open) }</span>
@@ -51,7 +51,7 @@ templ ListPage(p *ListProps) {
 }
 
 templ ListScreen(p *ListProps) {
-	<div id={ screenID } class="mx-auto w-full max-w-3xl px-4 py-4 md:px-8 md:py-8" data-testid="automations-tasks-list-screen" { connection(true)... }>
+	<div id={ screenID } class="iota-focus-scope mx-auto w-full max-w-3xl px-4 py-4 md:px-8 md:py-8" data-testid="automations-tasks-list-screen" { connection(true)... }>
 		@connectionBanner()
 		<header class="mb-4">
 			<h1 class="text-2xl font-semibold text-100">{ tr(ctx, "Title") }</h1>
@@ -141,7 +141,7 @@ templ tabLink(p *ListProps, tab, label string, count int, alarm bool) {
 	<a
 		href={ templ.SafeURL(p.tabURL(tab)) }
 		class={ "-mb-px inline-flex min-h-11 shrink-0 items-center gap-1.5 border-b-2 px-3 text-sm font-medium",
-			templ.KV("border-primary text-100", p.Tab == tab), templ.KV("border-transparent text-200 hover:text-100", p.Tab != tab) }
+			templ.KV("border-brand text-100", p.Tab == tab), templ.KV("border-transparent text-200 hover:text-100", p.Tab != tab) }
 		if p.Tab == tab {
 			aria-current="page"
 		}
@@ -149,7 +149,7 @@ templ tabLink(p *ListProps, tab, label string, count int, alarm bool) {
 	>
 		{ label }
 		if count > 0 {
-			<span class={ "rounded-full px-1.5 text-xs tabular-nums", templ.KV("bg-red-500 text-white", alarm), templ.KV("bg-surface-100 text-200", !alarm) }>{ badgeText(count) }</span>
+			<span class={ "rounded-full px-1.5 text-xs tabular-nums", templ.KV("bg-danger text-white", alarm), templ.KV("bg-surface-100 text-200", !alarm) }>{ badgeText(count) }</span>
 		}
 	</a>
 }
@@ -177,14 +177,14 @@ templ ListMore(p *ListProps) {
 
 templ row(p *ListProps, v tasks.TaskView) {
 	<li
-		class={ "relative rounded-lg border bg-surface-300 px-4 py-3 focus-within:border-brand",
+		class={ "relative rounded-lg border bg-surface-300 px-4 py-3 has-[>a:focus-visible]:outline-(length:--focus-ring-width) has-[>a:focus-visible]:outline-offset-(--focus-ring-offset) has-[>a:focus-visible]:outline-[oklch(var(--clr-border-brand))]",
 			templ.KV("border-danger", v.Overdue), templ.KV("border-subtle", !v.Overdue) }
 		data-testid="automations-task-row"
 		data-task-id={ v.ID.String() }
 	>
 		<a
 			href={ templ.SafeURL(p.open(v.ID)) }
-			class="block break-words font-medium text-100 outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:underline"
+			class="block break-words font-medium text-100 outline-none after:absolute after:inset-0 after:rounded-lg"
 		>
 			{ v.Title }
 		</a>
@@ -214,7 +214,7 @@ templ meta(v tasks.TaskView, compact bool) {
 			}
 		}
 		if v.DueAt != nil {
-			<span class={ "inline-flex items-center gap-1", templ.KV("font-medium text-red-600", v.Overdue) } data-testid="automations-task-due">
+			<span class={ "inline-flex items-center gap-1", templ.KV("font-medium text-danger", v.Overdue) } data-testid="automations-task-due">
 				if v.Overdue {
 					@icons.WarningCircle(icons.Props{Size: "16"})
 					<span>{ tr(ctx, "Overdue") }</span>
@@ -284,7 +284,7 @@ templ TaskPage(p *TaskProps) {
 }
 
 templ TaskScreen(p *TaskProps) {
-	<div id={ screenID } class="mx-auto w-full max-w-3xl px-4 pb-24 pt-4 md:px-8 md:pt-8" data-testid="automations-task-screen" data-task-id={ p.Task.ID.String() } { connection(false)... }>
+	<div id={ screenID } class="iota-focus-scope mx-auto w-full max-w-3xl px-4 pb-24 pt-4 md:px-8 md:pt-8" data-testid="automations-task-screen" data-task-id={ p.Task.ID.String() } { connection(false)... }>
 		<a href={ templ.SafeURL(p.backURL()) } class="-ml-2 mb-2 inline-flex min-h-11 items-center gap-1 rounded-md px-2 text-sm text-200 hover:text-100">
 			@icons.ArrowLeft(icons.Props{Size: "16"})
 			{ tr(ctx, "Back") }
@@ -323,7 +323,7 @@ templ TaskScreen(p *TaskProps) {
 				>
 					@p.CustomForm
 					if p.Error != "" {
-						<p role="alert" class="mt-3 text-sm text-red-600">{ p.Error }</p>
+						<p role="alert" class="mt-3 text-sm text-danger">{ p.Error }</p>
 					}
 				</form>
 			} else if p.Task.CanDecide {
@@ -467,7 +467,7 @@ templ decisionForm(p *TaskProps) {
 			<label for="automations-task-comment" class="mb-2 text-sm font-medium text-100">
 				{ tr(ctx, "Comment.Label") }
 				if p.allCommentRequired() {
-					<span class="text-red-600">*</span>
+					<span class="text-danger">*</span>
 					<span class="sr-only">{ tr(ctx, "Comment.Required") }</span>
 				} else if len(p.commentRequiredFor()) > 0 {
 					<span class="font-normal text-200">{ trf(ctx, "Comment.RequiredFor", map[string]any{"Outcomes": strings.Join(p.commentRequiredFor(), ", ")}) }</span>
@@ -494,15 +494,18 @@ templ decisionForm(p *TaskProps) {
 						<span class="hidden [@media(hover:hover)]:inline" data-testid="automations-task-shortcut-hint">{ " " + trf(ctx, "Comment.Shortcut", map[string]any{"Outcome": o.Label}) }</span>
 					}
 				</span>
-				<span x-show="missing" x-cloak role="alert" class="text-red-600">{ tr(ctx, "Comment.Missing") }</span>
+				<span x-show="missing" x-cloak role="alert" class="text-danger">{ tr(ctx, "Comment.Missing") }</span>
 			</p>
 		</div>
 		for _, o := range p.Task.Outcomes {
 			if o.Style == tasks.StyleDanger {
 				<div
 					x-show={ fmt.Sprintf("confirm === %s", jsString(o.Value)) }
+					x-transition:leave="transition-opacity duration-fast ease-in"
+					x-transition:leave-start="opacity-100"
+					x-transition:leave-end="opacity-0"
 					x-cloak
-					class="mt-4 rounded-lg border border-danger px-4 py-3"
+					class="iota-reveal mt-4 rounded-lg border border-danger px-4 py-3"
 					role="group"
 					aria-label={ trf(ctx, "Confirm.Label", map[string]any{"Outcome": o.Label}) }
 					data-testid={ "automations-task-confirm-" + o.Value }
@@ -511,7 +514,7 @@ templ decisionForm(p *TaskProps) {
 					<p class="text-sm font-medium text-100">{ trf(ctx, "Confirm.Question", map[string]any{"Outcome": o.Label}) }</p>
 					<p class="mt-1 text-sm text-200">{ tr(ctx, "Confirm.Hint") }</p>
 					<div class="mt-3 grid grid-cols-1 gap-2 sm:flex sm:flex-row-reverse sm:justify-end">
-						<button type="submit" name="outcome" value={ o.Value } class="btn btn-danger btn-normal min-h-11 justify-center" data-testid={ "automations-task-confirm-submit-" + o.Value }>
+						<button type="submit" name="outcome" value={ o.Value } class="iota-press btn btn-danger btn-normal min-h-11 justify-center" data-testid={ "automations-task-confirm-submit-" + o.Value }>
 							<span x-show={ fmt.Sprintf("pending !== %s", jsString(o.Value)) }>{ o.Label }</span>
 							<span x-show={ fmt.Sprintf("pending === %s", jsString(o.Value)) } x-cloak>{ tr(ctx, "Submitting") }</span>
 						</button>
@@ -525,7 +528,7 @@ templ decisionForm(p *TaskProps) {
 				if o.Style == tasks.StyleDanger {
 					<button
 						type="button"
-						class={ outcomeClass(o.Style), "min-h-11 justify-center" }
+						class={ outcomeClass(o.Style), "iota-press min-h-11 justify-center" }
 						@click={ fmt.Sprintf("confirm = %s; $nextTick(() => $refs[%s].focus())", jsString(o.Value), jsString("cancel_"+o.Value)) }
 						data-testid={ "automations-task-outcome-" + o.Value }
 					>
@@ -536,7 +539,7 @@ templ decisionForm(p *TaskProps) {
 						type="submit"
 						name="outcome"
 						value={ o.Value }
-						class={ outcomeClass(o.Style), "min-h-11 justify-center" }
+						class={ outcomeClass(o.Style), "iota-press min-h-11 justify-center" }
 						data-testid={ "automations-task-outcome-" + o.Value }
 					>
 						<span x-show={ fmt.Sprintf("pending !== %s", jsString(o.Value)) }>{ o.Label }</span>
@@ -547,7 +550,7 @@ templ decisionForm(p *TaskProps) {
 		</div>
 		<p x-show="slow" x-cloak role="status" class="mt-2 text-sm text-200">{ tr(ctx, "Slow") }</p>
 		if p.Error != "" {
-			<p role="alert" class="mt-3 flex items-center gap-2 text-sm text-red-600" data-testid="automations-task-error">
+			<p role="alert" class="mt-3 flex items-center gap-2 text-sm text-danger" data-testid="automations-task-error">
 				@icons.WarningCircle(icons.Props{Size: "16"})
 				{ p.Error }
 			</p>
@@ -568,7 +571,7 @@ templ field(f Field) {
 			<label for="automations-task-field-document" class="mb-2 text-sm font-medium text-100">
 				{ tr(ctx, "Field.Document") }
 				if f.Required {
-					<span class="text-red-600" aria-hidden="true">*</span>
+					<span class="text-danger" aria-hidden="true">*</span>
 				}
 			</label>
 			<textarea
@@ -586,7 +589,7 @@ templ field(f Field) {
 			<label for={ id } class="mb-2 text-sm font-medium text-100">
 				{ f.Title }
 				if f.Required {
-					<span class="text-red-600" aria-hidden="true">*</span>
+					<span class="text-danger" aria-hidden="true">*</span>
 				}
 			</label>
 			switch f.Kind {
@@ -643,7 +646,7 @@ templ delegatePanel(p *TaskProps) {
 		<summary class="flex min-h-11 cursor-pointer list-none items-center gap-2 px-4 text-sm font-medium text-100">
 			@icons.ShareFat(icons.Props{Size: "16"})
 			{ tr(ctx, "Delegate.Open") }
-			@icons.CaretDown(icons.Props{Size: "14", Class: "ml-auto duration-200 group-open:rotate-180"})
+			@icons.CaretDown(icons.Props{Size: "14", Class: "ml-auto transition-transform duration-base ease-standard group-open:rotate-180"})
 		</summary>
 		<div
 			class="flex flex-col gap-3 border-t border-subtle px-4 py-4"
@@ -681,7 +684,7 @@ templ delegatePanel(p *TaskProps) {
 					>{ p.DelegateComment }</textarea>
 				</div>
 				if p.DelegateError != "" {
-					<p role="alert" class="text-sm text-red-600" data-testid="automations-task-delegate-error">{ p.DelegateError }</p>
+					<p role="alert" class="text-sm text-danger" data-testid="automations-task-delegate-error">{ p.DelegateError }</p>
 				}
 				<div>
 					<button type="submit" class="btn btn-secondary btn-normal min-h-11 w-full justify-center sm:w-auto" data-testid="automations-task-delegate-submit" :disabled="!chosen" data-retry-hint={ tr(ctx, "RetryChooseColleague") } data-retry-focus="#automations-task-delegate-search">

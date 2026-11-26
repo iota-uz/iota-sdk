@@ -160,6 +160,16 @@ function EditorBody(props: EditorProps): JSX.Element {
   const menuLayer = createLeaving(menu)
   const validationLayer = createLeaving(() => validationOpen())
   const sideLayer = createLeaving(selected)
+  const dockLayer = createLeaving(dock)
+  // A dock that closes gives the focus back to the button that opened it (K3), unless it already moved on.
+  createEffect(on(dock, (next, previous) => {
+    if (next || !previous) return
+    const active = document.activeElement
+    if (active && active !== document.body && !active.closest('.ae-dock')) return
+    const opener = root?.querySelector<HTMLElement>(previous.kind === 'dry' ? '[data-testid="open-dry-run"]' : '[data-testid="open-test-node"]')
+    if (opener) opener.focus({ preventScroll: true })
+    else if (previous.kind === 'test') canvasApi?.focus(previous.node)
+  }, { defer: true }))
   const [localOverlay, setLocalOverlay] = createSignal<{ overlay: Overlay; graph: AutomationGraph } | null>(null)
   let canvasApi: CanvasApi | null = null
   let area: HTMLDivElement | undefined
@@ -980,11 +990,12 @@ function EditorBody(props: EditorProps): JSX.Element {
               />
               </Suspense>
             </Show>
-            <Show when={dock()} keyed>
+            <Show when={dockLayer.value()} keyed>
               {(dockValue) => { const d = () => dockValue; return (
                 <Suspense fallback={<div class="ae-dock ae-panel--loading" role="status" aria-busy="true" aria-label={t().states.loading} />}>
                   <Show when={d().kind === 'dry'} fallback={
                     <TestPanel
+                      leaving={dockLayer.leaving()}
                       graph={draft()}
                       catalog={props.catalog}
                       api={props.api}
@@ -998,6 +1009,7 @@ function EditorBody(props: EditorProps): JSX.Element {
                     />
                   }>
                     <DryRunPanel
+                      leaving={dockLayer.leaving()}
                       graph={draft()}
                       catalog={props.catalog}
                       api={props.api}

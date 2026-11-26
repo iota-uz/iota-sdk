@@ -1,8 +1,8 @@
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount, untrack, type Component, type JSX } from 'solid-js'
 import { FetchRPCTransport, RPCClient, createRPCQuery, useClientHost, type SolidRouteProps } from '@iota-uz/sdk/solid'
 import {
-  Button, ConfirmationDialog, Dialog, DialogBusyStatus, Dropdown, DropdownItem, EmptyState, Input, PasswordInput, Skeleton,
-  Switch, Textarea, ToastProvider, ViewDrawer, useToast,
+  Button, Combobox, ConfirmationDialog, Dialog, DialogBusyStatus, Dropdown, DropdownItem, EmptyState, Input, PasswordInput, Skeleton,
+  Switch, Textarea, ToastProvider, ViewDrawer, createFlash, useToast,
 } from '@iota-uz/sdk/solid-ui'
 import { rpcContracts, type Props, type RPC } from './Integrations.solid.generated'
 import {
@@ -23,8 +23,10 @@ interface Ctx {
   refetch: () => void
   /** The connectors list read from the server, never from the RPC cache (a conflict needs the latest). */
   loadLatest: () => Promise<ListResult>
+  /** Marks a changed connection or secret: highlighted about 4 s, then it fades (F5). */
   highlight: (id: string) => void
-  highlighted: () => string | undefined
+  /** Whether the row of id carries the highlight (`iota-flash`). */
+  flashing: (id: string) => boolean
   openForm: (s: FormState) => void
   openUsage: (c: ConnectionView) => void
   openDelete: (conn: ConnectorView, c: ConnectionView) => void
@@ -83,14 +85,8 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
     onCleanup(() => { window.removeEventListener('online', up); window.removeEventListener('offline', down) })
   })
 
-  const [highlighted, setHighlighted] = createSignal<string>()
-  let highlightTimer: ReturnType<typeof setTimeout> | undefined
-  const highlight = (id: string) => {
-    setHighlighted(id)
-    clearTimeout(highlightTimer)
-    highlightTimer = setTimeout(() => setHighlighted(undefined), 4000)
-  }
-  onCleanup(() => clearTimeout(highlightTimer))
+  const flash = createFlash()
+  const highlight = (id: string) => flash.flash(id)
 
   const [form, setFormSignal] = createSignal<FormState>()
   // A form session is one drawer for one target: opening the same target again (a history step back to
@@ -197,7 +193,7 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
     setCheck: (id, st) => setChecks((cur) => { const next = { ...cur }; if (st) next[id] = st; else delete next[id]; return next }),
     t, lang, call, automationsPath: init.automationsPath, configured: init.configured,
     canManage: () => Boolean(data()?.can_manage),
-    refetch, highlight, highlighted, openForm,
+    refetch, highlight, flashing: flash.flashing, openForm,
     loadLatest: () => {
       client.cache.invalidate('automations', ['automations.connectors.list'])
       return call('automations.connectors.list', {})
@@ -208,7 +204,7 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
   }
 
   return (
-    <div class="flex flex-col gap-6 p-4 md:p-6 min-w-0" data-testid="integrations">
+    <div class="iota-focus-scope flex flex-col gap-6 p-4 md:p-6 min-w-0" data-testid="integrations">
       <header class="flex flex-col gap-1">
         <h1 class="text-xl font-semibold text-100">{t('Title')}</h1>
         <p class="text-sm text-200">{t('Subtitle')}</p>
@@ -236,7 +232,8 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
         </Show>
       }>
         {(list) => (
-          <>
+          // Skeleton → cards: a crossfade in the same box (S2).
+          <div class="iota-fade-in flex flex-col gap-6">
             {/* A secrets administrator who does not manage connections sees the secrets only. */}
             <Show when={list().connectors.length > 0} fallback={<Show when={!list().can_manage_secrets}><EmptyState title={t('Empty.Title')} description={t('Empty.Text')} data-testid="integrations-empty" /></Show>}>
               <For each={groupByCategory(list().connectors)}>{(group) => (
@@ -249,7 +246,7 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
               )}</For>
             </Show>
             <Show when={list().can_manage_secrets}><SecretsSection ctx={ctx} writable={list().secrets_configured} /></Show>
-          </>
+          </div>
         )}
       </Show>
       {/* Keyed by the form session: another target (history from edit A to edit B) is a new draft with
@@ -497,7 +494,7 @@ function ConnectionRow(props: { ctx: Ctx; connector: ConnectorView; connection: 
   const inUse = () => c().used_by > 0
   const reasonID = () => `delete-reason-${c().id}`
   return (
-    <li class={`flex flex-col gap-1 py-3 first:pt-0 ${props.ctx.highlighted() === c().id ? 'rounded-md outline outline-2 outline-offset-4 outline-brand-500' : ''}`} data-testid={`connection-${c().name}`}>
+    <li class="flex flex-col gap-1 py-3 first:pt-0" classList={{ 'iota-flash': props.ctx.flashing(c().id) }} data-testid={`connection-${c().name}`}>
       <div class="flex items-start gap-2">
         <div class="flex min-w-0 flex-1 flex-col gap-1">
           <span class="truncate font-medium text-100" title={c().display_name || c().name}>{c().display_name || c().name}</span>
@@ -851,15 +848,24 @@ function CredentialField(props: {
               placeholder={f().placeholder} data-field={f().name} autocomplete="off" spellcheck={false} />
           </Show>
         }>
-          <label class="flex flex-col gap-2 text-sm">
-            <span class="form-control-label">{f().title}{f().required ? ' *' : ''}</span>
-            <select class="form-control h-11 rounded-md border border-default bg-surface-300 px-3 text-100" value={props.value} disabled={props.disabled}
-              onChange={(e) => props.onInput(e.currentTarget.value)} data-field={f().name} aria-invalid={props.error ? true : undefined}>
-              <option value="" />
-              <For each={f().options}>{(o) => <option value={o}>{o}</option>}</For>
-            </select>
-            <Show when={props.error}><span role="alert" class="text-pink">{props.error}</span></Show>
-          </label>
+          {/* K5: more than five options are searched in a Combobox; a short list stays a native select. */}
+          <Show when={(f().options?.length ?? 0) > 5} fallback={
+            <label class="flex flex-col gap-2 text-sm">
+              <span class="form-control-label">{f().title}{f().required ? ' *' : ''}</span>
+              <select class="form-control h-11 rounded-md border border-default bg-surface-300 px-3 text-100" value={props.value} disabled={props.disabled}
+                onChange={(e) => props.onInput(e.currentTarget.value)} data-field={f().name} aria-invalid={props.error ? true : undefined}>
+                <option value="" />
+                <For each={f().options}>{(o) => <option value={o}>{o}</option>}</For>
+              </select>
+              <Show when={props.error}><span role="alert" class="text-pink">{props.error}</span></Show>
+            </label>
+          }>
+            <div class="flex flex-col gap-2 text-sm">
+              <Combobox label={<>{f().title}{f().required ? ' *' : ''}</>} value={props.value} disabled={props.disabled} searchable
+                options={(f().options ?? []).map((o) => ({ value: o, label: o }))} onValueChange={(v) => props.onInput(Array.isArray(v) ? (v[0] ?? '') : String(v))} data-field={f().name} />
+              <Show when={props.error}><span role="alert" class="text-pink">{props.error}</span></Show>
+            </div>
+          </Show>
         </Show>
       }>
         <Switch checked={props.value === 'true'} label={f().title} onChange={(e) => props.onInput(e.currentTarget.checked ? 'true' : 'false')} disabled={props.disabled} data-field={f().name} />
@@ -1095,7 +1101,7 @@ function SecretRow(props: { ctx: Ctx; secret: SecretView; writable: boolean; onE
   const [menuOpen, setMenuOpen] = createSignal(false)
   const pick = (fn: () => void) => () => { setMenuOpen(false); fn() }
   return (
-    <li class={`flex items-start gap-2 border-t border-subtle py-3 first:border-t-0 first:pt-0 ${props.ctx.highlighted() === s().id ? 'rounded-md outline outline-2 outline-offset-4 outline-brand-500' : ''}`} data-testid={`secret-${s().name}`}>
+    <li class="flex items-start gap-2 border-t border-subtle py-3 first:border-t-0 first:pt-0" classList={{ 'iota-flash': props.ctx.flashing(s().id) }} data-testid={`secret-${s().name}`}>
       <div class="flex min-w-0 flex-1 flex-col gap-1">
         <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span class="break-all font-mono text-sm font-medium text-100">{s().name}</span>

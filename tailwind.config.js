@@ -29,6 +29,10 @@ module.exports = {
         },
         avatar: "oklch(var(--clr-avatar-bg))",
         toast: "oklch(var(--clr-toast-surface))",
+        // Status fills (dots, counters) and the off track of a switch: semantic tokens, not palette shades.
+        danger: "oklch(var(--clr-border-danger))",
+        warning: "oklch(var(--clr-border-warning))",
+        track: "oklch(var(--clr-border-strong))",
       },
       borderColor: {
         toast: "oklch(var(--clr-toast-border))",
@@ -53,6 +57,8 @@ module.exports = {
         toast: "oklch(var(--clr-toast-text))",
         "toast-muted": "oklch(var(--clr-toast-text-muted))",
         "toast-icon": "oklch(var(--clr-toast-icon-muted))",
+        // Error text, readable on surfaces in both themes (the danger button's text shade).
+        danger: "oklch(var(--clr-danger-btn-text))",
         100: "oklch(var(--clr-text-100))",
         200: "oklch(var(--clr-text-200))",
         300: "oklch(var(--clr-text-300))",

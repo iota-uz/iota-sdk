@@ -260,7 +260,7 @@ func NotificationsPlaceholder() templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</h2><div x-show=\"failed\" x-cloak role=\"alert\" class=\"flex flex-wrap items-center gap-3 text-sm text-red-600\"><span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</h2><div x-show=\"failed\" x-cloak role=\"alert\" class=\"flex flex-wrap items-center gap-3 text-sm text-danger\"><span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -309,7 +309,7 @@ func NotificationsPlaceholder() templ.Component {
 				return templ_7745c5c3_Err
 			}
 			for range 3 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<div x-show=\"!failed\" class=\"flex min-h-11 items-center justify-between gap-3\"><div class=\"h-4 w-40 animate-pulse rounded bg-surface-200\"></div><div class=\"h-6 w-11 animate-pulse rounded-full bg-surface-200\"></div></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<div x-show=\"!failed\" class=\"flex min-h-11 items-center justify-between gap-3\"><div class=\"h-4 w-40 animate-pulse motion-reduce:animate-none rounded bg-surface-200\"></div><div class=\"h-6 w-11 animate-pulse motion-reduce:animate-none rounded-full bg-surface-200\"></div></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -365,7 +365,7 @@ func Notifications(props *NotificationsProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\" class=\"px-4 pb-4 md:px-6 md:pb-6\" data-testid=\"account-notifications\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\" class=\"iota-focus-scope iota-fade-in px-4 pb-4 md:px-6 md:pb-6\" data-testid=\"account-notifications\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -412,14 +412,14 @@ func Notifications(props *NotificationsProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if props.ErrorKey != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<p role=\"alert\" class=\"text-sm text-red-600\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<p role=\"alert\" class=\"text-sm text-danger\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var17 string
 				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Account.Notifications.Errors." + props.ErrorKey))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/notifications.templ`, Line: 162, Col: 110}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/notifications.templ`, Line: 162, Col: 109}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 				if templ_7745c5c3_Err != nil {
@@ -674,7 +674,7 @@ func notificationChannelRow(c NotificationChannel) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<p x-show=\"failed\" x-cloak role=\"alert\" class=\"basis-full text-sm text-red-600\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<p x-show=\"failed\" x-cloak role=\"alert\" class=\"basis-full text-sm text-danger\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -750,7 +750,7 @@ func notificationLink(l NotificationLink, c NotificationChannel) templ.Component
 		}
 		switch l.State {
 		case LinkActive:
-			templ_7745c5c3_Err = icons.CheckCircle(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-green-600"}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = icons.CheckCircle(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-green"}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -855,7 +855,7 @@ func notificationLink(l NotificationLink, c NotificationChannel) templ.Component
 				return templ_7745c5c3_Err
 			}
 		case LinkGone:
-			templ_7745c5c3_Err = icons.WarningCircle(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-amber-600"}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = icons.WarningCircle(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-yellow"}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -904,14 +904,14 @@ func notificationLink(l NotificationLink, c NotificationChannel) templ.Component
 			return templ_7745c5c3_Err
 		}
 		if l.ErrorKey != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "<p role=\"alert\" class=\"text-sm text-red-600\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, "<p role=\"alert\" class=\"text-sm text-danger\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var40 string
 			templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Account.Notifications.Errors." + l.ErrorKey))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/notifications.templ`, Line: 272, Col: 105}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/notifications.templ`, Line: 272, Col: 104}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 			if templ_7745c5c3_Err != nil {
@@ -1488,7 +1488,7 @@ func TestResult(r NotificationTestResult) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = icons.CheckCircle(icons.Props{Size: "18", Class: "text-green-600"}).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = icons.CheckCircle(icons.Props{Size: "18", Class: "text-green"}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1506,14 +1506,14 @@ func TestResult(r NotificationTestResult) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		default:
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, "<p class=\"flex items-center gap-2 text-sm text-red-600\" role=\"alert\" data-testid=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 89, "<p class=\"flex items-center gap-2 text-sm text-danger\" role=\"alert\" data-testid=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var70 string
 			templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.JoinStringErrs("test-status-" + r.Channel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/notifications.templ`, Line: 426, Col: 112}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/notifications.templ`, Line: 426, Col: 111}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var70))
 			if templ_7745c5c3_Err != nil {
@@ -1526,7 +1526,7 @@ func TestResult(r NotificationTestResult) templ.Component {
 			var templ_7745c5c3_Var71 string
 			templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(r.Status)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/notifications.templ`, Line: 426, Col: 137}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/account/notifications.templ`, Line: 426, Col: 136}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
 			if templ_7745c5c3_Err != nil {

@@ -1,8 +1,32 @@
 import { For, Match, Show, Switch, createMemo, createSignal, type JSX } from 'solid-js'
-import { Button, Dialog, DialogBusyStatus, Input, Select, Switch as Toggle, Textarea } from '@iota-uz/sdk/solid-ui'
+import { Button, Combobox, Dialog, DialogBusyStatus, Input, Select, Switch as Toggle, Textarea } from '@iota-uz/sdk/solid-ui'
 import { useApp } from './context'
 import { Icon } from './Icon'
 import { errorText, graphPath, inputFields, inputValue, type ManualTrigger } from './model'
+
+type ChoiceOption = { value: string; label: string }
+
+/**
+ * A choice (K5): more than five options are searched in a Combobox; a short list stays a native select.
+ */
+function Choice(props: {
+  label?: JSX.Element; ariaLabel?: string; description?: string; error?: string; placeholder?: string
+  value: string; options: ChoiceOption[]; onChange: (value: string) => void; field?: string
+}): JSX.Element {
+  return (
+    <Show when={props.options.length > 5} fallback={
+      <Select label={props.label} aria-label={props.ariaLabel} description={props.description} error={props.error} placeholder={props.placeholder}
+        value={props.value} options={props.options} onChange={(e) => props.onChange(e.currentTarget.value)} data-field={props.field} />
+    }>
+      <div class="flex flex-col gap-1">
+        <Combobox label={props.label} aria-label={props.ariaLabel} placeholder={props.placeholder} value={props.value} options={props.options} searchable
+          onValueChange={(v) => props.onChange(Array.isArray(v) ? (v[0] ?? '') : String(v))} data-field={props.field} />
+        <Show when={props.description}><p class="text-xs text-300">{props.description}</p></Show>
+        <Show when={props.error}><p role="alert" class="text-sm text-danger">{props.error}</p></Show>
+      </div>
+    </Show>
+  )
+}
 
 /**
  * «Run» of a graph with a manual trigger (AL9): the input form by the trigger's schema with solid-ui
@@ -74,8 +98,8 @@ export function RunDialog(props: { id: string; triggers: ManualTrigger[]; subjec
           <Toggle label={f.title} checked={Boolean(values()[f.name])} onChange={(e) => set(f.name, e.currentTarget.checked)} data-field={f.name} />
         </Match>
         <Match when={f.kind === 'enum'}>
-          <Select label={label} description={f.description} error={err()} placeholder={t('Run.Choose')} value={String(values()[f.name] ?? '')}
-            options={(f.options ?? []).map((o, i) => ({ value: String(i), label: o }))} onChange={(e) => set(f.name, e.currentTarget.value)} data-field={f.name} />
+          <Choice label={label} description={f.description} error={err()} placeholder={t('Run.Choose')} value={String(values()[f.name] ?? '')}
+            options={(f.options ?? []).map((o, i) => ({ value: String(i), label: o }))} onChange={(v) => set(f.name, v)} field={f.name} />
         </Match>
         <Match when={f.kind === 'textarea' || f.kind === 'json'}>
           <Textarea label={label} description={f.kind === 'json' ? t('Run.JsonHint') : f.description} error={err()} value={String(values()[f.name] ?? '')}
@@ -98,8 +122,8 @@ export function RunDialog(props: { id: string; triggers: ManualTrigger[]; subjec
         </header>
         <div class="flex max-h-[65vh] flex-col gap-4 overflow-y-auto px-4 py-3" data-dialog-body>
           <Show when={props.triggers.length > 1}>
-            <Select label={t('Run.Trigger')} value={triggerId()} options={props.triggers.map((x) => ({ value: x.id, label: x.title }))}
-              onChange={(e) => { setTriggerId(e.currentTarget.value); setValues({}); setFieldErrors({}) }} />
+            <Choice label={t('Run.Trigger')} value={triggerId()} options={props.triggers.map((x) => ({ value: x.id, label: x.title }))}
+              onChange={(v) => { setTriggerId(v); setValues({}); setFieldErrors({}) }} />
           </Show>
           <Show when={fields().length > 0} fallback={<p class="text-sm text-300">{t('Run.NoInput')}</p>}>
             <For each={fields()}>{(f) => field(f)}</For>
@@ -107,19 +131,19 @@ export function RunDialog(props: { id: string; triggers: ManualTrigger[]; subjec
           <Show when={props.subjects.length > 0}>
             <fieldset class="flex flex-col gap-2">
               <legend class="text-sm font-medium">{t('Run.Subject')}</legend>
-              <Select value={entity()} placeholder={t('Run.NoSubject')} aria-label={t('Run.SubjectEntity')}
+              <Choice value={entity()} placeholder={t('Run.NoSubject')} ariaLabel={t('Run.SubjectEntity')}
                 options={[{ value: '', label: t('Run.NoSubject') }, ...props.subjects.map((s) => ({ value: s, label: s }))]}
-                onChange={(e) => { setEntity(e.currentTarget.value); setSubjectKey(''); setSubjectOptions([]) }} />
+                onChange={(v) => { setEntity(v); setSubjectKey(''); setSubjectOptions([]) }} />
               <Show when={entity()}>
                 <Input type="text" aria-label={t('Run.SubjectSearch')} placeholder={t('Run.SubjectSearch')} onInput={(e) => void search(e.currentTarget.value)} />
                 <Show when={subjectOptions().length > 0}>
-                  <Select value={subjectKey()} aria-label={t('Run.SubjectPick')} placeholder={t('Run.SubjectPick')}
-                    options={subjectOptions().map((o) => ({ value: o.key, label: o.label }))} onChange={(e) => setSubjectKey(e.currentTarget.value)} />
+                  <Choice value={subjectKey()} ariaLabel={t('Run.SubjectPick')} placeholder={t('Run.SubjectPick')}
+                    options={subjectOptions().map((o) => ({ value: o.key, label: o.label }))} onChange={(v) => setSubjectKey(v)} />
                 </Show>
               </Show>
             </fieldset>
           </Show>
-          <Show when={error()}><p role="alert" class="text-sm text-red-600" data-testid="run-error">{error()}</p></Show>
+          <Show when={error()}><p role="alert" class="text-sm text-danger" data-testid="run-error">{error()}</p></Show>
         </div>
         <footer class="border-t border-subtle px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <DialogBusyStatus class="mb-2" />

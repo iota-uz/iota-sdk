@@ -62,7 +62,7 @@ func TestBadgeRefreshesWhenOverdueChanges(t *testing.T) {
 	in.counts.Overdue = 1
 	w := get("1")
 	require.Equal(t, http.StatusOK, w.Code, "the only open task fell overdue: the counter repaints")
-	assert.Contains(t, w.Body.String(), "bg-red-500")
+	assert.Contains(t, w.Body.String(), "bg-danger")
 	assert.Contains(t, w.Body.String(), `value="1!"`)
 	assert.Equal(t, http.StatusNoContent, get("1!").Code)
 

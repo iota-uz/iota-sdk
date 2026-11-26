@@ -32,6 +32,8 @@ export interface TestPanelProps {
   /** The result's overlay on the draft it ran on; null takes it off. */
   onOverlay(overlay: Overlay | null): void
   onClose(): void
+  /** The dock is leaving (the host's createPresence, #1352): it plays its exit and is inert meanwhile. */
+  leaving?: boolean
 }
 
 /** The steps a node can be reached from, nearest first; with triggers: the triggers too. */
@@ -213,7 +215,7 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
   }
 
   return (
-    <section class="ae-dock ae-test" aria-labelledby="ae-test-title" data-testid="test-node">
+    <section class="ae-dock ae-dock--enter ae-test" classList={{ 'ae-layer--leaving': Boolean(props.leaving) }} inert={props.leaving || undefined} aria-labelledby="ae-test-title" data-testid="test-node">
       <header class="ae-validation__head">
         <h2 class="ae-validation__title" id="ae-test-title">{t().title(title())}</h2>
         <span class="ae-validation__summary">{t().note}</span>
@@ -278,7 +280,7 @@ export function TestPanel(props: TestPanelProps): JSX.Element {
             </div>
           </Show>
           <div class="ae-dock__actions">
-            <button type="submit" class="btn btn-primary btn-normal" aria-busy={action.busy()} data-testid="test-start">
+            <button type="submit" class="btn btn-primary btn-normal iota-press" aria-busy={action.busy()} data-testid="test-start">
               <Show when={action.busy()}><span class="ae-spinner" aria-hidden="true" /></Show>
               {action.busy() ? t().running : action.state().status === 'failed' ? base().common.retry : t().run}
             </button>

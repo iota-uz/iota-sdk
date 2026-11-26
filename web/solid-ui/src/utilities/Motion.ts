@@ -43,28 +43,31 @@ export interface Presence {
  * for the `exit` token's duration after it turns false (0 under reduced motion, so it goes at once).
  */
 export function createPresence(when: Accessor<boolean>, options: { enter?: MotionToken; exit?: MotionToken } = {}): Presence {
-  const [mounted, setMounted] = createSignal(when())
-  const [state, setState] = createSignal<PresenceState>(when() ? 'open' : 'exit')
+  // Mounting follows `when` in the same pass (a layer that opens with its page is there for the page's first
+  // layout); only the unmount waits for the exit.
+  const [exiting, setExiting] = createSignal(false)
+  const [entered, setEntered] = createSignal(when())
   let timer: ReturnType<typeof setTimeout> | undefined
-  createEffect(on(when, (visible) => {
+  createEffect(on(when, (visible, previous) => {
     clearTimeout(timer)
     if (visible) {
-      setMounted(true)
-      setState('enter')
-      timer = setTimeout(() => setState('open'), motionMs(options.enter ?? 'base'))
+      setExiting(false)
+      setEntered(false)
+      timer = setTimeout(() => setEntered(true), motionMs(options.enter ?? 'base'))
       return
     }
-    if (!mounted()) return
+    if (!previous && !exiting()) return
     const ms = motionMs(options.exit ?? 'fast')
     if (ms <= 0) {
-      setState('exit')
-      setMounted(false)
+      setExiting(false)
       return
     }
-    setState('exit')
-    timer = setTimeout(() => setMounted(false), ms)
+    setExiting(true)
+    timer = setTimeout(() => setExiting(false), ms)
   }, { defer: true }))
   onCleanup(() => clearTimeout(timer))
+  const mounted = () => when() || exiting()
+  const state = (): PresenceState => (exiting() && !when() ? 'exit' : when() && !entered() ? 'enter' : 'open')
   return { mounted, state, leaving: () => state() === 'exit' }
 }
 

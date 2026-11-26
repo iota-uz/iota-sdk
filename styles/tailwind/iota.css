@@ -283,6 +283,9 @@
     --ease-out: cubic-bezier(0.2, 0, 0, 1);       /* appearing */
     --ease-in: cubic-bezier(0.4, 0, 1, 1);        /* leaving */
     --ease-standard: cubic-bezier(0.2, 0, 0.2, 1); /* moving */
+    /* Bare Tailwind `transition`, `transition-colors`, … take the tokens too (else 150 ms on their own curve). */
+    --default-transition-duration: var(--motion-fast);
+    --default-transition-timing-function: var(--ease-standard);
     /* One focus ring on every screen (K2): brand outline with an offset, never animated in. */
     --focus-ring-width: 2px;
     --focus-ring-offset: 2px;

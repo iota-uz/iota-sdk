@@ -101,3 +101,20 @@ export function CopyText(props: { text: string; locale: EditorLocale; label?: st
     </span>
   )
 }
+
+/**
+ * A value that changes in place, such as a run's state (#1352): the new one fades in over the old box,
+ * nothing is unmounted around it and the first value does not animate.
+ */
+export function Swap(props: { key: string; children: (key: string) => JSX.Element }): JSX.Element {
+  let first = true
+  return (
+    <Show when={props.key} keyed>
+      {(key) => {
+        const changed = !first
+        first = false
+        return <span class="ae-swap" classList={{ 'ae-swap--in': changed }}>{props.children(key)}</span>
+      }}
+    </Show>
+  )
+}

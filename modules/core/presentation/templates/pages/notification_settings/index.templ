@@ -184,7 +184,7 @@ templ Content(props *Props) {
 	{{pageCtx := composables.UsePageCtx(ctx)
 lang := pageCtx.GetLocale().String()
 	}}
-	<main id="notification-settings" class="p-6 md:p-8 max-w-4xl mx-auto">
+	<main id="notification-settings" class="iota-focus-scope p-6 md:p-8 max-w-4xl mx-auto">
 		<header class="mb-2">
 			<h1 class="text-2xl font-semibold">{ pageCtx.T("NotificationSettings.Title") }</h1>
 			<p class="text-sm text-200 mt-1">{ pageCtx.T("NotificationSettings.Intro") }</p>
@@ -220,7 +220,7 @@ lang := pageCtx.GetLocale().String()
 				data-label-groups={ pageCtx.T("NotificationSettings.GroupsAndRoles") }
 				data-label-remove={ pageCtx.T("NotificationSettings.Remove") }
 				@change="dirty = true"
-				class="rounded-lg border border-secondary bg-surface-300 mb-3"
+				class="rounded-lg border border-subtle bg-surface-300 mb-3"
 				data-testid="notification-rule"
 				data-event-key={ event.Definition.Key }
 			>
@@ -230,7 +230,7 @@ lang := pageCtx.GetLocale().String()
 						<h3 class="font-semibold">{ notifications.Localized(event.Definition.Name, lang) }</h3>
 						<p class="text-sm text-200 mt-0.5">{ notifications.Localized(event.Definition.Description, lang) }</p>
 					</div>
-					<label class="relative inline-flex shrink-0 cursor-pointer items-center">
+					<label class="iota-press relative inline-flex shrink-0 cursor-pointer items-center">
 						<input
 							type="checkbox"
 							name="enabled"
@@ -240,18 +240,18 @@ lang := pageCtx.GetLocale().String()
 							checked?={ event.Rule.Enabled }
 							disabled?={ !props.CanManage }
 						/>
-						<span class="relative h-5 w-9 rounded-full bg-gray-300 transition-colors peer-checked:bg-primary peer-disabled:opacity-50 peer-focus-visible:ring-2 peer-focus-visible:ring-primary after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:shadow after:transition-transform after:content-[''] peer-checked:after:translate-x-4"></span>
+						<span class="relative h-5 w-9 rounded-full bg-track peer-checked:bg-primary peer-disabled:opacity-50 peer-focus-visible:outline-(length:--focus-ring-width) peer-focus-visible:outline-offset-(--focus-ring-offset) peer-focus-visible:outline-[oklch(var(--clr-border-brand))] after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:shadow after:transition-transform after:duration-fast after:ease-standard after:content-[''] peer-checked:after:translate-x-4"></span>
 					</label>
 				</div>
-				<div class="mx-5 space-y-6 border-t border-secondary py-5">
+				<div class="mx-5 space-y-6 border-t border-subtle py-5">
 					<div>
 						<label class="font-medium text-sm" for={ "recipients-" + event.Definition.Key }>{ pageCtx.T("NotificationSettings.Recipients") }</label>
 						<div class="relative mt-2" @click.outside="open = false">
-							<div class="flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border border-secondary bg-surface-100 px-2 py-1.5 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+							<div class="flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border border-subtle bg-surface-100 px-2 py-1.5 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-500/20">
 								<template x-for="(item, i) in items" :key="item.kind + item.id">
 									<span
 										class="inline-flex h-7 items-center gap-1.5 rounded-md pl-2.5 pr-1 text-sm"
-										:class="item.gone ? 'border border-dashed border-gray-300 text-200 line-through' : 'bg-surface-400'"
+										:class="item.gone ? 'border border-dashed border-default text-200 line-through' : 'bg-surface-400'"
 									>
 										<span x-text="item.name"></span>
 										<span class="text-xs text-200 no-underline" x-show="item.kind !== 'user' && !item.gone" x-text="label(item.kind)"></span>
@@ -288,7 +288,7 @@ lang := pageCtx.GetLocale().String()
 									/>
 								}
 							</div>
-							<div x-show="open && (results.length || (peopleHasMore && peopleQuery === q.trim()))" x-cloak class="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-secondary bg-surface-300 py-1 shadow-lg" role="listbox">
+							<div x-show="open && (results.length || (peopleHasMore && peopleQuery === q.trim()))" x-cloak x-transition:enter="transition-opacity duration-base ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity duration-fast ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-subtle bg-surface-300 py-1 shadow-lg" role="listbox">
 								<template x-for="(o, i) in results" :key="o.kind + o.id">
 									<div>
 										<div x-show="i === 0 || (results[i - 1].kind === 'user') !== (o.kind === 'user')" class="px-3 pb-1 pt-2 text-xs font-medium text-200" x-text="label(o.kind === 'user' ? 'people' : 'groups')"></div>
@@ -327,12 +327,12 @@ lang := pageCtx.GetLocale().String()
 									{ pageCtx.T("NotificationSettings.ShowMore") }
 								</button>
 							</div>
-							<p x-show="open && q && !results.length && !peopleLoading && !peopleFailed && !peopleHasMore" x-cloak class="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-secondary bg-surface-300 px-3 py-3 text-sm text-200 shadow-lg">{ pageCtx.T("NotificationSettings.NothingFound") }</p>
-							<p x-show="open && peopleFailed" x-cloak role="alert" class="mt-2 text-sm text-red-600" data-testid="notification-recipients-failed">{ pageCtx.T("NotificationSettings.RecipientsLoadFailed") }</p>
+							<p x-show="open && q && !results.length && !peopleLoading && !peopleFailed && !peopleHasMore" x-cloak x-transition:enter="transition-opacity duration-base ease-out" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity duration-fast ease-in" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-subtle bg-surface-300 px-3 py-3 text-sm text-200 shadow-lg">{ pageCtx.T("NotificationSettings.NothingFound") }</p>
+							<p x-show="open && peopleFailed" x-cloak role="alert" class="mt-2 text-sm text-danger" data-testid="notification-recipients-failed">{ pageCtx.T("NotificationSettings.RecipientsLoadFailed") }</p>
 						</div>
 						<p class="mt-2 text-sm text-200">{ pageCtx.T("NotificationSettings.AudienceHint") }</p>
 						if event.MissingRecipients > 0 {
-							<p class="mt-2 flex flex-wrap items-center gap-2 text-sm text-red-600">
+							<p class="mt-2 flex flex-wrap items-center gap-2 text-sm text-danger">
 								{ pageCtx.T("NotificationSettings.UnavailableRecipients") }
 								if props.CanManage {
 									<button type="button" class="text-primary underline" @click="removeGone()">{ pageCtx.T("NotificationSettings.RemoveUnavailable") }</button>
@@ -355,7 +355,7 @@ lang := pageCtx.GetLocale().String()
 								for _, key := range event.MissingKeys {
 									@input.Checkbox(&input.CheckboxProps{
 										Label:   pageCtx.T("NotificationSettings.Unavailable") + ": " + key,
-										Class:   templ.Classes("text-sm font-normal text-red-600"),
+										Class:   templ.Classes("text-sm font-normal text-danger"),
 										Checked: true,
 										Attrs:   templ.Attributes{"name": "recipient_keys", "value": key},
 									})
@@ -365,12 +365,12 @@ lang := pageCtx.GetLocale().String()
 					}
 					<details class="group text-sm">
 						<summary class="flex cursor-pointer list-none items-center gap-1.5 text-200 hover:text-100">
-							<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-open:rotate-90" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+							<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-transform duration-base ease-standard group-open:rotate-90" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
 							{ pageCtx.T("NotificationSettings.Appearance") }
 						</summary>
 						<label class="mt-3 block font-medium">
 							{ pageCtx.T("NotificationSettings.Level") }
-							<select name="level" disabled?={ !props.CanManage } class="mt-1 block rounded-lg border border-secondary bg-surface-300 px-3 py-2 font-normal">
+							<select name="level" disabled?={ !props.CanManage } class="mt-1 block rounded-lg border border-subtle bg-surface-300 px-3 py-2 font-normal">
 								<option value="" selected?={ event.Rule.Level == "" }>{ pageCtx.T("NotificationSettings.DefaultLevel") } ({ pageCtx.T("NotificationSettings.Level" + levelKey(event.Definition.DefaultLevel)) })</option>
 								for _, level := range []notification.Level{notification.LevelInfo, notification.LevelSuccess, notification.LevelWarning, notification.LevelError} {
 									<option value={ string(level) } selected?={ event.Rule.Level == level }>{ pageCtx.T("NotificationSettings.Level" + levelKey(level)) }</option>
@@ -395,7 +395,7 @@ lang := pageCtx.GetLocale().String()
 					</details>
 				</div>
 				if props.CanManage {
-					<div class="flex flex-wrap items-center gap-3 border-t border-secondary px-5 py-3">
+					<div class="flex flex-wrap items-center gap-3 border-t border-subtle px-5 py-3">
 						<span x-show="dirty" x-cloak class="mr-auto text-sm text-200">{ pageCtx.T("NotificationSettings.Unsaved") }</span>
 						if event.Definition.Key == notifications.TestEventKey {
 							<span x-show="!dirty" class="mr-auto"></span>
@@ -483,7 +483,7 @@ templ Queue(stats notifications.DispatchStats, jobs []notifications.DispatchSumm
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<section id="notification-queue" class="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-200" hx-get="/settings/notifications/queue" hx-trigger="every 10s" hx-swap="outerHTML">
 		if stats.Retrying > 0 {
-			<span class="size-1.5 rounded-full bg-amber-500"></span>
+			<span class="size-1.5 rounded-full bg-warning"></span>
 			<span>{ pageCtx.T("NotificationSettings.DeliveryIssues", map[string]interface{}{"Count": stats.Retrying}) }</span>
 			if canManage {
 				for _, job := range jobs {
@@ -495,7 +495,7 @@ templ Queue(stats notifications.DispatchStats, jobs []notifications.DispatchSumm
 				}
 			}
 		} else {
-			<span class="size-1.5 rounded-full bg-emerald-500"></span>
+			<span class="size-1.5 rounded-full bg-success"></span>
 			<span>{ pageCtx.T("NotificationSettings.AllDelivered") }</span>
 		}
 	</section>
@@ -533,7 +533,7 @@ templ ChannelConnectionForm(conn ChannelConnection, canManage bool) {
 	{{ args := map[string]any{"Channel": conn.Label} }}
 	<form
 		id={ connectionFormID(conn.Channel) }
-		class="mt-4 rounded-xl border border-secondary bg-surface-300 px-5 py-4"
+		class="mt-4 rounded-xl border border-subtle bg-surface-300 px-5 py-4"
 		data-testid={ "channel-connection-" + string(conn.Channel) }
 		hx-post={ "/settings/notifications/channels/" + string(conn.Channel) + "/connection" }
 		hx-trigger="confirmed"
@@ -557,7 +557,7 @@ templ ChannelConnectionForm(conn ChannelConnection, canManage bool) {
 			</p>
 		} else {
 			if conn.Current == "" {
-				<p class="mt-3 text-sm text-amber-700" role="status">{ pageCtx.T("NotificationSettings.Connection.Unavailable", args) }</p>
+				<p class="mt-3 text-sm text-yellow" role="status">{ pageCtx.T("NotificationSettings.Connection.Unavailable", args) }</p>
 			}
 			<div class="mt-3 flex flex-col items-start gap-3">
 				@base.Combobox(base.ComboboxProps{

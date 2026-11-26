@@ -1,5 +1,5 @@
 import { For, Match, Show, Switch, createSignal, onCleanup, onMount, type JSX } from 'solid-js'
-import { Button, EmptyState, Input, Skeleton, Switch as Toggle } from '@iota-uz/sdk/solid-ui'
+import { Button, EmptyState, Input, Skeleton, Switch as Toggle, createFlash } from '@iota-uz/sdk/solid-ui'
 import { useApp } from './context'
 import { DisableDialog, ReviewDialog } from './Dialogs'
 import { Icon } from './Icon'
@@ -8,7 +8,7 @@ import {
   type Filters, type ListItem, type ListResult, type StatusFilter,
 } from './model'
 
-const TONE: Record<string, string> = { ok: 'text-green', bad: 'text-red-600', warn: 'text-yellow', muted: 'text-300' }
+const TONE: Record<string, string> = { ok: 'text-green', bad: 'text-danger', warn: 'text-yellow', muted: 'text-300' }
 
 /** The list of the tenant's automations at /automations (AL1, AL2). */
 export function List(): JSX.Element {
@@ -22,10 +22,9 @@ export function List(): JSX.Element {
   const [more, setMore] = createSignal(false)
   const [review, setReview] = createSignal<ListItem>()
   const [disabling, setDisabling] = createSignal<ListItem>()
-  const [highlighted, setHighlighted] = createSignal<string>()
+  // A changed row or card is highlighted about 4 s and fades (F5).
+  const highlight = createFlash()
   let seq = 0
-  let highlightTimer: ReturnType<typeof setTimeout> | undefined
-  onCleanup(() => clearTimeout(highlightTimer))
 
   // The answer to an older request never replaces a newer one (S6).
   const load = async () => {
@@ -87,9 +86,7 @@ export function List(): JSX.Element {
   const reset = () => apply({ query: '', status: '' }, true)
 
   const changed = (id: string) => {
-    setHighlighted(id)
-    clearTimeout(highlightTimer)
-    highlightTimer = setTimeout(() => setHighlighted(undefined), 4000)
+    highlight.flash(id)
     void load()
   }
 
@@ -186,7 +183,7 @@ export function List(): JSX.Element {
             {(o) => (
               <button
                 type="button"
-                class="min-h-9 [@media(pointer:coarse)]:min-h-11 rounded-md border px-3 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+                class="iota-press min-h-9 [@media(pointer:coarse)]:min-h-11 rounded-md border px-3 text-sm"
                 classList={{ 'border-brand bg-brand/10 text-brand font-medium': filters().status === o.value, 'border-subtle text-200': filters().status !== o.value }}
                 aria-pressed={filters().status === o.value}
                 onClick={() => apply({ ...filters(), status: o.value }, true)}
@@ -237,7 +234,7 @@ export function List(): JSX.Element {
           />
         </Match>
         <Match when={data()}>
-          <div class="hidden md:block overflow-x-auto rounded-lg border border-subtle bg-surface-600" aria-busy={loading() || undefined}>
+          <div class="iota-fade-in hidden md:block overflow-x-auto rounded-lg border border-subtle bg-surface-600" aria-busy={loading() || undefined}>
             <table class="w-full text-sm" data-testid="list-table">
               <thead class="bg-surface-500 text-left text-xs text-200">
                 <tr>
@@ -252,7 +249,7 @@ export function List(): JSX.Element {
               <tbody>
                 <For each={data()!.items}>
                   {(item) => (
-                    <tr class="border-t border-subtle align-top transition-colors" classList={{ 'bg-brand/5': highlighted() === item.id }} data-testid={`row-${item.id}`}>
+                    <tr class="border-t border-subtle align-top" classList={{ 'iota-flash': highlight.flashing(item.id) }} data-testid={`row-${item.id}`}>
                       <td class="px-4 py-3 max-w-xs">{name(item)}<Show when={item.description}><p class="text-xs text-300 line-clamp-2">{item.description}</p></Show></td>
                       <td class="px-4 py-3 max-w-xs">{triggers(item)}</td>
                       <td class="px-4 py-3"><div class="flex items-start gap-3">{toggle(item)}{statusCell(item)}</div></td>
@@ -265,10 +262,10 @@ export function List(): JSX.Element {
               </tbody>
             </table>
           </div>
-          <ul class="flex flex-col gap-3 md:hidden" data-testid="list-cards">
+          <ul class="iota-fade-in flex flex-col gap-3 md:hidden" data-testid="list-cards">
             <For each={data()!.items}>
               {(item) => (
-                <li class="flex flex-col gap-3 rounded-lg border border-subtle bg-surface-600 p-4 min-w-0" classList={{ 'bg-brand/5': highlighted() === item.id }} data-testid={`card-${item.id}`}>
+                <li class="flex flex-col gap-3 rounded-lg border border-subtle bg-surface-600 p-4 min-w-0" classList={{ 'iota-flash': highlight.flashing(item.id) }} data-testid={`card-${item.id}`}>
                   <div class="flex items-start justify-between gap-3 min-w-0">
                     <div class="min-w-0">{name(item)}</div>
                     {toggle(item)}

@@ -59,6 +59,8 @@ export default function EditorPage(): JSX.Element {
   let positionsBase = 0
   let layoutStale = false
   let loadSeq = 0
+  // Dropping unsaved edits is irreversible: its dialog opens with the focus on «Keep editing» (U1).
+  let discardKeep: HTMLButtonElement | undefined
 
   onMount(() => {
     const mq = window.matchMedia('(max-width: 767px)')
@@ -600,6 +602,8 @@ export default function EditorPage(): JSX.Element {
           {(data) => (
             <Show when={data().key} keyed>
               {(_key) => (
+                // Skeleton → editor: a crossfade in the same box, nothing shifts (S2).
+                <div class="iota-fade-in h-full min-w-0">
                 <Editor
                   graph={data().graph}
                   version={data().version}
@@ -631,6 +635,7 @@ export default function EditorPage(): JSX.Element {
                   selected={selected()}
                   onSelect={select}
                 />
+                </div>
               )}
             </Show>
           )}
@@ -650,12 +655,12 @@ export default function EditorPage(): JSX.Element {
         <DeleteDialog id={info()!.id} name={info()!.name} onDeleted={() => app.navigate(app.props.basePath)} onClose={() => setDialog(null)} />
       </Show>
       <Show when={discard()}>
-        <Dialog open onOpenChange={(open) => { if (!open) cancelDiscard() }} class="md:w-full md:max-w-md" aria-labelledby="discard-title" data-testid="discard-dialog">
+        <Dialog open onOpenChange={(open) => { if (!open) cancelDiscard() }} initialFocus={() => discardKeep} class="md:w-full md:max-w-md" aria-labelledby="discard-title" data-testid="discard-dialog">
           <header class="border-b border-subtle py-3 pl-4 pr-2"><h3 id="discard-title" class="font-medium" data-dialog-title tabindex="-1">{t('Editor.DiscardTitle')}</h3></header>
           <p class="px-4 py-3">{t('Editor.DiscardText')}</p>
           <footer class="border-t border-subtle px-4 py-3">
             <menu class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <Button variant="secondary" class="min-h-11 justify-center" data-dialog-close onClick={cancelDiscard} data-testid="discard-cancel">{t('Editor.DiscardKeep')}</Button>
+              <Button ref={(el: HTMLButtonElement) => { discardKeep = el }} variant="secondary" class="min-h-11 justify-center" data-dialog-close onClick={cancelDiscard} data-testid="discard-cancel">{t('Editor.DiscardKeep')}</Button>
               <Button variant="danger" class="min-h-11 justify-center" onClick={confirmDiscard} data-testid="discard-confirm">{t('Editor.DiscardConfirm')}</Button>
             </menu>
           </footer>

@@ -7,7 +7,7 @@ import { Icon } from '../icons'
 import { describeItem } from '../names'
 import { strings } from '../strings'
 import type { AutomationGraph, EditorCatalog, EditorLocale, ItemState, RunData, RunStep } from '../types'
-import { CopyText, Value } from './Data'
+import { CopyText, Swap, Value } from './Data'
 import { hasData, stepsOf } from './model'
 import { runStrings } from './strings'
 import { absoluteTime, duration, jsonText, shortTime } from './util'
@@ -61,7 +61,11 @@ export function NodeDrawer(props: NodeDrawerProps): JSX.Element {
           <Show when={name().subtitle}><p class="ae-panel__sub">{name().subtitle}</p></Show>
         </div>
         <Show when={props.state}>
-          {(s) => <span class={`ae-state ae-state--${s()}`}><Icon name={s()} size={12} /><span class="ae-state__text">{base().canvas.states[s()]}</span></span>}
+          {(s) => (
+            <Swap key={s()}>
+              {(state) => <span class={`ae-state ae-state--${state}`}><Icon name={state} size={12} /><span class="ae-state__text">{base().canvas.states[state as ItemState]}</span></span>}
+            </Swap>
+          )}
         </Show>
         <button type="button" class="ae-iconbtn" aria-label={t().node.close} title={t().node.close} onClick={() => props.onClose()}><Icon name="close" /></button>
       </header>
@@ -81,7 +85,7 @@ export function NodeDrawer(props: NodeDrawerProps): JSX.Element {
               <div class="ae-chips" role="tablist" aria-label={t().node.steps(steps().length)}>
                 <For each={steps()}>
                   {(s, i) => (
-                    <button type="button" role="tab" class="ae-chip" aria-selected={step() === s} onClick={() => setPicked(i())}
+                    <button type="button" role="tab" class="ae-chip iota-press" aria-selected={step() === s} onClick={() => setPicked(i())}
                       classList={{ 'ae-chip--danger': Boolean(s.error) }}>
                       {stepLabel(s)}
                     </button>

@@ -23,7 +23,7 @@ function files(dir: string): string[] {
     const full = path.join(dir, name)
     if (statSync(full).isDirectory()) {
       if (!skipDirs.has(name)) out = out.concat(files(full))
-    } else if (/\.(css|tsx|ts|templ)$/.test(name) && !/\.(test|vitest|spec)\.tsx?$|\.generated\.ts$|_templ\.go$/.test(name)) {
+    } else if (/\.(css|tsx|ts|templ)$/.test(name) && !/\.(test|vitest|spec)\.tsx?$|\.generated\.(ts|css)$|_templ\.go$/.test(name)) {
       out.push(full)
     }
   }

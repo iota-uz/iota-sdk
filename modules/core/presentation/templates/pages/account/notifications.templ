@@ -132,7 +132,7 @@ templ NotificationsPlaceholder() {
 	>
 		@card.Card(card.Props{Class: "flex flex-col gap-3"}) {
 			<h2 class="text-lg font-semibold text-100">{ pageCtx.T("Account.Notifications.Title") }</h2>
-			<div x-show="failed" x-cloak role="alert" class="flex flex-wrap items-center gap-3 text-sm text-red-600">
+			<div x-show="failed" x-cloak role="alert" class="flex flex-wrap items-center gap-3 text-sm text-danger">
 				<span>{ pageCtx.T("Account.Notifications.Errors.Load") }</span>
 				@button.Secondary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "button", "@click": "htmx.trigger($root, 'retry')"}}) {
 					{ pageCtx.T("Account.Notifications.Retry") }
@@ -140,8 +140,8 @@ templ NotificationsPlaceholder() {
 			</div>
 			for range 3 {
 				<div x-show="!failed" class="flex min-h-11 items-center justify-between gap-3">
-					<div class="h-4 w-40 animate-pulse rounded bg-surface-200"></div>
-					<div class="h-6 w-11 animate-pulse rounded-full bg-surface-200"></div>
+					<div class="h-4 w-40 animate-pulse motion-reduce:animate-none rounded bg-surface-200"></div>
+					<div class="h-6 w-11 animate-pulse motion-reduce:animate-none rounded-full bg-surface-200"></div>
 				</div>
 			}
 		}
@@ -152,14 +152,14 @@ templ NotificationsPlaceholder() {
 // person's linked accounts.
 templ Notifications(props *NotificationsProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<section id={ NotificationsSectionID } class="px-4 pb-4 md:px-6 md:pb-6" data-testid="account-notifications">
+	<section id={ NotificationsSectionID } class="iota-focus-scope iota-fade-in px-4 pb-4 md:px-6 md:pb-6" data-testid="account-notifications">
 		@card.Card(card.Props{Class: "flex flex-col gap-4"}) {
 			<div>
 				<h2 class="text-lg font-semibold text-100">{ pageCtx.T("Account.Notifications.Title") }</h2>
 				<p class="mt-1 text-sm text-200">{ pageCtx.T("Account.Notifications.Intro") }</p>
 			</div>
 			if props.ErrorKey != "" {
-				<p role="alert" class="text-sm text-red-600">{ pageCtx.T("Account.Notifications.Errors." + props.ErrorKey) }</p>
+				<p role="alert" class="text-sm text-danger">{ pageCtx.T("Account.Notifications.Errors." + props.ErrorKey) }</p>
 			}
 			<ul class="flex flex-col" role="list" aria-label={ pageCtx.T("Account.Notifications.Channels") }>
 				for _, c := range props.Channels {
@@ -229,7 +229,7 @@ templ notificationChannelRow(c NotificationChannel) {
 				"@change":     "save($el)",
 			},
 		})
-		<p x-show="failed" x-cloak role="alert" class="basis-full text-sm text-red-600">
+		<p x-show="failed" x-cloak role="alert" class="basis-full text-sm text-danger">
 			{ pageCtx.T("Account.Notifications.Errors.Toggle") }
 		</p>
 	</li>
@@ -242,7 +242,7 @@ templ notificationLink(l NotificationLink, c NotificationChannel) {
 		<div class="flex items-start gap-2" role="status" aria-live="polite">
 			switch l.State {
 				case LinkActive:
-					@icons.CheckCircle(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-green-600"})
+					@icons.CheckCircle(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-green"})
 					<p class="text-sm text-100">{ pageCtx.T("Account.Notifications.Linked", args) }</p>
 				case LinkPending:
 					@icons.HourglassMedium(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-200"})
@@ -261,7 +261,7 @@ templ notificationLink(l NotificationLink, c NotificationChannel) {
 					@icons.Clock(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-200"})
 					<p class="text-sm text-100">{ pageCtx.T("Account.Notifications.Expired") }</p>
 				case LinkGone:
-					@icons.WarningCircle(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-amber-600"})
+					@icons.WarningCircle(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-yellow"})
 					<p class="text-sm text-100">{ pageCtx.T("Account.Notifications.Gone", args) }</p>
 				default:
 					@icons.Info(icons.Props{Size: "20", Class: "mt-0.5 shrink-0 text-200"})
@@ -269,7 +269,7 @@ templ notificationLink(l NotificationLink, c NotificationChannel) {
 			}
 		</div>
 		if l.ErrorKey != "" {
-			<p role="alert" class="text-sm text-red-600">{ pageCtx.T("Account.Notifications.Errors." + l.ErrorKey) }</p>
+			<p role="alert" class="text-sm text-danger">{ pageCtx.T("Account.Notifications.Errors." + l.ErrorKey) }</p>
 		}
 		if l.State == LinkPending {
 			<!-- Polls the link while it waits; a 204 keeps the section, a change replaces it. -->
@@ -419,11 +419,11 @@ templ TestResult(r NotificationTestResult) {
 			</p>
 		case "sent":
 			<p class="flex items-center gap-2 text-sm text-100" role="status" data-testid={ "test-status-" + r.Channel } data-status="sent">
-				@icons.CheckCircle(icons.Props{Size: "18", Class: "text-green-600"})
+				@icons.CheckCircle(icons.Props{Size: "18", Class: "text-green"})
 				{ pageCtx.T("Account.Notifications.Test.Sent", args) }
 			</p>
 		default:
-			<p class="flex items-center gap-2 text-sm text-red-600" role="alert" data-testid={ "test-status-" + r.Channel } data-status={ r.Status }>
+			<p class="flex items-center gap-2 text-sm text-danger" role="alert" data-testid={ "test-status-" + r.Channel } data-status={ r.Status }>
 				@icons.WarningCircle(icons.Props{Size: "18"})
 				{ pageCtx.T("Account.Notifications.Test.Failed."+testFailure(r.Status), args) }
 			</p>

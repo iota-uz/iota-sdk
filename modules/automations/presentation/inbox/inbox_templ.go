@@ -126,7 +126,7 @@ func BadgeCount(c tasks.TaskCounts) templ.Component {
 		}
 		if c.Open > 0 {
 			var templ_7745c5c3_Var6 = []any{"min-w-6 rounded-full px-1.5 text-center text-xs font-semibold leading-5 tabular-nums",
-				templ.KV("bg-red-500 text-white", c.Overdue > 0), templ.KV("bg-primary-500 text-white", c.Overdue == 0)}
+				templ.KV("bg-danger text-white", c.Overdue > 0), templ.KV("bg-primary-500 text-white", c.Overdue == 0)}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var6...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -261,7 +261,7 @@ func ListScreen(p *ListProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" class=\"mx-auto w-full max-w-3xl px-4 py-4 md:px-8 md:py-8\" data-testid=\"automations-tasks-list-screen\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" class=\"iota-focus-scope mx-auto w-full max-w-3xl px-4 py-4 md:px-8 md:py-8\" data-testid=\"automations-tasks-list-screen\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -754,7 +754,7 @@ func tabLink(p *ListProps, tab, label string, count int, alarm bool) templ.Compo
 		}
 		ctx = templ.ClearChildren(ctx)
 		var templ_7745c5c3_Var42 = []any{"-mb-px inline-flex min-h-11 shrink-0 items-center gap-1.5 border-b-2 px-3 text-sm font-medium",
-			templ.KV("border-primary text-100", p.Tab == tab), templ.KV("border-transparent text-200 hover:text-100", p.Tab != tab)}
+			templ.KV("border-brand text-100", p.Tab == tab), templ.KV("border-transparent text-200 hover:text-100", p.Tab != tab)}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var42...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -822,7 +822,7 @@ func tabLink(p *ListProps, tab, label string, count int, alarm bool) templ.Compo
 			return templ_7745c5c3_Err
 		}
 		if count > 0 {
-			var templ_7745c5c3_Var47 = []any{"rounded-full px-1.5 text-xs tabular-nums", templ.KV("bg-red-500 text-white", alarm), templ.KV("bg-surface-100 text-200", !alarm)}
+			var templ_7745c5c3_Var47 = []any{"rounded-full px-1.5 text-xs tabular-nums", templ.KV("bg-danger text-white", alarm), templ.KV("bg-surface-100 text-200", !alarm)}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var47...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -847,7 +847,7 @@ func tabLink(p *ListProps, tab, label string, count int, alarm bool) templ.Compo
 			var templ_7745c5c3_Var49 string
 			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(badgeText(count))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 152, Col: 167}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 152, Col: 166}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 			if templ_7745c5c3_Err != nil {
@@ -951,7 +951,7 @@ func row(p *ListProps, v tasks.TaskView) templ.Component {
 			templ_7745c5c3_Var53 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var54 = []any{"relative rounded-lg border bg-surface-300 px-4 py-3 focus-within:border-brand",
+		var templ_7745c5c3_Var54 = []any{"relative rounded-lg border bg-surface-300 px-4 py-3 has-[>a:focus-visible]:outline-(length:--focus-ring-width) has-[>a:focus-visible]:outline-offset-(--focus-ring-offset) has-[>a:focus-visible]:outline-[oklch(var(--clr-border-brand))]",
 			templ.KV("border-danger", v.Overdue), templ.KV("border-subtle", !v.Overdue)}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var54...)
 		if templ_7745c5c3_Err != nil {
@@ -992,7 +992,7 @@ func row(p *ListProps, v tasks.TaskView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "\" class=\"block break-words font-medium text-100 outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:underline\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 76, "\" class=\"block break-words font-medium text-100 outline-none after:absolute after:inset-0 after:rounded-lg\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1156,7 +1156,7 @@ func meta(v tasks.TaskView, compact bool) templ.Component {
 			}
 		}
 		if v.DueAt != nil {
-			var templ_7745c5c3_Var67 = []any{"inline-flex items-center gap-1", templ.KV("font-medium text-red-600", v.Overdue)}
+			var templ_7745c5c3_Var67 = []any{"inline-flex items-center gap-1", templ.KV("font-medium text-danger", v.Overdue)}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var67...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -1475,14 +1475,14 @@ func TaskScreen(p *TaskProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 109, "\" class=\"mx-auto w-full max-w-3xl px-4 pb-24 pt-4 md:px-8 md:pt-8\" data-testid=\"automations-task-screen\" data-task-id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 109, "\" class=\"iota-focus-scope mx-auto w-full max-w-3xl px-4 pb-24 pt-4 md:px-8 md:pt-8\" data-testid=\"automations-task-screen\" data-task-id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var83 string
 		templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(p.Task.ID.String())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 287, Col: 158}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 287, Col: 175}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
 		if templ_7745c5c3_Err != nil {
@@ -1674,14 +1674,14 @@ func TaskScreen(p *TaskProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if p.Error != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 128, "<p role=\"alert\" class=\"mt-3 text-sm text-red-600\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 128, "<p role=\"alert\" class=\"mt-3 text-sm text-danger\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var93 string
 				templ_7745c5c3_Var93, templ_7745c5c3_Err = templ.JoinStringErrs(p.Error)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 326, Col: 65}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 326, Col: 64}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var93))
 				if templ_7745c5c3_Err != nil {
@@ -2266,7 +2266,7 @@ func decisionForm(p *TaskProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if p.allCommentRequired() {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 180, "<span class=\"text-red-600\">*</span> <span class=\"sr-only\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 180, "<span class=\"text-danger\">*</span> <span class=\"sr-only\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2396,14 +2396,14 @@ func decisionForm(p *TaskProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 194, "</span> <span x-show=\"missing\" x-cloak role=\"alert\" class=\"text-red-600\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 194, "</span> <span x-show=\"missing\" x-cloak role=\"alert\" class=\"text-danger\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var130 string
 		templ_7745c5c3_Var130, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Comment.Missing"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 497, Col: 97}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 497, Col: 96}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var130))
 		if templ_7745c5c3_Err != nil {
@@ -2428,14 +2428,14 @@ func decisionForm(p *TaskProps) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 197, "\" x-cloak class=\"mt-4 rounded-lg border border-danger px-4 py-3\" role=\"group\" aria-label=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 197, "\" x-transition:leave=\"transition-opacity duration-fast ease-in\" x-transition:leave-start=\"opacity-100\" x-transition:leave-end=\"opacity-0\" x-cloak class=\"iota-reveal mt-4 rounded-lg border border-danger px-4 py-3\" role=\"group\" aria-label=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var132 string
 				templ_7745c5c3_Var132, templ_7745c5c3_Err = templ.JoinStringErrs(trf(ctx, "Confirm.Label", map[string]any{"Outcome": o.Label}))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 507, Col: 79}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 510, Col: 79}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var132))
 				if templ_7745c5c3_Err != nil {
@@ -2448,7 +2448,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var133 string
 				templ_7745c5c3_Var133, templ_7745c5c3_Err = templ.JoinStringErrs("automations-task-confirm-" + o.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 508, Col: 56}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 511, Col: 56}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var133))
 				if templ_7745c5c3_Err != nil {
@@ -2461,7 +2461,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var134 string
 				templ_7745c5c3_Var134, templ_7745c5c3_Err = templ.JoinStringErrs(trf(ctx, "Confirm.Question", map[string]any{"Outcome": o.Label}))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 511, Col: 111}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 514, Col: 111}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var134))
 				if templ_7745c5c3_Err != nil {
@@ -2474,7 +2474,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var135 string
 				templ_7745c5c3_Var135, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Confirm.Hint"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 512, Col: 63}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 515, Col: 63}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var135))
 				if templ_7745c5c3_Err != nil {
@@ -2487,20 +2487,20 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var136 string
 				templ_7745c5c3_Var136, templ_7745c5c3_Err = templ.JoinStringErrs(o.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 514, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 517, Col: 58}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var136))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 202, "\" class=\"btn btn-danger btn-normal min-h-11 justify-center\" data-testid=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 202, "\" class=\"iota-press btn btn-danger btn-normal min-h-11 justify-center\" data-testid=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var137 string
 				templ_7745c5c3_Var137, templ_7745c5c3_Err = templ.JoinStringErrs("automations-task-confirm-submit-" + o.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 514, Col: 177}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 517, Col: 188}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var137))
 				if templ_7745c5c3_Err != nil {
@@ -2513,7 +2513,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var138 string
 				templ_7745c5c3_Var138, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("pending !== %s", jsString(o.Value)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 515, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 518, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var138))
 				if templ_7745c5c3_Err != nil {
@@ -2526,7 +2526,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var139 string
 				templ_7745c5c3_Var139, templ_7745c5c3_Err = templ.JoinStringErrs(o.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 515, Col: 82}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 518, Col: 82}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var139))
 				if templ_7745c5c3_Err != nil {
@@ -2539,7 +2539,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var140 string
 				templ_7745c5c3_Var140, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("pending === %s", jsString(o.Value)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 516, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 519, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var140))
 				if templ_7745c5c3_Err != nil {
@@ -2552,7 +2552,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var141 string
 				templ_7745c5c3_Var141, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Submitting"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 516, Col: 104}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 519, Col: 104}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var141))
 				if templ_7745c5c3_Err != nil {
@@ -2565,7 +2565,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var142 string
 				templ_7745c5c3_Var142, templ_7745c5c3_Err = templ.JoinStringErrs("cancel_" + o.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 518, Col: 116}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 521, Col: 116}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var142))
 				if templ_7745c5c3_Err != nil {
@@ -2578,7 +2578,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var143 string
 				templ_7745c5c3_Var143, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Confirm.Cancel"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 518, Col: 168}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 521, Col: 168}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var143))
 				if templ_7745c5c3_Err != nil {
@@ -2596,7 +2596,7 @@ func decisionForm(p *TaskProps) templ.Component {
 		}
 		for _, o := range p.Task.Outcomes {
 			if o.Style == tasks.StyleDanger {
-				var templ_7745c5c3_Var144 = []any{outcomeClass(o.Style), "min-h-11 justify-center"}
+				var templ_7745c5c3_Var144 = []any{outcomeClass(o.Style), "iota-press min-h-11 justify-center"}
 				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var144...)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -2621,7 +2621,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var146 string
 				templ_7745c5c3_Var146, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("confirm = %s; $nextTick(() => $refs[%s].focus())", jsString(o.Value), jsString("cancel_"+o.Value)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 529, Col: 126}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 532, Col: 126}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var146))
 				if templ_7745c5c3_Err != nil {
@@ -2634,7 +2634,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var147 string
 				templ_7745c5c3_Var147, templ_7745c5c3_Err = templ.JoinStringErrs("automations-task-outcome-" + o.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 530, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 533, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var147))
 				if templ_7745c5c3_Err != nil {
@@ -2647,7 +2647,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var148 string
 				templ_7745c5c3_Var148, templ_7745c5c3_Err = templ.JoinStringErrs(o.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 532, Col: 15}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 535, Col: 15}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var148))
 				if templ_7745c5c3_Err != nil {
@@ -2658,7 +2658,7 @@ func decisionForm(p *TaskProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				var templ_7745c5c3_Var149 = []any{outcomeClass(o.Style), "min-h-11 justify-center"}
+				var templ_7745c5c3_Var149 = []any{outcomeClass(o.Style), "iota-press min-h-11 justify-center"}
 				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var149...)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -2670,7 +2670,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var150 string
 				templ_7745c5c3_Var150, templ_7745c5c3_Err = templ.JoinStringErrs(o.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 538, Col: 21}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 541, Col: 21}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var150))
 				if templ_7745c5c3_Err != nil {
@@ -2696,7 +2696,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var152 string
 				templ_7745c5c3_Var152, templ_7745c5c3_Err = templ.JoinStringErrs("automations-task-outcome-" + o.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 540, Col: 57}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 543, Col: 57}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var152))
 				if templ_7745c5c3_Err != nil {
@@ -2709,7 +2709,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var153 string
 				templ_7745c5c3_Var153, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("pending !== %s", jsString(o.Value)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 542, Col: 69}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 545, Col: 69}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var153))
 				if templ_7745c5c3_Err != nil {
@@ -2722,7 +2722,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var154 string
 				templ_7745c5c3_Var154, templ_7745c5c3_Err = templ.JoinStringErrs(o.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 542, Col: 81}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 545, Col: 81}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var154))
 				if templ_7745c5c3_Err != nil {
@@ -2735,7 +2735,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var155 string
 				templ_7745c5c3_Var155, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("pending === %s", jsString(o.Value)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 543, Col: 69}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 546, Col: 69}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var155))
 				if templ_7745c5c3_Err != nil {
@@ -2748,7 +2748,7 @@ func decisionForm(p *TaskProps) templ.Component {
 				var templ_7745c5c3_Var156 string
 				templ_7745c5c3_Var156, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Submitting"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 543, Col: 103}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 546, Col: 103}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var156))
 				if templ_7745c5c3_Err != nil {
@@ -2767,7 +2767,7 @@ func decisionForm(p *TaskProps) templ.Component {
 		var templ_7745c5c3_Var157 string
 		templ_7745c5c3_Var157, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Slow"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 548, Col: 88}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 551, Col: 88}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var157))
 		if templ_7745c5c3_Err != nil {
@@ -2778,7 +2778,7 @@ func decisionForm(p *TaskProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if p.Error != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 226, "<p role=\"alert\" class=\"mt-3 flex items-center gap-2 text-sm text-red-600\" data-testid=\"automations-task-error\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 226, "<p role=\"alert\" class=\"mt-3 flex items-center gap-2 text-sm text-danger\" data-testid=\"automations-task-error\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -2789,7 +2789,7 @@ func decisionForm(p *TaskProps) templ.Component {
 			var templ_7745c5c3_Var158 string
 			templ_7745c5c3_Var158, templ_7745c5c3_Err = templ.JoinStringErrs(p.Error)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 552, Col: 13}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 555, Col: 13}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var158))
 			if templ_7745c5c3_Err != nil {
@@ -2842,7 +2842,7 @@ func field(f Field) templ.Component {
 			var templ_7745c5c3_Var160 string
 			templ_7745c5c3_Var160, templ_7745c5c3_Err = templ.JoinStringErrs("field." + f.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 564, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 567, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var160))
 			if templ_7745c5c3_Err != nil {
@@ -2865,7 +2865,7 @@ func field(f Field) templ.Component {
 			var templ_7745c5c3_Var161 string
 			templ_7745c5c3_Var161, templ_7745c5c3_Err = templ.JoinStringErrs(f.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 565, Col: 13}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 568, Col: 13}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var161))
 			if templ_7745c5c3_Err != nil {
@@ -2883,7 +2883,7 @@ func field(f Field) templ.Component {
 			var templ_7745c5c3_Var162 string
 			templ_7745c5c3_Var162, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Field.Document"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 569, Col: 31}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 572, Col: 31}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var162))
 			if templ_7745c5c3_Err != nil {
@@ -2894,7 +2894,7 @@ func field(f Field) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if f.Required {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 237, "<span class=\"text-red-600\" aria-hidden=\"true\">*</span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 237, "<span class=\"text-danger\" aria-hidden=\"true\">*</span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -2906,7 +2906,7 @@ func field(f Field) templ.Component {
 			var templ_7745c5c3_Var163 string
 			templ_7745c5c3_Var163, templ_7745c5c3_Err = templ.JoinStringErrs(documentFormName)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 576, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 579, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var163))
 			if templ_7745c5c3_Err != nil {
@@ -2929,7 +2929,7 @@ func field(f Field) templ.Component {
 			var templ_7745c5c3_Var164 string
 			templ_7745c5c3_Var164, templ_7745c5c3_Err = templ.JoinStringErrs(f.Value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 583, Col: 13}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 586, Col: 13}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var164))
 			if templ_7745c5c3_Err != nil {
@@ -2942,7 +2942,7 @@ func field(f Field) templ.Component {
 			var templ_7745c5c3_Var165 string
 			templ_7745c5c3_Var165, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Field.DocumentHint"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 584, Col: 109}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 587, Col: 109}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var165))
 			if templ_7745c5c3_Err != nil {
@@ -2960,7 +2960,7 @@ func field(f Field) templ.Component {
 			var templ_7745c5c3_Var166 string
 			templ_7745c5c3_Var166, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 586, Col: 18}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 589, Col: 18}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var166))
 			if templ_7745c5c3_Err != nil {
@@ -2973,7 +2973,7 @@ func field(f Field) templ.Component {
 			var templ_7745c5c3_Var167 string
 			templ_7745c5c3_Var167, templ_7745c5c3_Err = templ.JoinStringErrs(f.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 587, Col: 13}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 590, Col: 13}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var167))
 			if templ_7745c5c3_Err != nil {
@@ -2984,7 +2984,7 @@ func field(f Field) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if f.Required {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 247, "<span class=\"text-red-600\" aria-hidden=\"true\">*</span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 247, "<span class=\"text-danger\" aria-hidden=\"true\">*</span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -3002,7 +3002,7 @@ func field(f Field) templ.Component {
 				var templ_7745c5c3_Var168 string
 				templ_7745c5c3_Var168, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 595, Col: 20}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 598, Col: 20}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var168))
 				if templ_7745c5c3_Err != nil {
@@ -3015,7 +3015,7 @@ func field(f Field) templ.Component {
 				var templ_7745c5c3_Var169 string
 				templ_7745c5c3_Var169, templ_7745c5c3_Err = templ.JoinStringErrs("field." + f.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 595, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 598, Col: 47}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var169))
 				if templ_7745c5c3_Err != nil {
@@ -3038,7 +3038,7 @@ func field(f Field) templ.Component {
 				var templ_7745c5c3_Var170 string
 				templ_7745c5c3_Var170, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Field.Yes"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 597, Col: 81}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 600, Col: 81}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var170))
 				if templ_7745c5c3_Err != nil {
@@ -3061,7 +3061,7 @@ func field(f Field) templ.Component {
 				var templ_7745c5c3_Var171 string
 				templ_7745c5c3_Var171, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Field.No"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 598, Col: 82}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 601, Col: 82}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var171))
 				if templ_7745c5c3_Err != nil {
@@ -3079,7 +3079,7 @@ func field(f Field) templ.Component {
 				var templ_7745c5c3_Var172 string
 				templ_7745c5c3_Var172, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 601, Col: 20}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 604, Col: 20}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var172))
 				if templ_7745c5c3_Err != nil {
@@ -3092,7 +3092,7 @@ func field(f Field) templ.Component {
 				var templ_7745c5c3_Var173 string
 				templ_7745c5c3_Var173, templ_7745c5c3_Err = templ.JoinStringErrs("field." + f.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 601, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 604, Col: 47}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var173))
 				if templ_7745c5c3_Err != nil {
@@ -3126,7 +3126,7 @@ func field(f Field) templ.Component {
 					var templ_7745c5c3_Var174 string
 					templ_7745c5c3_Var174, templ_7745c5c3_Err = templ.JoinStringErrs(v.Value)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 606, Col: 30}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 609, Col: 30}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var174))
 					if templ_7745c5c3_Err != nil {
@@ -3150,7 +3150,7 @@ func field(f Field) templ.Component {
 						var templ_7745c5c3_Var175 string
 						templ_7745c5c3_Var175, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Field.Null"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 608, Col: 32}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 611, Col: 32}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var175))
 						if templ_7745c5c3_Err != nil {
@@ -3160,7 +3160,7 @@ func field(f Field) templ.Component {
 						var templ_7745c5c3_Var176 string
 						templ_7745c5c3_Var176, templ_7745c5c3_Err = templ.JoinStringErrs(v.Label)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 610, Col: 18}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 613, Col: 18}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var176))
 						if templ_7745c5c3_Err != nil {
@@ -3184,7 +3184,7 @@ func field(f Field) templ.Component {
 				var templ_7745c5c3_Var177 string
 				templ_7745c5c3_Var177, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 616, Col: 22}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 619, Col: 22}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var177))
 				if templ_7745c5c3_Err != nil {
@@ -3197,7 +3197,7 @@ func field(f Field) templ.Component {
 				var templ_7745c5c3_Var178 string
 				templ_7745c5c3_Var178, templ_7745c5c3_Err = templ.JoinStringErrs("field." + f.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 616, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 619, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var178))
 				if templ_7745c5c3_Err != nil {
@@ -3220,7 +3220,7 @@ func field(f Field) templ.Component {
 				var templ_7745c5c3_Var179 string
 				templ_7745c5c3_Var179, templ_7745c5c3_Err = templ.JoinStringErrs(f.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 616, Col: 142}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 619, Col: 142}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var179))
 				if templ_7745c5c3_Err != nil {
@@ -3238,7 +3238,7 @@ func field(f Field) templ.Component {
 				var templ_7745c5c3_Var180 string
 				templ_7745c5c3_Var180, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 619, Col: 13}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 622, Col: 13}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var180))
 				if templ_7745c5c3_Err != nil {
@@ -3266,7 +3266,7 @@ func field(f Field) templ.Component {
 				var templ_7745c5c3_Var181 string
 				templ_7745c5c3_Var181, templ_7745c5c3_Err = templ.JoinStringErrs("field." + f.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 626, Col: 30}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 629, Col: 30}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var181))
 				if templ_7745c5c3_Err != nil {
@@ -3279,7 +3279,7 @@ func field(f Field) templ.Component {
 				var templ_7745c5c3_Var182 string
 				templ_7745c5c3_Var182, templ_7745c5c3_Err = templ.JoinStringErrs(f.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 627, Col: 21}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 630, Col: 21}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var182))
 				if templ_7745c5c3_Err != nil {
@@ -3307,7 +3307,7 @@ func field(f Field) templ.Component {
 				var templ_7745c5c3_Var183 string
 				templ_7745c5c3_Var183, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 632, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 635, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var183))
 				if templ_7745c5c3_Err != nil {
@@ -3320,7 +3320,7 @@ func field(f Field) templ.Component {
 				var templ_7745c5c3_Var184 string
 				templ_7745c5c3_Var184, templ_7745c5c3_Err = templ.JoinStringErrs("field." + f.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 632, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 635, Col: 58}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var184))
 				if templ_7745c5c3_Err != nil {
@@ -3333,7 +3333,7 @@ func field(f Field) templ.Component {
 				var templ_7745c5c3_Var185 string
 				templ_7745c5c3_Var185, templ_7745c5c3_Err = templ.JoinStringErrs(f.Value)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 632, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 635, Col: 76}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var185))
 				if templ_7745c5c3_Err != nil {
@@ -3363,7 +3363,7 @@ func field(f Field) templ.Component {
 			var templ_7745c5c3_Var186 string
 			templ_7745c5c3_Var186, templ_7745c5c3_Err = templ.JoinStringErrs(f.Description)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 636, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 639, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var186))
 			if templ_7745c5c3_Err != nil {
@@ -3424,13 +3424,13 @@ func delegatePanel(p *TaskProps) templ.Component {
 		var templ_7745c5c3_Var188 string
 		templ_7745c5c3_Var188, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Delegate.Open"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 645, Col: 29}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 648, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var188))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = icons.CaretDown(icons.Props{Size: "14", Class: "ml-auto duration-200 group-open:rotate-180"}).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = icons.CaretDown(icons.Props{Size: "14", Class: "ml-auto transition-transform duration-base ease-standard group-open:rotate-180"}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -3458,7 +3458,7 @@ func delegatePanel(p *TaskProps) templ.Component {
 		var templ_7745c5c3_Var190 string
 		templ_7745c5c3_Var190, templ_7745c5c3_Err = templ.JoinStringErrs(p.postURL("delegate"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 662, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 665, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var190))
 		if templ_7745c5c3_Err != nil {
@@ -3471,7 +3471,7 @@ func delegatePanel(p *TaskProps) templ.Component {
 		var templ_7745c5c3_Var191 string
 		templ_7745c5c3_Var191, templ_7745c5c3_Err = templ.JoinStringErrs("#" + screenID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 663, Col: 30}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 666, Col: 30}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var191))
 		if templ_7745c5c3_Err != nil {
@@ -3484,7 +3484,7 @@ func delegatePanel(p *TaskProps) templ.Component {
 		var templ_7745c5c3_Var192 string
 		templ_7745c5c3_Var192, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Delegate.Comment"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 673, Col: 123}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 676, Col: 123}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var192))
 		if templ_7745c5c3_Err != nil {
@@ -3497,7 +3497,7 @@ func delegatePanel(p *TaskProps) templ.Component {
 		var templ_7745c5c3_Var193 string
 		templ_7745c5c3_Var193, templ_7745c5c3_Err = templ.JoinStringErrs(p.DelegateComment)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 681, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 684, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var193))
 		if templ_7745c5c3_Err != nil {
@@ -3508,14 +3508,14 @@ func delegatePanel(p *TaskProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if p.DelegateError != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 304, "<p role=\"alert\" class=\"text-sm text-red-600\" data-testid=\"automations-task-delegate-error\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 304, "<p role=\"alert\" class=\"text-sm text-danger\" data-testid=\"automations-task-delegate-error\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var194 string
 			templ_7745c5c3_Var194, templ_7745c5c3_Err = templ.JoinStringErrs(p.DelegateError)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 684, Col: 113}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 687, Col: 112}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var194))
 			if templ_7745c5c3_Err != nil {
@@ -3533,7 +3533,7 @@ func delegatePanel(p *TaskProps) templ.Component {
 		var templ_7745c5c3_Var195 string
 		templ_7745c5c3_Var195, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "RetryChooseColleague"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 687, Col: 221}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 690, Col: 221}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var195))
 		if templ_7745c5c3_Err != nil {
@@ -3546,7 +3546,7 @@ func delegatePanel(p *TaskProps) templ.Component {
 		var templ_7745c5c3_Var196 string
 		templ_7745c5c3_Var196, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Delegate.Submit"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 688, Col: 58}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 691, Col: 58}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var196))
 		if templ_7745c5c3_Err != nil {
@@ -3559,7 +3559,7 @@ func delegatePanel(p *TaskProps) templ.Component {
 		var templ_7745c5c3_Var197 string
 		templ_7745c5c3_Var197, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Delegate.Submitting"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 689, Col: 69}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 692, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var197))
 		if templ_7745c5c3_Err != nil {
@@ -3603,7 +3603,7 @@ func delegatePicker(p *TaskProps) templ.Component {
 		var templ_7745c5c3_Var199 string
 		templ_7745c5c3_Var199, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Delegate.To"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 706, Col: 114}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 709, Col: 114}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var199))
 		if templ_7745c5c3_Err != nil {
@@ -3616,7 +3616,7 @@ func delegatePicker(p *TaskProps) templ.Component {
 		var templ_7745c5c3_Var200 string
 		templ_7745c5c3_Var200, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Delegate.Search"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 717, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 720, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var200))
 		if templ_7745c5c3_Err != nil {
@@ -3629,7 +3629,7 @@ func delegatePicker(p *TaskProps) templ.Component {
 		var templ_7745c5c3_Var201 string
 		templ_7745c5c3_Var201, templ_7745c5c3_Err = templ.JoinStringErrs(p.delegatesURL())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 727, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 730, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var201))
 		if templ_7745c5c3_Err != nil {
@@ -3642,7 +3642,7 @@ func delegatePicker(p *TaskProps) templ.Component {
 		var templ_7745c5c3_Var202 string
 		templ_7745c5c3_Var202, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Delegate.To"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 737, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 740, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var202))
 		if templ_7745c5c3_Err != nil {
@@ -3685,7 +3685,7 @@ func DelegateOptions(query string, list []tasks.UserOption) templ.Component {
 		var templ_7745c5c3_Var204 string
 		templ_7745c5c3_Var204, templ_7745c5c3_Err = templ.JoinStringErrs(query)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 748, Col: 50}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 751, Col: 50}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var204))
 		if templ_7745c5c3_Err != nil {
@@ -3703,7 +3703,7 @@ func DelegateOptions(query string, list []tasks.UserOption) templ.Component {
 			var templ_7745c5c3_Var205 string
 			templ_7745c5c3_Var205, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("automations-task-delegate-%d", i))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 751, Col: 54}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 754, Col: 54}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var205))
 			if templ_7745c5c3_Err != nil {
@@ -3716,7 +3716,7 @@ func DelegateOptions(query string, list []tasks.UserOption) templ.Component {
 			var templ_7745c5c3_Var206 string
 			templ_7745c5c3_Var206, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprint(u.ID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 754, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 757, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var206))
 			if templ_7745c5c3_Err != nil {
@@ -3729,7 +3729,7 @@ func DelegateOptions(query string, list []tasks.UserOption) templ.Component {
 			var templ_7745c5c3_Var207 string
 			templ_7745c5c3_Var207, templ_7745c5c3_Err = templ.JoinStringErrs(u.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 755, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 758, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var207))
 			if templ_7745c5c3_Err != nil {
@@ -3742,7 +3742,7 @@ func DelegateOptions(query string, list []tasks.UserOption) templ.Component {
 			var templ_7745c5c3_Var208 string
 			templ_7745c5c3_Var208, templ_7745c5c3_Err = templ.JoinStringErrs(u.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 759, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 762, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var208))
 			if templ_7745c5c3_Err != nil {
@@ -3760,7 +3760,7 @@ func DelegateOptions(query string, list []tasks.UserOption) templ.Component {
 				var templ_7745c5c3_Var209 string
 				templ_7745c5c3_Var209, templ_7745c5c3_Err = templ.JoinStringErrs(u.Hint)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 761, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 764, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var209))
 				if templ_7745c5c3_Err != nil {
@@ -3785,7 +3785,7 @@ func DelegateOptions(query string, list []tasks.UserOption) templ.Component {
 				var templ_7745c5c3_Var210 string
 				templ_7745c5c3_Var210, templ_7745c5c3_Err = templ.JoinStringErrs(trf(ctx, "Delegate.NothingFor", map[string]any{"Query": query}))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 768, Col: 69}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 771, Col: 69}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var210))
 				if templ_7745c5c3_Err != nil {
@@ -3795,7 +3795,7 @@ func DelegateOptions(query string, list []tasks.UserOption) templ.Component {
 				var templ_7745c5c3_Var211 string
 				templ_7745c5c3_Var211, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Delegate.NotFound"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 770, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 773, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var211))
 				if templ_7745c5c3_Err != nil {
@@ -3888,7 +3888,7 @@ func MissingScreen(p *MissingProps) templ.Component {
 		var templ_7745c5c3_Var215 string
 		templ_7745c5c3_Var215, templ_7745c5c3_Err = templ.JoinStringErrs(screenID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 785, Col: 19}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 788, Col: 19}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var215))
 		if templ_7745c5c3_Err != nil {
@@ -3906,7 +3906,7 @@ func MissingScreen(p *MissingProps) templ.Component {
 			var templ_7745c5c3_Var216 string
 			templ_7745c5c3_Var216, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Errors.TaskFailed"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 788, Col: 79}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 791, Col: 79}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var216))
 			if templ_7745c5c3_Err != nil {
@@ -3919,7 +3919,7 @@ func MissingScreen(p *MissingProps) templ.Component {
 			var templ_7745c5c3_Var217 string
 			templ_7745c5c3_Var217, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Errors.ListFailedHint"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 789, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 792, Col: 88}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var217))
 			if templ_7745c5c3_Err != nil {
@@ -3941,7 +3941,7 @@ func MissingScreen(p *MissingProps) templ.Component {
 			var templ_7745c5c3_Var219 string
 			templ_7745c5c3_Var219, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Retry"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 790, Col: 108}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 793, Col: 108}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var219))
 			if templ_7745c5c3_Err != nil {
@@ -3959,7 +3959,7 @@ func MissingScreen(p *MissingProps) templ.Component {
 			var templ_7745c5c3_Var220 string
 			templ_7745c5c3_Var220, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Missing.Title"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 792, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 795, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var220))
 			if templ_7745c5c3_Err != nil {
@@ -3972,7 +3972,7 @@ func MissingScreen(p *MissingProps) templ.Component {
 			var templ_7745c5c3_Var221 string
 			templ_7745c5c3_Var221, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Missing.Hint"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 793, Col: 79}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 796, Col: 79}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var221))
 			if templ_7745c5c3_Err != nil {
@@ -3999,7 +3999,7 @@ func MissingScreen(p *MissingProps) templ.Component {
 		var templ_7745c5c3_Var223 string
 		templ_7745c5c3_Var223, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Missing.Back"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 795, Col: 116}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 798, Col: 116}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var223))
 		if templ_7745c5c3_Err != nil {
@@ -4051,7 +4051,7 @@ func connectionBanner() templ.Component {
 		var templ_7745c5c3_Var225 string
 		templ_7745c5c3_Var225, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Offline.Text"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 805, Col: 33}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 808, Col: 33}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var225))
 		if templ_7745c5c3_Err != nil {
@@ -4064,7 +4064,7 @@ func connectionBanner() templ.Component {
 		var templ_7745c5c3_Var226 string
 		templ_7745c5c3_Var226, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Retry"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 806, Col: 113}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 809, Col: 113}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var226))
 		if templ_7745c5c3_Err != nil {
@@ -4107,7 +4107,7 @@ func ListMoreFailed(retryURL string) templ.Component {
 		var templ_7745c5c3_Var228 string
 		templ_7745c5c3_Var228, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Errors.MoreFailed"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 815, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 818, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var228))
 		if templ_7745c5c3_Err != nil {
@@ -4120,7 +4120,7 @@ func ListMoreFailed(retryURL string) templ.Component {
 		var templ_7745c5c3_Var229 string
 		templ_7745c5c3_Var229, templ_7745c5c3_Err = templ.JoinStringErrs(retryURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 819, Col: 21}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 822, Col: 21}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var229))
 		if templ_7745c5c3_Err != nil {
@@ -4133,7 +4133,7 @@ func ListMoreFailed(retryURL string) templ.Component {
 		var templ_7745c5c3_Var230 string
 		templ_7745c5c3_Var230, templ_7745c5c3_Err = templ.JoinStringErrs(tr(ctx, "Retry"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 822, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/automations/presentation/inbox/inbox.templ`, Line: 825, Col: 22}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var230))
 		if templ_7745c5c3_Err != nil {

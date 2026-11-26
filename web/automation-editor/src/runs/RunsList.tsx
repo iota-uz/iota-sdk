@@ -1,11 +1,14 @@
 // The list of a graph's runs (RV2, RV9): search by subject, state chips, a row per run with its state
 // (dot and word), subject, node, version, time and the phrase of a failure; ↑ ↓ move between rows.
-import { createEffect, createSignal, For, Match, on, onCleanup, Show, Switch, type JSX } from 'solid-js'
+// Rows are keyed by run id, not by object: a re-read list updates the rows in place (P4) and only a run
+// the list did not have before enters with a short rise (#1352).
+import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, Show, Switch, type JSX } from 'solid-js'
 import { findItem } from '../graph'
 import { Icon } from '../icons'
 import { describeItem } from '../names'
 import { strings } from '../strings'
 import type { AutomationGraph, EditorCatalog, EditorLocale, RunState, RunSummary } from '../types'
+import { Swap } from './Data'
 import { ALL_STATES } from './model'
 import { runStrings } from './strings'
 import { absoluteTime, relativeTime, subjectName } from './util'
@@ -79,6 +82,15 @@ export function RunsList(props: RunsListProps): JSX.Element {
     props.onOpen(run.run_id)
     queueMicrotask(() => list?.querySelector<HTMLElement>(`[data-run="${CSS.escape(run.run_id)}"]`)?.focus())
   }
+  // The rows by run id: a list read again (Retry, a run's poll) keeps every row's element, and a new run is
+  // the only row mounted. `seen` is the list as last drawn; null while there is none (first load, a new
+  // filter), so the first rows of a list never animate.
+  const ids = createMemo(() => (props.items ?? []).map((r) => r.run_id), [], {
+    equals: (a, b) => a.length === b.length && a.every((id, i) => id === b[i]),
+  })
+  const byId = createMemo(() => new Map((props.items ?? []).map((r) => [r.run_id, r])))
+  let seen: Set<string> | null = null
+  createEffect(on(ids, (list) => { seen = props.items ? new Set(list) : null }))
   const nodeName = (id: string) => (findItem(props.graph, id) ? describeItem(props.graph, props.catalog, id, props.locale).title : null)
 
   return (
@@ -99,7 +111,7 @@ export function RunsList(props: RunsListProps): JSX.Element {
         <div class="ae-chips" role="group" aria-label={t().list.filter}>
           <For each={ALL_STATES}>
             {(state) => (
-              <button type="button" class="ae-chip" aria-pressed={props.states.includes(state)} onClick={() => toggle(state)} data-state={state}>
+              <button type="button" class="ae-chip iota-press" aria-pressed={props.states.includes(state)} onClick={() => toggle(state)} data-state={state}>
                 <span class={`ae-dot ae-dot--${state}`} aria-hidden="true" />{t().list.states[state]}
               </button>
             )}
@@ -115,7 +127,7 @@ export function RunsList(props: RunsListProps): JSX.Element {
       </Show>
       <Switch>
         <Match when={props.error && !props.items}>
-          <div class="ae-runlist__state" role="alert" data-testid="runs-error">
+          <div class="ae-runlist__state iota-fade-in" role="alert" data-testid="runs-error">
             <p>{t().list.loadFailed}</p>
             <button type="button" class="ae-btn ae-btn--secondary" onClick={() => props.onRetry()}>{retryText(props.locale)}</button>
           </div>
@@ -126,13 +138,13 @@ export function RunsList(props: RunsListProps): JSX.Element {
           </ul>
         </Match>
         <Match when={props.items!.length === 0 && filtered()}>
-          <div class="ae-runlist__state" data-testid="runs-empty-filter">
+          <div class="ae-runlist__state iota-fade-in" data-testid="runs-empty-filter">
             <p class="ae-runlist__title">{t().list.emptyFilter}</p>
             <button type="button" class="ae-btn ae-btn--secondary" onClick={reset}>{t().list.reset}</button>
           </div>
         </Match>
         <Match when={props.items!.length === 0}>
-          <div class="ae-runlist__state" data-testid="runs-empty">
+          <div class="ae-runlist__state iota-fade-in" data-testid="runs-empty">
             <p class="ae-runlist__title">{t().list.empty}</p>
             <p class="ae-muted">{t().list.emptyText}</p>
             <Show when={props.onStart}>
@@ -141,39 +153,47 @@ export function RunsList(props: RunsListProps): JSX.Element {
           </div>
         </Match>
         <Match when={props.items}>
-          <ul ref={list} class="ae-runlist__rows" role="listbox" aria-label={t().list.label} onKeyDown={onKey}>
-            <For each={props.items}>
-              {(run) => {
-                const selected = () => run.run_id === props.selected
-                const subject = () => subjectName(run.subject) ?? t().list.noSubject
+          <ul ref={list} class="ae-runlist__rows iota-fade-in" role="listbox" aria-label={t().list.label} onKeyDown={onKey}>
+            <For each={ids()}>
+              {(id) => {
+                // The row's data follows the list; it keeps its last value while the row is removed.
+                const run = createMemo<RunSummary>((prev) => byId().get(id) ?? prev, byId().get(id)!)
+                const fresh = seen !== null && !seen.has(id)
+                const selected = () => id === props.selected
+                const subject = () => subjectName(run().subject) ?? t().list.noSubject
                 const node = () => {
-                  const id = run.current_nodes?.[0]
-                  return id ? nodeName(id) : null
+                  const nid = run().current_nodes?.[0]
+                  return nid ? nodeName(nid) : null
                 }
                 return (
                   <li
                     role="option"
                     class="ae-runrow"
+                    classList={{ 'iota-enter': fresh }}
                     aria-selected={selected()}
-                    tabindex={selected() || (!props.selected && run === props.items![0]) ? 0 : -1}
-                    data-run={run.run_id}
+                    tabindex={selected() || (!props.selected && id === ids()[0]) ? 0 : -1}
+                    data-run={id}
                     data-testid="run-row"
-                    onClick={() => props.onOpen(run.run_id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onOpen(run.run_id) } }}
+                    onClick={() => props.onOpen(id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onOpen(id) } }}
                   >
                     <div class="ae-runrow__top">
-                      <span class={`ae-runstate ae-runstate--${run.state}`}>
-                        <span class={`ae-dot ae-dot--${run.state}`} aria-hidden="true" />{t().list.states[run.state]}
-                      </span>
+                      <Swap key={run().state}>
+                        {(state) => (
+                          <span class={`ae-runstate ae-runstate--${state}`}>
+                            <span class={`ae-dot ae-dot--${state}`} aria-hidden="true" />{t().list.states[state as RunState]}
+                          </span>
+                        )}
+                      </Swap>
                       <span class="ae-runrow__subject" title={subject()}>{subject()}</span>
-                      <time class="ae-runrow__time ae-tabular" datetime={run.created_at} title={absoluteTime(run.created_at, props.locale)}>
-                        {relativeTime(run.created_at, props.now, props.locale)}
+                      <time class="ae-runrow__time ae-tabular" datetime={run().created_at} title={absoluteTime(run().created_at, props.locale)}>
+                        {relativeTime(run().created_at, props.now, props.locale)}
                       </time>
                     </div>
                     <div class="ae-runrow__bottom">
-                      <span class="ae-tag">v{run.version}</span>
+                      <span class="ae-tag">v{run().version}</span>
                       <Show when={node()}>{(n) => <span class="ae-runrow__node" title={n()}>{n()}</span>}</Show>
-                      <Show when={run.state === 'failed' && run.error}>
+                      <Show when={run().state === 'failed' && run().error}>
                         {(e) => <span class="ae-runrow__error" title={e()}>{e()}</span>}
                       </Show>
                     </div>

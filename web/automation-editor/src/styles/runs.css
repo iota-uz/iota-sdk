@@ -158,4 +158,29 @@
   .ae-chip, .ae-runrow, .ae-segmented__item, .ae-outline__head--pick { min-height: 44px; }
 }
 .ae-runstrip, .ae-runview__id, .ae-runview > .ae-banner { flex: none; }
-.ae-card--skipped { opacity: 0.55; }
+/* A step the run did not reach: a dashed outline and the muted title. Not opacity: the card's texts keep
+   their contrast (A2; at 0.55 an outcome label fell to 2.5:1). */
+.ae-card--skipped { border-style: dashed; }
+.ae-card--skipped .ae-card__title { color: oklch(var(--clr-text-200)); font-weight: 500; }
+
+/* ——— motion (#1352): tokens only; transform and opacity move, nothing else. Under reduced motion every
+   duration is 0 and the fades keep at most --motion-fade (80 ms). ——— */
+/* A value that changed in place (a run's state, a node's state): the new one fades in over the old box. */
+.ae-swap { display: inline-flex; min-width: 0; }
+.ae-swap--in { animation: ae-swap-in var(--motion-fade) var(--ease-out) both; }
+@keyframes ae-swap-in { from { opacity: 0.25; } }
+.ae-runstrip__state { display: inline-flex; flex: none; }
+/* Press response (T2) on rows: a shade at once (no transition), the row keeps its size in the list; chips
+   squeeze through .iota-press. */
+.ae-runrow:active:not(.ae-runrow--skeleton) { background: oklch(var(--clr-text-100) / 8%); }
+.ae-segmented__item:active { background: oklch(var(--clr-text-100) / 6%); }
+/* The node drawer as a phone sheet rises from the bottom edge and goes back down (A7). */
+.ae-run-side.ae-side--sheet { animation-name: ae-sheet-in; }
+.ae-run-side.ae-side--sheet.ae-layer--leaving { animation: ae-sheet-out var(--motion-fast) var(--ease-in) both; }
+@keyframes ae-sheet-in { from { opacity: 0; transform: translateY(24px); } }
+@keyframes ae-sheet-out { to { opacity: 0; transform: translateY(24px); } }
+/* Dry run and Test node docks fade in and out. Opacity only: the dock takes the focus while it enters, and a
+   translated dock would make its clipped parent scroll to reveal the field and stay scrolled. */
+.ae-dock--enter { animation: ae-fade var(--motion-base) var(--ease-out) both; }
+.ae-dock.ae-layer--leaving { animation: ae-dock-out var(--motion-fast) var(--ease-in) both; pointer-events: none; }
+@keyframes ae-dock-out { to { opacity: 0; } }
