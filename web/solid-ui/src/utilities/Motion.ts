@@ -85,12 +85,15 @@ export function createFlash(): { flash(key: string): void; flashing(key: string)
   const flash = (key: string) => {
     clearTimeout(timers.get(key))
     const mark = ++serial
+    // Shown, or a restart still pending: this flash restarts too. The removal must reach a rendered frame
+    // before the class comes back, or the browser keeps the running animation.
+    const restart = latest.has(key)
     latest.set(key, mark)
     const mount = () => {
       if (latest.get(key) === mark) setKeys((current) => new Map(current).set(key, mark))
     }
     // Flashed again while it shows: the class comes off for a rendered frame, so the animation starts over.
-    if (keys().has(key)) {
+    if (restart) {
       setKeys((current) => {
         const next = new Map(current)
         next.delete(key)

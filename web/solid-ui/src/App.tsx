@@ -39,7 +39,7 @@ import { CopyButton, CopyableText } from './utilities/CopyButton'
 import { ExportDropdown } from './utilities/ExportDropdown'
 import { HelpContext } from './utilities/Help'
 import { LanguageSelect } from './utilities/LanguageSelect'
-import { motionMs, type MotionToken } from './utilities/Motion'
+import { createFlash, motionMs, type MotionToken } from './utilities/Motion'
 import { ActionMenu, Actions } from './scaffold/Actions'
 import { FilterDropdown, FiltersBar, SideFilter } from './scaffold/Filters'
 import { SPECIMENS, stateFor, type SpecimenID, type SpecimenState, type Theme } from './catalog'
@@ -487,6 +487,9 @@ function MotionSpecimen(props: SpecimenProps) {
   // The gallery shows the values the page computes: under `reduced` it emulates the reduced-motion tokens.
   const reduced = () => props.state === 'reduced'
   const value = (token: MotionToken) => reduced() ? (token === 'fade' ? 80 : token === 'flash' ? 4000 : 0) : motionMs(token)
+  // The changed card flashes on mount; «Flash again» restarts its highlight (createFlash).
+  const flash = createFlash()
+  flash.flash('card')
   return (
     <section class="specimen specimen-stack" aria-label="Motion specimens" data-testid="specimen-motion">
       <Table>
@@ -503,7 +506,8 @@ function MotionSpecimen(props: SpecimenProps) {
         <Button class="iota-press">Press</Button>
         <Button variant="secondary" class="iota-press iota-focus-ring" data-vr-target="motion-focus">Focus ring</Button>
       </div>
-      <Card class="iota-flash" data-vr-target="motion-flash" header={<CardHeader>Changed a moment ago</CardHeader>}>Highlighted about 4 s after a change, then fades.</Card>
+      <Card class={flash.flashing('card') ? 'iota-flash' : undefined} data-vr-target="motion-flash" data-testid="motion-flash" header={<CardHeader>Changed a moment ago</CardHeader>}>Highlighted about 4 s after a change, then fades.</Card>
+      <div class="specimen-row"><Button variant="secondary" data-testid="motion-flash-again" onClick={() => flash.flash('card')}>Flash again</Button></div>
       <div class="iota-reveal rounded-lg border border-default p-3" data-vr-target="motion-reveal">Inline confirmation opens from its top edge above the buttons.</div>
     </section>
   )
