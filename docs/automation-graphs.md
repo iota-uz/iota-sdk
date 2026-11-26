@@ -608,6 +608,11 @@ anything out and reports what the graph would have done for each of them.
   backtest reads the cache only (`RealCallsNone`: a missing decision is reported `missing`, never a
   mismatch); `live` asks every decision again and is a person's (`HUMAN_REQUIRED`). `Service.Estimate`
   shows before the run how many calls it may make and their cost from earlier backtests.
+- **Reads** apply the reader's current rights, the importer's included: an example from a connection or a
+  module source the reader may not read keeps its kind only (no title, subject, effects or trace); any
+  other event is projected on the reader's catalog view, and when that drops a field the effects' params
+  and the trace (rendered from the whole event) are not shown; the subject's snapshot is never returned.
+  A live backtest runs one example at a time.
 - **Labels** (`automation.dataset_labels`): `expected` comes with a synthetic event, `manual` is a
   person's and wins. Labels belong to the dataset and apply to every backtest over it, earlier ones
   included (the report is computed when it is read).

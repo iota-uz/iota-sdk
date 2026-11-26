@@ -245,15 +245,18 @@ type SyntheticEvent struct {
 
 // Example is an event of a dataset.
 type Example struct {
-	ID                  ExampleID
-	DatasetID           DatasetID
-	Source              string
-	SourceRef           string
-	Title               string
-	Event               json.RawMessage
-	EventKind           string
-	Subject             engine.SubjectRef
+	ID        ExampleID
+	DatasetID DatasetID
+	Source    string
+	SourceRef string
+	Title     string
+	Event     json.RawMessage
+	EventKind string
+	Subject   engine.SubjectRef
+	// Snapshot is the subject's state the example runs with; reads never return it (it was read with the
+	// importer's rights at the import). HasSnapshot says whether there is one.
 	Snapshot            json.RawMessage
+	HasSnapshot         bool
 	SnapshotApproximate bool
 	OccurredAt          time.Time
 	// Origin is the source within its kind ("connection:<id>", "module:<name>"); CreatedBy imported it.

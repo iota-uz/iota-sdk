@@ -608,6 +608,7 @@ func TestConnectionHistoryImport(t *testing.T) {
 	assert.True(t, hidden.Items[0].Hidden)
 	assert.Empty(t, hidden.Items[0].Title)
 	assert.JSONEq(t, `{"kind": "acmemail.received.v1"}`, string(hidden.Items[0].Event))
+	assert.Equal(t, engine.SubjectRef{}, hidden.Items[0].Subject, "nor its subject")
 	res, err := e.svc.Results(ctx, other, rep.Backtest.ID, backtest.ResultFilter{})
 	require.NoError(t, err)
 	require.Len(t, res.Items, 1)
@@ -788,4 +789,55 @@ func TestDeletedExampleKeepsFinishedResults(t *testing.T) {
 	var n int
 	require.NoError(t, e.db.QueryRow(ctx, `SELECT count(*) FROM automation.dataset_examples WHERE id = $1`, third).Scan(&n))
 	assert.Zero(t, n, "an example no result refers to is deleted")
+}
+
+// Reads apply the reader's rights now, the importer's included: a sensitive field the reader may not read
+// is not shown, and neither are the effects and the trace rendered from the whole event; a right revoked
+// after the import hides the field from its importer too.
+func TestReadsApplyCurrentRights(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	withSecret := append(append([]string{}, allPerms...), permSec)
+	e.subjects.Grant(1, withSecret...)
+	a := e.human()
+	a.Subject.Permissions = withSecret
+	am, _, err := e.rt.Service().Create(ctx, a, engine.CreateInput{Graph: json.RawMessage(graphV1)})
+	require.NoError(t, err)
+	e.publish("c-1", message{Text: "buy", Secret: "pin-1"}, time.Now().Add(-time.Hour))
+	ds, err := e.svc.CreateDataset(ctx, a, backtest.CreateDatasetInput{AutomationID: am.ID, Name: "d"})
+	require.NoError(t, err)
+	_, err = e.svc.Import(ctx, a, ds, backtest.ImportSource{Kind: backtest.ImportJournal, Window: backtest.TimeWindow{From: time.Now().Add(-24 * time.Hour)}})
+	require.NoError(t, err)
+	e.drain()
+	rep := e.run(a, backtest.RunInput{DatasetID: ds})
+
+	page, err := e.svc.Examples(ctx, a, ds, backtest.ExampleFilter{})
+	require.NoError(t, err)
+	require.Len(t, page.Items, 1)
+	assert.Contains(t, string(page.Items[0].Event), "pin-1", "the importer with the right reads the field")
+	res, err := e.svc.Results(ctx, a, rep.Backtest.ID, backtest.ResultFilter{})
+	require.NoError(t, err)
+	require.NotEmpty(t, res.Items[0].Trace)
+
+	for name, reader := range map[string]engine.Actor{"another author": e.actor(2, engine.OriginHuman), "the importer after revocation": e.human()} {
+		page, err := e.svc.Examples(ctx, reader, ds, backtest.ExampleFilter{})
+		require.NoError(t, err)
+		assert.NotContains(t, string(page.Items[0].Event), "pin-1", name)
+		assert.Contains(t, string(page.Items[0].Event), "buy", name)
+		assert.Nil(t, page.Items[0].Snapshot, name)
+		res, err := e.svc.Results(ctx, reader, rep.Backtest.ID, backtest.ResultFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Items, 1)
+		assert.Empty(t, res.Items[0].Trace, name)
+		for _, ef := range res.Items[0].Effects {
+			assert.JSONEq(t, `null`, string(ef.Params), name)
+		}
+		r, err := e.svc.Report(ctx, reader, rep.Backtest.ID)
+		require.NoError(t, err)
+		for _, s := range r.Effects {
+			for _, sample := range s.Samples {
+				assert.JSONEq(t, `null`, string(sample), name)
+			}
+		}
+	}
 }

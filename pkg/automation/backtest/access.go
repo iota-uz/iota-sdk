@@ -57,29 +57,39 @@ func (r *reader) mayRead(ctx context.Context, origin string) bool {
 	return true
 }
 
-// example applies the reader's rights to an example and reports whether it is hidden (the reader may
-// not read it).
-func (r *reader) example(ctx context.Context, x *Example) bool {
-	if x.CreatedBy != r.a.UserID {
-		x.Snapshot = nil
-	}
+// sight is what a reader sees of an example.
+type sight int
+
+const (
+	seeAll     sight = iota // every field of the stored event
+	seePartial              // the event without fields the reader may not read now
+	seeNone                 // the kind only
+)
+
+// example applies the reader's current rights to an example, its importer included (rights change
+// after an import): the event is projected on the reader's catalog view, the subject's snapshot is
+// never returned (it was read with the importer's rights then), and an example the reader may not read
+// keeps its kind only, without title or subject.
+func (r *reader) example(ctx context.Context, x *Example) sight {
+	x.Snapshot = nil
 	if !r.mayRead(ctx, x.Origin) {
-		x.Event = kindOnly(x.EventKind)
-		x.Title, x.Snapshot, x.Hidden = "", nil, true
-		return true
-	}
-	if x.CreatedBy == r.a.UserID {
-		return false
+		r.hide(x)
+		return seeNone
 	}
 	var payload map[string]any
 	if expr.UnmarshalJSON(x.Event, &payload) != nil || payload == nil {
-		return false
+		r.hide(x)
+		return seeNone
 	}
 	spec, ok := r.view.Catalog.Events[x.EventKind]
 	if !ok {
-		x.Event = kindOnly(x.EventKind)
-		x.Title, x.Hidden = "", true
-		return true
+		r.hide(x)
+		return seeNone
+	}
+	before, err := json.Marshal(payload)
+	if err != nil {
+		r.hide(x)
+		return seeNone
 	}
 	bySelf, hasBySelf := payload[catalog.BySelfField]
 	kept := engine.KeepDeclared(payload, spec.Payload)
@@ -87,16 +97,28 @@ func (r *reader) example(ctx context.Context, x *Example) bool {
 	if hasBySelf {
 		kept[catalog.BySelfField] = bySelf
 	}
-	if b, err := json.Marshal(kept); err == nil {
-		x.Event = b
+	after, err := json.Marshal(kept)
+	if err != nil {
+		r.hide(x)
+		return seeNone
 	}
-	return false
+	x.Event = after
+	if string(before) != string(after) {
+		return seePartial
+	}
+	return seeAll
 }
 
-// result applies the reader's rights to a result: a hidden example's effects and trace, rendered from
-// its event, are not shown.
+func (r *reader) hide(x *Example) {
+	x.Event = kindOnly(x.EventKind)
+	x.Title, x.Snapshot, x.Hidden = "", nil, true
+	x.Subject = engine.SubjectRef{}
+}
+
+// result applies the reader's rights to a result: the effects' params and the trace are rendered from
+// the whole event, so a reader who may not read all of it does not see them.
 func (r *reader) result(ctx context.Context, x *Result) {
-	if !r.example(ctx, &x.Example) {
+	if r.example(ctx, &x.Example) == seeAll {
 		return
 	}
 	for i := range x.Effects {

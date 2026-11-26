@@ -66,8 +66,8 @@ func (t *tools) backtestTools(add func(mcp.Tool, error)) {
 		Name: ToolBacktestExamples,
 		Description: "Add synthetic events to a dataset: each {kind, payload, subject?, title?, expected?}; expected maps a node id " +
 			"to the outcome it should take, counted in precision and recall (a person's label overrides it). Each event is added by " +
-			"itself, in order: when one fails, the result lists the ids of those added before it and failed {index, message}; the " +
-			"events after it are not tried. Requires " + engine.PermAuthor + ".",
+			"itself, in order: when a later one fails, the result lists the ids of those added before it and failed {index, message}, " +
+			"and the events after it are not tried; when the first one fails, nothing is added and the tool answers with an error. Requires " + engine.PermAuthor + ".",
 		Input: objectSchema(map[string]*jsonschema.Schema{
 			"dataset_id": {Type: "string", Format: "uuid"},
 			"events": {Type: "array", MinItems: jsonschema.Ptr(1), MaxItems: jsonschema.Ptr(MaxBacktestEvents), Items: &jsonschema.Schema{

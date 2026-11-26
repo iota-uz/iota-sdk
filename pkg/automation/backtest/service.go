@@ -694,7 +694,7 @@ func scanExample(r pgx.Row) (Example, error) {
 		&snap, &x.SnapshotApproximate, &x.OccurredAt, &x.Origin, &x.CreatedBy)
 	x.Event = event
 	if len(snap) > 0 {
-		x.Snapshot = snap
+		x.Snapshot, x.HasSnapshot = snap, true
 	}
 	return x, err
 }
@@ -1136,7 +1136,7 @@ func (s *Svc) resultRows(ctx context.Context, a Actor, id BacktestID) ([]scored,
 		return nil, err
 	}
 	rows, err := s.cfg.DB.Query(ctx, `
-		SELECT r.example_id, e.title, e.occurred_at, e.origin, r.end_kind, r.triggered, r.outcomes, r.decisions, r.effects
+		SELECT r.example_id, e.title, e.occurred_at, e.origin, e.event_kind, e.event, r.end_kind, r.triggered, r.outcomes, r.decisions, r.effects
 		FROM automation.backtest_results r
 		JOIN automation.dataset_examples e ON e.tenant_id = r.tenant_id AND e.id = r.example_id
 		WHERE r.tenant_id = $1 AND r.backtest_id = $2 ORDER BY e.occurred_at, e.id`, tenant, id)
@@ -1146,19 +1146,26 @@ func (s *Svc) resultRows(ctx context.Context, a Actor, id BacktestID) ([]scored,
 	out, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (scored, error) {
 		var x scored
 		var outcomes, decisions, effects []byte
-		var origin string
-		if err := r.Scan(&x.example, &x.title, &x.occurredAt, &origin, &x.end, &x.triggered, &outcomes, &decisions, &effects); err != nil {
+		var ex Example
+		var event []byte
+		if err := r.Scan(&x.example, &x.title, &x.occurredAt, &ex.Origin, &ex.EventKind, &event, &x.end, &x.triggered, &outcomes, &decisions, &effects); err != nil {
 			return x, err
 		}
+		ex.Event = event
 		_ = json.Unmarshal(outcomes, &x.outcomes)
 		_ = json.Unmarshal(decisions, &x.decisions)
 		_ = json.Unmarshal(effects, &x.effects)
-		if !rd.mayRead(ctx, origin) {
-			// The title and the effects' params come from an event the reader may not read.
+		// The title and the effects' params (the report's samples, a comparison) come from the event: a
+		// reader who may not read all of it does not see them.
+		switch rd.example(ctx, &ex) {
+		case seeNone:
 			x.title = ""
+			fallthrough
+		case seePartial:
 			for i := range x.effects {
 				x.effects[i].Params = json.RawMessage("null")
 			}
+		case seeAll:
 		}
 		return x, nil
 	})

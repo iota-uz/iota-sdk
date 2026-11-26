@@ -293,7 +293,7 @@ func (c *Controller) datasetImport(ctx context.Context, req DatasetImportRequest
 func exampleView(x backtest.Example) ExampleView {
 	v := ExampleView{ID: x.ID.String(), Source: ExampleSource(x.Source), Title: x.Title, EventKind: x.EventKind, Event: x.Event,
 		Subject: Subject{Entity: x.Subject.Entity, Key: x.Subject.Key}, SnapshotApproximate: x.SnapshotApproximate,
-		HasSnapshot: len(x.Snapshot) > 0, OccurredAt: stamp(x.OccurredAt), Hidden: x.Hidden, Labels: make(map[string]LabelView, len(x.Labels))}
+		HasSnapshot: x.HasSnapshot, OccurredAt: stamp(x.OccurredAt), Hidden: x.Hidden, Labels: make(map[string]LabelView, len(x.Labels))}
 	if len(v.Event) == 0 {
 		v.Event = json.RawMessage("{}")
 	}

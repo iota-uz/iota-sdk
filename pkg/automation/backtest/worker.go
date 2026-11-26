@@ -544,11 +544,17 @@ func (s *Svc) execute(ctx context.Context, j backtestJob) error {
 		defer close(renewed)
 		s.renew(runCtx, cancel, "backtests", j.tenant, j.id, j.lease)
 	}()
+	// A live run pays every decision: one example at a time, so a worker whose lease another took has at
+	// most one example in flight.
+	parallel := s.cfg.Parallel
+	if j.decisions == DecisionsLive {
+		parallel = 1
+	}
 	work := make(chan Example)
 	var wg sync.WaitGroup
 	var failMu sync.Mutex
 	var fail error
-	for i := 0; i < s.cfg.Parallel; i++ {
+	for i := 0; i < parallel; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
