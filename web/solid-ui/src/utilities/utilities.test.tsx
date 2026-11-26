@@ -222,4 +222,22 @@ describe('createFlash (#1352)', () => {
       done()
     })
   })
+
+  it('keeps only the newest of quick repeated flashes, and it still expires', async () => {
+    vi.useFakeTimers()
+    const { createFlash } = await import('./Motion')
+    const { createRoot } = await import('solid-js')
+    createRoot((done) => {
+      const f = createFlash()
+      f.flash('row')
+      f.flash('row')
+      f.flash('row')
+      // The third call mounts at once; the second's deferred mount must not overwrite it later.
+      vi.advanceTimersByTime(100)
+      expect(f.flashing('row')).toBe(true)
+      vi.advanceTimersByTime(4100)
+      expect(f.flashing('row')).toBe(false)
+      done()
+    })
+  })
 })

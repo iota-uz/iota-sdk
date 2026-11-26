@@ -241,7 +241,8 @@ export function Combobox(props: ComboboxProps) {
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(item) }
                   else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); move(event.key === 'ArrowDown' ? 1 : -1) }
-                  else if (event.key === 'Escape') { event.stopPropagation(); setOpen(false); input.focus() }
+                  // Focus first: the input's focus opens the list, so closing it after keeps it closed.
+                  else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); input.focus(); setOpen(false) }
                 }}
               >
                 <span class="inline-flex min-w-0 items-baseline gap-1.5"><span class="whitespace-nowrap">{item.label}</span><Show when={item.count !== undefined}><span class="text-xs text-200 whitespace-nowrap">({item.count!.toLocaleString()})</span></Show></span>

@@ -968,11 +968,13 @@ function EditorBody(props: EditorProps): JSX.Element {
                   </Show>
                 </div>
               </Show>
-              <Show when={paletteLayer.value()}>
-                {(mode) => <Suspense><Palette leaving={paletteLayer.leaving()} mode={mode()} catalog={props.catalog} graph={draft()} locale={props.locale} bounds={areaSize()} onPick={addFromPalette} onClose={() => setPalette(null)} /></Suspense>}
+              {/* Keyed: a palette or menu opened again while the last one leaves is a new instance, so it takes the
+                  focus (search, first item) instead of leaving it on the card the exit gave it back to. */}
+              <Show when={paletteLayer.value()} keyed>
+                {(mode) => <Suspense><Palette leaving={paletteLayer.leaving()} mode={mode} catalog={props.catalog} graph={draft()} locale={props.locale} bounds={areaSize()} onPick={addFromPalette} onClose={() => setPalette(null)} /></Suspense>}
               </Show>
-              <Show when={menuLayer.value()}>
-                {(m) => <Suspense><ContextMenu leaving={menuLayer.leaving()} x={m().x} y={m().y} bounds={areaSize()} items={menuItems()} locale={props.locale} onClose={() => setMenu(null)} /></Suspense>}
+              <Show when={menuLayer.value()} keyed>
+                {(m) => <Suspense><ContextMenu leaving={menuLayer.leaving()} x={m.x} y={m.y} bounds={areaSize()} items={menuItems()} locale={props.locale} onClose={() => setMenu(null)} /></Suspense>}
               </Show>
             </div>
             <Show when={validationLayer.value()}>

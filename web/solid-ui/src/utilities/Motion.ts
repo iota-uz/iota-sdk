@@ -79,11 +79,16 @@ export function createFlash(): { flash(key: string): void; flashing(key: string)
   const [keys, setKeys] = createSignal<ReadonlyMap<string, number>>(new Map())
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
   let serial = 0
+  // The newest mark of each key: a deferred mount writes only while its mark is still this one.
+  const latest = new Map<string, number>()
   const frame = (run: () => void) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => run()) : setTimeout(run, 0))
   const flash = (key: string) => {
     clearTimeout(timers.get(key))
     const mark = ++serial
-    const mount = () => setKeys((current) => new Map(current).set(key, mark))
+    latest.set(key, mark)
+    const mount = () => {
+      if (latest.get(key) === mark) setKeys((current) => new Map(current).set(key, mark))
+    }
     // Flashed again while it shows: the class comes off for a rendered frame, so the animation starts over.
     if (keys().has(key)) {
       setKeys((current) => {
@@ -95,6 +100,7 @@ export function createFlash(): { flash(key: string): void; flashing(key: string)
     } else mount()
     timers.set(key, setTimeout(() => {
       timers.delete(key)
+      if (latest.get(key) === mark) latest.delete(key)
       setKeys((current) => {
         if (current.get(key) !== mark) return current
         const next = new Map(current)
@@ -103,6 +109,9 @@ export function createFlash(): { flash(key: string): void; flashing(key: string)
       })
     }, motionMs('flash')))
   }
-  onCleanup(() => timers.forEach((t) => clearTimeout(t)))
+  onCleanup(() => {
+    timers.forEach((t) => clearTimeout(t))
+    latest.clear()
+  })
   return { flash, flashing: (key) => keys().has(key) }
 }

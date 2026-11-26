@@ -39,6 +39,21 @@ describe('Combobox', () => {
     expect(outer).toHaveBeenCalledTimes(1)
   })
 
+  it('Escape on an option closes the list, keeps it closed and the focus on the input', () => {
+    const outer = vi.fn()
+    mount(() => <div onKeyDown={(e) => { if (e.key === 'Escape') outer() }}><Combobox searchable options={[{ value: 'one', label: 'One' }, { value: 'two', label: 'Two' }]} /></div>)
+    const input = host.querySelector<HTMLInputElement>('[role="combobox"]')!
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
+    const option = host.querySelector<HTMLElement>('[role="option"]')!
+    option.focus()
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+    option.dispatchEvent(escape)
+    expect(escape.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(input)
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+    expect(outer).not.toHaveBeenCalled()
+  })
+
   // axe aria-valid-attr-value: the active option is referenced only while the listbox exists.
   it('references the active option only while the listbox is open', () => {
     mount(() => <Combobox searchable defaultValue={['one']} options={[{ value: 'one', label: 'One' }, { value: 'two', label: 'Two' }]} />)

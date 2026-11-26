@@ -627,6 +627,22 @@ test.describe('motion', () => {
     expect([x, y]).toEqual([dragged[0], dragged[1]! + 16])
   })
 
+  test('a palette reopened while the last one leaves takes the focus; Backspace edits the search', async ({ page }) => {
+    await open(page)
+    await card(page, 'delay').click()
+    await card(page, 'delay').focus()
+    await page.keyboard.press(`${mod}+k`)
+    await expect(page.locator('.ae-palette input')).toBeFocused()
+    // Close and reopen at once, inside the exit.
+    await page.keyboard.press('Escape')
+    await page.keyboard.press(`${mod}+k`)
+    await expect(page.locator('.ae-palette:not(.ae-layer--leaving) input')).toBeFocused()
+    await page.keyboard.type('de')
+    await page.keyboard.press('Backspace')
+    await expect(page.locator('.ae-palette:not(.ae-layer--leaving) input')).toHaveValue('d')
+    await expect(card(page, 'delay')).toHaveCount(1)
+  })
+
   test('the node panel slides out inert and focus goes back to the card', async ({ page }) => {
     await open(page)
     await card(page, 'send_email').click()
