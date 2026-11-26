@@ -527,9 +527,29 @@ func TestJoinedCallsReadTheCallersTransaction(t *testing.T) {
 	require.ErrorIs(t, err, engine.ErrNotFound, "rolled back with the caller's transaction")
 }
 
-// ListVersions in a caller's READ COMMITTED transaction, while a person saves versions that become the
-// enabled one, lists exactly one enabled version, the latest it lists: the versions and the enabled one
-// are one snapshot (two statements would see a version enabled after the first one read the list).
+// savingTx is the reader's transaction that commits the next save of a person after every statement it
+// runs: each save lands between two statements of one call, whatever the scheduler does.
+type savingTx struct {
+	pgx.Tx
+	save func()
+}
+
+func (t savingTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	rows, err := t.Tx.Query(ctx, sql, args...)
+	t.save()
+	return rows, err
+}
+
+func (t savingTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	row := t.Tx.QueryRow(ctx, sql, args...)
+	t.save()
+	return row
+}
+
+// ListVersions in a caller's READ COMMITTED transaction lists exactly one enabled version, the latest it
+// lists, although a person's save that becomes the enabled version commits after every statement of the
+// call: the versions and the enabled one are one snapshot (two statements would see the enabled version
+// of a later save than the list).
 func TestListVersionsIsOneSnapshotInReadCommitted(t *testing.T) {
 	e := newEnv(t)
 	p := e.proc()
@@ -537,40 +557,31 @@ func TestListVersionsIsOneSnapshotInReadCommitted(t *testing.T) {
 	human := e.human()
 	am := e.create(p, human, noteGraph("v1"))
 
-	const saves = 25
-	done := make(chan error, 1)
-	go func() {
-		for v := 1; v <= saves; v++ {
-			if _, err := p.rt.Service().SaveVersion(ctx, human, am.ID, engine.SaveInput{BaseVersion: v, Graph: json.RawMessage(noteGraph(fmt.Sprintf("v%d", v+1)))}); err != nil {
-				done <- err
-				return
-			}
-		}
-		done <- nil
-	}()
+	latest := 1
+	save := func() {
+		_, err := p.rt.Service().SaveVersion(ctx, human, am.ID, engine.SaveInput{BaseVersion: latest, Graph: json.RawMessage(noteGraph(fmt.Sprintf("v%d", latest+1)))})
+		require.NoError(t, err)
+		latest++
+	}
 	tx, err := e.db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	require.NoError(t, err)
 	defer func() { _ = tx.Rollback(ctx) }()
-	joined := engine.WithTx(ctx, tx)
-	for reads, finished := 0, false; !finished || reads < 50; reads++ {
-		select {
-		case err := <-done:
-			require.NoError(t, err)
-			finished = true
-		default:
-		}
+	joined := engine.WithTx(ctx, savingTx{Tx: tx, save: save})
+	for read := 0; read < 5; read++ {
+		before := latest
 		versions, err := p.rt.Service().ListVersions(joined, human, am.ID)
 		require.NoError(t, err)
+		require.Greater(t, latest, before, "read %d: a save committed during the call", read)
 		enabled := 0
 		for _, v := range versions {
 			if v.Enabled {
 				enabled++
 			}
 		}
-		require.Equal(t, 1, enabled, "read %d: one enabled version in %+v", reads, versions)
-		require.True(t, versions[0].Enabled, "read %d: the latest listed version is the enabled one", reads)
+		require.Equal(t, 1, enabled, "read %d: one enabled version in %+v", read, versions)
+		require.True(t, versions[0].Enabled, "read %d: the latest listed version is the enabled one", read)
 	}
-	versions, err := p.rt.Service().ListVersions(joined, human, am.ID)
-	require.NoError(t, err)
-	assert.Len(t, versions, saves+1)
+	var stored int
+	require.NoError(t, e.db.QueryRow(ctx, `SELECT count(*) FROM automation.versions WHERE automation_id = $1`, am.ID).Scan(&stored))
+	assert.Equal(t, latest, stored)
 }
