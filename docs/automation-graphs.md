@@ -599,7 +599,7 @@ anything out and reports what the graph would have done for each of them.
 - **Snapshot at the event.** An example keeps its subject's state: `SnapshotLoader.SnapshotAt` when the
   engine's subject loader implements it, else the record as read at import, marked
   `snapshot_approximate`. A backtest runs with that state (`DryRunInput.Vars`) and the event's time as
-  `now` (`DryRunInput.Now`).
+  `now` (`DryRunInput.Now`). The automation's memory between runs is read as it is now (`DryRunInput.AutomationID`); a backtest never writes it.
 - **Run.** `Service.Run` queues a backtest; the worker (`Svc.Serve`, run by the module with the engine)
   claims it with a lease and resumes after the examples it has results for. Each example is
   `engine.Authoring.DryRun` with `RealCalls: decisions`: effects are captured with their params, execute

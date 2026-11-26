@@ -576,7 +576,8 @@ func (s *Svc) runExample(ctx context.Context, a Actor, j backtestJob, g json.Raw
 	}
 	subject := ex.Subject
 	res, err := s.cfg.Authoring.DryRun(ctx, a, engine.DryRunInput{
-		Graph: g, Subject: subject, Events: []json.RawMessage{ex.Event}, Decisions: j.decisions,
+		// The automation's memory is read as it is now (a backtest never writes it).
+		Graph: g, AutomationID: j.automation, Subject: subject, Events: []json.RawMessage{ex.Event}, Decisions: j.decisions,
 		RealCalls: realCalls, Vars: vars, Now: ex.OccurredAt,
 	})
 	var an analysis
