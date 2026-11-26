@@ -173,7 +173,7 @@ func ParseHumanParams(raw json.RawMessage) (HumanParams, error) {
 		Required      int             `json:"required"`
 		// RequiredFrom is the value of the CEL expression required_from: the quorum.
 		RequiredFrom json.RawMessage `json:"required_from"`
-		Buttons       []struct {
+		Buttons      []struct {
 			Outcome        string `json:"outcome"`
 			Label          string `json:"label"`
 			Style          string `json:"style"`
