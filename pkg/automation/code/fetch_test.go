@@ -335,11 +335,19 @@ func TestFetchHeadersOverTheLimitAreTooLarge(t *testing.T) {
 	}
 }
 
-// A compression error that is no header limit stays an ordinary fetch error.
+// A compression error that is no header limit, and a request whose own headers pass the peer's limit,
+// stay ordinary fetch errors; the response's own limits are named.
 func TestHeadersTooLargeLeavesOtherErrors(t *testing.T) {
-	for _, msg := range []string{"connection error: COMPRESSION_ERROR", "stream error: stream ID 1; PROTOCOL_ERROR", "EOF"} {
+	for _, msg := range []string{"connection error: COMPRESSION_ERROR", "stream error: stream ID 1; PROTOCOL_ERROR", "EOF",
+		"fetch https://example.com/: request header list larger than peer's advertised limit"} {
 		if headersTooLarge(errors.New(msg)) {
 			t.Fatalf("%q is no header limit", msg)
+		}
+	}
+	for _, msg := range []string{"http2: response header list larger than advertised limit",
+		"net/http: server response headers exceeded 16384 bytes; aborted", "stream error: stream ID 1; PROTOCOL_ERROR; header list too large"} {
+		if !headersTooLarge(errors.New(msg)) {
+			t.Fatalf("%q is the response's header limit", msg)
 		}
 	}
 }
