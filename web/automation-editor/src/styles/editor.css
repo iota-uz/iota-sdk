@@ -136,9 +136,11 @@
 .ae-edge--valid { stroke-dasharray: none; }
 .ae-edge--taken { stroke: oklch(var(--clr-canvas-edge-active)); stroke-width: 2.5; }
 .ae-dim { opacity: 0.35; }
-.ae-edge { transition: opacity var(--motion-fast) var(--ease-standard); }
-/* Rewiring: the old edge fades to 0.3 while the new one is drawn; Esc brings it back. */
-.ae-edge--rewiring { opacity: 0.3; }
+/* Edges carry no transition: a drop or a selection changes the dim of hundreds of them at once, and an
+   opacity transition on each made a long task (canvas benchmark, #1331). */
+/* Rewiring: the old edge fades to 0.3 while the new one is drawn (one edge, its own animation); Esc brings it back. */
+.ae-edge--rewiring { opacity: 0.3; animation: ae-dim-in var(--motion-fast) var(--ease-standard); }
+@keyframes ae-dim-in { from { opacity: 1; } }
 /* A connection made: the new edge flashes once. */
 .ae-edge--flash { stroke: oklch(var(--clr-canvas-edge-active)); stroke-width: 2.5; animation: ae-edge-flash var(--motion-slow) var(--ease-out); }
 @keyframes ae-edge-flash { from { opacity: 0.2; } 40% { opacity: 1; } }

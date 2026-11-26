@@ -82,12 +82,14 @@ export function Canvas(props: CanvasProps): JSX.Element {
   const [press, setPress] = createSignal<XY | null>(null)
   const [altSnapOff, setAltSnapOff] = createSignal(false)
   const [tidying, setTidying] = createSignal(false)
-  // Motion (#1352): the cards a drag lifts, the ones landing on the grid, an edge just connected (it flashes),
-  // a card that answers with a visual click, and a draft line pulling back into its handle.
-  const [lifted, setLifted] = createSignal<ReadonlySet<string>>(new Set())
-  const [landing, setLanding] = createSignal<ReadonlySet<string>>(new Set())
+  // Motion (#1352): an edge just connected (it flashes) and a draft line pulling back into its handle. The
+  // lift, landing and click of a card are classes set on its element directly, not state every card reads:
+  // a drop on a 200-card canvas must not recompute every card (#1331 benchmark).
   const [flashEdge, setFlashEdge] = createSignal<string | null>(null)
-  const [clicked, setClicked] = createSignal<string | null>(null)
+  let lifted: string[] = []
+  const mark = (ids: Iterable<string>, name: string, on: boolean) => {
+    for (const id of ids) nodeElements.get(id)?.classList.toggle(name, on)
+  }
   const [retract, setRetract] = createSignal<{ d: string; x: number; y: number } | null>(null)
   const motionTimers = new Set<ReturnType<typeof setTimeout>>()
   const later = (ms: number, run: () => void) => {
@@ -99,9 +101,12 @@ export function Canvas(props: CanvasProps): JSX.Element {
   }
   onCleanup(() => motionTimers.forEach((timer) => clearTimeout(timer)))
   const click = (id: string) => {
-    setClicked(null)
-    queueMicrotask(() => setClicked(id))
-    later(motionMs('fast'), () => setClicked((current) => (current === id ? null : current)))
+    const element = nodeElements.get(id)
+    if (!element) return
+    element.classList.remove('ae-card--click')
+    // A rendered frame without the class, so the animation starts over.
+    requestAnimationFrame(() => element.classList.add('ae-card--click'))
+    later(motionMs('fast') + 32, () => element.classList.remove('ae-card--click'))
   }
 
   // ——— derived graph view ———
@@ -493,9 +498,10 @@ export function Canvas(props: CanvasProps): JSX.Element {
     onStart: () => setDragging(true),
     onMove: (moved) => {
       batch(() => {
-        if (lifted().size === 0) {
-          setLifted(new Set(moved.keys()))
-          if (coarsePointer()) for (const id of moved.keys()) click(id)
+        if (lifted.length === 0) {
+          lifted = [...moved.keys()]
+          mark(lifted, 'ae-card--lifted', true)
+          if (coarsePointer()) for (const id of lifted) click(id)
         }
         for (const [id, p] of moved) setPositions(id, { x: p.x, y: p.y })
       })
@@ -503,12 +509,11 @@ export function Canvas(props: CanvasProps): JSX.Element {
     onEnd: (moved) => {
       setDragging(false)
       // The cards land on the grid with a short glide instead of a jump.
-      const landed = new Set(moved.keys())
-      batch(() => {
-        setLifted(new Set<string>())
-        setLanding(landed)
-      })
-      later(motionMs('fast'), () => setLanding((current) => (current === landed ? new Set<string>() : current)))
+      const landed = [...moved.keys()]
+      mark(lifted, 'ae-card--lifted', false)
+      lifted = []
+      mark(landed, 'ae-card--landing', true)
+      later(motionMs('fast'), () => mark(landed, 'ae-card--landing', false))
       const out: AutomationLayout = {}
       let changed = false
       for (const [id, p] of moved) {
@@ -646,6 +651,10 @@ export function Canvas(props: CanvasProps): JSX.Element {
     setSize({ width: container.clientWidth, height: container.clientHeight })
     initialView()
     setMeasured(true)
+    // The motion tokens are read here, once per page, while the first paint needs a style pass anyway: read
+    // later, at the end of a drag, the read forces a style recalculation over every card (a long task in the
+    // #1331 benchmark).
+    for (const token of ['instant', 'fast', 'base', 'slow'] as const) motionMs(token)
     const onKey = (event: KeyboardEvent) => setAltSnapOff(event.altKey)
     const onPointer = (event: MouseEvent) => setAltSnapOff(event.altKey)
     window.addEventListener('keydown', onKey, true)
@@ -1075,9 +1084,6 @@ export function Canvas(props: CanvasProps): JSX.Element {
       if (selected()) c += ' ae-card--selected'
       if (it?.error || unavailable()) c += ' ae-card--error'
       if (it?.state) c += ` ae-card--${it.state}`
-      if (lifted().has(id)) c += ' ae-card--lifted'
-      if (landing().has(id)) c += ' ae-card--landing'
-      if (clicked() === id) c += ' ae-card--click'
       const over = connection()
       if (over && over.overTarget === id && over.valid) c += ' ae-card--drop'
       const h = highlight()

@@ -9,6 +9,7 @@ import { render } from 'solid-js/web'
 import { Canvas } from '../src/Canvas'
 import { Editor } from '../src/Editor'
 import { EditorSkeleton } from '../src/lazy'
+import { resetMotionCache } from '../src/motion'
 import { ensureLayout } from '../src/layout'
 import type { AutomationGraph, AutomationLayout, EditorApi, EditorLocale, GraphError, Overlay, RunData, RunsView, RunState, SaveResult } from '../src/types'
 import { catalog as fullCatalog, emptyCatalog, notifyCatalog } from './catalog'
@@ -80,6 +81,8 @@ type Log = {
   layout: AutomationLayout
 }
 const log: Log = { saves: [], saveLayouts: [], saveLayoutCalls: 0, openedVersions: [], initialLayout: ensureLayout(initial.graph, catalog, initial.layout), validates: 0, moves: [], changes: [], reloads: 0, runCalls: 0, runsCalls: [], ops: [], dryRuns: [], tests: [], graph: initial.graph, layout: initial.layout }
+// Scenarios that change the motion tokens at run time re-read them (the editor caches the values).
+;(window as unknown as { __resetMotion: () => void }).__resetMotion = resetMotionCache
 window.__fixture = Object.assign(log, {
   failNext: (kind: string) => fail.add(kind),
   recover: (kind: string) => fail.delete(kind),

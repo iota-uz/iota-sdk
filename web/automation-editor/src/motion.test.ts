@@ -5,7 +5,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { motionMs } from './motion'
+import { motionMs, resetMotionCache } from './motion'
 
 const repo = path.resolve(__dirname, '../../..')
 const roots = [
@@ -91,10 +91,15 @@ describe('motion tokens (#1352)', () => {
   })
 
   it('reads the tokens, which are zero under reduced motion', () => {
+    resetMotionCache()
     document.documentElement.style.setProperty('--motion-fast', '140ms')
     expect(motionMs('fast')).toBe(140)
+    // Kept until the cache is reset (the reduced-motion preference changing resets it).
     document.documentElement.style.setProperty('--motion-fast', '0ms')
+    expect(motionMs('fast')).toBe(140)
+    resetMotionCache()
     expect(motionMs('fast')).toBe(0)
     document.documentElement.style.removeProperty('--motion-fast')
+    resetMotionCache()
   })
 })

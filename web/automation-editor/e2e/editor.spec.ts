@@ -628,6 +628,22 @@ test.describe('motion', () => {
     expect([x, y]).toEqual([dragged[0], dragged[1]! + 16])
   })
 
+  test('a closing palette stays the same element with its search through its exit', async ({ page }) => {
+    await open(page)
+    await page.addStyleTag({ content: ':root { --motion-fast: 1500ms !important; }' })
+    await page.evaluate(() => (window as unknown as { __resetMotion: () => void }).__resetMotion())
+    await page.locator('.ae-canvas').click({ position: { x: 700, y: 30 } })
+    await page.keyboard.press(`${mod}+k`)
+    const palette = page.locator('.ae-palette')
+    await palette.locator('input').fill('del')
+    await palette.evaluate((el) => { (el as HTMLElement & { __same?: boolean }).__same = true })
+    await page.keyboard.press('Escape')
+    await expect(palette).toHaveClass(/ae-layer--leaving/)
+    expect(await palette.evaluate((el) => (el as HTMLElement & { __same?: boolean }).__same === true)).toBe(true)
+    await expect(palette.locator('input')).toHaveValue('del')
+    await expect(palette).toHaveCount(0)
+  })
+
   test('a palette reopened while the last one leaves takes the focus; Backspace edits the search', async ({ page }) => {
     await open(page)
     await card(page, 'delay').click()
@@ -648,6 +664,7 @@ test.describe('motion', () => {
     await open(page)
     // A long exit, so every click below lands while the palette and the removed step's panel still leave.
     await page.addStyleTag({ content: ':root { --motion-fast: 1500ms !important; }' })
+    await page.evaluate(() => (window as unknown as { __resetMotion: () => void }).__resetMotion())
     await page.locator('.ae-canvas').click({ position: { x: 700, y: 30 } })
     await page.keyboard.press(`${mod}+k`)
     await page.locator('.ae-palette input').fill('delay')
