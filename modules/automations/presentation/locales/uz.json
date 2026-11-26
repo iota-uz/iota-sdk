@@ -582,6 +582,7 @@
           "EmptyDataset": "Toʻplamda hali hodisa yoʻq: avval ularni import qiling yoki qoʻshing.",
           "UnsupportedSource": "Bu ulanish tarixini bermaydi.",
           "Finished": "Sinov allaqachon tugagan.",
+          "EstimateStale": "Baholashdan keyin toʻplam oʻzgardi: yangisini tekshirib, qayta boshlang.",
           "HumanRequired": "Jonli qarorli sinovni faqat inson boshlaydi.",
           "Forbidden": "Bektestlar uchun «Avtomatlashtirishlarni tahrirlash» huquqi kerak."
         },
@@ -684,7 +685,7 @@
         },
         "Decisions": {
           "Cached": "Keshdagi qarorlar",
-          "CachedHint": "Xuddi shu maʼlumotlar boʻyicha qabul qilingan qaror keshdan olinadi; yangisi bir marta soʻraladi va saqlanadi.",
+          "CachedHint": "Xuddi shu maʼlumotlar boʻyicha qabul qilingan qaror keshdan olinadi; keshda yoʻgʻi modeldan bir marta (pullik) soʻraladi va saqlanadi.",
           "CachedAgentHint": "Faqat keshda bor qarorlar olinadi; modeldan hech narsa soʻralmaydi.",
           "Live": "Jonli qarorlar",
           "LiveHint": "Har bir qaror modeldan qaytadan soʻraladi. Bu pullik.",
@@ -709,6 +710,7 @@
             "Plural": "{count} ta chaqiruv"
           },
           "CachedCost": "Modellarga koʻpi bilan {calls} va faqat keshda yoʻq qarorlar uchun.",
+          "CachedCostUSD": "Modellarga koʻpi bilan {calls} va faqat keshda yoʻq qarorlar uchun: {cost} gacha.",
           "LiveCost": "Modellarga {calls} gacha, taxminan {cost}.",
           "LiveCostUnknown": "Modellarga {calls} gacha; narxi hozircha nomaʼlum.",
           "PerItem": "Grafda «Har biri uchun» bor: uning ichidagi qaror har bir hodisaga 20 martagacha hisoblanadi.",

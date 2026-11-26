@@ -116,6 +116,10 @@ const PermConnectionsManage = "Connections.Manage"
 // engine's: engine.ErrNotFound, ErrForbidden, ErrInvalidInput, ErrLimitExceeded, ErrHumanRequired.
 var ErrUnsupported = errors.New("automation: backtest source is unsupported")
 
+// ErrStaleEstimate refuses a run whose RunInput.Revision is not the dataset's now: examples were added or
+// removed since the estimate the person saw.
+var ErrStaleEstimate = errors.New("automation: the estimate is stale")
+
 // Service is the API of datasets and backtests. Every method requires Automations.Author.
 type Service interface {
 	CreateDataset(ctx context.Context, a Actor, in CreateDatasetInput) (DatasetID, error)
@@ -289,11 +293,16 @@ type RunInput struct {
 	DatasetID DatasetID
 	Version   int    // 0: the latest version
 	Decisions string // cached (default) | live
+	// Revision, when set, is Estimate.Revision: the run is refused (ErrStaleEstimate) when the dataset's
+	// examples changed since, so it never runs more than the estimate counted.
+	Revision string
 }
 
 // Estimate is what a backtest would do before it runs.
 type Estimate struct {
 	Examples int
+	// Revision names the examples counted; Run takes it back.
+	Revision string
 	// DecisionNodes are the graph's nodes whose answers are decisions of models.
 	DecisionNodes []string
 	// MaxCalls bounds the calls to providers: every decision node on every example, times

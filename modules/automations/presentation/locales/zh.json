@@ -582,6 +582,7 @@
           "EmptyDataset": "数据集中还没有事件：请先导入或添加。",
           "UnsupportedSource": "此连接无法提供其历史。",
           "Finished": "回测已经结束。",
+          "EstimateStale": "估算之后数据集已更改：请查看新的估算后重新运行。",
           "HumanRequired": "只有人才能运行实时决策的回测。",
           "Forbidden": "回测需要“编辑自动化”权限。"
         },
@@ -684,7 +685,7 @@
         },
         "Decisions": {
           "Cached": "缓存的决策",
-          "CachedHint": "对相同输入已作出的决策取自缓存；新的决策只询问一次并保存。",
+          "CachedHint": "对相同输入已作出的决策取自缓存；缓存中缺少的决策会向模型询问一次（付费）并保存。",
           "CachedAgentHint": "只使用缓存中已有的决策；不会询问任何模型。",
           "Live": "实时决策",
           "LiveHint": "每个决策都会重新询问模型。这是付费的。",
@@ -709,6 +710,7 @@
             "Plural": "{count} 次调用"
           },
           "CachedCost": "最多 {calls} 模型，仅用于缓存中缺少的决策。",
+          "CachedCostUSD": "最多 {calls} 模型，仅用于缓存中缺少的决策：最多 {cost}。",
           "LiveCost": "最多 {calls} 模型，约 {cost}。",
           "LiveCostUnknown": "最多 {calls} 模型；费用尚未知。",
           "PerItem": "该图含有“遍历”：其中的决策每个事件最多计 20 次。",

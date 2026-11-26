@@ -63,7 +63,8 @@ func (c *imapConnector) ImportHistory(ctx context.Context, ref backtest.Connecti
 	// The server compares dates only. A message is a candidate when it arrived since the day before the
 	// window (arrival follows sending) or its Date header is since then (an APPEND may set the arrival
 	// apart from the header); each message's own date narrows the candidates below.
-	since := w.From.Add(-24 * time.Hour)
+	// The dates compared have no offset: from UTC, two calendar days back covers every zone (−12 to +14).
+	since := w.From.UTC().AddDate(0, 0, -2)
 	criteria := &imap.SearchCriteria{Or: [][2]imap.SearchCriteria{{{Since: since}, {SentSince: since}}}}
 	if v := strings.TrimSpace(f.From); v != "" {
 		criteria.Header = append(criteria.Header, imap.SearchCriteriaHeaderField{Key: "From", Value: v})

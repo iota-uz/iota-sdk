@@ -23,6 +23,7 @@ const (
 	ErrEmptyDataset         ErrorCode = "empty_dataset"
 	ErrUnsupportedSource    ErrorCode = "unsupported_source"
 	ErrBacktestFinished     ErrorCode = "backtest_finished"
+	ErrEstimateStale        ErrorCode = "estimate_stale"
 )
 
 // defaultImportDays is the window of an import that names none.
@@ -41,6 +42,8 @@ func backtestErr(err error) error {
 	switch {
 	case err == nil:
 		return nil
+	case errors.Is(err, backtest.ErrStaleEstimate):
+		return rpcError(ErrEstimateStale, "the dataset changed since the estimate", nil)
 	case errors.Is(err, backtest.ErrUnsupported):
 		return rpcError(ErrUnsupportedSource, "the source cannot import history", nil)
 	case errors.Is(err, engine.ErrHumanRequired):
@@ -399,7 +402,7 @@ func runInputOf(req BacktestRunRequest) (backtest.RunInput, error) {
 	if err != nil {
 		return backtest.RunInput{}, err
 	}
-	return backtest.RunInput{DatasetID: ds, Version: req.Version, Decisions: string(req.Decisions)}, nil
+	return backtest.RunInput{DatasetID: ds, Version: req.Version, Decisions: string(req.Decisions), Revision: req.Revision}, nil
 }
 
 func (c *Controller) backtestEstimate(ctx context.Context, req BacktestRunRequest) (EstimateResponse, error) {
@@ -423,7 +426,7 @@ func (c *Controller) backtestEstimate(ctx context.Context, req BacktestRunReques
 	if nodes == nil {
 		nodes = []string{}
 	}
-	return EstimateResponse{Examples: est.Examples, DecisionNodes: nodes, MaxCalls: est.MaxCalls, PerItem: est.PerItem, CostUSD: est.CostUSD}, nil
+	return EstimateResponse{Examples: est.Examples, Revision: est.Revision, DecisionNodes: nodes, MaxCalls: est.MaxCalls, PerItem: est.PerItem, CostUSD: est.CostUSD}, nil
 }
 
 func (c *Controller) backtestRun(ctx context.Context, req BacktestRunRequest) (IDResponse, error) {

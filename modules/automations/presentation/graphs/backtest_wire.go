@@ -234,11 +234,15 @@ type BacktestRunRequest struct {
 	DatasetID string    `json:"dataset_id"`
 	Version   int       `json:"version,omitempty"`
 	Decisions Decisions `json:"decisions,omitempty"`
+	// Revision is the estimate's: a run is refused with estimate_stale when the examples changed since.
+	Revision string `json:"revision,omitempty"`
 }
 
 // EstimateResponse is what a backtest would call.
 type EstimateResponse struct {
-	Examples      int      `json:"examples"`
+	Examples int `json:"examples"`
+	// Revision names the examples counted; the run passes it back.
+	Revision      string   `json:"revision"`
 	DecisionNodes []string `json:"decision_nodes"`
 	MaxCalls      int      `json:"max_calls"`
 	// PerItem: the graph has a foreach, so MaxCalls counts up to MaxDecisionsPerItem decisions of a node

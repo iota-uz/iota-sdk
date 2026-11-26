@@ -1,8 +1,12 @@
 package backtest
 
 import (
+	"bytes"
 	"encoding/json"
+	"math/big"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
@@ -62,8 +66,8 @@ func ratio(num, den int) *float64 {
 // metricsOf are the metrics of node over rows; mismatches are appended to mm.
 func metricsOf(node string, decision bool, rows []scored, mm *[]Mismatch) ClassifierMetrics {
 	m := ClassifierMetrics{Node: node, Decision: decision, Distribution: map[string]int{}}
-	type pair struct{ pred, want string }
-	pairs := make([]pair, 0, len(rows))
+	// One pass: per outcome, how often it was predicted, expected, and both.
+	predicted, expected, both := map[string]int{}, map[string]int{}, map[string]int{}
 	outcomes := map[string]bool{}
 	for _, r := range rows {
 		pred := r.outcomes[node]
@@ -86,7 +90,13 @@ func metricsOf(node string, decision bool, rows []scored, mm *[]Mismatch) Classi
 			*mm = append(*mm, Mismatch{ExampleID: r.example, Title: r.title, OccurredAt: r.occurredAt, Node: node,
 				Expected: l.Outcome, Actual: pred, LabelSource: l.Source})
 		}
-		pairs = append(pairs, pair{pred, l.Outcome})
+		expected[l.Outcome]++
+		if pred != "" {
+			predicted[pred]++
+		}
+		if pred == l.Outcome {
+			both[pred]++
+		}
 		outcomes[l.Outcome] = true
 		if pred != "" {
 			outcomes[pred] = true
@@ -99,20 +109,9 @@ func metricsOf(node string, decision bool, rows []scored, mm *[]Mismatch) Classi
 	}
 	sort.Strings(names)
 	for _, o := range names {
-		om := OutcomeMetrics{Outcome: o}
-		for _, p := range pairs {
-			switch {
-			case p.pred == o && p.want == o:
-				om.TruePositives++
-			case p.pred == o:
-				om.FalsePositives++
-			case p.want == o:
-				om.FalseNegatives++
-			}
-			if p.want == o {
-				om.Support++
-			}
-		}
+		om := OutcomeMetrics{Outcome: o, TruePositives: both[o], Support: expected[o]}
+		om.FalsePositives = predicted[o] - both[o]
+		om.FalseNegatives = expected[o] - both[o]
 		om.Precision = ratio(om.TruePositives, om.TruePositives+om.FalsePositives)
 		om.Recall = ratio(om.TruePositives, om.Support)
 		m.Outcomes = append(m.Outcomes, om)
@@ -328,14 +327,79 @@ func sameEffects(a, b []Effect) bool {
 	return true
 }
 
+// sameJSON compares two JSON values by value: an object's key order does not count, numbers compare
+// exactly (9007199254740992 and 9007199254740993 differ; 1 and 1.0 do not).
 func sameJSON(a, b json.RawMessage) bool {
-	var x, y any
-	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
+	x, okA := canonical(a)
+	y, okB := canonical(b)
+	if !okA || !okB {
 		return string(a) == string(b)
 	}
-	ca, errA := json.Marshal(x)
-	cb, errB := json.Marshal(y)
-	return errA == nil && errB == nil && string(ca) == string(cb)
+	return x == y
+}
+
+// canonical is a JSON value as a canonical string: keys sorted, numbers as exact rationals.
+func canonical(raw json.RawMessage) (string, bool) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var v any
+	if dec.Decode(&v) != nil {
+		return "", false
+	}
+	var b strings.Builder
+	if !writeCanonical(&b, v) {
+		return "", false
+	}
+	return b.String(), true
+}
+
+func writeCanonical(b *strings.Builder, v any) bool {
+	switch x := v.(type) {
+	case map[string]any:
+		keys := make([]string, 0, len(x))
+		for k := range x {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		b.WriteByte('{')
+		for i, k := range keys {
+			if i > 0 {
+				b.WriteByte(',')
+			}
+			b.WriteString(strconv.Quote(k))
+			b.WriteByte(':')
+			if !writeCanonical(b, x[k]) {
+				return false
+			}
+		}
+		b.WriteByte('}')
+	case []any:
+		b.WriteByte('[')
+		for i, e := range x {
+			if i > 0 {
+				b.WriteByte(',')
+			}
+			if !writeCanonical(b, e) {
+				return false
+			}
+		}
+		b.WriteByte(']')
+	case json.Number:
+		r, ok := new(big.Rat).SetString(string(x))
+		if !ok {
+			return false
+		}
+		b.WriteString("n" + r.RatString())
+	case string:
+		b.WriteString(strconv.Quote(x))
+	case bool:
+		b.WriteString(strconv.FormatBool(x))
+	case nil:
+		b.WriteString("null")
+	default:
+		return false
+	}
+	return true
 }
 
 func sameStrings(a, b []string) bool {

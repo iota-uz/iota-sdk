@@ -9,7 +9,7 @@ import {
 } from './backtests'
 import { useApp } from './context'
 import { Icon } from './Icon'
-import { absoluteTime, counted, graphPath, inputFields, inputValue, relativeTime, type GetResult } from './model'
+import { absoluteTime, counted, errorCode, graphPath, inputFields, inputValue, relativeTime, type GetResult } from './model'
 
 /** How often the section re-reads jobs in progress. */
 const POLL_MS = 2000
@@ -412,7 +412,11 @@ function DatasetPanel(props: {
   }
   // The latest edit of each example's node: a failed save rolls back only its own node, and only while
   // no later edit of that node took its place.
+  // edits: the latest edit of each example's node; confirmed: the label the server last confirmed. A failed
+  // save rolls back to the confirmed label, never to another unconfirmed edit, and only while no later edit
+  // of that node took its place.
   const edits = new Map<string, number>()
+  const confirmed = new Map<string, ExampleView['labels'][string] | undefined>()
   let editSeq = 0
   const setLabel = async (ex: ExampleView, node: string, outcome: string) => {
     const current = page()?.items.find((x) => x.id === ex.id) ?? ex
@@ -428,14 +432,19 @@ function DatasetPanel(props: {
       }),
     })
     const key = `${ex.id}/${node}`
+    if (!confirmed.has(key)) confirmed.set(key, before)
     const mine = ++editSeq
     edits.set(key, mine)
     if (outcome) patchNode({ outcome, source: 'manual', ...(before?.source === 'expected' ? { expected: before.outcome } : before?.expected ? { expected: before.expected } : {}) })
     else patchNode(before?.expected ? { outcome: before.expected, source: 'expected' } : undefined)
     try {
       await app.call('automations.example_label', { example_id: ex.id, node, outcome })
+      const saved = page()?.items.find((x) => x.id === ex.id)?.labels[node]
+      if (edits.get(key) === mine) confirmed.set(key, saved)
+      // The dataset's labeled count is the overview's.
+      props.onChanged()
     } catch (e) {
-      if (edits.get(key) === mine) patchNode(before)
+      if (edits.get(key) === mine) patchNode(confirmed.get(key))
       app.toast.notify({ variant: 'error', title: backtestErrorText(t, e, t('Backtests.Actions.Label')), action: { label: t('Common.Retry'), onAction: () => void setLabel(ex, node, outcome) } })
     }
   }
@@ -1193,7 +1202,7 @@ function SyntheticDialog(props: { dataset: DatasetView; graph?: Graph; classifie
             onInput={(e) => set(f.name, e.currentTarget.value)} rows={3} data-field={f.name} />
         </Match>
         <Match when={true}>
-          <Input type={f.kind === 'number' || f.kind === 'integer' ? 'number' : 'text'} label={label} description={f.description} error={err()}
+          <Input type={f.kind === 'number' || f.kind === 'integer' ? 'number' : 'text'} step={f.kind === 'number' ? 'any' : undefined} label={label} description={f.description} error={err()}
             value={String(values()[f.name] ?? '')} onInput={(e) => set(f.name, e.currentTarget.value)} data-field={f.name} />
         </Match>
       </Switch>
@@ -1251,7 +1260,11 @@ function RunBacktestDialog(props: { datasets: DatasetView[]; dataset?: DatasetVi
   const [busy, setBusy] = createSignal(false)
   const [error, setError] = createSignal<string>()
   let seq = 0
-  createEffect(on(() => [dataset(), version(), decisions()] as const, async ([ds, v, d]) => {
+  // The estimate is read again when the dataset's contents move (an import brought more), not only
+  // when the dataset, the version or the mode change; again names a refresh after a stale run.
+  const [again, setAgain] = createSignal(0)
+  const contents = () => props.datasets.find((d) => d.id === dataset())?.examples ?? 0
+  createEffect(on(() => [dataset(), version(), decisions(), contents(), again()] as const, async ([ds, v, d]) => {
     const mine = ++seq
     setEstimate(undefined)
     setEstimateError(undefined)
@@ -1263,19 +1276,23 @@ function RunBacktestDialog(props: { datasets: DatasetView[]; dataset?: DatasetVi
       if (mine === seq) setEstimateError(backtestErrorText(t, e, t('Backtests.Actions.Estimate')))
     }
   }))
-  // A paid run starts only once its cost is shown: the estimate of the dataset, version and mode on screen
+  // A run that may pay (live, and a person's cached run on cache misses) starts only once its cost is
+  // shown: the estimate of the dataset, version and mode on screen
   // (one whose dollar cost is unknown still says how many calls it may make).
-  const blocked = () => !dataset() || (decisions() === 'live' && !estimate())
+  const blocked = () => !dataset() || (decisions() === 'live' && !estimate()) || (decisions() === 'cached' && !app.props.agent && !estimate())
   const submit = async () => {
     if (busy() || blocked()) return
     setBusy(true)
     setError(undefined)
     try {
-      const res = await app.call('automations.backtest_run', { dataset_id: dataset(), version: Number(version()), decisions: decisions() })
+      const est = estimate()
+      const res = await app.call('automations.backtest_run', { dataset_id: dataset(), version: Number(version()), decisions: decisions(), ...(est ? { revision: est.revision } : {}) })
       app.toast.notify({ variant: 'success', title: t('Backtests.Run.Started') })
       props.onDone(res.id)
     } catch (e) {
       setError(backtestErrorText(t, e, t('Backtests.Actions.Run')))
+      // The examples changed since the estimate on screen: it is read again before another try.
+      if (errorCode(e) === 'estimate_stale') setAgain((n) => n + 1)
     } finally {
       setBusy(false)
     }
@@ -1283,7 +1300,9 @@ function RunBacktestDialog(props: { datasets: DatasetView[]; dataset?: DatasetVi
   const costText = (est: EstimateResult) => {
     if (est.decision_nodes.length === 0) return t('Backtests.Run.NoDecisions')
     const calls = counted(t, 'Backtests.Run.Calls', est.max_calls, app.lang)
-    const text = decisions() === 'cached' ? t('Backtests.Run.CachedCost', { calls })
+    // A person's cached run pays for the decisions the cache lacks: their bound is shown as the live one.
+    const text = decisions() === 'cached'
+      ? (est.cost_usd !== null && !app.props.agent ? t('Backtests.Run.CachedCostUSD', { calls, cost: usd(est.cost_usd, app.lang) }) : t('Backtests.Run.CachedCost', { calls }))
       : est.cost_usd !== null ? t('Backtests.Run.LiveCost', { calls, cost: usd(est.cost_usd, app.lang) }) : t('Backtests.Run.LiveCostUnknown', { calls })
     return est.per_item ? `${text} ${t('Backtests.Run.PerItem')}` : text
   }

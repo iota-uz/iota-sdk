@@ -52,3 +52,28 @@ func TestOfferedFor(t *testing.T) {
 	assert.False(t, offeredFor(HistorySource{Name: "crm", Events: []string{"crm.client.created.v1"}}, []string{"email.received.v1"}))
 	assert.True(t, offeredFor(HistorySource{Name: "crm", Events: []string{"crm.client.created.v1"}}, []string{"email.received.v1", "crm.client.created.v1"}))
 }
+
+// Numbers compare exactly: two integers past float64's precision differ, 1 and 1.0 do not.
+func TestSameJSONComparesNumbersExactly(t *testing.T) {
+	assert.False(t, sameJSON(json.RawMessage(`{"n": 9007199254740992}`), json.RawMessage(`{"n": 9007199254740993}`)))
+	assert.True(t, sameJSON(json.RawMessage(`{"n": 1, "a": [true, null]}`), json.RawMessage(`{"a": [true, null], "n": 1.0}`)))
+}
+
+// Precision and recall from one pass match the counts of the pairs.
+func TestMetricsCountsInOnePass(t *testing.T) {
+	rows := []scored{
+		{outcomes: map[string]string{"c": "a"}, labels: map[string]Label{"c": {Outcome: "a"}}},
+		{outcomes: map[string]string{"c": "a"}, labels: map[string]Label{"c": {Outcome: "b"}}},
+		{outcomes: map[string]string{"c": "b"}, labels: map[string]Label{"c": {Outcome: "b"}}},
+		{outcomes: map[string]string{}, labels: map[string]Label{"c": {Outcome: "b"}}},
+	}
+	m := metricsOf("c", false, rows, nil)
+	byOutcome := map[string]OutcomeMetrics{}
+	for _, o := range m.Outcomes {
+		byOutcome[o.Outcome] = o
+	}
+	assert.Equal(t, OutcomeMetrics{Outcome: "a", TruePositives: 1, FalsePositives: 1, Support: 1}, OutcomeMetrics{Outcome: "a", TruePositives: byOutcome["a"].TruePositives, FalsePositives: byOutcome["a"].FalsePositives, FalseNegatives: byOutcome["a"].FalseNegatives, Support: byOutcome["a"].Support})
+	assert.Equal(t, 1, byOutcome["b"].TruePositives)
+	assert.Equal(t, 2, byOutcome["b"].FalseNegatives)
+	assert.Equal(t, 3, byOutcome["b"].Support)
+}

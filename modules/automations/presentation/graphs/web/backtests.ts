@@ -142,6 +142,7 @@ export function backtestErrorText(t: Translator, error: unknown, action: string)
     case 'empty_dataset': return t('Backtests.Errors.EmptyDataset')
     case 'unsupported_source': return t('Backtests.Errors.UnsupportedSource')
     case 'backtest_finished': return t('Backtests.Errors.Finished')
+    case 'estimate_stale': return t('Backtests.Errors.EstimateStale')
     case 'HUMAN_REQUIRED': return t('Backtests.Errors.HumanRequired')
     case 'forbidden': return t('Backtests.Errors.Forbidden')
   }

@@ -582,6 +582,7 @@
           "EmptyDataset": "O conjunto ainda não tem eventos: importe ou adicione alguns primeiro.",
           "UnsupportedSource": "Esta conexão não fornece seu histórico.",
           "Finished": "O backtest já terminou.",
+          "EstimateStale": "O conjunto mudou desde a estimativa: confira a nova e rode de novo.",
           "HumanRequired": "Apenas uma pessoa roda um backtest com decisões ao vivo.",
           "Forbidden": "Backtests exigem a permissão «Editar automações»."
         },
@@ -684,7 +685,7 @@
         },
         "Decisions": {
           "Cached": "Decisões em cache",
-          "CachedHint": "Uma decisão já tomada para a mesma entrada vem do cache; uma nova é pedida uma vez e guardada.",
+          "CachedHint": "Uma decisão já tomada para a mesma entrada vem do cache; uma que falta é pedida ao modelo uma vez (paga) e guardada.",
           "CachedAgentHint": "Só são usadas decisões que já estão no cache; nada é pedido a um modelo.",
           "Live": "Decisões ao vivo",
           "LiveHint": "Cada decisão é pedida ao modelo de novo. É pago.",
@@ -709,6 +710,7 @@
             "Plural": "{count} chamadas"
           },
           "CachedCost": "No máximo {calls} a modelos, só para decisões que faltam no cache.",
+          "CachedCostUSD": "No máximo {calls} a modelos, só para decisões que faltam no cache: até {cost}.",
           "LiveCost": "Até {calls} a modelos, cerca de {cost}.",
           "LiveCostUnknown": "Até {calls} a modelos; o custo ainda não é conhecido.",
           "PerItem": "O grafo tem um «Para cada»: uma decisão dentro dele conta até 20 vezes por evento.",

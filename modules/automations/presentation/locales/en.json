@@ -582,6 +582,7 @@
           "EmptyDataset": "The dataset has no events yet: import or add some first.",
           "UnsupportedSource": "This connection cannot give its history.",
           "Finished": "The backtest has already finished.",
+          "EstimateStale": "The dataset changed since the estimate: check the new one and run again.",
           "HumanRequired": "Only a person runs a backtest with live decisions.",
           "Forbidden": "Backtests need the right «Edit automations»."
         },
@@ -684,7 +685,7 @@
         },
         "Decisions": {
           "Cached": "Cached decisions",
-          "CachedHint": "A decision already made for the same input comes from the cache; a new one is asked once and kept.",
+          "CachedHint": "A decision already made for the same input comes from the cache; one the cache lacks is asked of the model once (paid) and kept.",
           "CachedAgentHint": "Only decisions already in the cache are used; nothing is asked of a model.",
           "Live": "Live decisions",
           "LiveHint": "Every decision is asked of the model again. It is paid.",
@@ -709,6 +710,7 @@
             "Plural": "{count} calls"
           },
           "CachedCost": "At most {calls} to models, only for decisions the cache lacks.",
+          "CachedCostUSD": "At most {calls} to models, only for decisions the cache lacks: up to {cost}.",
           "LiveCost": "Up to {calls} to models, about {cost}.",
           "LiveCostUnknown": "Up to {calls} to models; their cost is not known yet.",
           "PerItem": "The graph has a «For each»: a decision inside it counts up to 20 times per event.",

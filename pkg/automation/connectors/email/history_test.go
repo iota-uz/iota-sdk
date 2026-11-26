@@ -3,6 +3,7 @@ package email
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -49,6 +50,29 @@ func TestImportHistoryReadsTheWindow(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "<b@x>", got[0].Key)
+	// An error of emit stops the import: it is returned and no message comes after it.
+	stop := errors.New("dataset full")
+	calls := 0
+	err = f.imap.ImportHistory(context.Background(), backtest.ConnectionRef{Connection: conn, Credentials: creds}, w, nil, func(backtest.Event) error {
+		calls++
+		return stop
+	})
+	require.ErrorIs(t, err, stop)
+	assert.Equal(t, 1, calls)
+
+	// A window that starts at 00:30 +14:00 still finds a message sent an hour into it at 23:30 −12:00 the
+	// calendar day before.
+	f.srv.Deliver(mailbox, "INBOX", datedMail("<z@x>", "Zed <z@example.org>", "Zones", "far east", "Thu, 08 Jan 2026 23:30:00 -1200"))
+	east := time.FixedZone("+14", 14*3600)
+	got = nil
+	err = f.imap.ImportHistory(context.Background(), backtest.ConnectionRef{Connection: conn, Credentials: creds},
+		backtest.TimeWindow{From: time.Date(2026, 1, 10, 0, 30, 0, 0, east), To: time.Date(2026, 1, 10, 2, 0, 0, 0, east)}, nil, func(ev backtest.Event) error {
+			got = append(got, ev)
+			return nil
+		})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "<z@x>", got[0].Key)
 	for _, m := range f.srv.Fetch(mailbox, "INBOX") {
 		assert.NotContains(t, m.Flags, `\Seen`, "the import marks nothing read")
 	}

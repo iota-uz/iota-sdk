@@ -615,6 +615,12 @@ func TestConnectionHistoryImport(t *testing.T) {
 	assert.True(t, res.Items[0].Example.Hidden)
 	assert.Empty(t, res.Items[0].Trace)
 
+	// Nor may they replay it: their backtest does not run the event.
+	e.subjects.Grant(2, allPerms...)
+	theirs := e.run(other, backtest.RunInput{DatasetID: ds})
+	assert.Equal(t, map[string]int{backtest.EndError: 1}, theirs.Ends)
+	assert.Zero(t, theirs.Triggered)
+
 	// Past MaxExamples the import counts what it left out.
 	mc.history, mc.n = nil, backtest.MaxExamples+2
 	job, err = e.svc.Import(ctx, a, ds, backtest.ImportSource{Kind: backtest.ImportConnection, ConnectionID: conn.ID, Window: backtest.TimeWindow{From: now.Add(-24 * time.Hour)}})
@@ -869,4 +875,38 @@ func TestUndeclaredKeyHidesNothing(t *testing.T) {
 		require.NotEmpty(t, r.Effects, name)
 		assert.Contains(t, string(r.Effects[0].Samples[0]), "to sales: buy", name)
 	}
+}
+
+// A run given its estimate's revision is refused once the dataset's examples changed; an example a
+// queued backtest will run is soft-deleted, so the run still stores its result.
+func TestRunIsBoundToItsEstimate(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	a := e.human()
+	am, _, err := e.rt.Service().Create(ctx, a, engine.CreateInput{Graph: json.RawMessage(graphV1)})
+	require.NoError(t, err)
+	ds, err := e.svc.CreateDataset(ctx, a, backtest.CreateDatasetInput{AutomationID: am.ID, Name: "d"})
+	require.NoError(t, err)
+	first, err := e.svc.AddSynthetic(ctx, a, ds, backtest.SyntheticEvent{Kind: evMessage, Payload: json.RawMessage(`{"text": "buy"}`)})
+	require.NoError(t, err)
+	est, err := e.svc.Estimate(ctx, a, backtest.RunInput{DatasetID: ds, Decisions: backtest.DecisionsLive})
+	require.NoError(t, err)
+	require.NotEmpty(t, est.Revision)
+	_, err = e.svc.AddSynthetic(ctx, a, ds, backtest.SyntheticEvent{Kind: evMessage, Payload: json.RawMessage(`{"text": "help"}`)})
+	require.NoError(t, err)
+	_, err = e.svc.Run(ctx, a, backtest.RunInput{DatasetID: ds, Decisions: backtest.DecisionsLive, Revision: est.Revision})
+	require.ErrorIs(t, err, backtest.ErrStaleEstimate)
+	est, err = e.svc.Estimate(ctx, a, backtest.RunInput{DatasetID: ds, Decisions: backtest.DecisionsLive})
+	require.NoError(t, err)
+	assert.Equal(t, 2, est.Examples)
+	id, err := e.svc.Run(ctx, a, backtest.RunInput{DatasetID: ds, Decisions: backtest.DecisionsLive, Revision: est.Revision})
+	require.NoError(t, err)
+
+	// Deleted while the backtest is queued: the example leaves the dataset, the backtest still runs it.
+	require.NoError(t, e.svc.DeleteExample(ctx, a, first))
+	e.drain()
+	rep, err := e.svc.Report(ctx, a, id)
+	require.NoError(t, err)
+	assert.Equal(t, backtest.StatusDone, rep.Backtest.Status, rep.Backtest.Error)
+	assert.Equal(t, 2, rep.Examples)
 }

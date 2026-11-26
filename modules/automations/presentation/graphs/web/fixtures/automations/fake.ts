@@ -302,11 +302,12 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     },
     'automations.backtest_estimate': (p) => {
       const d = datasetOf(p.dataset_id)
-      return { examples: d.examples, decision_nodes: ['intent'], max_calls: d.examples, per_item: false, cost_usd: p.decisions === 'live' ? d.examples * 0.0021 : null }
+      return { examples: d.examples, revision: `rev-${d.examples}`, decision_nodes: ['intent'], max_calls: d.examples, per_item: false, cost_usd: p.decisions === 'live' ? d.examples * 0.0021 : null }
     },
     'automations.backtest_run': (p) => {
       const d = datasetOf(p.dataset_id)
       if (p.decisions === 'live' && opts.agent) rpcError('HUMAN_REQUIRED', 'only a person runs a backtest with live decisions')
+      if (p.revision && p.revision !== `rev-${d.examples}`) rpcError('estimate_stale', 'the dataset changed since the estimate')
       const id = `00000000-0000-4000-8000-0000000e${String(++btSeq).padStart(4, '0')}`
       bt.backtests.unshift({ id, dataset_id: d.id, dataset_name: d.name, version: p.version || 3, decisions: p.decisions === 'live' ? 'live' : 'cached', status: 'queued', total: d.examples, done: 0,
         live_calls: 0, error: null, created_by: 'You', by_agent: opts.agent ?? false, created_at: now, finished_at: null })

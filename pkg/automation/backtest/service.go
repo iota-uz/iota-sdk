@@ -757,8 +757,7 @@ func (s *Svc) Examples(ctx context.Context, a Actor, ds DatasetID, f ExampleFilt
 	if err := s.authorize(a); err != nil {
 		return Page[Example]{}, err
 	}
-	d, err := s.datasetRow(ctx, a, ds)
-	if err != nil {
+	if _, err := s.datasetRow(ctx, a, ds); err != nil {
 		return Page[Example]{}, err
 	}
 	c, err := decodeCursor(f.Cursor)
@@ -779,32 +778,36 @@ func (s *Svc) Examples(ctx context.Context, a Actor, ds DatasetID, f ExampleFilt
 		}
 		where += ` AND ` + not + `EXISTS (SELECT 1 FROM automation.dataset_labels l WHERE l.tenant_id = e.tenant_id AND l.example_id = e.id)`
 	}
-	rows, err := s.cfg.DB.Query(ctx, `SELECT `+exampleColumns+` FROM automation.dataset_examples e
-		WHERE e.tenant_id = $1 AND e.dataset_id = $2 AND e.deleted_at IS NULL`+where+` ORDER BY e.occurred_at, e.id LIMIT $3`, args...)
-	if err != nil {
-		return Page[Example]{}, dbErr(err)
-	}
-	items, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (Example, error) { return scanExample(r) })
-	if err != nil {
-		return Page[Example]{}, dbErr(err)
-	}
-	// The total is the filtered set's.
-	page := Page[Example]{Total: d.Examples}
-	if f.Labeled != nil && *f.Labeled {
-		page.Total = d.Labeled
-	} else if f.Labeled != nil {
-		page.Total = d.Examples - d.Labeled
-	}
-	if len(items) > limit {
-		items = items[:limit]
-		last := items[limit-1]
-		page.NextCursor = encodeCursor(last.OccurredAt, last.ID)
-	}
-	ids := make([]uuid.UUID, len(items))
-	for i := range items {
-		ids[i] = items[i].ID
-	}
-	labels, err := labelsOf(ctx, s.cfg.DB, a.TenantID, ids)
+	// The total, the page and its labels are read in one snapshot.
+	page := Page[Example]{}
+	var items []Example
+	var labels map[uuid.UUID]map[string]Label
+	err = pgx.BeginTxFunc(ctx, s.cfg.DB, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+		countWhere := strings.Replace(where, ` AND (e.occurred_at, e.id) > ($4, $5)`, "", 1)
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM automation.dataset_examples e
+			WHERE e.tenant_id = $1 AND e.dataset_id = $2 AND e.deleted_at IS NULL`+countWhere, a.TenantID, ds).Scan(&page.Total); err != nil {
+			return dbErr(err)
+		}
+		rows, err := tx.Query(ctx, `SELECT `+exampleColumns+` FROM automation.dataset_examples e
+			WHERE e.tenant_id = $1 AND e.dataset_id = $2 AND e.deleted_at IS NULL`+where+` ORDER BY e.occurred_at, e.id LIMIT $3`, args...)
+		if err != nil {
+			return dbErr(err)
+		}
+		if items, err = pgx.CollectRows(rows, func(r pgx.CollectableRow) (Example, error) { return scanExample(r) }); err != nil {
+			return dbErr(err)
+		}
+		if len(items) > limit {
+			items = items[:limit]
+			last := items[limit-1]
+			page.NextCursor = encodeCursor(last.OccurredAt, last.ID)
+		}
+		ids := make([]uuid.UUID, len(items))
+		for i := range items {
+			ids[i] = items[i].ID
+		}
+		labels, err = labelsOf(ctx, tx, a.TenantID, ids)
+		return err
+	})
 	if err != nil {
 		return Page[Example]{}, err
 	}
@@ -843,10 +846,11 @@ func (s *Svc) DeleteExample(ctx context.Context, a Actor, ex ExampleID) error {
 	if _, err := s.exampleOf(ctx, a, ex); err != nil {
 		return err
 	}
-	// An example a backtest's result refers to leaves the dataset but stays for that result: a finished
-	// backtest keeps its total, its results and its report.
+	// An example a backtest's result refers to, or a queued or running backtest will run, leaves the
+	// dataset but stays for that backtest: it keeps its total, its results and its report.
 	_, err := s.cfg.DB.Exec(ctx, `
-		WITH used AS (SELECT EXISTS (SELECT 1 FROM automation.backtest_results WHERE tenant_id = $1 AND example_id = $2) AS yes),
+		WITH used AS (SELECT EXISTS (SELECT 1 FROM automation.backtest_results WHERE tenant_id = $1 AND example_id = $2)
+			OR EXISTS (SELECT 1 FROM automation.backtests WHERE tenant_id = $1 AND status IN ('queued', 'running') AND $2 = ANY(example_ids)) AS yes),
 		soft AS (UPDATE automation.dataset_examples SET deleted_at = now() WHERE tenant_id = $1 AND id = $2 AND (SELECT yes FROM used))
 		DELETE FROM automation.dataset_examples WHERE tenant_id = $1 AND id = $2 AND NOT (SELECT yes FROM used)`, a.TenantID, ex)
 	return dbErr(err)
@@ -938,7 +942,11 @@ func sortedKeys(m map[string]bool) []string {
 	return out
 }
 
+// revisionSQL is the revision of a dataset's examples (alias e): what a run checks against its estimate.
+const revisionSQL = `coalesce(md5(string_agg(e.id::text, ',' ORDER BY e.id)), '')`
+
 func (s *Svc) Estimate(ctx context.Context, a Actor, in RunInput) (Estimate, error) {
+	var revision string
 	if err := s.authorize(a); err != nil {
 		return Estimate{}, err
 	}
@@ -952,7 +960,12 @@ func (s *Svc) Estimate(ctx context.Context, a Actor, in RunInput) (Estimate, err
 	}
 	nodes := s.decisionNodes(v.Graph)
 	perExample := callsPerExample(v.Graph, len(nodes))
-	est := Estimate{Examples: d.Examples, DecisionNodes: sortedKeys(nodes), MaxCalls: d.Examples * perExample,
+	// The examples and their revision are read together: a run named with this revision runs exactly them.
+	if err := s.cfg.DB.QueryRow(ctx, `SELECT count(*), `+revisionSQL+` FROM automation.dataset_examples e
+		WHERE e.tenant_id = $1 AND e.dataset_id = $2 AND e.deleted_at IS NULL`, a.TenantID, d.ID).Scan(&d.Examples, &revision); err != nil {
+		return Estimate{}, dbErr(err)
+	}
+	est := Estimate{Examples: d.Examples, Revision: revision, DecisionNodes: sortedKeys(nodes), MaxCalls: d.Examples * perExample,
 		PerItem: perExample > len(nodes), AgentCallsBlocked: a.Origin != engine.OriginHuman}
 	if len(nodes) == 0 || d.Examples == 0 {
 		return est, nil
@@ -1036,19 +1049,26 @@ func (s *Svc) Run(ctx context.Context, a Actor, in RunInput) (BacktestID, error)
 			return fmt.Errorf("%w: at most %d backtests of an automation run at once", engine.ErrLimitExceeded, MaxActiveBacktests)
 		}
 		// The examples of the dataset now are what the backtest runs and what its progress counts.
-		tag, err := tx.Exec(ctx, `
-			INSERT INTO automation.backtests (tenant_id, id, automation_id, dataset_id, version, decisions, status, example_ids, total, created_by, created_origin)
-			SELECT $1, $2, $3, $4, $5, $6, 'queued', ids, cardinality(ids), $7, $8
-			FROM (SELECT coalesce(array_agg(e.id ORDER BY e.occurred_at, e.id), '{}') AS ids FROM automation.dataset_examples e
-				WHERE e.tenant_id = $1 AND e.dataset_id = $4 AND e.deleted_at IS NULL) x
-			WHERE cardinality(ids) > 0`, a.TenantID, id, d.AutomationID, d.ID, v.Version, mode, a.UserID, string(a.Origin))
-		if err != nil {
+		// The dataset's row serializes imports into it: the examples read here are the ones the run gets.
+		if _, err := tx.Exec(ctx, `SELECT 1 FROM automation.datasets WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, a.TenantID, d.ID); err != nil {
 			return dbErr(err)
 		}
-		if tag.RowsAffected() == 0 {
+		var ids []uuid.UUID
+		var revision string
+		if err := tx.QueryRow(ctx, `SELECT coalesce(array_agg(e.id ORDER BY e.occurred_at, e.id), '{}'), `+revisionSQL+`
+			FROM automation.dataset_examples e WHERE e.tenant_id = $1 AND e.dataset_id = $2 AND e.deleted_at IS NULL`, a.TenantID, d.ID).Scan(&ids, &revision); err != nil {
+			return dbErr(err)
+		}
+		if len(ids) == 0 {
 			return invalid("the dataset has no examples")
 		}
-		return nil
+		if in.Revision != "" && in.Revision != revision {
+			return fmt.Errorf("%w: the dataset changed since the estimate", ErrStaleEstimate)
+		}
+		_, err := tx.Exec(ctx, `
+			INSERT INTO automation.backtests (tenant_id, id, automation_id, dataset_id, version, decisions, status, example_ids, total, created_by, created_origin)
+			VALUES ($1, $2, $3, $4, $5, $6, 'queued', $7, $8, $9, $10)`, a.TenantID, id, d.AutomationID, d.ID, v.Version, mode, ids, len(ids), a.UserID, string(a.Origin))
+		return dbErr(err)
 	})
 	if err != nil {
 		return uuid.Nil, err
@@ -1136,28 +1156,44 @@ func (s *Svc) resultRows(ctx context.Context, a Actor, id BacktestID) ([]scored,
 		return nil, err
 	}
 	rows, err := s.cfg.DB.Query(ctx, `
-		SELECT r.example_id, e.title, e.occurred_at, e.origin, e.event_kind, e.event, r.end_kind, r.triggered, r.outcomes, r.decisions, r.effects
+		SELECT r.example_id, e.title, e.occurred_at, e.origin, e.event_kind, e.event, e.subject_entity, e.subject_key, e.snapshot,
+			r.end_kind, r.triggered, r.outcomes, r.decisions, r.effects
 		FROM automation.backtest_results r
 		JOIN automation.dataset_examples e ON e.tenant_id = r.tenant_id AND e.id = r.example_id
 		WHERE r.tenant_id = $1 AND r.backtest_id = $2 ORDER BY e.occurred_at, e.id`, tenant, id)
 	if err != nil {
 		return nil, dbErr(err)
 	}
-	out, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (scored, error) {
-		var x scored
-		var outcomes, decisions, effects []byte
-		var ex Example
-		var event []byte
-		if err := r.Scan(&x.example, &x.title, &x.occurredAt, &ex.Origin, &ex.EventKind, &event, &x.end, &x.triggered, &outcomes, &decisions, &effects); err != nil {
+	type row struct {
+		scored
+		ex Example
+	}
+	read, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (row, error) {
+		var x row
+		var outcomes, decisions, effects, event, snap []byte
+		if err := r.Scan(&x.example, &x.title, &x.occurredAt, &x.ex.Origin, &x.ex.EventKind, &event, &x.ex.Subject.Entity, &x.ex.Subject.Key, &snap,
+			&x.end, &x.triggered, &outcomes, &decisions, &effects); err != nil {
 			return x, err
 		}
-		ex.Event = event
+		x.ex.Event = event
+		if len(snap) > 0 {
+			x.ex.Snapshot = snap
+		}
 		_ = json.Unmarshal(outcomes, &x.outcomes)
 		_ = json.Unmarshal(decisions, &x.decisions)
 		_ = json.Unmarshal(effects, &x.effects)
-		// The title and the effects' params (the report's samples, a comparison) come from the event: a
-		// reader who may not read all of it does not see them.
-		switch rd.example(ctx, &ex) {
+		return x, nil
+	})
+	if err != nil {
+		return nil, dbErr(err)
+	}
+	// The rights are applied once the rows are closed: reading a connection takes a connection of its
+	// own from the pool.
+	out := make([]scored, 0, len(read))
+	for _, x := range read {
+		// The title and the effects' params (the report's samples, a comparison) come from the event and
+		// the snapshot: a reader who may not read all of them does not see them.
+		switch rd.example(ctx, &x.ex) {
 		case seeNone:
 			x.title = ""
 			fallthrough
@@ -1167,10 +1203,7 @@ func (s *Svc) resultRows(ctx context.Context, a Actor, id BacktestID) ([]scored,
 			}
 		case seeAll:
 		}
-		return x, nil
-	})
-	if err != nil {
-		return nil, dbErr(err)
+		out = append(out, x.scored)
 	}
 	ids := make([]uuid.UUID, len(out))
 	for i := range out {
@@ -1243,8 +1276,10 @@ func (s *Svc) Results(ctx context.Context, a Actor, id BacktestID, f ResultFilte
 	// A labeled node whose outcome is not its label; a decision node whose decision is missing from the
 	// cache is undecided, not a mismatch.
 	mismatch := func(node string) string {
+		// As mismatchesOf: the node's first decision decides whether it is undecided.
 		return `lbl.outcome IS DISTINCT FROM r.outcomes->>lbl.node_id AND NOT (lbl.node_id = ANY($3)
-			AND r.decisions @> jsonb_build_array(jsonb_build_object('node', lbl.node_id, 'status', 'missing')))` + node
+			AND (SELECT d->>'status' FROM jsonb_array_elements(r.decisions) WITH ORDINALITY AS x(d, n)
+				WHERE d->>'node' = lbl.node_id ORDER BY n LIMIT 1) IS NOT DISTINCT FROM 'missing')` + node
 	}
 	filter := ""
 	if f.End != "" {
@@ -1298,7 +1333,7 @@ func (s *Svc) Results(ctx context.Context, a Actor, id BacktestID, f ResultFilte
 			}
 			x.Example.Event = event
 			if len(snap) > 0 {
-				x.Example.Snapshot = snap
+				x.Example.Snapshot, x.Example.HasSnapshot = snap, true
 			}
 			_ = json.Unmarshal(outcomes, &x.Outcomes)
 			_ = json.Unmarshal(decisions, &x.Decisions)

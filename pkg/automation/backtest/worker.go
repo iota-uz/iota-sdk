@@ -96,7 +96,8 @@ type importJob struct {
 	source  ImportSource
 	user    int64
 	origin  string
-	// counts are what the import committed before this claim (a worker that resumes it goes on from them).
+	// counts are what the import committed before this claim: the examples an earlier pass added (the
+	// claim starts the counts of skipped events over).
 	counts importCounts
 }
 
@@ -104,7 +105,11 @@ func (s *Svc) claimImport(ctx context.Context) (importJob, bool, error) {
 	var j importJob
 	var src []byte
 	err := s.cfg.DB.QueryRow(ctx, `
-		UPDATE automation.dataset_imports SET status = 'running', started_at = COALESCE(started_at, now()), heartbeat_at = now(), lease = gen_random_uuid()
+		UPDATE automation.dataset_imports SET status = 'running', started_at = COALESCE(started_at, now()), heartbeat_at = now(), lease = gen_random_uuid(),
+			-- A pass reads the source from its start: what it skips (duplicates, overflow, unreadable) is
+			-- counted again by the pass, so a claim starts those counts over. imported stays: an example an
+			-- earlier pass of this import added is skipped without being counted.
+			duplicates = 0, overflow = 0, unreadable = 0
 		WHERE (tenant_id, id) = (
 			SELECT tenant_id, id FROM automation.dataset_imports
 			WHERE status = 'queued' OR (status = 'running' AND heartbeat_at < now() - $1::interval)
@@ -516,6 +521,11 @@ func (s *Svc) execute(ctx context.Context, j backtestJob) error {
 		return err
 	}
 	nodes := s.decisionNodes(v.Graph)
+	// The stored history is replayed under the rights of the person who runs it now.
+	rd, err := s.readerOf(ctx, a)
+	if err != nil {
+		return err
+	}
 	todo, err := s.pending(ctx, j)
 	if err != nil {
 		return err
@@ -559,7 +569,7 @@ func (s *Svc) execute(ctx context.Context, j backtestJob) error {
 		go func() {
 			defer wg.Done()
 			for ex := range work {
-				if err := s.runExample(runCtx, a, j, v.Graph, nodes, realCalls, maxCalls, ex); err != nil {
+				if err := s.runExample(runCtx, a, rd, j, v.Graph, nodes, realCalls, maxCalls, ex); err != nil {
 					failMu.Lock()
 					if fail == nil {
 						fail = err
@@ -594,7 +604,7 @@ feed:
 // runExample dry-runs the graph over one example and stores the result. An error of the example (an
 // event the graph refuses, the calls past its bound) is its result; an error of the backtest (rights
 // lost, the version gone, the lease lost) is returned.
-func (s *Svc) runExample(ctx context.Context, a Actor, j backtestJob, g json.RawMessage, nodes map[string]bool, realCalls string, maxCalls int, ex Example) error {
+func (s *Svc) runExample(ctx context.Context, a Actor, rd *reader, j backtestJob, g json.RawMessage, nodes map[string]bool, realCalls string, maxCalls int, ex Example) error {
 	if realCalls != engine.RealCallsNone {
 		// A decision the cache lacks is paid: the example runs only while this worker still holds the
 		// backtest (one whose lease another worker took stops before it calls a provider again).
@@ -602,9 +612,19 @@ func (s *Svc) runExample(ctx context.Context, a Actor, j backtestJob, g json.Raw
 			return err
 		}
 	}
+	// What the runner may not read is not replayed: an event of a source they have no right to is not
+	// run, one with fields they may not read runs without them, and the subject's snapshot is used only
+	// when they may read every field of it now.
+	snapshot := ex.Snapshot
+	view := ex
+	if rd.example(ctx, &view) == seeNone {
+		return s.storeResult(ctx, j, ex, analysis{end: EndError, outcomes: map[string]string{},
+			errText: "the person who runs the backtest may not read this event"}, 0)
+	}
+	ex.Event = view.Event
 	vars := json.RawMessage(`{}`)
-	if len(ex.Snapshot) > 0 {
-		vars = ex.Snapshot
+	if len(snapshot) > 0 && rd.subjectOK(ctx, ex.Subject, snapshot) {
+		vars = snapshot
 	}
 	if selfOnly(g, ex.Event) {
 		// As the live dispatch: a message the connector sent itself starts no trigger without include_self.
