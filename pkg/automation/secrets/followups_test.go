@@ -157,3 +157,36 @@ func TestAStoreWriteIsBoundedByTheWriteWindow(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "v1", got, "nothing published")
 }
+
+// A tombstone whose value delete hangs until the batch deadline still moves to the back of the queue (the
+// update outlives the batch, inside purge's budget), but not after the caller gave up: the update is bounded
+// by the caller's cancellation as the rest of the purge is.
+func TestTheQueueUpdateOfAFailedDeleteIsBoundedByThePurge(t *testing.T) {
+	restore := secrets.SetCleanupTimeout(600 * time.Millisecond)
+	defer restore()
+	e := newEnv(t)
+	s, err := e.mgr.Create(e.ctx, e.tenant, secrets.CreateInput{Name: "STUCK", Value: "v"})
+	require.NoError(t, err)
+	_, err = e.db.Exec(e.ctx, `UPDATE automation.secrets SET deleted_at = now(), updated_at = now() - interval '1 hour' WHERE id = $1`, s.ID)
+	require.NoError(t, err)
+	updated := func() time.Time {
+		var at time.Time
+		require.NoError(t, e.db.QueryRow(e.ctx, `SELECT updated_at FROM automation.secrets WHERE id = $1`, s.ID).Scan(&at))
+		return at
+	}
+	m := secrets.NewManager(e.db, pathTrap{Writer: e.store, hang: map[string]bool{s.Ref.Path: true}}, secrets.DefaultLocator("test/"))
+
+	// The caller gives up while the store hangs: nothing runs after it.
+	before := updated()
+	ctx, cancel := context.WithCancel(e.ctx)
+	timer := time.AfterFunc(100*time.Millisecond, cancel)
+	defer timer.Stop()
+	_, err = m.List(ctx, e.tenant)
+	require.NoError(t, err)
+	assert.Equal(t, before, updated(), "no update after the caller's cancellation")
+
+	// The batch deadline passes while the store hangs: the tombstone still goes to the back of the queue.
+	_, err = m.List(e.ctx, e.tenant)
+	require.NoError(t, err)
+	assert.True(t, updated().After(before), "moved behind the others")
+}
