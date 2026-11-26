@@ -280,18 +280,32 @@ func TestCustomHeaderReachesTheWire(t *testing.T) {
 }
 
 // A response whose header section passes the fetcher's header limit is refused as too large, over
-// HTTP/1 and HTTP/2, so a caller's budget of the headers (the http node's output) holds.
+// HTTP/1 and HTTP/2, so a caller's budget of the headers (the http node's output) holds: many headers, 1xx
+// informational responses that add up past the limit, and one field larger than it. Headers under the limit
+// come back.
 func TestFetchHeadersOverTheLimitAreTooLarge(t *testing.T) {
 	for _, h2 := range []bool{false, true} {
 		var proto atomic.Int32
 		srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			proto.Store(int32(r.ProtoMajor))
-			n := 1
-			if r.URL.Path == "/big" {
-				n = 40
-			}
-			for i := 0; i < n; i++ {
+			switch r.URL.Path {
+			case "/many":
+				for i := 0; i < 40; i++ {
+					w.Header().Add("X-Pad", strings.Repeat("a", 1000))
+				}
+			case "/hints":
+				for i := 0; i < 40; i++ {
+					w.Header().Set("Link", "<"+strings.Repeat("a", 1000)+">; rel=preload")
+					w.WriteHeader(http.StatusEarlyHints)
+				}
+				w.Header().Del("Link")
+			case "/field":
+				w.Header().Set("X-Big", strings.Repeat("a", 20000))
+			default:
 				w.Header().Add("X-Pad", strings.Repeat("a", 1000))
+				w.Header().Set("Link", "<"+strings.Repeat("a", 1000)+">; rel=preload")
+				w.WriteHeader(http.StatusEarlyHints)
+				w.Header().Del("Link")
 			}
 			_, _ = w.Write([]byte("ok"))
 		}))
@@ -305,10 +319,27 @@ func TestFetchHeadersOverTheLimitAreTooLarge(t *testing.T) {
 		if want := map[bool]int32{false: 1, true: 2}[h2]; proto.Load() != want {
 			t.Fatalf("h2=%v: the request went over HTTP/%d", h2, proto.Load())
 		}
-		_, err = f.Fetch(context.Background(), FetchRequest{URL: "https://example.com/big"})
-		if !errors.Is(err, ErrResponseHeadersTooLarge) || !errors.Is(err, ErrResponseTooLarge) {
-			t.Fatalf("h2=%v: want ErrResponseHeadersTooLarge, got %v", h2, err)
+		for _, path := range []string{"/many", "/hints"} {
+			_, err = f.Fetch(context.Background(), FetchRequest{URL: "https://example.com" + path})
+			if !errors.Is(err, ErrResponseHeadersTooLarge) || !errors.Is(err, ErrResponseTooLarge) {
+				t.Fatalf("h2=%v %s: want ErrResponseHeadersTooLarge, got %v", h2, path, err)
+			}
+		}
+		// One field over the limit: HTTP/1 names it; HTTP/2 fails the connection's HPACK decoding with a bare
+		// COMPRESSION_ERROR, which nothing tells apart from a broken encoder. Either way nothing comes back.
+		_, err = f.Fetch(context.Background(), FetchRequest{URL: "https://example.com/field"})
+		if h2 && err == nil || !h2 && !errors.Is(err, ErrResponseHeadersTooLarge) {
+			t.Fatalf("h2=%v /field: got %v", h2, err)
 		}
 		srv.Close()
+	}
+}
+
+// A compression error that is no header limit stays an ordinary fetch error.
+func TestHeadersTooLargeLeavesOtherErrors(t *testing.T) {
+	for _, msg := range []string{"connection error: COMPRESSION_ERROR", "stream error: stream ID 1; PROTOCOL_ERROR", "EOF"} {
+		if headersTooLarge(errors.New(msg)) {
+			t.Fatalf("%q is no header limit", msg)
+		}
 	}
 }

@@ -2,6 +2,7 @@ package jsonb_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,6 +38,41 @@ func TestKeysWithNULNeverMerge(t *testing.T) {
 		assert.JSONEq(t, string(first), string(jsonb.WithoutNUL(raw)), "the same names every time")
 	}
 	assert.NotContains(t, string(first), `\u0000`)
+}
+
+// Input that is not one JSON value is left as it is, NUL and all: a trailing value is never dropped.
+func TestWithoutNULLeavesMalformedInput(t *testing.T) {
+	for _, raw := range []string{`{"s": "\u0000"} {"other": 1}`, `{"s": "\u0000"`, `"\u0000" 1`} {
+		assert.Equal(t, raw, string(jsonb.WithoutNUL(json.RawMessage(raw))))
+	}
+}
+
+// Many keys that become one text take short numbered names, each value kept: the cost grows with the
+// keys, not with their square.
+func TestManyCollidingKeysStayShort(t *testing.T) {
+	const n = 4096
+	in := make(map[string]any, n+1)
+	in["k\uFFFD"] = "plain"
+	for i := 0; i < n; i++ {
+		var b strings.Builder
+		b.WriteString("k")
+		for bit := 0; bit < 12; bit++ {
+			if i&(1<<bit) != 0 {
+				b.WriteString("\x00")
+			} else {
+				b.WriteString("\uFFFD")
+			}
+		}
+		in[b.String()] = i
+	}
+	out, ok := jsonb.ReplaceNUL(in).(map[string]any)
+	require.True(t, ok)
+	assert.Len(t, out, n+1, "every key keeps its value")
+	assert.Equal(t, "plain", out["k\uFFFD"], "a key without NUL keeps its name")
+	for k := range out {
+		assert.NotContains(t, k, "\x00")
+		assert.LessOrEqual(t, len(k), len("k")+12*len("\uFFFD")+len("\uFFFD")+4, "a key grows by a few bytes at most: %q", k)
+	}
 }
 
 func TestWithoutNULLeavesOtherValues(t *testing.T) {

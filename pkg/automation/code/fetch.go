@@ -259,11 +259,15 @@ func (f *guardedFetcher) dialContext(ctx context.Context, network, address strin
 	return nil, lastErr
 }
 
-// headersTooLarge reports the transport's refusal of a response header section over MaxResponseHeaderBytes:
-// net/http (HTTP/1) and its HTTP/2 transport report it only as text.
+// headersTooLarge reports the transport's refusal of a response header section over MaxResponseHeaderBytes,
+// which net/http reports only as text: HTTP/1 for the headers and the 1xx responses before them; HTTP/2 for
+// a header list over the advertised limit and for 1xx responses that add up past it. An HTTP/2 field larger
+// than the whole limit fails the connection's HPACK decoding with a bare COMPRESSION_ERROR, the same error a
+// broken encoder gives: it stays an ordinary fetch error.
 func headersTooLarge(err error) bool {
 	msg := err.Error()
-	return strings.Contains(msg, "server response headers exceeded") || strings.Contains(msg, "header list larger than")
+	return strings.Contains(msg, "server response headers exceeded") || strings.Contains(msg, "header list larger than") ||
+		strings.Contains(msg, "header list too large")
 }
 
 func origin(u *url.URL) string {
