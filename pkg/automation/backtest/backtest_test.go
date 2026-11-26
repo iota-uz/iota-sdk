@@ -911,8 +911,9 @@ func TestRunIsBoundToItsEstimate(t *testing.T) {
 	assert.Equal(t, 2, rep.Examples)
 }
 
-// An event without a key in its source is identified by what is kept of it: a pass that reads the
-// source again (another worker's takeover of the import) adds and counts nothing twice.
+// An event without a key in its source is identified by its whole content: a pass that reads the
+// source again (another worker's takeover of the import), even after the importer's rights to a field
+// changed, adds and counts nothing twice.
 func TestKeylessHistoryReplaysOnce(t *testing.T) {
 	mc := &mailConnector{}
 	e := newEnvWith(t, func(e *env, _ catalog.Registry, cfg *backtest.Config) {
@@ -920,7 +921,10 @@ func TestKeylessHistoryReplaysOnce(t *testing.T) {
 		cfg.Connections, cfg.Connectors = e.store, e.dir
 	})
 	ctx := context.Background()
+	withSecret := append(append([]string{}, allPerms...), permSec)
+	e.subjects.Grant(1, withSecret...)
 	a := e.human()
+	a.Subject.Permissions = withSecret
 	conn, err := e.store.Save(ctx, connectors.Connection{TenantID: e.tenant, Kind: kindMail, Name: "box", DisplayName: "Box", CreatedBy: 1},
 		connectors.Credentials{"token": "tok"})
 	require.NoError(t, err)
@@ -929,10 +933,11 @@ func TestKeylessHistoryReplaysOnce(t *testing.T) {
 	ds, err := e.svc.CreateDataset(ctx, a, backtest.CreateDatasetInput{AutomationID: am.ID, Name: "Mailbox"})
 	require.NoError(t, err)
 	now := time.Now()
+	client := engine.SubjectRef{Entity: "acme.client", Key: "c-1"}
 	mc.history = []backtest.Event{
-		{Kind: evMail, Title: "Buy", Payload: json.RawMessage(`{"text": "buy"}`), OccurredAt: now.Add(-2 * time.Hour)},
-		{Kind: evMail, Title: "Refund", Payload: json.RawMessage(`{"text": "refund"}`), OccurredAt: now.Add(-time.Hour)},
-		{Kind: evMail, Title: "Buy (same)", Payload: json.RawMessage(`{"text": "buy", "extra": "dropped"}`), OccurredAt: now.Add(-2 * time.Hour)},
+		{Kind: evMail, Title: "Buy", Payload: json.RawMessage(`{"text": "buy"}`), OccurredAt: now.Add(-3 * time.Hour)},
+		{Kind: evMessage, Title: "Pin", Subject: client, Payload: json.RawMessage(`{"text": "pin", "secret": "pin-1"}`), OccurredAt: now.Add(-2 * time.Hour)},
+		{Kind: evMail, Title: "Buy (same)", Payload: json.RawMessage(`{"text": "buy"}`), OccurredAt: now.Add(-3 * time.Hour)},
 	}
 	job, err := e.svc.Import(ctx, a, ds, backtest.ImportSource{Kind: backtest.ImportConnection, ConnectionID: conn.ID, Window: backtest.TimeWindow{From: now.Add(-24 * time.Hour)}})
 	require.NoError(t, err)
@@ -943,7 +948,9 @@ func TestKeylessHistoryReplaysOnce(t *testing.T) {
 	assert.Equal(t, 2, first.Imported)
 	assert.Equal(t, 1, first.Duplicates, "an identical event is a duplicate")
 
-	// Another worker takes the import over and reads the source again from its start.
+	// The importer loses the right to the secret field; another worker takes the import over and reads
+	// the source again from its start: the projection differs, the event is the same.
+	e.subjects.Grant(1, allPerms...)
 	_, err = e.db.Exec(ctx, `UPDATE automation.dataset_imports SET status = 'queued', finished_at = NULL WHERE tenant_id = $1 AND id = $2`, e.tenant, job)
 	require.NoError(t, err)
 	e.drain()
@@ -953,6 +960,7 @@ func TestKeylessHistoryReplaysOnce(t *testing.T) {
 	assert.Equal(t, first.Imported, again.Imported)
 	assert.Equal(t, first.Duplicates, again.Duplicates)
 	assert.Zero(t, again.Overflow)
+	assert.Zero(t, again.Unreadable)
 	page, err := e.svc.Examples(ctx, a, ds, backtest.ExampleFilter{})
 	require.NoError(t, err)
 	assert.Len(t, page.Items, 2)

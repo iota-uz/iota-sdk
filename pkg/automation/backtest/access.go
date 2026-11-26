@@ -3,6 +3,8 @@ package backtest
 import (
 	"context"
 	"encoding/json"
+	"reflect"
+	"slices"
 	"strings"
 	"sync"
 
@@ -174,10 +176,12 @@ func (r *reader) subjectOK(ctx context.Context, ref engine.SubjectRef, snapshot 
 }
 
 // covers is whether the record the reader may read now has every field the stored one has, at every
-// depth: each key of a stored object is in the current object and covered there; a stored list is
-// covered element by element (a list that grew or shrank since is not, as its elements cannot be
-// matched); a scalar is covered by any scalar, its value may have changed since. A field the reader's
-// rights withhold is missing from the current record, so a stored snapshot that holds it is not covered.
+// depth: each key of a stored object is in the current object and covered there; a scalar is covered by
+// any scalar, its value may have changed since. A loader may filter a list's items by the reader's
+// rights, and an item's position or values say nothing about which item it is: each item of a stored
+// list must be in the current list as it is (unchanged), or the list is not covered. A field the
+// reader's rights withhold is missing from the current record, so a stored snapshot that holds it is
+// not covered.
 func covers(now, stored any) bool {
 	switch st := stored.(type) {
 	case map[string]any:
@@ -194,11 +198,11 @@ func covers(now, stored any) bool {
 		return true
 	case []any:
 		n, ok := now.([]any)
-		if !ok || len(n) != len(st) {
+		if !ok {
 			return false
 		}
-		for i := range st {
-			if !covers(n[i], st[i]) {
+		for _, item := range st {
+			if !slices.ContainsFunc(n, func(x any) bool { return reflect.DeepEqual(x, item) }) {
 				return false
 			}
 		}

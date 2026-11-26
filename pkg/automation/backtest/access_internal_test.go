@@ -23,10 +23,11 @@ func (s subjectsStub) Load(_ context.Context, _ spi.Subject, ref engine.SubjectR
 }
 
 // A stored snapshot is the reader's only when the record as the reader may read it now holds each of
-// its fields at every depth; a subject that cannot be loaded allows no snapshot.
+// its fields at every depth, and each item of a stored list as it is (a loader may filter items by
+// rights: an item at the same place proves nothing); a subject that cannot be loaded allows no snapshot.
 func TestSubjectOKChecksNestedFields(t *testing.T) {
 	stub := subjectsStub{
-		"o1": `{"order":{"name":"B","lines":[{"sku":"x","qty":2}]},"total":5}`,
+		"o1": `{"order":{"name":"B","lines":[{"sku":"x","qty":2},{"sku":"y","qty":1}]},"total":5}`,
 	}
 	r := &reader{s: &Svc{cfg: Config{Subjects: stub}}, subjects: map[engine.SubjectRef]any{}}
 	ref := func(key string) engine.SubjectRef { return engine.SubjectRef{Entity: "order", Key: key} }
@@ -35,11 +36,13 @@ func TestSubjectOKChecksNestedFields(t *testing.T) {
 		name, key, snapshot string
 		ok                  bool
 	}{
-		{"the same fields, other values", "o1", `{"order":{"name":"A","lines":[{"sku":"y","qty":1}]},"total":4}`, true},
+		{"the same fields, other values", "o1", `{"order":{"name":"A"},"total":4}`, true},
 		{"fewer fields", "o1", `{"order":{"name":"A"}}`, true},
+		{"the items of a list, unchanged", "o1", `{"order":{"lines":[{"sku":"x","qty":2}]}}`, true},
+		{"fewer items of a list", "o1", `{"order":{"lines":[{"sku":"y","qty":1}]}}`, true},
 		{"a restricted nested field", "o1", `{"order":{"name":"A","secret":"s"},"total":4}`, false},
-		{"a restricted field of a list's element", "o1", `{"order":{"lines":[{"sku":"x","cost":1}]}}`, false},
-		{"a list of another length", "o1", `{"order":{"lines":[{"sku":"x"},{"sku":"y"}]}}`, false},
+		{"a restricted field of a list's item", "o1", `{"order":{"lines":[{"sku":"x","qty":2,"cost":1}]}}`, false},
+		{"an item replaced by another at its place", "o1", `{"order":{"lines":[{"sku":"z","qty":2},{"sku":"y","qty":1}]}}`, false},
 		{"an object where a scalar is now", "o1", `{"total":{"amount":5}}`, false},
 		{"a subject not visible now", "o2", `{"order":{"name":"A"}}`, false},
 		{"no snapshot", "o2", `null`, true},

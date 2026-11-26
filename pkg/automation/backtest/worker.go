@@ -192,6 +192,13 @@ func (im *importer) add(ev Event) error {
 	if payload == nil {
 		payload = map[string]any{}
 	}
+	// The event as the source gave it (keys in order): what identifies an event without a key, whatever
+	// of it the actor may read now.
+	whole, err := json.Marshal(payload)
+	if err != nil {
+		im.unreadable++
+		return nil //nolint:nilerr // an event that does not encode is counted, the import goes on
+	}
 	payload = engine.KeepDeclared(payload, spec.Payload)
 	payload["kind"] = ev.Kind
 	if ev.BySelf {
@@ -206,11 +213,12 @@ func (im *importer) add(ev Event) error {
 	if at.IsZero() {
 		at = im.s.cfg.Now()
 	}
-	// An event without a key in the source is identified by what is kept of it: a pass that resumes the
-	// import (another worker's takeover) finds it again; an identical event is a duplicate.
+	// An event without a key in the source is identified by its whole content, not by the projection the
+	// actor's rights give now: a pass that resumes the import (another worker's takeover, perhaps after
+	// the rights changed) finds it again; an identical event is a duplicate.
 	key := ev.Key
 	if key == "" {
-		key = contentKey(ev, body)
+		key = contentKey(ev, whole)
 	}
 	if im.seen[key] {
 		im.duplicates++
@@ -235,15 +243,20 @@ func (im *importer) add(ev Event) error {
 	return nil
 }
 
-// contentKey identifies an event that has no key in its source by its kind, time, subject and the
-// payload kept of it.
-func contentKey(ev Event, body []byte) string {
+// contentKey identifies an event that has no key in its source by its kind, time, subject, whether the
+// automation caused it and its whole payload. It is a digest: the source_ref it is stored as is never
+// shown, and it does not keep the fields the actor may not read.
+func contentKey(ev Event, whole []byte) string {
 	h := sha256.New()
 	at := ""
 	if !ev.OccurredAt.IsZero() {
 		at = ev.OccurredAt.UTC().Format(time.RFC3339Nano)
 	}
-	for _, part := range []string{ev.Kind, at, ev.Subject.Entity, ev.Subject.Key, string(body)} {
+	bySelf := ""
+	if ev.BySelf {
+		bySelf = "self"
+	}
+	for _, part := range []string{ev.Kind, at, ev.Subject.Entity, ev.Subject.Key, bySelf, string(whole)} {
 		_, _ = h.Write([]byte(part))
 		_, _ = h.Write([]byte{0})
 	}

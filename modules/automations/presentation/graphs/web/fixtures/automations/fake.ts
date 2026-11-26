@@ -584,6 +584,9 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       reject(abortError())
     }, { once: true })
   })
+  // Another user's call, straight to the store (browser scenarios: a change made elsewhere).
+  ;(window as unknown as { __elsewhere: (method: keyof RPC, params: unknown) => unknown }).__elsewhere = (method, params) =>
+    (handlers[method] as ((p: unknown) => unknown) | undefined)?.(params)
   const original = window.fetch.bind(window)
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url

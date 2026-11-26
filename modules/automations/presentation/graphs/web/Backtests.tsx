@@ -383,12 +383,37 @@ function DatasetPanel(props: {
   let seq = 0
   let committed = 0
   onCleanup(() => { seq++ })
+  // Saves of one example's node run one after another, in the order of the edits, so the server commits
+  // them in that order. edits: the latest edit of each node; latest: the label it shows; pending: the
+  // node's saves not answered yet; confirmed: the label the server committed, while saves are pending
+  // (with none pending, the label on screen is the server's: the examples read last). A failed save
+  // rolls back to the confirmed label, never to another unconfirmed edit, and only while no later edit
+  // of that node took its place. Edits of different nodes stay independent.
+  type Label = ExampleView['labels'][string] | undefined
+  const edits = new Map<string, number>()
+  const latest = new Map<string, Label>()
+  const pending = new Map<string, number>()
+  const confirmed = new Map<string, Label>()
+  const queue = new Map<string, Promise<void>>()
+  let editSeq = 0
+  // Examples read while saves are pending keep the latest edit of those nodes on screen.
+  const overlay = (items: ExampleView[]): ExampleView[] => pending.size === 0 ? items : items.map((x) => {
+    let labels: ExampleView['labels'] | undefined
+    for (const [key, label] of latest) {
+      const [id, node] = [key.slice(0, key.indexOf('/')), key.slice(key.indexOf('/') + 1)]
+      if (id !== x.id || !pending.get(key)) continue
+      labels ??= { ...x.labels }
+      if (label) labels[node] = label
+      else delete labels[node]
+    }
+    return labels ? { ...x, labels } : x
+  })
   const load = async () => {
     const mine = ++seq
     setError(undefined)
     try {
       const res = await app.call('automations.dataset_examples', { dataset_id: props.dataset.id, limit: 50 })
-      if (mine === seq) { setPage(res); committed = mine }
+      if (mine === seq) { setPage({ ...res, items: overlay(res.items) }); committed = mine }
     } catch (e) {
       if (mine === seq) setError(backtestErrorText(t, e, t('Backtests.Actions.LoadExamples')))
     }
@@ -403,21 +428,13 @@ function DatasetPanel(props: {
     try {
       const res = await app.call('automations.dataset_examples', { dataset_id: props.dataset.id, cursor: p.next_cursor, limit: 50 })
       if (of !== seq || page() !== p) return
-      setPage({ ...res, items: [...p.items, ...res.items] })
+      setPage({ ...res, items: [...p.items, ...overlay(res.items)] })
     } catch (e) {
       app.toast.notify({ variant: 'error', title: backtestErrorText(t, e, t('Backtests.Actions.LoadExamples')), action: { label: t('Common.Retry'), onAction: () => void loadMore() } })
     } finally {
       setMore(false)
     }
   }
-  // Saves of one example's node run one after another, in the order of the edits, so the server commits
-  // them in that order. edits: the latest edit of each node; confirmed: the label the server last
-  // committed. A failed save rolls back to the confirmed label, never to another unconfirmed edit, and
-  // only while no later edit of that node took its place. Edits of different nodes stay independent.
-  const edits = new Map<string, number>()
-  const confirmed = new Map<string, ExampleView['labels'][string] | undefined>()
-  const queue = new Map<string, Promise<void>>()
-  let editSeq = 0
   const setLabel = (ex: ExampleView, node: string, outcome: string) => {
     const current = page()?.items.find((x) => x.id === ex.id) ?? ex
     const before = current.labels[node]
@@ -432,12 +449,14 @@ function DatasetPanel(props: {
       }),
     })
     const key = `${ex.id}/${node}`
-    if (!confirmed.has(key)) confirmed.set(key, before)
+    if (!pending.get(key)) confirmed.set(key, before)
     const mine = ++editSeq
     edits.set(key, mine)
-    const applied: ExampleView['labels'][string] | undefined = outcome
+    pending.set(key, (pending.get(key) ?? 0) + 1)
+    const applied: Label = outcome
       ? { outcome, source: 'manual', ...(before?.source === 'expected' ? { expected: before.outcome } : before?.expected ? { expected: before.expected } : {}) }
       : before?.expected ? { outcome: before.expected, source: 'expected' } : undefined
+    latest.set(key, applied)
     patchNode(applied)
     const save = async () => {
       try {
@@ -446,8 +465,12 @@ function DatasetPanel(props: {
         // The dataset's labeled count is the overview's.
         props.onChanged()
       } catch (e) {
-        if (edits.get(key) === mine) patchNode(confirmed.get(key))
+        if (edits.get(key) === mine) { latest.set(key, confirmed.get(key)); patchNode(confirmed.get(key)) }
         app.toast.notify({ variant: 'error', title: backtestErrorText(t, e, t('Backtests.Actions.Label')), action: { label: t('Common.Retry'), onAction: () => void setLabel(ex, node, outcome) } })
+      } finally {
+        const left = (pending.get(key) ?? 1) - 1
+        if (left > 0) pending.set(key, left)
+        else { pending.delete(key); latest.delete(key) }
       }
     }
     const next = (queue.get(key) ?? Promise.resolve()).then(save)

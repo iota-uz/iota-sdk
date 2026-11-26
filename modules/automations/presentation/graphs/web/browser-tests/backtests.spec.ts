@@ -138,6 +138,28 @@ test('BT3b: saves of one label run in order; a failed later save restores the la
   expect(await labels()).toEqual(['refund', 'support'])
 })
 
+test('BT3c: a failed save restores the label the examples read last, after another user changed it', async ({ page }) => {
+  await page.goto(`/?${base}&dataset=${DS}&labelFails=support`)
+  const at = page.locator('[data-testid^="example-"]').nth(3)
+  await expect(at).toContainText('Do you have a discount for schools?')
+  const testid = (await at.getAttribute('data-testid'))!
+  const id = testid.replace('example-', '')
+  // The row itself: the order of rows may change when the examples are read again.
+  const select = page.getByTestId(testid).getByTestId('label-intent')
+  const other = page.locator('[data-testid^="example-"]').nth(5).getByTestId('label-intent')
+  await select.selectOption('refund')
+  await expect.poll(async () => (await calls(page)).filter((c) => c.method === 'automations.example_label').length).toBe(1)
+  // Another user labels it «sales»; a label of another example moves the count, and the examples are read again.
+  await page.evaluate((exampleId) => (window as unknown as { __elsewhere: (m: string, p: unknown) => unknown }).__elsewhere('automations.example_label', { example_id: exampleId, node: 'intent', outcome: 'sales' }), id)
+  await other.selectOption('sales')
+  await expect(select).toHaveValue('sales')
+  await select.selectOption('support')
+  // The rollback itself shows «sales» (not «refund», this panel's own earlier save), before any later read.
+  await expect.poll(() => select.inputValue()).not.toBe('support')
+  expect(await select.inputValue()).toBe('sales')
+  await expect.poll(async () => (await calls(page)).filter((c) => c.method === 'automations.example_label').map((c) => c.params.outcome)).toEqual(['refund', 'sales', 'support'])
+})
+
 test('BT4: the cases table filters by classifier and mismatches, in the URL; «Reset filters» clears only them', async ({ page }) => {
   await page.goto(`/?${base}&backtest=${V2}`)
   await expect(page.getByTestId('metrics-intent')).toContainText('Correct 60% (3 of 5)')
