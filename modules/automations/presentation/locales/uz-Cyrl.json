@@ -393,6 +393,7 @@
         "OnlyConnection": "Ягонаси: {name}",
         "OpenIntegrations": "Интеграцияларни очиш",
         "OpenLatest": "Жорий v{version} версияни очиш",
+        "OpeningVersion": "v{version} очилмоқда: ўзгаришлар бекор қилинди",
         "PendingVersion": "v{version} версия сақланди ва текширувни кутмоқда.",
         "PickConnection": "Уланишни танланг",
         "ReviewAndEnable": "Текшириш ва v{version} ни ёқиш",

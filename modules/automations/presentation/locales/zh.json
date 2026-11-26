@@ -393,6 +393,7 @@
         "OnlyConnection": "唯一的：{name}",
         "OpenIntegrations": "打开集成",
         "OpenLatest": "打开当前版本 v{version}",
+        "OpeningVersion": "正在打开 v{version}：您的更改已丢弃",
         "PendingVersion": "版本 v{version} 已保存，等待审核。",
         "PickConnection": "选择连接",
         "ReviewAndEnable": "审核并启用 v{version}",

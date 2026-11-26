@@ -393,6 +393,7 @@
         "OnlyConnection": "The only one: {name}",
         "OpenIntegrations": "Open integrations",
         "OpenLatest": "Open the current version v{version}",
+        "OpeningVersion": "Opening v{version}: your changes were discarded",
         "PendingVersion": "Version v{version} is saved and waits for a review.",
         "PickConnection": "Choose a connection",
         "ReviewAndEnable": "Review and enable v{version}",

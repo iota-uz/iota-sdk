@@ -393,6 +393,7 @@
         "OnlyConnection": "A única: {name}",
         "OpenIntegrations": "Abrir integrações",
         "OpenLatest": "Abrir a versão atual v{version}",
+        "OpeningVersion": "Abrindo v{version}: suas alterações foram descartadas",
         "PendingVersion": "A versão v{version} foi salva e aguarda revisão.",
         "PickConnection": "Escolha uma conexão",
         "ReviewAndEnable": "Revisar e ativar v{version}",

@@ -26,6 +26,10 @@ export interface FakeOptions {
   reviewFailsAfterChange: boolean
   /** Delay of automations.get for an old version (ms): a request still on the way when Back is pressed. */
   oldVersionDelay: number
+  /** Every automations.get after the first waits until the scenario releases it (window.__release). */
+  hold: boolean
+  /** With hold: the first automations.get (the page's initial load) is held too (?hold=all). */
+  holdFirst: boolean
   can: { author: boolean; enable: boolean; operate: boolean }
   calls: { method: string; params: unknown }[]
   /** Validation warns about the first node (a pinned tool schema the server changed), with its fix. */
@@ -429,6 +433,36 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       return { ok: true }
     },
   }
+  // Held answers: the scenario sees which versions are on the way (__held), releases one (__release)
+  // and reads which were aborted by the page (__aborted). 0 is the latest.
+  const held: { version: number; release: () => void }[] = []
+  const aborted: number[] = []
+  let gets = 0
+  const w = window as unknown as { __held: () => number[]; __release: (v?: number) => boolean; __aborted: number[] }
+  w.__held = () => held.map((h) => h.version)
+  w.__release = (v) => {
+    const i = v === undefined ? 0 : held.findIndex((h) => h.version === v)
+    const h = i >= 0 ? held.splice(i, 1)[0] : undefined
+    h?.release()
+    return Boolean(h)
+  }
+  w.__aborted = aborted
+  const abortError = () => new DOMException('The request was aborted', 'AbortError')
+  const pause = (ms: number, signal?: AbortSignal | null) => new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) { reject(abortError()); return }
+    const timer = setTimeout(resolve, ms)
+    signal?.addEventListener('abort', () => { clearTimeout(timer); reject(abortError()) }, { once: true })
+  })
+  const hold = (version: number, signal?: AbortSignal | null) => new Promise<void>((resolve, reject) => {
+    const entry = { version, release: resolve }
+    held.push(entry)
+    signal?.addEventListener('abort', () => {
+      const i = held.indexOf(entry)
+      if (i >= 0) held.splice(i, 1)
+      aborted.push(version)
+      reject(abortError())
+    }, { once: true })
+  })
   const original = window.fetch.bind(window)
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
@@ -437,8 +471,10 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     opts.calls.push({ method: body.method, params: body.params })
     const isList = body.method === 'automations.list' || body.method === 'automations.get' || body.method === 'automations.catalog'
     if (opts.scenario === 'loading' && isList) await new Promise(() => {})
-    if (opts.oldVersionDelay > 0 && body.method === 'automations.get' && (body.params as { version?: number }).version) await new Promise((r) => setTimeout(r, opts.oldVersionDelay))
-    if (opts.delay > 0 && !isList) await new Promise((r) => setTimeout(r, opts.delay))
+    const signal = init?.signal
+    if (body.method === 'automations.get' && (gets++ > 0 || opts.holdFirst) && opts.hold) await hold((body.params as { version?: number }).version ?? 0, signal)
+    if (opts.oldVersionDelay > 0 && body.method === 'automations.get' && (body.params as { version?: number }).version) await pause(opts.oldVersionDelay, signal)
+    if (opts.delay > 0 && !isList) await pause(opts.delay, signal)
     let payload: unknown
     try {
       if (opts.scenario === 'error' && isList) rpcError('internal', 'internal error')
