@@ -321,6 +321,7 @@ func (c *component) Build(b *composition.Builder) error {
 	})
 	c.buildEngine(b)
 	c.buildTasks(b)
+	c.contributeMCP(b, c.pages(cfg.origin))
 	composition.ProvideDefault[connectors.Directory](b, func(container *composition.Container) (connectors.Directory, error) {
 		reg, err := composition.Resolve[catalog.Registry](container)
 		if err != nil {
@@ -525,6 +526,7 @@ func (c *component) Build(b *composition.Builder) error {
 	})
 
 	c.contributeNotifyNodes(b, cfg.origin)
+	c.contributeTelegramChannel(b, cfg.origin)
 
 	if !b.Context().HasCapability(composition.CapabilityAPI) {
 		return nil
@@ -594,7 +596,13 @@ func (c *component) contributeNotifyNodes(b *composition.Builder, origin string)
 		if err != nil {
 			return nil, err
 		}
-		return nil, notify.Register(reg, notify.Config{Sender: sender, Catalog: definitions, Pool: db, BaseURL: origin})
+		var channels notifications.ChannelRegistry
+		if composition.Has[notifications.ChannelRegistry](container) {
+			if channels, err = composition.Resolve[notifications.ChannelRegistry](container); err != nil {
+				return nil, err
+			}
+		}
+		return nil, notify.Register(reg, notify.Config{Sender: sender, Catalog: definitions, Pool: db, BaseURL: origin, Channels: channels})
 	})
 }
 
@@ -843,7 +851,7 @@ func (c *component) buildPages(b *composition.Builder) {
 			tools, _ = conn.(mcp.ToolLister)
 		}
 		ctrl, err := graphs.NewController(graphs.Config{
-			Engine:  graphs.Engine{Service: rt.Service(), Authoring: rt.Authoring(), Operations: rt.Operations()},
+			Engine:  graphs.Engine{Service: rt.Service(), Authoring: rt.Authoring(), Operations: rt.Operations(), Memory: rt.Memory()},
 			Catalog: reg, Users: persistence.NewUserNames(db), Host: host, Assets: assets, Path: path,
 			IntegrationsPath: integrations.DefaultPath, MessageKeys: keys, Logger: slog.Default(), MCPTools: tools, Links: c.links,
 			Options: connectionOptions{store: store, dir: dir},

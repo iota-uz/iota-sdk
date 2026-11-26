@@ -270,7 +270,7 @@ func TestNotificationAudience_RejectsInvalidRequestsBeforeWriting(t *testing.T) 
 		"address without external":            {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Addresses: []map[notifications.Channel]string{{notifications.ChannelSMS: "+998900000001"}}}}, serrors.Invalid},
 		"invalid address":                     {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Addresses: []map[notifications.Channel]string{{notifications.ChannelInApp: "x"}}}, Channels: []notifications.Channel{notifications.ChannelSMS}}, serrors.Invalid},
 		"record without resolver":             {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Records: []notifications.ObjectRef{{Entity: "acme.unknown", Key: "1"}}}, Channels: []notifications.Channel{notifications.ChannelSMS}}, serrors.Invalid},
-		"unavailable channel":                 {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Users: c.people}, Channels: []notifications.Channel{"telegram"}}, serrors.Invalid},
+		"unknown channel":                     {notifications.AudienceRequest{Event: c.event(uuid.NewString()), Audience: notifications.Audience{Users: c.people}, Channels: []notifications.Channel{"whatsapp"}}, serrors.Invalid},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {

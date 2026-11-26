@@ -378,6 +378,219 @@ test('D1: edits made while another version loads are not dropped without consent
   await expect(page).toHaveURL(/version=2/)
 })
 
+// #1411: the answer of a version request is held by the fixture (hold) until the scenario releases
+// it, so each race is played in a fixed order: the page must abort a superseded request and never
+// apply an answer over edits the person did not agree to drop.
+type Held = { __held: () => number[]; __release: (v?: number) => boolean; __aborted: number[] }
+const held = (page: Page) => page.evaluate(() => (window as unknown as Held).__held())
+const release = (page: Page, v: number) => page.evaluate((x) => (window as unknown as Held).__release(x), v)
+const aborted = (page: Page) => page.evaluate(() => (window as unknown as Held).__aborted)
+const gets = async (page: Page) => (await calls(page)).filter((c) => c.method === 'automations.get').map((c) => (c.params as { version?: number }).version ?? 0)
+const historyLength = (page: Page) => page.evaluate(() => window.history.length)
+const rename = async (page: Page, name: string) => {
+  await page.locator('.ae-toolbar__name').click()
+  await page.getByLabel('Name').fill(name)
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.ae-toolbar__name')).toHaveText(name)
+}
+
+test('D1: Back while an old version is on its way aborts it: no extra request, the late answer opens nothing', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&hold`)
+  await expect(page.getByTestId('crumb')).toBeVisible()
+  await openVersion(page, 2)
+  await expect(page).toHaveURL(/version=2/)
+  await expect.poll(() => held(page)).toEqual([2])
+
+  await page.goBack()
+  await expect(page).not.toHaveURL(/version=/)
+  await expect.poll(() => aborted(page)).toEqual([2])
+  expect(await held(page)).toEqual([])
+  // Back returned to the version on screen: nothing is requested again.
+  expect(await gets(page)).toEqual([0, 2])
+
+  await rename(page, 'Draft after Back')
+  expect(await release(page, 2)).toBe(false)
+  await expect(page.getByTestId('open-latest')).toHaveCount(0)
+  await expect(page.getByTestId('discard-dialog')).toHaveCount(0)
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Draft after Back')
+  await expect(page.locator('.ae-save')).toBeVisible()
+})
+
+test('D1: Back after edits made while a version loads keeps the draft and asks nothing', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&hold`)
+  await expect(page.getByTestId('crumb')).toBeVisible()
+  await openVersion(page, 2)
+  await expect.poll(() => held(page)).toEqual([2])
+  await rename(page, 'Edited while v2 loads')
+
+  await page.goBack()
+  await expect(page).not.toHaveURL(/version=/)
+  await expect.poll(() => aborted(page)).toEqual([2])
+  await expect(page.getByTestId('discard-dialog')).toHaveCount(0)
+  expect(await gets(page)).toEqual([0, 2])
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Edited while v2 loads')
+  await expect(page.getByTestId('open-latest')).toHaveCount(0)
+})
+
+test('D1: a late answer does not change the version the confirmation opens', async ({ page }) => {
+  // History: v1, then the latest (Open latest), then v2 still on its way.
+  await page.goto(`/?view=editor&id=${DIGEST}&version=1&hold`)
+  await page.getByTestId('open-latest').click()
+  await expect.poll(() => held(page)).toEqual([0])
+  await release(page, 0)
+  await expect(page.getByTestId('open-latest')).toHaveCount(0)
+  await openVersion(page, 2)
+  await expect.poll(() => held(page)).toEqual([2])
+  await rename(page, 'Draft of v3')
+
+  // Two steps back, to v1: the v2 request is aborted and the person is asked about v1.
+  await page.evaluate(() => window.history.go(-2))
+  await expect(page).toHaveURL(/version=1/)
+  const dialog = page.getByTestId('discard-dialog')
+  await expect(dialog).toBeVisible()
+  await expect.poll(() => aborted(page)).toEqual([2])
+  expect(await release(page, 2)).toBe(false)
+
+  await dialog.getByTestId('discard-confirm').click()
+  await expect.poll(() => held(page)).toEqual([1])
+  await release(page, 1)
+  await expect(page.getByTestId('open-latest')).toBeVisible()
+  await expect(page.getByText('Version v1 is open (read only)')).toBeVisible()
+  await expect(page).toHaveURL(/version=1/)
+})
+
+test('D1: after Discard the draft takes no edits until the version arrives; Back keeps it', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&hold`)
+  await expect(page.getByTestId('crumb')).toBeVisible()
+  await rename(page, 'Draft of v3')
+  // A second edit, undone: the draft has a step to redo as well. The clock is fixed, so a Tidy in
+  // between keeps the two renames apart in the history.
+  await page.locator('.ae-tidy').click()
+  await rename(page, 'Redo target')
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Draft of v3')
+  await expect(page.getByRole('button', { name: 'Redo' })).toBeEnabled()
+  const dialog = page.getByTestId('discard-dialog')
+
+  // Back before the answer: the switch is dropped and the draft is editable again.
+  await openVersion(page, 2)
+  await dialog.getByTestId('discard-confirm').click()
+  await expect(page).toHaveURL(/version=2/)
+  await expect.poll(() => held(page)).toEqual([2])
+  await expect(page.getByText('Opening v2: your changes were discarded')).toBeVisible()
+  await expect(page.locator('.ae-save')).toHaveCount(0)
+  // Undo and Redo are edits too: neither the buttons nor the shortcuts touch the draft meanwhile.
+  await expect(page.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Redo' })).toBeDisabled()
+  await page.locator('.iota-flow__pane, .ae-canvas').first().click({ position: { x: 5, y: 5 } })
+  await page.keyboard.press('ControlOrMeta+z')
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Draft of v3')
+  await page.keyboard.press('ControlOrMeta+Shift+z')
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Draft of v3')
+  await page.keyboard.press('ControlOrMeta+y')
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Draft of v3')
+  await page.goBack()
+  await expect(page).not.toHaveURL(/version=/)
+  await expect.poll(() => aborted(page)).toEqual([2])
+  await expect(page.getByText('Opening v2: your changes were discarded')).toHaveCount(0)
+  await expect(page.locator('.ae-save')).toBeVisible()
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Draft of v3')
+  await expect(page.getByRole('button', { name: 'Undo' })).toBeEnabled()
+
+  // Discard again and wait: the version opens.
+  await openVersion(page, 2)
+  await dialog.getByTestId('discard-confirm').click()
+  await expect(page.getByText('Opening v2: your changes were discarded')).toBeVisible()
+  await expect.poll(() => held(page)).toEqual([2])
+  await release(page, 2)
+  await expect(page.getByTestId('open-latest')).toBeVisible()
+  await expect(page.getByText('Version v2 is open (read only)')).toBeVisible()
+})
+
+test('D1: a declined switch whose history entry a push replaced returns the URL of the version on screen', async ({ page }) => {
+  // The latest is on screen at entry 1; Back to v1 (entry 0) starts its request; the menu's v2 is
+  // pushed while v1 loads and replaces entry 1.
+  await page.goto(`/?view=editor&id=${DIGEST}&version=1&hold`)
+  await page.getByTestId('open-latest').click()
+  await expect.poll(() => held(page)).toEqual([0])
+  await release(page, 0)
+  await expect(page.getByTestId('open-latest')).toHaveCount(0)
+  await page.goBack()
+  await expect(page).toHaveURL(/version=1/)
+  await expect.poll(() => held(page)).toEqual([1])
+  await openVersion(page, 2)
+  await expect(page).toHaveURL(/version=2/)
+  await expect.poll(() => held(page)).toEqual([2])
+  await rename(page, 'Draft of v3')
+  // A step selected in the draft while v2 loads stays selected and in the URL after the refusal.
+  await page.locator('.iota-flow__node[data-id="email"]').click()
+  await expect(page).toHaveURL(/node=email/)
+  await release(page, 2)
+  const dialog = page.getByTestId('discard-dialog')
+  await expect(dialog).toBeVisible()
+  await dialog.getByTestId('discard-cancel').click()
+  await expect(page).not.toHaveURL(/version=/)
+  await expect(page).toHaveURL(/node=email/)
+  await expect(page.locator('.iota-flow__node[data-id="email"]')).toHaveClass(/selected/)
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Draft of v3')
+  await expect(page.getByTestId('open-latest')).toHaveCount(0)
+})
+
+test('D1: Back or Forward before the first snapshot arrives loads the version the URL names', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&hold=all`)
+  await expect.poll(() => held(page)).toEqual([0])
+  await page.evaluate(() => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('version', '2')
+    window.history.pushState({ idx: 1 }, '', url)
+    window.history.back()
+  })
+  await expect(page).not.toHaveURL(/version=/)
+  await page.goForward()
+  await expect(page).toHaveURL(/version=2/)
+  // The request of the URL left is aborted; the one now named is the only one on its way.
+  await expect.poll(() => held(page)).toEqual([2])
+  expect(await aborted(page)).toContain(0)
+  await release(page, 2)
+  await expect(page.getByTestId('open-latest')).toBeVisible()
+  await expect(page.getByText('Version v2 is open (read only)')).toBeVisible()
+})
+
+test('D1: a declined Back or Forward leaves the history as it was', async ({ page }) => {
+  // History: v1, the latest with a draft, then v2 ahead (Forward).
+  await page.goto(`/?view=editor&id=${DIGEST}&version=1&hold`)
+  await page.getByTestId('open-latest').click()
+  await expect.poll(() => held(page)).toEqual([0])
+  await release(page, 0)
+  await expect(page.getByTestId('open-latest')).toHaveCount(0)
+  await openVersion(page, 2)
+  await expect.poll(() => held(page)).toEqual([2])
+  await release(page, 2)
+  await expect(page.getByTestId('open-latest')).toBeVisible()
+  await page.goBack()
+  await expect.poll(() => held(page)).toEqual([0])
+  await release(page, 0)
+  await expect(page.getByTestId('open-latest')).toHaveCount(0)
+  await rename(page, 'Draft of v3')
+  const length = await historyLength(page)
+  const dialog = page.getByTestId('discard-dialog')
+
+  for (const step of ['forward', 'back'] as const) {
+    for (let i = 0; i < 2; i++) {
+      if (step === 'forward') await page.goForward()
+      else await page.goBack()
+      await expect(page).toHaveURL(step === 'forward' ? /version=2/ : /version=1/)
+      await expect(dialog).toBeVisible()
+      await dialog.getByTestId('discard-cancel').click()
+      // The URL returns to the entry it left: no entry is added, the declined one is still there.
+      await expect(page).not.toHaveURL(/version=/)
+      expect(await historyLength(page)).toBe(length)
+      await expect(page.locator('.ae-toolbar__name')).toHaveText('Draft of v3')
+    }
+  }
+  expect(await held(page)).toEqual([])
+})
+
 test('RV1–RV3: Runs is a tab of the same shell; the draft survives; the list is the open version\'s, the newest opens', async ({ page }) => {
   await page.goto(`/?view=editor&id=${DIGEST}`)
   await expect(page.locator('.ae-canvas')).toBeVisible()
@@ -541,4 +754,106 @@ test('#1439: the chat of a Telegram step is picked from the chats its connection
   await expect(page.getByRole('option', { name: 'Sales team' })).toBeVisible()
   const asked = (await calls(page)).filter((c) => c.method === 'automations.search_options').map((c) => c.params)
   expect(asked[0]).toEqual({ source: 'telegram.chats', query: '', connection: 'c-1' })
+})
+
+// #1390: the memory of a graph between runs sits in its settings: a list of keys with a search, a change
+// of a value and a delete.
+test.describe('state panel', () => {
+  const settings = async (page: Page, query = '') => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`/?view=editor&id=${DIGEST}${query}`)
+    await expect(page.getByTestId('crumb')).toBeVisible()
+    await page.getByRole('button', { name: 'Settings' }).click()
+  }
+  const stateCalls = async (page: Page, method: string) => (await calls(page)).filter((c) => c.method === method)
+
+  test('lists the keys, searches, changes and deletes', async ({ page }) => {
+    await settings(page)
+    const panel = page.getByTestId('state-panel')
+    await expect(panel.getByTestId('state-list').locator('li')).toHaveCount(3)
+    await expect(panel.getByTestId('state-total')).toHaveText('3 of 10000 keys')
+    await expect(panel.locator('[data-key="release:v2.4"]')).toContainText('does not expire')
+    await expect(panel.locator('[data-key="chat:42"]')).toContainText('"task":"T-17"')
+    await expectNoA11yViolations(page, { include: ['[data-testid="state-panel"]'] })
+
+    await panel.getByTestId('state-search').fill('chat')
+    await expect(panel.getByTestId('state-list').locator('li')).toHaveCount(1)
+    await panel.getByTestId('state-search').fill('nothing')
+    await expect(panel.getByTestId('state-empty')).toHaveText('No key matches.')
+    await panel.getByTestId('state-search').fill('')
+    await expect(panel.getByTestId('state-list').locator('li')).toHaveCount(3)
+
+    // A change: the value is JSON; a value that is not is refused before the request.
+    await panel.getByRole('button', { name: 'Edit: rule:daily:count' }).click()
+    const editor = panel.getByTestId('state-editor')
+    await expect(editor.locator('[data-field="state-key"] input, input[data-field="state-key"]').first()).toHaveValue('rule:daily:count')
+    await editor.locator('textarea[data-field="state-value"]').fill('{broken')
+    await editor.getByTestId('state-save').click()
+    await expect(editor.getByTestId('state-error')).toHaveText('The value is not valid JSON.')
+    expect(await stateCalls(page, 'automations.state_set')).toHaveLength(0)
+    await editor.locator('textarea[data-field="state-value"]').fill('4')
+    await editor.locator('input[data-field="state-ttl"]').fill('2h')
+    await editor.getByTestId('state-save').click()
+    await expect(editor).toHaveCount(0)
+    expect((await stateCalls(page, 'automations.state_set')).map((c) => c.params)).toEqual([{ id: DIGEST, key: 'rule:daily:count', value: 4, ttl: '2h' }])
+
+    // A new key; a value over the limit is refused with the engine's words.
+    await panel.getByTestId('state-add').click()
+    await panel.locator('input[data-field="state-key"]').fill('big')
+    await panel.locator('textarea[data-field="state-value"]').fill(JSON.stringify('x'.repeat(20000)))
+    await panel.getByTestId('state-save').click()
+    await expect(panel.getByTestId('state-error')).toContainText('state_value_too_large')
+    await panel.getByRole('button', { name: 'Cancel' }).click()
+
+    // A delete asks once.
+    await panel.getByRole('button', { name: 'Delete: release:v2.4' }).click()
+    expect(await stateCalls(page, 'automations.state_delete')).toHaveLength(0)
+    await panel.getByTestId('state-confirm-delete').click()
+    await expect(panel.locator('[data-key="release:v2.4"]')).toHaveCount(0)
+    expect((await stateCalls(page, 'automations.state_delete')).map((c) => c.params)).toEqual([{ id: DIGEST, key: 'release:v2.4' }])
+    await expect(panel.getByTestId('state-total')).toHaveText('2 of 10000 keys')
+  })
+
+  test('edits made while a save runs stay open', async ({ page }) => {
+    await settings(page, '&delay=1000')
+    const panel = page.getByTestId('state-panel')
+    await panel.getByRole('button', { name: 'Edit: rule:daily:count' }).click()
+    const value = panel.locator('textarea[data-field="state-value"]')
+    await value.fill('4')
+    await panel.getByTestId('state-save').click()
+    await value.fill('5')
+    // The save of 4 is answered; the 5 typed meanwhile is not dropped.
+    await expect(panel.locator('[data-key="rule:daily:count"] code').nth(1)).toHaveText('4')
+    await expect(value).toHaveValue('5')
+  })
+
+  test('no next page is asked for while the first one reloads', async ({ page }) => {
+    await settings(page, '&statePage=1&delay=1000')
+    const panel = page.getByTestId('state-panel')
+    const rows = panel.getByTestId('state-list').locator('li')
+    await expect(rows).toHaveCount(1)
+    await panel.getByRole('button', { name: 'Delete: chat:42' }).click()
+    await panel.getByTestId('state-confirm-delete').click()
+    // The key is deleted and the first page is on its way again: «Show more» waits for it.
+    await expect(panel.getByTestId('state-more')).toBeDisabled()
+    await expect(panel.locator('[data-key="release:v2.4"]')).toBeVisible()
+    await panel.getByTestId('state-more').click()
+    await expect(rows).toHaveCount(2)
+    await expect(panel.locator('[data-key="chat:42"]')).toHaveCount(0)
+  })
+
+  test('without Automations.Author the keys are read only', async ({ page }) => {
+    await settings(page, '&cannot=author')
+    const panel = page.getByTestId('state-panel')
+    await expect(panel.getByTestId('state-list').locator('li')).toHaveCount(3)
+    await expect(panel.getByTestId('state-add')).toHaveCount(0)
+    await expect(panel.getByRole('button', { name: /^Edit/ })).toHaveCount(0)
+    await expect(panel.getByRole('button', { name: /^Delete/ })).toHaveCount(0)
+  })
+
+  test('a screen without the memory has no panel', async ({ page }) => {
+    await settings(page, '&state=off')
+    await expect(page.getByTestId('state-panel')).toHaveCount(0)
+    expect(await stateCalls(page, 'automations.state_list')).toHaveLength(0)
+  })
 })

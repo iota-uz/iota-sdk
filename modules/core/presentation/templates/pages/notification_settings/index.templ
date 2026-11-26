@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"github.com/google/uuid"
 	icons "github.com/iota-uz/icons/phosphor"
+	base "github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
@@ -35,10 +37,49 @@ type Props struct {
 	Groups     []notifications.GroupOption
 	Roles      []notifications.RoleOption
 	// Channels are the selectable delivery channels; the picker is hidden when only in-app exists.
-	Channels   []notifications.Channel
-	CanManage  bool
+	Channels []notifications.Channel
+	// Labels name the registered channels in the page's language.
+	Labels map[notifications.Channel]string
+	// Connections are the connector-backed channels with the connection each sends through.
+	Connections []ChannelConnection
+	CanManage   bool
+	MessageKey  string
+	Delivered   int
+}
+
+// ChannelConnection is the connection picker of one connector-backed channel.
+type ChannelConnection struct {
+	Channel notifications.Channel
+	Label   string
+	Options []ConnectionOption
+	// Current is the connection the channel sends through now ("" when none works).
+	Current string
+	// Effective is the connection the channel is set to send through (the stored choice or the platform
+	// credential), working or not: choosing another one removes the links of a linked channel.
+	Effective string
+	// MessageKey is the outcome of the last save (a NotificationSettings locale key).
 	MessageKey string
-	Delivered  int
+	// Linked channels lose their users' links when the connection changes.
+	Linked bool
+}
+
+// ConnectionOption is a connection a channel can send through.
+type ConnectionOption struct {
+	Value    string
+	Label    string
+	Platform bool
+}
+
+// ChannelLabel names a channel: the registry's label, else the locale key of a built-in one.
+func ChannelLabel(pageCtx types.PageContext, labels map[notifications.Channel]string, c notifications.Channel) string {
+	if c.Builtin() {
+		return pageCtx.T(ChannelLabelKey(c))
+	}
+	if labels[c] != "" {
+		return labels[c]
+	}
+	// A channel no component registers any more is named by its identifier, never as another channel.
+	return string(c)
 }
 
 type pickerItem struct {
@@ -156,6 +197,9 @@ lang := pageCtx.GetLocale().String()
 		}
 		<p class="mt-2 text-sm"><a href="/settings/notifications/users" class="text-primary-600 hover:underline">{ pageCtx.T("NotificationSettings.UserChannels") }</a></p>
 		<section id="notification-queue" class="mt-4 h-5" hx-get="/settings/notifications/queue" hx-trigger="load" hx-swap="outerHTML"></section>
+		for _, conn := range props.Connections {
+			@channelConnection(conn, props.CanManage)
+		}
 		{{ previousModule := "" }}
 		for _, event := range props.Rules {
 			if event.Definition.Module != previousModule {
@@ -339,7 +383,7 @@ lang := pageCtx.GetLocale().String()
 								<div class="mt-1 flex flex-wrap gap-4">
 									for _, channel := range channelChoices(props.Channels, event.Rule) {
 										@input.Checkbox(&input.CheckboxProps{
-											Label:   pageCtx.T("NotificationSettings.Channel" + channelKey(channel)),
+											Label:   ChannelLabel(pageCtx, props.Labels, channel),
 											Class:   templ.Classes("font-normal"),
 											Checked: hasChannel(event.Rule, channel),
 											Attrs:   templ.Attributes{"name": "channels", "value": string(channel), "disabled": !props.CanManage},
@@ -455,4 +499,102 @@ templ Queue(stats notifications.DispatchStats, jobs []notifications.DispatchSumm
 			<span>{ pageCtx.T("NotificationSettings.AllDelivered") }</span>
 		}
 	</section>
+}
+
+func connectionFormID(c notifications.Channel) string { return "channel-connection-" + string(c) }
+
+// ConnectionBoxID is the element a save of the channel's connection replaces.
+func ConnectionBoxID(c notifications.Channel) string { return "channel-connection-box-" + string(c) }
+
+// connectionSubmit saves a chosen connection that differs from the one the
+// channel is set to; for a linked channel it asks first, since the change
+// removes the users' links.
+func connectionSubmit(conn ChannelConnection) string {
+	next := "htmx.trigger($el, 'confirmed')"
+	if conn.Linked {
+		next = "$dispatch('confirm-connection-" + string(conn.Channel) + "')"
+	}
+	return "const v = $el.querySelector('select').value; if (v === '' || v === current) return; " + next
+}
+
+// channelConnection picks the connection a connector-backed channel sends
+// through. Changing the bot of a linked channel asks first: the users' links
+// are removed.
+templ channelConnection(conn ChannelConnection, canManage bool) {
+	<div id={ ConnectionBoxID(conn.Channel) }>
+		@ChannelConnectionForm(conn, canManage)
+	</div>
+}
+
+// ChannelConnectionForm is the picker of one channel; a save answers with it
+// alone, so unsaved edits of the rules on the page stay.
+templ ChannelConnectionForm(conn ChannelConnection, canManage bool) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ args := map[string]any{"Channel": conn.Label} }}
+	<form
+		id={ connectionFormID(conn.Channel) }
+		class="mt-4 rounded-xl border border-secondary bg-surface-300 px-5 py-4"
+		data-testid={ "channel-connection-" + string(conn.Channel) }
+		hx-post={ "/settings/notifications/channels/" + string(conn.Channel) + "/connection" }
+		hx-trigger="confirmed"
+		hx-target={ "#" + ConnectionBoxID(conn.Channel) }
+		hx-swap="innerHTML"
+		x-data={ "{ current: '" + conn.Effective + "', busy: false }" }
+		@submit.prevent={ connectionSubmit(conn) }
+		x-on:htmx:before-request="busy = true"
+		x-on:htmx:after-request="busy = false"
+	>
+		@composables.CSRFTokenField()
+		<h2 class="font-medium">{ pageCtx.T("NotificationSettings.Connection.Title", args) }</h2>
+		<p class="mt-1 text-sm text-200">{ pageCtx.T("NotificationSettings.Connection.Hint", args) }</p>
+		if conn.MessageKey != "" {
+			<p class="mt-2 text-sm text-100" role="status">{ pageCtx.T("NotificationSettings." + conn.MessageKey) }</p>
+		}
+		if len(conn.Options) == 0 {
+			<p class="mt-3 text-sm text-100" role="status">
+				{ pageCtx.T("NotificationSettings.Connection.None", args) }
+				<a href="/settings/integrations" class="text-primary-600 hover:underline">{ pageCtx.T("NotificationSettings.Connection.Integrations") }</a>
+			</p>
+		} else {
+			if conn.Current == "" {
+				<p class="mt-3 text-sm text-amber-700" role="status">{ pageCtx.T("NotificationSettings.Connection.Unavailable", args) }</p>
+			}
+			<div class="mt-3 flex flex-col items-start gap-3">
+				@base.Combobox(base.ComboboxProps{
+					Name:         "connection_id",
+					Label:        pageCtx.T("NotificationSettings.Connection.Label"),
+					Searchable:   true,
+					NotFoundText: pageCtx.T("NotificationSettings.Connection.NotFound"),
+					Class:        "max-w-md",
+					Disabled:     !canManage,
+				}) {
+					if conn.Current == "" {
+						<option value="" selected disabled>{ pageCtx.T("NotificationSettings.Connection.Choose") }</option>
+					}
+					for _, o := range conn.Options {
+						<option value={ o.Value } selected?={ o.Value == conn.Current }>{ o.Label }</option>
+					}
+				}
+				if canManage {
+					@button.Primary(button.Props{Class: "min-h-11 justify-center", Attrs: templ.Attributes{"type": "submit", ":disabled": "busy", "data-testid": "save-connection-" + string(conn.Channel)}}) {
+						<span x-show="!busy">{ pageCtx.T("NotificationSettings.Save") }</span>
+						<span x-show="busy" x-cloak>{ pageCtx.T("NotificationSettings.Connection.Saving") }</span>
+					}
+				}
+			</div>
+		}
+	</form>
+	if conn.Linked && canManage {
+		@dialog.Confirmation(&dialog.Props{
+			Heading:     pageCtx.T("NotificationSettings.Connection.ConfirmHeading", args),
+			Text:        pageCtx.T("NotificationSettings.Connection.ConfirmText", args),
+			CancelText:  pageCtx.T("NotificationSettings.Cancel"),
+			ConfirmText: pageCtx.T("NotificationSettings.Connection.ConfirmButton"),
+			Danger:      true,
+			Action:      "confirm-connection-" + string(conn.Channel),
+			Attrs: templ.Attributes{
+				"@closing": "({target}) => { if (target.returnValue === 'confirm') { htmx.trigger(document.getElementById('" + connectionFormID(conn.Channel) + "'), 'confirmed') } }",
+			},
+		})
+	}
 }

@@ -662,3 +662,19 @@ test('Secrets: who sees them — a secrets administrator alone, none for an auth
   await expect(page.getByTestId('no-secrets')).toContainText('No secrets yet')
   await expect(page.getByTestId('secret-add')).toBeVisible()
 })
+
+test('Secrets: without an encryption key no value can be saved — no «Add secret», no rotation; the list stays', async ({ page }) => {
+  await open(page, 'unconfigured')
+  await expect(page.getByTestId('secrets-list')).toBeVisible()
+  const add = page.getByTestId('secret-add')
+  await expect(add).toBeDisabled()
+  await expect(add).toHaveAttribute('aria-describedby', 'secrets-not-configured')
+  await expect(page.getByTestId('secrets-not-configured')).toHaveText('Secrets cannot be saved: the application has no encryption key configured. Ask the administrator of the application to set it up.')
+  await secretRow(page, 'CRM_API_KEY').locator('summary[aria-haspopup]').click()
+  await expect(secretRow(page, 'CRM_API_KEY').getByTestId('secret-menu-rotate')).toBeDisabled()
+  await expect(secretRow(page, 'CRM_API_KEY').getByTestId('secret-menu-edit')).toBeEnabled()
+
+  await open(page)
+  await expect(page.getByTestId('secret-add')).toBeEnabled()
+  await expect(page.getByTestId('secrets-not-configured')).toHaveCount(0)
+})

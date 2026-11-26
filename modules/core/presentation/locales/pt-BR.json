@@ -47,6 +47,53 @@
     }
   },
   "Account": {
+      "Notifications": {
+        "Retry": "Tentar novamente",
+        "Title": "Notificações",
+        "Intro": "Escolha onde receber as notificações.",
+        "Channels": "Canais de notificação",
+        "NeedsLink": "Conecte o {{.Channel}} abaixo para receber notificações nele.",
+        "Linked": "{{.Channel}} conectado como {{.Account}}.",
+        "Waiting": "Aguardando a confirmação no {{.Channel}}…",
+        "ExpiresIn": "· o link vale por",
+        "Expired": "O link expirou.",
+        "Gone": "{{.Channel}} desconectado: o bot foi bloqueado no {{.Channel}}.",
+        "NotLinked": "{{.Channel}} não está conectado.",
+        "Link": "Conectar {{.Channel}}",
+        "LinkAgain": "Conectar novamente",
+        "GetNewLink": "Obter novo link",
+        "OpenAgain": "Abrir o {{.Channel}} novamente",
+        "Cancel": "Cancelar",
+        "Unlink": "Desconectar {{.Channel}}",
+        "UnlinkHeading": "Desconectar o {{.Channel}}?",
+        "UnlinkText": "As notificações deixarão de chegar em {{.Account}}. Para recebê-las de novo, será preciso um novo link.",
+        "UnlinkConfirm": "Desconectar",
+        "SendTest": "Enviar notificação de teste",
+        "Errors": {
+          "Load": "Não foi possível carregar as configurações de notificação.",
+          "Toggle": "Não foi possível salvar. Tente novamente em um minuto.",
+          "Unavailable": "A conexão não está disponível: o administrador não configurou o bot.",
+          "Unlink": "Não foi possível desconectar. Tente novamente em um minuto."
+        },
+        "Toast": {
+          "LinkedTitle": "{{.Channel}} conectado",
+          "Linked": "{{.Channel}} conectado como {{.Account}}.",
+          "UnlinkedTitle": "{{.Channel}} desconectado"
+        },
+        "Test": {
+          "Starting": "Enviando…",
+          "Sending": "Enviando a notificação de teste para o {{.Channel}}…",
+          "StillWaiting": "Ainda aguardando o {{.Channel}} aceitar a mensagem. Ela não será enviada duas vezes.",
+          "Sent": "A notificação de teste foi entregue no {{.Channel}}.",
+          "Failed": {
+            "NoAddress": "Nada foi enviado: o {{.Channel}} não está conectado.",
+            "Gone": "O {{.Channel}} recusou a mensagem: o bot pode estar bloqueado. Conecte novamente.",
+            "Disabled": "Nada foi enviado: o {{.Channel}} está desativado acima.",
+            "Unavailable": "Nada foi enviado: o {{.Channel}} não está configurado na organização.",
+            "Unknown": "Não foi possível enviar a notificação de teste para o {{.Channel}}. Tente novamente em um minuto."
+          }
+        }
+      },
     "Meta": {
       "Index": {
         "Title": "Conta"
@@ -1781,6 +1828,29 @@
     "Configure": "Configurar"
   },
   "NotificationSettings": {
+      "Connection": {
+        "Choose": "Escolha um bot",
+        "Title": "Bot do {{.Channel}}",
+        "Hint": "As notificações para o {{.Channel}} são enviadas por este bot; as pessoas conectam suas contas a ele.",
+        "None": "Ainda não há bot do {{.Channel}}: conecte um na página",
+        "Integrations": "Integrações",
+        "Unavailable": "O bot escolhido não funciona agora; as notificações para o {{.Channel}} não são enviadas. Escolha outro bot.",
+        "Label": "Bot",
+        "NotFound": "Nenhum bot encontrado",
+        "Platform": "Bot da plataforma",
+        "Saving": "Salvando…",
+        "ConfirmHeading": "Trocar o bot do {{.Channel}}?",
+        "ConfirmText": "Todas as contas do {{.Channel}} conectadas serão removidas: um chat com um bot não funciona com outro. As pessoas precisarão conectar o {{.Channel}} novamente.",
+        "ConfirmButton": "Trocar o bot"
+      },
+      "ConnectionSaved": "O bot foi salvo.",
+      "ConnectionSavedLinksRemoved": "O bot foi salvo. As contas conectadas foram removidas; as pessoas precisam conectar novamente.",
+      "ConnectionInvalid": "Este bot não pode ser escolhido agora. Escolha outro.",
+      "LinkState": {
+        "Linked": "conectado",
+        "NotLinked": "não conectado",
+        "Gone": "desconectado: bot bloqueado"
+      },
     "AudienceHint": "Quem está em um grupo e também na lista recebe uma única notificação.",
     "UnavailableRecipients": "Alguns destinatários não estão mais disponíveis e não receberão notificações.",
     "Title": "Configurações de notificações",

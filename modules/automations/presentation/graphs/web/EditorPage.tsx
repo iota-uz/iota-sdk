@@ -13,6 +13,7 @@ import {
   type ConnectionOptions, type GetResult, type ManualTrigger,
 } from './model'
 import { RunDialog } from './RunDialog'
+import { StatePanel } from './StatePanel'
 
 type CatalogResult = RPC['automations.catalog']['result']
 
@@ -66,16 +67,71 @@ export default function EditorPage(): JSX.Element {
     onCleanup(() => mq.removeEventListener('change', update))
   })
 
+  // ——— history (D1) ———
+  // Every entry of this page carries its index in history.state: a cancelled Back or Forward returns
+  // to the entry it left with history.go, so no entry is added over the one the person declined.
+  const indexOf = (state: unknown): number | null => {
+    const idx = (state as { idx?: unknown } | null)?.idx
+    return typeof idx === 'number' ? idx : null
+  }
+  let idx = indexOf(window.history.state) ?? 0
+  window.history.replaceState({ ...(window.history.state as object | null), idx }, '')
+  // The newest entry known to exist (a push drops the entries after it).
+  let lastIdx = idx
+  // The entry that names the version on screen: where a declined navigation returns (gone: a push
+  // replaced it, so its URL is written back instead).
+  let rest: { idx: number; href: string; gone?: boolean } = { idx, href: window.location.href }
+
   const setURL = (mutate: (url: URL) => void, push = false) => {
     const url = new URL(window.location.href)
     mutate(url)
-    if (url.href === window.location.href) return
-    if (push) window.history.pushState({}, '', url)
-    else window.history.replaceState({}, '', url)
-    shownHref = window.location.href
+    goTo(url, push)
   }
-  // The URL the page shows; a Back that is cancelled returns to it.
-  let shownHref = window.location.href
+  /** Moves the URL (a new entry when push), keeping the entry's index. */
+  const goTo = (target: string | URL, push: boolean) => {
+    const url = new URL(target, window.location.href)
+    if (url.href === window.location.href) return
+    if (push) {
+      idx++
+      lastIdx = idx
+      // The push drops the entries from idx on: the one that named the version on screen may be gone.
+      if (rest.idx >= idx) rest = { ...rest, gone: true }
+      window.history.pushState({ idx }, '', url)
+    } else {
+      window.history.replaceState({ idx }, '', url)
+    }
+    markRest()
+  }
+  const urlVersion = () => Number(new URLSearchParams(window.location.search).get('version') ?? '0') || 0
+  /** A version as the URL and the intent name it: 0 for the latest. */
+  const norm = (version: number) => (version === info()?.latestVersion ? 0 : version)
+  /** The version the editor shows (0: the latest). */
+  const shown = () => {
+    const i = info()
+    return !i || i.version === i.latestVersion ? 0 : i.version
+  }
+  const markRest = () => {
+    if (norm(urlVersion()) === shown()) rest = { idx, href: window.location.href }
+  }
+  /** Returns the URL to the entry of the version on screen. */
+  const revert = () => {
+    if (!rest.gone && rest.idx === idx) return
+    if (!rest.gone && rest.idx <= lastIdx) {
+      // The popstate that follows names the version on screen: nothing loads.
+      window.history.go(rest.idx - idx)
+      return
+    }
+    // The entry is gone: its URL is written back, with the step selected in the draft that stays.
+    const url = new URL(rest.href)
+    if (tab() === 'edit') {
+      const node = selected()
+      if (node) url.searchParams.set('node', node)
+      else url.searchParams.delete('node')
+    }
+    window.history.replaceState({ idx }, '', url)
+    rest = { idx, href: url.href }
+  }
+  const versionURL = (v: number) => (url: URL) => { if (v === 0) url.searchParams.delete('version'); else url.searchParams.set('version', String(v)) }
 
   const applyGet = (g: GetResult, key: number) => {
     layoutRevision = g.automation.layout_revision
@@ -83,6 +139,7 @@ export default function EditorPage(): JSX.Element {
     layoutStale = false
     clearConflict()
     setCan(g.can)
+    setOpening(null)
     setInfo({
       id: g.automation.id, name: g.automation.name, enabled: g.automation.enabled, enabledVersion: g.automation.enabled_version,
       latestVersion: g.automation.latest_version, version: g.version, savedByAgent: g.saved_by.origin === 'agent', versions: g.versions,
@@ -92,52 +149,93 @@ export default function EditorPage(): JSX.Element {
       graph: g.graph as AutomationGraph, layout: g.automation.layout, version: g.version, catalog: g.catalog as unknown as EditorCatalog,
       connections: g.connections, readOnly: g.read_only ? { reason: g.read_only.code === 'old_version' ? t('Editor.OldVersion', { version: g.version }) : g.read_only.reason } : null, key,
     })
+    markRest()
   }
 
-  // The version the last request asked for (0: the latest): Back compares with it, not with what is
-  // rendered, so an answer to a superseded request never wins (loadSeq drops it).
-  let requested = requestedVersion
-  const load = async (version = requestedVersion) => {
-    requested = version
+  // ——— versions: the snapshot on screen and the intent are kept apart ———
+  // info()/loaded() are the snapshot the editor renders; `inflight` is the request of the version the
+  // person asked for last. A new intent aborts it at once (loadSeq also drops an answer already on its
+  // way), and an answer is applied only over edits the person agreed to drop.
+  let inflight: AbortController | null = null
+  // The version a confirmed switch is opening: the editor is read only until it arrives, so no edit
+  // is made that the consent did not cover.
+  const [opening, setOpening] = createSignal<number | null>(null)
+  const cancelPending = () => {
+    loadSeq++
+    inflight?.abort()
+    inflight = null
+    setOpening(null)
+  }
+  /** Loads a version (0: the latest). consented: the person agreed to drop the draft on screen. */
+  const load = async (version = requestedVersion, consented = false) => {
+    cancelPending()
+    const ctrl = new AbortController()
+    inflight = ctrl
     const mine = ++loadSeq
+    if (consented) setOpening(version)
     setLoadError(undefined)
     try {
       if (!app.props.id) {
-        const c: CatalogResult = await app.call('automations.catalog', {})
+        const c: CatalogResult = await app.call('automations.catalog', {}, ctrl.signal)
         if (mine !== loadSeq) return
+        inflight = null
         setCan(c.can)
         setLoaded({ graph: emptyGraph(), layout: {}, version: 0, catalog: c.catalog as unknown as EditorCatalog, connections: c.connections, readOnly: null, key: mine })
         return
       }
-      const g = await app.call('automations.get', { id: app.props.id, ...(version > 0 ? { version } : {}) })
+      const g = await app.call('automations.get', { id: app.props.id, ...(version > 0 ? { version } : {}) }, ctrl.signal)
       if (mine !== loadSeq) return
+      inflight = null
       // Edits made while the snapshot was on its way are not replaced without the person's consent.
-      if (loaded() && dirty()) {
+      if (!consented && loaded() && dirty()) {
         setDiscard({ version, held: g })
         return
       }
       applyGet(g, mine)
     } catch (e) {
-      if (mine === loadSeq) setLoadError(errorText(t, e, t('Actions.LoadGraph')))
+      if (mine !== loadSeq) return
+      inflight = null
+      setOpening(null)
+      setLoadError(errorText(t, e, t('Actions.LoadGraph')))
     }
   }
   onMount(() => void load())
+
+  /** The person asks for a version the URL already names (Back, Forward). */
+  const follow = (version: number) => {
+    cancelPending()
+    setDiscard(null)
+    if (version === shown()) {
+      // Back to the version on screen: nothing to load, the draft stays.
+      markRest()
+      return
+    }
+    if (dirty()) {
+      setDiscard({ version })
+      return
+    }
+    void load(version)
+  }
   // D1: Back and Forward restore what the URL says: the tab, the selected step and the open version.
   onMount(() => {
-    const onPop = () => {
+    const onPop = (e: PopStateEvent) => {
+      idx = indexOf(e.state) ?? idx
+      lastIdx = Math.max(lastIdx, idx)
       const q = new URLSearchParams(window.location.search)
       const view = readRunsView(window.location.pathname, window.location.search)
       const runs = Boolean(view.run) || q.get('tab') === 'runs'
       setTab(runs ? 'runs' : 'edit')
       setRunsView(view)
       setSelected(runs ? null : q.get('node'))
-      const wanted = Number(q.get('version') ?? '0') || 0
-      const back = shownHref
-      shownHref = window.location.href
-      if (info() && wanted !== requested) switchVersion(wanted, back)
+      if (info()) follow(norm(urlVersion()))
+      // Nothing on screen yet: the first snapshot is for the URL left, so the one now named is loaded.
+      else if (app.props.id) void load(urlVersion())
     }
     window.addEventListener('popstate', onPop)
-    onCleanup(() => window.removeEventListener('popstate', onPop))
+    onCleanup(() => {
+      window.removeEventListener('popstate', onPop)
+      inflight?.abort()
+    })
   })
 
   /** Re-reads the graph's state (enabled, versions) without touching the editor's draft. */
@@ -147,63 +245,51 @@ export default function EditorPage(): JSX.Element {
     try {
       // The layout revision moves only with the positions it stands for (save, saveLayout, reload).
       const g = await app.call('automations.get', { id: i.id })
-      setInfo({ ...i, name: g.automation.name, enabled: g.automation.enabled, enabledVersion: g.automation.enabled_version, latestVersion: g.automation.latest_version, versions: g.versions, manual: manualOf(g) })
+      // Merged into the snapshot of now: a version opened meanwhile stays open.
+      setInfo((cur) => cur && cur.id === i.id ? { ...cur, name: g.automation.name, enabled: g.automation.enabled, enabledVersion: g.automation.enabled_version, latestVersion: g.automation.latest_version, versions: g.versions, manual: manualOf(g) } : cur)
     } catch (e) {
       console.warn('automations: refresh failed', e)
     }
   }
 
   const [dirty, setDirty] = createSignal(false)
-  // A version switch that would drop unsaved edits: asked before it starts (revert: the URL Back left),
-  // or once its snapshot arrived while edits were made (held).
-  const [discard, setDiscard] = createSignal<{ version: number; revert?: string; held?: GetResult } | null>(null)
-  /** Opens a version (0: the latest); unsaved edits are not dropped without the person's consent. */
-  const switchVersion = (version: number, revert?: string) => {
-    if (dirty()) {
-      setDiscard({ version, ...(revert ? { revert } : {}) })
-      return
-    }
-    void load(version)
-  }
+  // A version switch that would drop unsaved edits: asked before it starts (push: the menu's choice,
+  // whose URL is pushed on consent; otherwise Back or Forward already moved the URL), or once its
+  // snapshot arrived while edits were made (held).
+  const [discard, setDiscard] = createSignal<{ version: number; push?: boolean; held?: GetResult } | null>(null)
+  /** The versions menu and «Open latest»: opens a version; unsaved edits are not dropped without consent. */
   const openVersion = (version: number) => {
-    const v = version === info()?.latestVersion ? 0 : version
-    const push = () => setURL((url) => { if (v === 0) url.searchParams.delete('version'); else url.searchParams.set('version', String(v)) }, true)
-    if (dirty()) {
-      setDiscard({ version: v })
+    const v = norm(version)
+    cancelPending()
+    setDiscard(null)
+    if (v === shown()) {
+      setURL(versionURL(v), true)
       return
     }
-    push()
+    if (dirty()) {
+      setDiscard({ version: v, push: true })
+      return
+    }
+    setURL(versionURL(v), true)
     void load(v)
   }
   const confirmDiscard = () => {
     const d = discard()
     if (!d) return
     setDiscard(null)
-    setDirty(false)
     if (d.held) {
       // The URL already names the version (the menu or Back set it before the request).
       applyGet(d.held, ++loadSeq)
       return
     }
-    if (!d.revert) setURL((url) => { if (d.version === 0) url.searchParams.delete('version'); else url.searchParams.set('version', String(d.version)) }, true)
-    void load(d.version)
+    if (d.push) setURL(versionURL(d.version), true)
+    void load(d.version, true)
   }
   const cancelDiscard = () => {
-    const d = discard()
+    if (!discard()) return
     setDiscard(null)
-    if (d?.held) {
-      // The snapshot is dropped: the URL and the next Back name the version still open.
-      const i = info()
-      const open = i && i.version !== i.latestVersion ? i.version : 0
-      requested = open
-      setURL((url) => { if (open === 0) url.searchParams.delete('version'); else url.searchParams.set('version', String(open)) }, true)
-      return
-    }
-    // Back was pressed: the URL returns to the version still open.
-    if (d?.revert) {
-      window.history.pushState({}, '', d.revert)
-      shownHref = window.location.href
-    }
+    // The URL returns to the entry of the version still open: Back or Forward is undone, not covered.
+    revert()
   }
 
   // ——— the editor's backend ———
@@ -221,7 +307,8 @@ export default function EditorPage(): JSX.Element {
         layoutRevision = res.layout_revision ?? 0
         positionsBase = layoutRevision
         setInfo({ id, name: graph.name, enabled: false, enabledVersion: null, latestVersion: res.version ?? 1, version: res.version ?? 1, savedByAgent: false, versions: [], manual: [] })
-        window.history.replaceState({}, '', graphPath(app.props.basePath, id))
+        window.history.replaceState({ idx }, '', graphPath(app.props.basePath, id))
+        markRest()
         void refreshInfo()
       }
       return toSave(res)
@@ -301,12 +388,12 @@ export default function EditorPage(): JSX.Element {
   const api: EditorApi = {
     validate: (graph) => app.call('automations.validate', { graph }),
     dryRun: (input) => app.call('automations.dry_run', {
-      graph: input.graph, subject: input.subject, events: input.events as never,
+      ...(info() ? { id: info()!.id } : {}), graph: input.graph, subject: input.subject, events: input.events as never,
       ...(input.context ? { context: input.context as never } : {}), ...(input.decisions ? { decisions: input.decisions } : {}),
     }) as never,
     testNode: async (input) => {
       const res = await app.call('automations.test_node', {
-        graph: input.graph, node_id: input.node_id, ...(input.subject ? { subject: input.subject } : {}),
+        ...(info() ? { id: info()!.id } : {}), graph: input.graph, node_id: input.node_id, ...(input.subject ? { subject: input.subject } : {}),
         ...(input.context ? { context: input.context as never } : {}), ...(input.idempotency_key ? { idempotency_key: input.idempotency_key } : {}),
       })
       return { outcome: res.outcome, ...(res.output !== undefined ? { output: res.output } : {}), ...(res.logs ? { logs: res.logs } : {}), ...(res.duration_ms ? { duration_ms: res.duration_ms } : {}), ...(res.error ? { error: res.error } : {}) }
@@ -423,26 +510,26 @@ export default function EditorPage(): JSX.Element {
         if (selected()) url.searchParams.set('node', selected()!)
         return url.pathname + url.search
       })()
-    if (href !== window.location.pathname + window.location.search) {
-      window.history.pushState({}, '', href)
-      shownHref = window.location.href
-    }
+    goTo(href, true)
   }
   const changeRunsView = (view: RunsView, push: boolean) => {
     setRunsView(view)
     const i = info()
     if (!i) return
     const href = writeRunsView(app.props.basePath, i.id, view, window.location.href)
-    if (href === window.location.pathname + window.location.search) return
-    if (push) window.history.pushState({}, '', href)
-    else window.history.replaceState({}, '', href)
-    shownHref = window.location.href
+    goTo(href, push)
   }
   const select = (id: string | null) => {
     setSelected(id)
     setURL((url) => { if (id) url.searchParams.set('node', id); else url.searchParams.delete('node') })
   }
 
+  // While a confirmed switch loads, the draft it drops is not editable: nothing new is lost.
+  const readOnlyOf = (data: { readOnly: { reason: string } | null }) => {
+    const v = opening()
+    if (v === null) return data.readOnly
+    return { reason: t('Editor.OpeningVersion', { version: v === 0 ? info()?.latestVersion ?? 0 : v }) }
+  }
   const crumb = (
     <a href={app.props.basePath} class="hover:underline" data-testid="crumb">{t('Title')}</a>
   )
@@ -496,7 +583,7 @@ export default function EditorPage(): JSX.Element {
           <div role="alert" class="m-4 flex flex-col items-start gap-3 rounded-lg border border-subtle p-6" data-testid="graph-load-error">
             <p>{loadError()}</p>
             <div class="flex gap-2">
-              <Button variant="secondary" onClick={() => void load()} icon={<Icon name="refresh" />}>{t('Common.Retry')}</Button>
+              <Button variant="secondary" onClick={() => void load(urlVersion())} icon={<Icon name="refresh" />}>{t('Common.Retry')}</Button>
               <Button variant="ghost" href={app.props.basePath}>{t('Editor.BackToList')}</Button>
             </div>
           </div>
@@ -515,7 +602,7 @@ export default function EditorPage(): JSX.Element {
                   layout={data().layout}
                   api={api}
                   save={save}
-                  {...(info() && !data().readOnly ? { saveLayout } : {})}
+                  {...(info() && !readOnlyOf(data()) ? { saveLayout } : {})}
                   remoteLayout={remoteLayout()}
                   reload={reload}
                   versions={versions()}
@@ -523,8 +610,9 @@ export default function EditorPage(): JSX.Element {
                   onDirtyChange={setDirty}
                   enabled={info()?.enabled ?? false}
                   {...(info() && can().enable ? { toggleEnabled: () => setDialog(info()!.enabled ? 'disable' : 'review') } : {})}
-                  {...(data().readOnly ? { readOnly: data().readOnly! } : {})}
+                  {...(readOnlyOf(data()) ? { readOnly: readOnlyOf(data())! } : {})}
                   fieldSlot={fieldSlot}
+                  {...(info() && app.props.state ? { settingsSlot: <StatePanel id={info()!.id} canEdit={can().author && !data().readOnly} /> } : {})}
                   {...(info() ? {
                     tab: tab(), onTab: changeTab, automationId: info()!.id, runsView: runsView(), onRunsView: changeRunsView,
                     ...(can().operate && info()!.enabled && manual().length > 0 ? { onStartRun: () => setDialog('run') } : {}),

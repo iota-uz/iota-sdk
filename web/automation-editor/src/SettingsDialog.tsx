@@ -9,6 +9,8 @@ export interface SettingsDialogProps {
   graph: AutomationGraph
   locale: EditorLocale
   readOnly: boolean
+  /** Host content below the choices: the graph's memory between runs. */
+  slot?: JSX.Element
   onChange(patch: Partial<Pick<AutomationGraph, 'name' | 'description' | 'run_as'>>, key: string): void
   onClose(): void
 }
@@ -16,7 +18,7 @@ export interface SettingsDialogProps {
 export function SettingsDialog(props: SettingsDialogProps): JSX.Element {
   const t = () => strings(props.locale)
   return (
-    <Dialog open={props.open} onOpenChange={(open) => { if (!open) props.onClose() }} class="ae-dialog" aria-labelledby="ae-settings-title">
+    <Dialog open={props.open} onOpenChange={(open) => { if (!open) props.onClose() }} class={props.slot ? 'ae-dialog ae-dialog--wide' : 'ae-dialog'} aria-labelledby="ae-settings-title">
       <div class="ae-dialog__body">
         <h2 id="ae-settings-title" class="ae-dialog__title" data-dialog-title tabindex="-1">{t().settings.title}</h2>
         <Input
@@ -53,6 +55,7 @@ export function SettingsDialog(props: SettingsDialogProps): JSX.Element {
             )}
           </For>
         </fieldset>
+        {props.slot}
         <div class="ae-dialog__actions">
           <button type="button" class="btn btn-primary btn-normal" onClick={() => props.onClose()}>{t().settings.done}</button>
         </div>

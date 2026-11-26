@@ -1006,8 +1006,8 @@ func TestAFormerRootIsStillSwept(t *testing.T) {
 	assert.NotEqual(t, old.Ref.Path, fresh.Ref.Path)
 }
 
-// A current root whose deletes keep timing out never starves a former root: each root has a deadline of its
-// own and the purges take turns at which root goes first.
+// A current root whose deletes keep timing out never starves a former root: the sweep of all roots shares one
+// deadline and the purges take turns at which root goes first.
 func TestASlowCurrentRootNeverStarvesAFormerRoot(t *testing.T) {
 	restore := secrets.SetCleanupTimeout(300 * time.Millisecond)
 	defer restore()

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -297,4 +298,32 @@ func TestTheCatalogViewNamesTheParticipantsOfAnEvent(t *testing.T) {
 	}
 	participants := schema["properties"].(map[string]any)["recipients"].(map[string]any)["properties"].(map[string]any)["participants"].(map[string]any)
 	assert.Equal(t, true, participants["x-event-participants"], "the form shows the field only where the trigger events offer participants")
+}
+
+// telegramAdapter is a registered channel adapter that never sends.
+type telegramAdapter struct{}
+
+func (telegramAdapter) Channel() notifications.Channel { return notifications.ChannelTelegram }
+func (telegramAdapter) Send(context.Context, notifications.Message) (notifications.Receipt, error) {
+	return notifications.Receipt{}, nil
+}
+
+func TestRegisteredChannelsAreAcceptedWhenTheGraphIsSaved(t *testing.T) {
+	channels, err := notifications.NewChannelRegistry()
+	require.NoError(t, err)
+	require.NoError(t, channels.Register(notifications.ChannelSpec{Channel: notifications.ChannelTelegram, Address: notifications.AddressLinked,
+		LinkURL: func(context.Context, uuid.UUID, string, string) (string, error) { return "", nil }}, telegramAdapter{}))
+	reg := catalog.NewRegistry(nil)
+	require.NoError(t, reg.RegisterTriggers(engine.Triggers()))
+	require.NoError(t, reg.RegisterTriggers(orderEvents{}))
+	for _, spec := range graph.BuiltinNodes(nil, nil) {
+		require.NoError(t, reg.RegisterNode(specNode{spec}))
+	}
+	require.NoError(t, notify.Register(reg, notify.Config{Sender: &sender{}, Pool: new(pgxpool.Pool), Channels: channels}))
+	view, err := reg.ForTenant(context.Background(), tenant)
+	require.NoError(t, err)
+	v := &validation{reg: reg, view: view}
+	assert.Empty(t, v.errors(t, notifyGraph("acme.order.created.v1", `{"recipients": {"roles": ["1"]}, "title": "Hi", "body": "Paid", "channels": ["telegram"]}`)))
+	errs := v.errors(t, notifyGraph("acme.order.created.v1", `{"recipients": {"roles": ["1"]}, "title": "Hi", "body": "Paid", "channels": ["whatsapp"]}`))
+	require.Len(t, errs, 1, "a channel no component registered is refused")
 }

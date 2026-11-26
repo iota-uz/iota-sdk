@@ -324,7 +324,8 @@ body > .ae-menu, .ae-editor > .ae-menu { position: fixed; }
 .ae-menu__label { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ——— dialogs ——— */
-.ae-dialog__body { display: flex; flex-direction: column; gap: 1rem; padding: 1.25rem; min-width: min(28rem, 90vw); }
+.ae-dialog__body { display: flex; flex-direction: column; gap: 1rem; padding: 1.25rem; min-width: min(28rem, 90vw); max-height: calc(100dvh - 2rem); overflow-y: auto; }
+.ae-dialog--wide { width: min(40rem, calc(100vw - 2rem)); max-width: min(40rem, calc(100vw - 2rem)); }
 .ae-dialog__title { margin: 0; font-size: 1.125rem; font-weight: 600; }
 .ae-dialog__actions { display: flex; justify-content: flex-end; gap: 0.5rem; }
 .ae-radio-group { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }

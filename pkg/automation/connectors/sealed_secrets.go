@@ -29,6 +29,9 @@ func NewSealedSecrets(db *pgxpool.Pool, keys Keyring) secrets.Store {
 	return &sealedSecrets{db: db, keys: keys}
 }
 
+// Configured is false without a keyring: every call is then ErrUnavailable (secrets.Configurable).
+func (s *sealedSecrets) Configured() bool { return s.keys != nil && s.db != nil }
+
 const putAttempts = 8
 
 // errWriteFenced: a Put that reached the store after its ref's NotAfter; nothing was written.

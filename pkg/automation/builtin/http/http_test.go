@@ -265,6 +265,30 @@ func TestAuthNeedsAStaticHost(t *testing.T) {
 	}
 }
 
+// Headers up to the transport's limit, each byte an invalid one (6 bytes as JSON), and a body of the whole
+// range of control characters still fit the node's output: the header budget is part of MaxOutputBytes.
+func TestHeadersAtTheirLimitDoNotCrowdOutTheBody(t *testing.T) {
+	body := strings.Repeat("\x01", httpnode.MaxResponseBytes)
+	header := nethttp.Header{"Content-Type": {"text/plain"}}
+	for i := 0; i < httpnode.MaxResponseHeaderBytes/1024; i++ {
+		header.Add("X-Pad", strings.Repeat("\xff", 1000))
+	}
+	n := httpnode.New(httpnode.Deps{Fetcher: &fakeFetcher{resp: &sandbox.FetchResponse{Status: 200, Header: header, Body: []byte(body), URL: "https://api.example.com/"}}})
+	res, err := n.Execute(context.Background(), call(map[string]any{"url": "https://api.example.com/"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Outcome != httpnode.OutcomeSuccess || res.Output["body"] != body || res.Output["body_omitted"] != nil {
+		t.Fatalf("the body was dropped: %v %v", res.Outcome, res.Output["body_omitted"])
+	}
+	// Headers over the limit fail the request at the transport: the response is too large.
+	n = httpnode.New(httpnode.Deps{Fetcher: &fakeFetcher{err: sandbox.ErrResponseHeadersTooLarge}})
+	_, err = n.Execute(context.Background(), call(map[string]any{"url": "https://api.example.com/"}))
+	if code := codeOf(t, err); code != access.CodeResponseTooLarge {
+		t.Fatalf("got %s", code)
+	}
+}
+
 func TestABodyOverTheOutputLimitKeepsTheOutcome(t *testing.T) {
 	big := `{"ok": true, "x": "` + strings.Repeat("a", 2<<20) + `"}`
 	n := httpnode.New(httpnode.Deps{Fetcher: &fakeFetcher{resp: jsonResp(200, big)}, MaxOutputBytes: 1 << 20})
@@ -308,8 +332,10 @@ func TestBodyTemplate(t *testing.T) {
 		t.Fatalf("%s", ff.got[1].Body)
 	}
 	// A rendered template in value: the JSON text of an object is the body, a form's text is the form.
-	if _, err := n.Execute(context.Background(), call(map[string]any{"method": "POST", "url": "https://api.example.com/",
-		"body": map[string]any{"kind": "json", "value": `{"name": "Aziz"}`}})); err != nil {
+	rendered := call(map[string]any{"method": "POST", "url": "https://api.example.com/",
+		"body": map[string]any{"kind": "json", "value": `{"name": "Aziz"}`}})
+	rendered.Templated = []string{"body.value"}
+	if _, err := n.Execute(context.Background(), rendered); err != nil {
 		t.Fatal(err)
 	}
 	if string(ff.got[2].Body) != `{"name": "Aziz"}` || ff.got[2].Header.Get("Content-Type") != "application/json" {
@@ -327,6 +353,22 @@ func TestBodyTemplate(t *testing.T) {
 	}
 	if errs := n.ValidateParams(context.Background(), map[string]any{"url": "https://x", "method": "POST", "body": map[string]any{"kind": "json", "value": `{"a": "{{ event.x }}"}`}}); len(errs) != 0 {
 		t.Fatalf("a JSON template in value: %+v", errs)
+	}
+}
+
+// A CEL string of a json body is a JSON string, whatever its text: only a rendered {{ }} template is
+// taken as the JSON text of the body.
+func TestACELStringBodyStaysAString(t *testing.T) {
+	ff := &fakeFetcher{resp: jsonResp(200, `{}`)}
+	n := httpnode.New(httpnode.Deps{Fetcher: ff})
+	for _, text := range []string{`{"name": "Aziz"}`, `[1, 2]`} {
+		if _, err := n.Execute(context.Background(), call(map[string]any{"method": "POST", "url": "https://api.example.com/",
+			"body": map[string]any{"kind": "json", "value": text}})); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if string(ff.got[0].Body) != `"{\"name\": \"Aziz\"}"` || string(ff.got[1].Body) != `"[1, 2]"` {
+		t.Fatalf("%s | %s", ff.got[0].Body, ff.got[1].Body)
 	}
 }
 

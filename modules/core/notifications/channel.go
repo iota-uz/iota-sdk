@@ -3,13 +3,17 @@ package notifications
 import (
 	"context"
 	"errors"
+	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/notification"
 )
 
-// Channel is a delivery medium of the shared notification system.
+// Channel is a delivery medium of the shared notification system. The set is
+// open: the built-in channels and every channel a connector registers in the
+// ChannelRegistry.
 type Channel string
 
 const (
@@ -17,18 +21,30 @@ const (
 	ChannelEmail Channel = "email"
 	ChannelSMS   Channel = "sms"
 	ChannelPush  Channel = "push"
+	// ChannelTelegram is the Telegram channel: a user is reached in the private
+	// chat they linked with the tenant's bot.
+	ChannelTelegram Channel = "telegram"
 )
 
-// Channels lists every known channel in display order.
+// Channels lists the built-in channels in display order. The channels of an
+// application are those of its ChannelRegistry.
 func Channels() []Channel {
 	return []Channel{ChannelInApp, ChannelEmail, ChannelSMS, ChannelPush}
 }
 
-// Valid reports whether c is a known channel.
-func (c Channel) Valid() bool {
+var channelPattern = regexp.MustCompile(`^[a-z][a-z0-9_]{1,31}$`)
+
+// Valid reports whether c is a well-formed channel name. Whether the channel
+// exists is the ChannelRegistry's to say.
+func (c Channel) Valid() bool { return channelPattern.MatchString(string(c)) }
+
+// Builtin reports whether c is one of the channels of Channels.
+func (c Channel) Builtin() bool {
 	switch c {
 	case ChannelInApp, ChannelEmail, ChannelSMS, ChannelPush:
 		return true
+	case ChannelTelegram:
+		// Registered by a connector, not built in.
 	}
 	return false
 }
@@ -108,6 +124,9 @@ const (
 	ErrorCodeResolverMissing      = "resolution_resolver_missing"
 	ErrorCodeResolutionRender     = "resolution_render_failed"
 	ErrorCodeResolutionBadContent = "resolution_invalid_content"
+	// ErrorCodeChannelNotConfigured: the tenant has neither a connection for
+	// the channel nor a platform credential enabled at the time of sending.
+	ErrorCodeChannelNotConfigured = "channel_not_configured"
 )
 
 // AttemptOutcome is the result of one provider call.
@@ -143,7 +162,21 @@ var (
 	ErrAmbiguous = errors.New("ambiguous notification provider outcome")
 	// ErrDeliveryNotFound is returned when a delivery does not exist in the tenant.
 	ErrDeliveryNotFound = errors.New("notification delivery not found")
+	// ErrChannelUnavailable is returned for a channel the tenant cannot use:
+	// it is not registered, has no adapter, or has no connection.
+	ErrChannelUnavailable = errors.New("notification channel is not available for tenant")
+	// ErrLinkTokenInvalid is returned for a link token that is unknown, used,
+	// expired or presented through another connection.
+	ErrLinkTokenInvalid = errors.New("link token invalid or expired")
 )
+
+// RetryAfterError is a provider asking to repeat the attempt later (a rate
+// limit). The attempt is retried after After instead of the usual backoff.
+type RetryAfterError struct{ After time.Duration }
+
+func (e *RetryAfterError) Error() string {
+	return fmt.Sprintf("notification provider asked to retry in %s", e.After)
+}
 
 // Message is the provider-neutral payload handed to a ChannelAdapter. It holds
 // no credentials; adapters own their provider configuration.
@@ -383,11 +416,15 @@ type PushDeviceRepository interface {
 	Active(ctx context.Context, userID uint) ([]PushDevice, error)
 }
 
-// PreferenceRepository stores per-user channel opt-outs. A user without rows
-// receives every channel selected by the rule or addressed request.
+// PreferenceRepository stores per-user channel choices. For an ordinary
+// channel a stored row means "turned off"; for an opt-in channel
+// (ChannelSpec.OptIn) it means "turned on". A user without rows receives every
+// ordinary channel selected by the rule or addressed request and no opt-in one.
 type PreferenceRepository interface {
-	// Disabled returns the channels each of the given users opted out of.
+	// Disabled returns the channels each of the given users does not receive:
+	// the ordinary channels they turned off and the opt-in channels they did not
+	// turn on. Every given user has an entry when an opt-in channel exists.
 	Disabled(ctx context.Context, userIDs []uint) (map[uint][]Channel, error)
-	// SetDisabled replaces a user's opt-outs.
+	// SetDisabled replaces a user's choices with the given turned-off channels.
 	SetDisabled(ctx context.Context, userID uint, channels []Channel) error
 }
