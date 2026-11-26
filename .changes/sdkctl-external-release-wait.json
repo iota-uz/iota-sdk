@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Make sdkctl promote wait for an externally triggered SDK release and apply it locally with read-only GitHub access."
+}

@@ -197,8 +197,12 @@ func (g GitHub) Preview(ctx context.Context, root string, d Dependency) (resultE
 	return err
 }
 
-// Promote resumes remote release work and only modifies the local consumer.
-func (g GitHub) Promote(ctx context.Context, root string, retry bool, out io.Writer) error {
+// Promote waits for an externally triggered release and updates local dependencies.
+func (g GitHub) Promote(ctx context.Context, root string, out io.Writer) error {
+	return g.promote(ctx, root, out, 5*time.Second)
+}
+
+func (g GitHub) promote(ctx context.Context, root string, out io.Writer, pollInterval time.Duration) error {
 	d, err := ReadDependency(root)
 	if err != nil {
 		return err
@@ -210,15 +214,21 @@ func (g GitHub) Promote(ctx context.Context, root string, retry bool, out io.Wri
 	if !pr.Merged {
 		return fmt.Errorf("merge SDK PR #%d before promoting", d.PR)
 	}
-	dispatched := false
+	announced := false
+	var watchedRun int64
 	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		ready, err := g.ResolveDependency(ctx, d)
 		if err != nil {
 			return err
 		}
 		if ready != nil {
-			break
+			_, err = g.Finalize(ctx, root)
+			return err
 		}
+
 		var runs struct {
 			Runs []struct {
 				ID     int64  `json:"id"`
@@ -231,65 +241,50 @@ func (g GitHub) Promote(ctx context.Context, root string, retry bool, out io.Wri
 		}
 		active := false
 		for _, run := range runs.Runs {
-			if run.Status != "completed" {
-				active = true
-				fmt.Fprintf(out, "Waiting for SDK release: %s\n", run.URL)
-				if _, err = g.runner().Run(ctx, "", nil, "gh", "run", "watch", fmt.Sprint(run.ID), "--repo", g.Repo, "--exit-status"); err != nil {
-					return fmt.Errorf("SDK release failed or waiting was interrupted; rerun promote to resume (use --retry after fixing infrastructure): %w", err)
-				}
-				break
+			if run.Status == "completed" {
+				continue
 			}
+			active = true
+			if watchedRun != run.ID {
+				fmt.Fprintf(out, "Waiting for SDK release workflow: %s\n", run.URL)
+				if _, err = g.runner().Run(ctx, "", nil, "gh", "run", "watch", fmt.Sprint(run.ID), "--repo", g.Repo, "--exit-status"); err != nil {
+					if ctx.Err() != nil {
+						return ctx.Err()
+					}
+					return fmt.Errorf("SDK release workflow %s failed or could not be watched; inspect release.yml and rerun promote: %w", run.URL, err)
+				}
+				watchedRun = run.ID
+			}
+			break
 		}
-		if active {
-			continue
-		}
-		if dispatched {
-			return fmt.Errorf("release finished without a ready version containing SDK PR #%d; inspect release.yml and rerun promote", d.PR)
-		}
-		state, _, err := g.ReadState(ctx)
-		if err != nil {
-			return err
-		}
-		if state.Candidate != nil && state.Candidate.Phase == "failed" && !retry {
-			main, err := g.Ref(ctx, "main")
+		if !active {
+			state, _, err := g.ReadState(ctx)
 			if err != nil {
 				return err
 			}
-			if main == state.Candidate.Source {
-				return fmt.Errorf("SDK verification failed; fix SDK or use promote --retry after an infrastructure fix")
-			}
-		}
-		if err = g.API(ctx, "POST", "actions/workflows/release.yml/dispatches", map[string]any{"ref": "main", "inputs": map[string]string{"sdk_pr": fmt.Sprint(d.PR), "retry": fmt.Sprint(retry)}}, nil); err != nil {
-			return err
-		}
-		fmt.Fprintln(out, "SDK release requested. Rerun promote if this session is interrupted.")
-		dispatched = true
-		// Dispatch becomes visible asynchronously; wait for a run or ready state.
-		for attempt := 0; attempt < 12; attempt++ {
-			if err = g.API(ctx, "GET", "actions/workflows/release.yml/runs?branch=main&event=workflow_dispatch&per_page=100", nil, &runs); err != nil {
-				return err
-			}
-			found := false
-			for _, run := range runs.Runs {
-				if run.Status != "completed" {
-					found = true
-					break
+			if state.Candidate != nil && state.Candidate.Phase == "failed" {
+				main, err := g.Ref(ctx, "main")
+				if err != nil {
+					return err
+				}
+				if main == state.Candidate.Source {
+					return fmt.Errorf("SDK verification failed at %s; inspect release.yml and merge a fix or have the workflow operator retry after an infrastructure fix", main)
 				}
 			}
-			if found {
-				break
-			}
-			timer := time.NewTimer(5 * time.Second)
-			select {
-			case <-ctx.Done():
-				timer.Stop()
-				return ctx.Err()
-			case <-timer.C:
+			if !announced {
+				fmt.Fprintf(out, "Waiting for a verified SDK release containing PR #%d. Plot can start release.yml when the consumer card waits for release_contains.\n", d.PR)
+				announced = true
 			}
 		}
+
+		timer := time.NewTimer(pollInterval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
 	}
-	_, err = g.Finalize(ctx, root)
-	return err
 }
 
 func (g GitHub) Resolve(ctx context.Context, number int) (*Candidate, error) {

@@ -60,11 +60,12 @@ SDK PR head, installed without lifecycle scripts or pnpmfile execution. Producti
 lockfiles stay unchanged. Refresh with `sdkctl preview`. Fork SDK PRs and unmanaged
 existing workspaces are rejected.
 
-`promote` requires the SDK PR to be merged. It reuses a ready release containing
-that merge or joins an active release workflow, including one Plot dispatched.
-It can also dispatch `release.yml` using local `gh` authorization with permission
-to dispatch SDK Actions. Run the same command to resume an interrupted session.
-The remote release continues after the terminal closes.
+`promote` requires the SDK PR to be merged. It waits for a verified release
+containing that merge, even before a workflow run has started, and reuses a
+matching release that is already ready. Plot starts `release.yml` when the
+consumer card waits for `release_contains`. The CLI uses read-only GitHub access.
+Press Ctrl+C to stop waiting and run the same command to resume. The remote
+release continues after the terminal closes.
 
 After successful publication, promote updates local Go/npm locks and the release
 identity in .sdk/dependency.json, verifies matching versions, runs GOWORK=off go vet,
@@ -112,7 +113,9 @@ with the transport cause. The initial lookup, non-404 4xx responses and malforme
 successful JSON remain fatal; an unavailable registry never authorizes publication.
 
 If verification fails, fix the SDK and merge the fix. For an infrastructure failure
-at unchanged source, explicitly run `sdkctl promote --retry`. Publication retries
+at unchanged source, the workflow operator dispatches `release.yml` with the
+required `sdk_pr` and `retry: true`. Rerun `sdkctl promote` to consume the release.
+Publication retries
 always use the same SHA and original Actions artifact and never overwrite a tag
 or npm version. The artifact is retained for 90 days. If it is deleted or expires
 during an incomplete publication, recovery stops: restore the exact verified

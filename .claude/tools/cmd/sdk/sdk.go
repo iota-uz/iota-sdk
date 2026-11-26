@@ -13,7 +13,7 @@ import (
 )
 
 func NewCommand() *cobra.Command {
-	command := &cobra.Command{Use: "sdk", Short: "Preview, request and consume verified SDK releases"}
+	command := &cobra.Command{Use: "sdk", Short: "Preview and consume verified SDK releases"}
 	runner := core.ExecRunner{}
 	upstream := core.GitHub{Runner: runner, Repo: core.Repository}
 	var goDir, webDir string
@@ -50,19 +50,17 @@ func NewCommand() *cobra.Command {
 		}
 		return upstream.Preview(cmd.Context(), root, d)
 	}})
-	var promoteRetry bool
-	promote := &cobra.Command{Use: "promote", Args: cobra.NoArgs, Short: "Wait for a verified SDK release and update local production dependencies", RunE: func(cmd *cobra.Command, _ []string) error {
+	promote := &cobra.Command{Use: "promote", Args: cobra.NoArgs, Short: "Wait for an externally triggered SDK release and update local production dependencies", Long: "Wait for a verified release containing the merged SDK PR declared in .sdk/dependency.json. Plot can start the release when the consumer card waits for release_contains.", RunE: func(cmd *cobra.Command, _ []string) error {
 		root, err := repositoryRoot(cmd, runner)
 		if err != nil {
 			return err
 		}
-		if err = upstream.Promote(cmd.Context(), root, promoteRetry, cmd.OutOrStdout()); err != nil {
+		if err = upstream.Promote(cmd.Context(), root, cmd.OutOrStdout()); err != nil {
 			return err
 		}
 		fmt.Fprintln(cmd.OutOrStdout(), "Verified release pinned locally. Review, commit and push the dependency changes.")
 		return nil
 	}}
-	promote.Flags().BoolVar(&promoteRetry, "retry", false, "Retry failed verification after fixing infrastructure")
 	command.AddCommand(promote)
 	command.AddCommand(&cobra.Command{Use: "status", Args: cobra.NoArgs, Short: "Print durable SDK release state as JSON", RunE: func(cmd *cobra.Command, _ []string) error {
 		state, _, err := upstream.ReadState(cmd.Context())
