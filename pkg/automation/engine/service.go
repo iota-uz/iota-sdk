@@ -807,7 +807,19 @@ func (r *Runtime) cancelRunsOf(ctx context.Context, tenant, id uuid.UUID) error 
 func (r *Runtime) cancelRun(ctx context.Context, tenant, id uuid.UUID, inst *uuid.UUID) error {
 	if inst == nil {
 		var n int64
-		err := pgx.BeginFunc(ctx, r.cfg.DB, func(tx pgx.Tx) error {
+		// In a transaction the caller joined (WithTx) the run may not be committed yet: the cancellation is a
+		// savepoint of that transaction and commits or rolls back with it.
+		var begin pgx.Tx
+		if outer, ok := ctx.Value(joinedTxKey{}).(pgx.Tx); ok && outer != nil {
+			begin = outer
+		}
+		beginFunc := func(fn func(pgx.Tx) error) error {
+			if begin != nil {
+				return pgx.BeginFunc(ctx, begin, fn)
+			}
+			return pgx.BeginFunc(ctx, r.cfg.DB, fn)
+		}
+		err := beginFunc(func(tx pgx.Tx) error {
 			// The subject's lock first, as a promotion (dequeue) holds it before it deletes the queue row
 			// and starts the run: both then change the queue row and the run row in one order, and
 			// neither aborts the other as a deadlock.
@@ -841,7 +853,7 @@ func (r *Runtime) cancelRun(ctx context.Context, tenant, id uuid.UUID, inst *uui
 			return err
 		}
 		// Nothing to cancel without an instance: a promotion may have started the run meanwhile.
-		run, err := loadRun(ctx, r.cfg.DB, tenant, id)
+		run, err := loadRun(ctx, r.reader(ctx), tenant, id)
 		if err != nil {
 			return err
 		}
