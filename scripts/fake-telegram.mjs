@@ -13,7 +13,7 @@
 import http from 'node:http';
 
 export function startFakeTelegram(port = 0) {
-	const state = { webhook: { url: '', secret: '' }, sent: [], blocked: new Set(), updateId: 1000, messageId: 1 };
+	const state = { webhook: { url: '', secret: '' }, sent: [], blocked: new Set(), updateId: Date.now(), messageId: 1 };
 	const server = http.createServer((req, res) => {
 		handle(req, res).catch((err) => {
 			// An application that went away (the webhook does not answer) must not stop the fake.

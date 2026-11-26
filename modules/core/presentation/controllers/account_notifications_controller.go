@@ -111,6 +111,9 @@ func linkView(channel notifications.Channel, label string, s notifications.LinkS
 
 func (c *AccountNotificationsController) render(w http.ResponseWriter, r *http.Request, props *account.NotificationsProps) {
 	component := account.Notifications(props)
+	if htmx.IsHxRequest(r) && r.URL.Query().Get("part") == "links" {
+		component = account.NotificationLinks(props)
+	}
 	if !htmx.IsHxRequest(r) {
 		component = account.NotificationsPage(props)
 	}
@@ -168,8 +171,10 @@ func (c *AccountNotificationsController) Toggle(w http.ResponseWriter, r *http.R
 		http.Error(w, "Unable to save", http.StatusInternalServerError)
 		return
 	}
-	// The section follows the switch: the test action shows only for a channel that is on.
-	c.renderSection(w, r, channels, links, nil)
+	// The accounts block follows the switch (the test action shows only for a channel that is on); the
+	// switches themselves are not re-rendered, so a change made meanwhile is never dropped.
+	htmx.SetTrigger(w, account.ChannelsChangedEvent, "")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // Start issues a link and sends the browser (a new tab, or the app on a

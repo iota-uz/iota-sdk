@@ -69,6 +69,18 @@ func linkURL(channel, action string) string {
 
 func pollID(channel string) string { return "link-poll-" + channel }
 
+// switchState saves a channel switch at once. Changes of one switch are sent one after another, each with the
+// value the switch had when it changed, so the last one is the one stored; a refused save puts the switch back
+// to that save's previous value and says so. A saved change refreshes the accounts block (ChannelsChangedEvent);
+// the switches themselves are never re-rendered, so no change is lost to a swap.
+func switchState(url string) string {
+	return "{ failed: false, chain: Promise.resolve(), save(el) { const enabled = el.checked; this.failed = false; " +
+		"this.chain = this.chain.then(() => fetch('" + url + "', { method: 'POST', credentials: 'same-origin', " +
+		"headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'HX-Request': 'true' }, body: 'enabled=' + enabled })" +
+		".then((r) => { if (!r.ok) throw new Error(String(r.status)); htmx.trigger(document.body, '" + ChannelsChangedEvent + "') })" +
+		".catch(() => { if (el.checked === enabled) el.checked = !enabled; this.failed = true })) } }"
+}
+
 // startWatch reads the link state after the start form opened the provider in
 // another tab: until the new link shows up as waiting (or linked), it asks
 // again a few times, so a slow start request does not leave the section on
@@ -153,11 +165,32 @@ templ Notifications(props *NotificationsProps) {
 					@notificationChannelRow(c)
 				}
 			</ul>
-			for _, l := range props.Links {
-				@notificationLink(l, channelOf(props, l.Channel))
-			}
+			@NotificationLinks(props)
 		}
 	</section>
+}
+
+// ChannelsChangedEvent is the event a saved switch triggers: the accounts block follows it.
+const ChannelsChangedEvent = "notification-channels-changed"
+
+// NotificationLinksID is the block of the person's linked accounts.
+const NotificationLinksID = "account-notification-links"
+
+// NotificationLinks is the block of linked accounts; it re-renders alone after a switch is saved, so
+// the test action follows the switch without replacing the switches.
+templ NotificationLinks(props *NotificationsProps) {
+	<div
+		id={ NotificationLinksID }
+		class="flex flex-col gap-4 empty:hidden"
+		hx-get={ NotificationsPath + "?part=links" }
+		hx-trigger={ ChannelsChangedEvent + " from:body" }
+		hx-swap="outerHTML"
+		hx-disinherit="*"
+	>
+		for _, l := range props.Links {
+			@notificationLink(l, channelOf(props, l.Channel))
+		}
+	</div>
 }
 
 func channelOf(props *NotificationsProps, channel string) NotificationChannel {
@@ -175,7 +208,7 @@ templ notificationChannelRow(c NotificationChannel) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<li
 		class="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-subtle py-2 last:border-b-0"
-		x-data="{ failed: false }"
+		x-data={ switchState(NotificationsPath + "/channels/" + c.Channel) }
 		data-testid={ "channel-row-" + c.Channel }
 	>
 		<div class="min-w-0">
@@ -189,19 +222,10 @@ templ notificationChannelRow(c NotificationChannel) {
 			Checked:      c.Enabled,
 			LabelClasses: templ.Classes("min-h-11"),
 			Attrs: templ.Attributes{
-				"role":                     "switch",
-				"aria-label":               c.Label,
-				"data-testid":              "channel-switch-" + c.Channel,
-				"hx-post":                  NotificationsPath + "/channels/" + c.Channel,
-				"hx-trigger":               "change",
-				"hx-vals":                  "js:{enabled: event.target.checked}",
-				// The answer is the section: the test action follows the switch.
-				"hx-target":                "#" + NotificationsSectionID,
-				"hx-swap":                  "outerHTML",
-				"hx-sync":                  "#" + NotificationsSectionID + ":queue last",
-				"x-on:htmx:before-request": "failed = false",
-				"x-on:htmx:response-error": "$el.checked = !$el.checked; failed = true",
-				"x-on:htmx:send-error":     "$el.checked = !$el.checked; failed = true",
+				"role":        "switch",
+				"aria-label":  c.Label,
+				"data-testid": "channel-switch-" + c.Channel,
+				"@change":     "save($el)",
 			},
 		})
 		<p x-show="failed" x-cloak role="alert" class="basis-full text-sm text-red-600">

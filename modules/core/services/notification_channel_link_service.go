@@ -16,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -181,12 +182,13 @@ func (s *NotificationChannelConnectionService) Set(ctx context.Context, channel 
 	}
 	removed := false
 	err = composables.InTx(ctx, func(txCtx context.Context) error {
-		// Concurrent saves of the channel take turns, so each compares with the choice the one before stored.
+		// Concurrent saves (and link completions) of the channel take turns, so each compares with the choice
+		// the one before stored.
 		tx, err := composables.UseTx(txCtx)
 		if err != nil {
 			return err
 		}
-		if _, err := tx.Exec(txCtx, `SELECT pg_advisory_xact_lock(hashtextextended('core.notification_channel_connections:' || $1::text || ':' || $2, 0))`, tenant.String(), string(channel)); err != nil {
+		if err := lockChannelConnection(txCtx, tx, tenant, channel); err != nil {
 			return err
 		}
 		previous, chosen, err := s.repo.Get(txCtx, tenant, channel)
@@ -209,6 +211,13 @@ func (s *NotificationChannelConnectionService) Set(ctx context.Context, channel 
 		return false, serrors.Wrap(op, err)
 	}
 	return removed, nil
+}
+
+// lockChannelConnection serializes, until the transaction ends, the changes of a channel's connection with
+// the link completions of that channel in the tenant.
+func lockChannelConnection(ctx context.Context, tx repo.Tx, tenant uuid.UUID, channel notifications.Channel) error {
+	_, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('core.notification_channel_connections:' || $1::text || ':' || $2, 0))`, tenant.String(), string(channel))
+	return err
 }
 
 // NotificationChannelLinkService links the current user's accounts on linked
@@ -355,7 +364,21 @@ func (s *NotificationChannelLinkService) CompleteLinkUpdate(ctx context.Context,
 		return notifications.LinkCompletion{}, notifications.ErrLinkTokenInvalid
 	}
 	err = composables.InTx(tctx, func(txCtx context.Context) error {
-		// Expiry is checked again when the token is spent: the connection lookup above may have taken time.
+		// Under the lock a change of the channel's connection takes, the connection is read again: a link
+		// made through a bot the tenant just replaced must not survive that change.
+		tx, err := composables.UseTx(txCtx)
+		if err != nil {
+			return err
+		}
+		if err := lockChannelConnection(txCtx, tx, t.TenantID, t.Channel); err != nil {
+			return err
+		}
+		if current, ok, err := s.conns.Connection(txCtx, t.TenantID, spec); err != nil {
+			return err
+		} else if !ok || current != connectionID {
+			return notifications.ErrLinkTokenInvalid
+		}
+		// Expiry is checked again when the token is spent: the lookups above may have taken time.
 		used, err := s.tokens.Use(txCtx, hash, updateKey, address, display, s.now())
 		if err != nil {
 			return err
