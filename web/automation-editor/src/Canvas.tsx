@@ -412,8 +412,11 @@ export function Canvas(props: CanvasProps): JSX.Element {
       routeBoxes.delete(key)
       setRouted(key, undefined as never)
     }
-    const wanted = visibleEdges().filter((key) => routeOwner.get(key) !== current).sort((a, b) => Number(stale.has(b)) - Number(stale.has(a)))
     clearTimeout(routeTimer)
+    // While cards glide their edges take direct paths: routing the layout they land in waits for the landing,
+    // so its slices do not take frames from the glide.
+    if (tidying()) return
+    const wanted = visibleEdges().filter((key) => routeOwner.get(key) !== current).sort((a, b) => Number(stale.has(b)) - Number(stale.has(a)))
     if (wanted.length === 0) return
     let todo: string[] | null = null
     const run = () => {
@@ -1134,7 +1137,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
       <div
         ref={element}
         class={className()}
-        style={`transform:translate(${positions[id]?.x ?? 0}px,${positions[id]?.y ?? 0}px);width:${geometry().width}px;height:${geometry().height}px`}
+        style={{ transform: `translate(${positions[id]?.x ?? 0}px,${positions[id]?.y ?? 0}px)`, width: `${geometry().width}px`, height: `${geometry().height}px` }}
         data-id={id}
         role="group"
         tabindex="0"
