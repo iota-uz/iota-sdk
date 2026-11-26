@@ -248,7 +248,7 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
                 </section>
               )}</For>
             </Show>
-            <Show when={list().can_manage_secrets}><SecretsSection ctx={ctx} /></Show>
+            <Show when={list().can_manage_secrets}><SecretsSection ctx={ctx} writable={list().secrets_configured} /></Show>
           </>
         )}
       </Show>
@@ -995,7 +995,7 @@ type SecretFormState = { mode: 'create' } | { mode: 'edit' | 'rotate'; secret: S
  * entered (create, rotate) and never comes back: a secret is shown by its name, description and dates,
  * its value only as a mask.
  */
-function SecretsSection(props: { ctx: Ctx }) {
+function SecretsSection(props: { ctx: Ctx; writable: boolean }) {
   const t = props.ctx.t
   const toast = useToast()
   const [secrets, setSecrets] = createSignal<SecretView[]>()
@@ -1042,10 +1042,18 @@ function SecretsSection(props: { ctx: Ctx }) {
             <h3 id="connector-title-secret" class="truncate font-medium text-100">{t('Secrets.Title')}</h3>
             <p class="text-xs text-200">{t('Secrets.Kind')}</p>
           </div>
-          <Button size="sm" variant={(secrets()?.length ?? 0) > 0 ? 'secondary' : 'primary'} class="min-h-11 sm:min-h-9"
+          {/* Without a store that can write (no encryption key) a value cannot be saved: no create offered. */}
+          <Button size="sm" variant={(secrets()?.length ?? 0) > 0 || !props.writable ? 'secondary' : 'primary'} class="min-h-11 sm:min-h-9"
+            disabled={!props.writable} aria-describedby={props.writable ? undefined : 'secrets-not-configured'}
             onClick={() => setForm({ mode: 'create' })} data-testid="secret-add">{t('Secrets.Add')}</Button>
         </div>
         <p class="text-sm text-200">{t('Secrets.Summary')}</p>
+        <Show when={!props.writable}>
+          <p id="secrets-not-configured" role="status" class="flex items-start gap-2 text-sm text-100" data-testid="secrets-not-configured">
+            <span class="mt-1.5 inline-flex h-2 w-2 shrink-0 rounded-full bg-current text-yellow" aria-hidden="true" />
+            <span class="min-w-0 flex-1">{t('Secrets.NotConfigured')}</span>
+          </p>
+        </Show>
         <Show when={!failed()} fallback={
           <div role="alert" class="flex flex-wrap items-center gap-3 text-sm" data-testid="secrets-load-error">
             <span class="text-pink">{t('Secrets.LoadFailed')}</span>
@@ -1057,7 +1065,7 @@ function SecretsSection(props: { ctx: Ctx }) {
               <Show when={list().length > 0} fallback={<p class="text-sm text-200" data-testid="no-secrets">{t('Secrets.Empty')}</p>}>
                 <ul class="flex flex-col" aria-label={t('Secrets.Category')} data-testid="secrets-list">
                   <For each={list()}>{(secret) => (
-                    <SecretRow ctx={props.ctx} secret={secret} onEdit={() => setForm({ mode: 'edit', secret })}
+                    <SecretRow ctx={props.ctx} secret={secret} writable={props.writable} onEdit={() => setForm({ mode: 'edit', secret })}
                       onRotate={() => setForm({ mode: 'rotate', secret })} onDelete={() => setDeleting(secret)} />
                   )}</For>
                 </ul>
@@ -1081,7 +1089,7 @@ function SecretsSection(props: { ctx: Ctx }) {
   )
 }
 
-function SecretRow(props: { ctx: Ctx; secret: SecretView; onEdit: () => void; onRotate: () => void; onDelete: () => void }) {
+function SecretRow(props: { ctx: Ctx; secret: SecretView; writable: boolean; onEdit: () => void; onRotate: () => void; onDelete: () => void }) {
   const t = props.ctx.t
   const s = () => props.secret
   const [menuOpen, setMenuOpen] = createSignal(false)
@@ -1101,7 +1109,7 @@ function SecretRow(props: { ctx: Ctx; secret: SecretView; onEdit: () => void; on
           <svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><circle cx="128" cy="64" r="16" /><circle cx="128" cy="128" r="16" /><circle cx="128" cy="192" r="16" /></svg>
         </span>}>
         <DropdownItem onClick={pick(props.onEdit)} data-testid="secret-menu-edit">{t('Secrets.Menu.Edit')}</DropdownItem>
-        <DropdownItem onClick={pick(props.onRotate)} data-testid="secret-menu-rotate">{t('Secrets.Menu.Rotate')}</DropdownItem>
+        <DropdownItem onClick={pick(props.onRotate)} disabled={!props.writable} class="disabled:cursor-not-allowed disabled:text-200" data-testid="secret-menu-rotate">{t('Secrets.Menu.Rotate')}</DropdownItem>
         <DropdownItem onClick={pick(props.onDelete)} class="text-pink" data-testid="secret-menu-delete">{t('Secrets.Menu.Delete')}</DropdownItem>
       </Dropdown>
     </li>

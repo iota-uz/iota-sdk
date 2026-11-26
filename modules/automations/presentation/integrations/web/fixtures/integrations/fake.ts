@@ -27,6 +27,8 @@ export interface FakeOptions {
   conflictOnce: '' | 'result' | 'error'
   /** false: the caller lacks Secrets.Manage (or the application manages no secrets): no secrets section. */
   secrets: boolean
+  /** false: the secret store cannot write (no encryption key): no «Add secret», no rotation. */
+  secretsConfigured?: boolean
   /** The tenant has no secrets yet. */
   noSecrets?: boolean
   /** The first secrets update or rotate meets a version conflict (another administrator changed it). */
@@ -221,7 +223,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
   const handlers: Record<keyof RPC, Handler> = {
     'automations.connectors.list': () => {
       if (opts.scenario === 'error' || (opts.refreshFails && listed++ > 0)) throw { code: 'internal', message: 'internal error' }
-      return { connectors, can_manage: opts.manage, can_manage_secrets: opts.secrets }
+      return { connectors, can_manage: opts.manage, can_manage_secrets: opts.secrets, secrets_configured: opts.secretsConfigured ?? true }
     },
     'automations.connections.usage': (p: { id: string }) => {
       if (!find(p.id)) notFound()

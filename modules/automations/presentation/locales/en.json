@@ -258,6 +258,7 @@
         "Category": "Secrets",
         "Title": "Secret",
         "Kind": "Built-in",
+        "NotConfigured": "Secrets cannot be saved: the application has no encryption key configured. Ask the administrator of the application to set it up.",
         "Summary": "Values such as API keys that Code and HTTP nodes read by name. A saved value is never shown again.",
         "Empty": "No secrets yet. Add one, then read it in a Code or HTTP node by its name.",
         "Add": "Add secret",

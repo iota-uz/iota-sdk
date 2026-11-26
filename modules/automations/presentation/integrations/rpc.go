@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/automations/services"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/secrets"
 	"github.com/iota-uz/iota-sdk/pkg/clienthost/solid"
 	"github.com/iota-uz/iota-sdk/pkg/listext"
 )
@@ -56,7 +57,8 @@ func (c *Controller) list(ctx context.Context, _ Empty) (ListResponse, error) {
 		return ListResponse{}, err
 	}
 	canManage := sub.Has(manage)
-	out := ListResponse{Connectors: []ConnectorView{}, CanManage: canManage, CanManageSecrets: c.cfg.Secrets != nil && sub.Has(manageSecrets)}
+	out := ListResponse{Connectors: []ConnectorView{}, CanManage: canManage, CanManageSecrets: c.cfg.Secrets != nil && sub.Has(manageSecrets),
+		SecretsConfigured: c.cfg.Secrets != nil && secrets.IsConfigured(c.cfg.Secrets)}
 	if !canManage && !sub.Has(author) {
 		// A secrets administrator who does not manage connections sees the secrets only.
 		return out, nil

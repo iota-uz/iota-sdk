@@ -16,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/automations/permissions"
 	"github.com/iota-uz/iota-sdk/modules/automations/services"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/secrets"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
@@ -282,6 +283,33 @@ func TestSecretsRPCPermissions(t *testing.T) {
 	pagePerms := []string{permissions.ConnectionsManage.Name(), permissions.SecretsManage.Name()}
 	assert.False(t, holdsAny(subject(testUser(f.tenant, permissions.AutomationsAuthor)), pagePerms...))
 	assert.False(t, holdsAny(subject(secretsAdmin), permissions.ConnectionsManage.Name()), "the OAuth2 callback is the connections administrator's")
+}
+
+// unconfiguredSecrets is a manager over a store that cannot write (no encryption key).
+type unconfiguredSecrets struct{ *memSecrets }
+
+func (unconfiguredSecrets) Configured() bool { return false }
+
+// Without an encryption key the built-in store answers every write «unavailable»: the page is told so and
+// offers no «Add secret»; the records still list.
+func TestSecretsRPCUnconfiguredStore(t *testing.T) {
+	admin := func(f *fixture) user.User {
+		return testUser(f.tenant, permissions.ConnectionsManage, permissions.SecretsManage)
+	}
+
+	f, _ := newSecretsFixture(t, newMemSecrets())
+	_, body := f.call(admin(f), MethodList, map[string]any{})
+	assert.True(t, result[ListResponse](t, body).SecretsConfigured, "a store without Configured can write")
+
+	f, _ = newSecretsFixture(t, unconfiguredSecrets{newMemSecrets()})
+	_, body = f.call(admin(f), MethodList, map[string]any{})
+	got := result[ListResponse](t, body)
+	assert.True(t, got.CanManageSecrets, "the section is shown")
+	assert.False(t, got.SecretsConfigured, "with no write offered")
+
+	// The default composition's store: the sealed adapter without a keyring.
+	assert.False(t, secrets.IsConfigured(connectors.NewSealedSecrets(nil, nil)))
+	assert.False(t, secrets.IsConfigured(secrets.NewManager(nil, connectors.NewSealedSecrets(nil, nil), nil)))
 }
 
 func TestSecretsRPCWithoutManager(t *testing.T) {

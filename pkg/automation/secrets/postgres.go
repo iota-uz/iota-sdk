@@ -81,6 +81,9 @@ func NewManager(db *pgxpool.Pool, writer Writer, locator Locator) Manager {
 	return &manager{db: db, writer: writer, locator: locator}
 }
 
+// Configured is whether the manager's writer can write (Configurable).
+func (m *manager) Configured() bool { return IsConfigured(m.writer) }
+
 func validateValue(v string) error {
 	switch {
 	case v == "":
