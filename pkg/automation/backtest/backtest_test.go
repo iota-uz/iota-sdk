@@ -841,3 +841,32 @@ func TestReadsApplyCurrentRights(t *testing.T) {
 		}
 	}
 }
+
+// A payload key no schema declares hides nothing: its creator (and any author) still sees the effects and
+// the trace of a synthetic event that carries one, in the results and in the report's samples.
+func TestUndeclaredKeyHidesNothing(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	a := e.human()
+	am, _, err := e.rt.Service().Create(ctx, a, engine.CreateInput{Graph: json.RawMessage(graphV1)})
+	require.NoError(t, err)
+	ds, err := e.svc.CreateDataset(ctx, a, backtest.CreateDatasetInput{AutomationID: am.ID, Name: "d"})
+	require.NoError(t, err)
+	_, err = e.svc.AddSynthetic(ctx, a, ds, backtest.SyntheticEvent{Kind: evMessage, Payload: json.RawMessage(`{"text": "buy", "extra": "not in the schema"}`),
+		Subject: engine.SubjectRef{Entity: "acme.client", Key: "c"}})
+	require.NoError(t, err)
+	rep := e.run(a, backtest.RunInput{DatasetID: ds})
+	for name, reader := range map[string]engine.Actor{"creator": a, "another author": e.actor(2, engine.OriginHuman)} {
+		res, err := e.svc.Results(ctx, reader, rep.Backtest.ID, backtest.ResultFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Items, 1)
+		assert.False(t, res.Items[0].Example.Hidden, name)
+		assert.NotEmpty(t, res.Items[0].Trace, name)
+		require.NotEmpty(t, res.Items[0].Effects, name)
+		assert.Contains(t, string(res.Items[0].Effects[0].Params), "to sales: buy", name)
+		r, err := e.svc.Report(ctx, reader, rep.Backtest.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, r.Effects, name)
+		assert.Contains(t, string(r.Effects[0].Samples[0]), "to sales: buy", name)
+	}
+}

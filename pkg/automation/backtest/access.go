@@ -21,10 +21,13 @@ import (
 //     read are removed;
 //   - the subject's snapshot (read with the importer's rights) is the importer's only.
 type reader struct {
-	s     *Svc
-	a     Actor
-	view  catalog.View
-	conns map[string]bool
+	s    *Svc
+	a    Actor
+	view catalog.View
+	// system is the tenant's catalog with nothing withheld: what the reader's view removes beyond it is
+	// what the reader may not read (an undeclared key of a payload is not).
+	system catalog.View
+	conns  map[string]bool
 }
 
 func (s *Svc) readerOf(ctx context.Context, a Actor) (*reader, error) {
@@ -32,7 +35,11 @@ func (s *Svc) readerOf(ctx context.Context, a Actor) (*reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &reader{s: s, a: a, view: view, conns: map[string]bool{}}, nil
+	system, err := s.cfg.Catalog.ForTenant(ctx, a.TenantID)
+	if err != nil {
+		return nil, err
+	}
+	return &reader{s: s, a: a, view: view, system: system, conns: map[string]bool{}}, nil
 }
 
 // mayRead is whether the reader may read the history of an origin.
@@ -81,29 +88,40 @@ func (r *reader) example(ctx context.Context, x *Example) sight {
 		r.hide(x)
 		return seeNone
 	}
+	full, known := r.system.Catalog.Events[x.EventKind]
 	spec, ok := r.view.Catalog.Events[x.EventKind]
-	if !ok {
-		r.hide(x)
-		return seeNone
-	}
-	before, err := json.Marshal(payload)
-	if err != nil {
+	switch {
+	case !known:
+		// The catalog no longer knows the event: no field of it is declared sensitive.
+		return seeAll
+	case !ok:
+		// The reader may not read the event at all.
 		r.hide(x)
 		return seeNone
 	}
 	bySelf, hasBySelf := payload[catalog.BySelfField]
-	kept := engine.KeepDeclared(payload, spec.Payload)
-	kept["kind"] = x.EventKind
-	if hasBySelf {
-		kept[catalog.BySelfField] = bySelf
+	project := func(fs expr.Fields) (json.RawMessage, error) {
+		kept := engine.KeepDeclared(payload, fs)
+		kept["kind"] = x.EventKind
+		if hasBySelf {
+			kept[catalog.BySelfField] = bySelf
+		}
+		return json.Marshal(kept)
 	}
-	after, err := json.Marshal(kept)
+	// Partial: the reader's view removes fields the full catalog keeps (sensitive ones). A key no
+	// schema declares is dropped from both, so it makes nothing partial.
+	whole, err := project(full.Payload)
 	if err != nil {
 		r.hide(x)
 		return seeNone
 	}
-	x.Event = after
-	if string(before) != string(after) {
+	seen, err := project(spec.Payload)
+	if err != nil {
+		r.hide(x)
+		return seeNone
+	}
+	x.Event = seen
+	if string(whole) != string(seen) {
 		return seePartial
 	}
 	return seeAll
