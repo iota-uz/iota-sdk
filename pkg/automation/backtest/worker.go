@@ -2,6 +2,8 @@ package backtest
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -204,14 +206,18 @@ func (im *importer) add(ev Event) error {
 	if at.IsZero() {
 		at = im.s.cfg.Now()
 	}
-	if ev.Key != "" {
-		if im.seen[ev.Key] {
-			im.duplicates++
-			return nil
-		}
-		im.seen[ev.Key] = true
+	// An event without a key in the source is identified by what is kept of it: a pass that resumes the
+	// import (another worker's takeover) finds it again; an identical event is a duplicate.
+	key := ev.Key
+	if key == "" {
+		key = contentKey(ev, body)
 	}
-	row := exampleRow{id: uuid.New(), source: im.source, origin: im.origin, importID: im.job.id, ref: ev.Key, title: ev.Title, kind: ev.Kind, event: body, subject: ev.Subject, at: at}
+	if im.seen[key] {
+		im.duplicates++
+		return nil
+	}
+	im.seen[key] = true
+	row := exampleRow{id: uuid.New(), source: im.source, origin: im.origin, importID: im.job.id, ref: key, title: ev.Title, kind: ev.Kind, event: body, subject: ev.Subject, at: at}
 	if !im.full {
 		if len(ev.Snapshot) > 0 && string(ev.Snapshot) != "null" {
 			row.snapshot = ev.Snapshot
@@ -227,6 +233,21 @@ func (im *importer) add(ev Event) error {
 		return im.flush()
 	}
 	return nil
+}
+
+// contentKey identifies an event that has no key in its source by its kind, time, subject and the
+// payload kept of it.
+func contentKey(ev Event, body []byte) string {
+	h := sha256.New()
+	at := ""
+	if !ev.OccurredAt.IsZero() {
+		at = ev.OccurredAt.UTC().Format(time.RFC3339Nano)
+	}
+	for _, part := range []string{ev.Kind, at, ev.Subject.Entity, ev.Subject.Key, string(body)} {
+		_, _ = h.Write([]byte(part))
+		_, _ = h.Write([]byte{0})
+	}
+	return "content:" + hex.EncodeToString(h.Sum(nil))
 }
 
 func (im *importer) flush() error {

@@ -487,7 +487,8 @@ type Comparison struct {
 }
 
 // Event is an event a history importer emits. Key is its identity in the source (a message id): an
-// event already in the dataset is not imported again. Snapshot, when set, is the subject's state at the
+// event already in the dataset is not imported again. An event without a key is identified by its kind,
+// time, subject and the payload kept of it. Snapshot, when set, is the subject's state at the
 // event as the source knows it (exact).
 type Event struct {
 	Kind       string

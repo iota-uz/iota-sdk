@@ -122,6 +122,22 @@ test('BT3: a label is a choice per classifier, saved at once; the open dataset i
   await expect(page.locator('[data-testid^="example-"]').nth(3).getByTestId('label-intent')).toHaveValue('refund')
 })
 
+test('BT3b: saves of one label run in order; a failed later save restores the label the server saved', async ({ page }) => {
+  await page.goto(`/?${base}&dataset=${DS}&delay=400&labelFails=support`)
+  const row = page.locator('[data-testid^="example-"]').nth(3)
+  await expect(row).toContainText('Do you have a discount for schools?')
+  const select = row.getByTestId('label-intent')
+  await select.selectOption('refund')
+  await select.selectOption('support')
+  await expect(select).toHaveValue('support')
+  // While the first save is on the way (400 ms) the second waits for it.
+  const labels = async () => (await calls(page)).filter((c) => c.method === 'automations.example_label').map((c) => c.params.outcome)
+  expect(await labels()).toEqual(['refund'])
+  // The second save starts after the first one is saved, and its failure restores «refund».
+  await expect(select).toHaveValue('refund')
+  expect(await labels()).toEqual(['refund', 'support'])
+})
+
 test('BT4: the cases table filters by classifier and mismatches, in the URL; «Reset filters» clears only them', async ({ page }) => {
   await page.goto(`/?${base}&backtest=${V2}`)
   await expect(page.getByTestId('metrics-intent')).toContainText('Correct 60% (3 of 5)')

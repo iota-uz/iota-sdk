@@ -11,6 +11,8 @@ export interface FakeOptions {
   scenario: 'default' | 'empty' | 'loading' | 'error'
   /** Delay of every action (ms); lists answer at once. */
   delay: number
+  /** A label save of this outcome fails (?labelFails=<outcome>). */
+  labelFails?: string
   /** The code of the graph changes once between the review and the enable (a digest refusal). */
   changeOnce: boolean
   /** The first layout save meets a newer revision (another tab). */
@@ -290,6 +292,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       return { ok: true }
     },
     'automations.example_label': (p) => {
+      if (opts.labelFails && p.outcome === opts.labelFails) rpcError('internal', 'internal error')
       for (const [ds, items] of bt.examples) {
         const ex = items.find((x) => x.id === p.example_id)
         if (!ex) continue

@@ -410,15 +410,15 @@ function DatasetPanel(props: {
       setMore(false)
     }
   }
-  // The latest edit of each example's node: a failed save rolls back only its own node, and only while
-  // no later edit of that node took its place.
-  // edits: the latest edit of each example's node; confirmed: the label the server last confirmed. A failed
-  // save rolls back to the confirmed label, never to another unconfirmed edit, and only while no later edit
-  // of that node took its place.
+  // Saves of one example's node run one after another, in the order of the edits, so the server commits
+  // them in that order. edits: the latest edit of each node; confirmed: the label the server last
+  // committed. A failed save rolls back to the confirmed label, never to another unconfirmed edit, and
+  // only while no later edit of that node took its place. Edits of different nodes stay independent.
   const edits = new Map<string, number>()
   const confirmed = new Map<string, ExampleView['labels'][string] | undefined>()
+  const queue = new Map<string, Promise<void>>()
   let editSeq = 0
-  const setLabel = async (ex: ExampleView, node: string, outcome: string) => {
+  const setLabel = (ex: ExampleView, node: string, outcome: string) => {
     const current = page()?.items.find((x) => x.id === ex.id) ?? ex
     const before = current.labels[node]
     const patchNode = (label: ExampleView['labels'][string] | undefined) => setPage((p) => p && {
@@ -435,18 +435,27 @@ function DatasetPanel(props: {
     if (!confirmed.has(key)) confirmed.set(key, before)
     const mine = ++editSeq
     edits.set(key, mine)
-    if (outcome) patchNode({ outcome, source: 'manual', ...(before?.source === 'expected' ? { expected: before.outcome } : before?.expected ? { expected: before.expected } : {}) })
-    else patchNode(before?.expected ? { outcome: before.expected, source: 'expected' } : undefined)
-    try {
-      await app.call('automations.example_label', { example_id: ex.id, node, outcome })
-      const saved = page()?.items.find((x) => x.id === ex.id)?.labels[node]
-      if (edits.get(key) === mine) confirmed.set(key, saved)
-      // The dataset's labeled count is the overview's.
-      props.onChanged()
-    } catch (e) {
-      if (edits.get(key) === mine) patchNode(confirmed.get(key))
-      app.toast.notify({ variant: 'error', title: backtestErrorText(t, e, t('Backtests.Actions.Label')), action: { label: t('Common.Retry'), onAction: () => void setLabel(ex, node, outcome) } })
+    const applied: ExampleView['labels'][string] | undefined = outcome
+      ? { outcome, source: 'manual', ...(before?.source === 'expected' ? { expected: before.outcome } : before?.expected ? { expected: before.expected } : {}) }
+      : before?.expected ? { outcome: before.expected, source: 'expected' } : undefined
+    patchNode(applied)
+    const save = async () => {
+      try {
+        await app.call('automations.example_label', { example_id: ex.id, node, outcome })
+        confirmed.set(key, applied)
+        // The dataset's labeled count is the overview's.
+        props.onChanged()
+      } catch (e) {
+        if (edits.get(key) === mine) patchNode(confirmed.get(key))
+        app.toast.notify({ variant: 'error', title: backtestErrorText(t, e, t('Backtests.Actions.Label')), action: { label: t('Common.Retry'), onAction: () => void setLabel(ex, node, outcome) } })
+      }
     }
+    const next = (queue.get(key) ?? Promise.resolve()).then(save)
+    queue.set(key, next)
+    void next.then(() => {
+      if (queue.get(key) === next) queue.delete(key)
+    })
+    return next
   }
   const labelCell = (ex: ExampleView, c: Classifier) => {
     const l = () => ex.labels[c.id]

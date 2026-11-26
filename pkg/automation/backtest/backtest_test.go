@@ -910,3 +910,50 @@ func TestRunIsBoundToItsEstimate(t *testing.T) {
 	assert.Equal(t, backtest.StatusDone, rep.Backtest.Status, rep.Backtest.Error)
 	assert.Equal(t, 2, rep.Examples)
 }
+
+// An event without a key in its source is identified by what is kept of it: a pass that reads the
+// source again (another worker's takeover of the import) adds and counts nothing twice.
+func TestKeylessHistoryReplaysOnce(t *testing.T) {
+	mc := &mailConnector{}
+	e := newEnvWith(t, func(e *env, _ catalog.Registry, cfg *backtest.Config) {
+		require.NoError(t, e.dir.Register(mc))
+		cfg.Connections, cfg.Connectors = e.store, e.dir
+	})
+	ctx := context.Background()
+	a := e.human()
+	conn, err := e.store.Save(ctx, connectors.Connection{TenantID: e.tenant, Kind: kindMail, Name: "box", DisplayName: "Box", CreatedBy: 1},
+		connectors.Credentials{"token": "tok"})
+	require.NoError(t, err)
+	am, _, err := e.rt.Service().Create(ctx, a, engine.CreateInput{Graph: json.RawMessage(mailGraph)})
+	require.NoError(t, err)
+	ds, err := e.svc.CreateDataset(ctx, a, backtest.CreateDatasetInput{AutomationID: am.ID, Name: "Mailbox"})
+	require.NoError(t, err)
+	now := time.Now()
+	mc.history = []backtest.Event{
+		{Kind: evMail, Title: "Buy", Payload: json.RawMessage(`{"text": "buy"}`), OccurredAt: now.Add(-2 * time.Hour)},
+		{Kind: evMail, Title: "Refund", Payload: json.RawMessage(`{"text": "refund"}`), OccurredAt: now.Add(-time.Hour)},
+		{Kind: evMail, Title: "Buy (same)", Payload: json.RawMessage(`{"text": "buy", "extra": "dropped"}`), OccurredAt: now.Add(-2 * time.Hour)},
+	}
+	job, err := e.svc.Import(ctx, a, ds, backtest.ImportSource{Kind: backtest.ImportConnection, ConnectionID: conn.ID, Window: backtest.TimeWindow{From: now.Add(-24 * time.Hour)}})
+	require.NoError(t, err)
+	e.drain()
+	first, err := e.svc.ImportStatus(ctx, a, job)
+	require.NoError(t, err)
+	assert.Equal(t, backtest.StatusDone, first.Status, first.Error)
+	assert.Equal(t, 2, first.Imported)
+	assert.Equal(t, 1, first.Duplicates, "an identical event is a duplicate")
+
+	// Another worker takes the import over and reads the source again from its start.
+	_, err = e.db.Exec(ctx, `UPDATE automation.dataset_imports SET status = 'queued', finished_at = NULL WHERE tenant_id = $1 AND id = $2`, e.tenant, job)
+	require.NoError(t, err)
+	e.drain()
+	again, err := e.svc.ImportStatus(ctx, a, job)
+	require.NoError(t, err)
+	assert.Equal(t, backtest.StatusDone, again.Status, again.Error)
+	assert.Equal(t, first.Imported, again.Imported)
+	assert.Equal(t, first.Duplicates, again.Duplicates)
+	assert.Zero(t, again.Overflow)
+	page, err := e.svc.Examples(ctx, a, ds, backtest.ExampleFilter{})
+	require.NoError(t, err)
+	assert.Len(t, page.Items, 2)
+}

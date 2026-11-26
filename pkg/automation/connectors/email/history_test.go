@@ -61,8 +61,10 @@ func TestImportHistoryReadsTheWindow(t *testing.T) {
 	assert.Equal(t, 1, calls)
 
 	// A window that starts at 00:30 +14:00 still finds a message sent an hour into it at 23:30 −12:00 the
-	// calendar day before.
-	f.srv.Deliver(mailbox, "INBOX", datedMail("<z@x>", "Zed <z@example.org>", "Zones", "far east", "Thu, 08 Jan 2026 23:30:00 -1200"))
+	// calendar day before. The server received it on January 8 (its INTERNALDATE, the clock of the server
+	// behind the sender's), so neither date the server compares is on the window's first day.
+	f.srv.DeliverAt(mailbox, "INBOX", datedMail("<z@x>", "Zed <z@example.org>", "Zones", "far east", "Thu, 08 Jan 2026 23:30:00 -1200"),
+		time.Date(2026, 1, 8, 23, 0, 0, 0, time.UTC))
 	east := time.FixedZone("+14", 14*3600)
 	got = nil
 	err = f.imap.ImportHistory(context.Background(), backtest.ConnectionRef{Connection: conn, Credentials: creds},

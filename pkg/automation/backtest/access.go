@@ -30,8 +30,8 @@ type reader struct {
 	system catalog.View
 	conns  map[string]bool
 	mu     sync.Mutex // the caches below: a backtest's examples read through one reader in parallel
-	// subjects caches whether the reader may read, now, every field a stored snapshot holds.
-	subjects map[engine.SubjectRef]map[string]bool
+	// subjects caches the record of each subject as the reader may read it now (nil: none).
+	subjects map[engine.SubjectRef]any
 }
 
 func (s *Svc) readerOf(ctx context.Context, a Actor) (*reader, error) {
@@ -43,7 +43,7 @@ func (s *Svc) readerOf(ctx context.Context, a Actor) (*reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &reader{s: s, a: a, view: view, system: system, conns: map[string]bool{}, subjects: map[engine.SubjectRef]map[string]bool{}}, nil
+	return &reader{s: s, a: a, view: view, system: system, conns: map[string]bool{}, subjects: map[engine.SubjectRef]any{}}, nil
 }
 
 // mayRead is whether the reader may read the history of an origin.
@@ -137,46 +137,81 @@ func (r *reader) example(ctx context.Context, x *Example) sight {
 	return seeAll
 }
 
-// subjectOK is whether the reader may read, now, every field of a stored snapshot of the subject: the
-// record as the subject loader gives it to the reader holds them all. No snapshot needs nothing.
+// subjectOK is whether the reader may read, now, every field of a stored snapshot of the subject, at
+// every depth: the record as the subject loader gives it to the reader now holds each of them (see
+// covers). No snapshot needs nothing; a subject that cannot be loaded allows no snapshot.
 func (r *reader) subjectOK(ctx context.Context, ref engine.SubjectRef, snapshot json.RawMessage) bool {
 	if len(snapshot) == 0 || string(snapshot) == "null" {
 		return true
 	}
-	var stored map[string]json.RawMessage
-	if json.Unmarshal(snapshot, &stored) != nil {
+	var stored any
+	if expr.UnmarshalJSON(snapshot, &stored) != nil {
 		return false
 	}
-	if len(stored) == 0 {
+	if m, ok := stored.(map[string]any); ok && len(m) == 0 {
 		return true
 	}
 	r.mu.Lock()
-	fields, seen := r.subjects[ref]
+	now, seen := r.subjects[ref]
 	r.mu.Unlock()
 	if !seen {
-		fields = map[string]bool{}
+		now = nil
 		if r.s.cfg.Subjects != nil && ref.Key != "" {
 			as := r.a.Subject
 			as.TenantID = r.a.TenantID
 			if raw, err := r.s.cfg.Subjects.Load(ctx, as, ref); err == nil {
-				var now map[string]json.RawMessage
-				if json.Unmarshal(raw, &now) == nil {
-					for k := range now {
-						fields[k] = true
-					}
+				var v any
+				if expr.UnmarshalJSON(raw, &v) == nil {
+					now = v
 				}
 			}
 		}
 		r.mu.Lock()
-		r.subjects[ref] = fields
+		r.subjects[ref] = now
 		r.mu.Unlock()
 	}
-	for k := range stored {
-		if !fields[k] {
+	return now != nil && covers(now, stored)
+}
+
+// covers is whether the record the reader may read now has every field the stored one has, at every
+// depth: each key of a stored object is in the current object and covered there; a stored list is
+// covered element by element (a list that grew or shrank since is not, as its elements cannot be
+// matched); a scalar is covered by any scalar, its value may have changed since. A field the reader's
+// rights withhold is missing from the current record, so a stored snapshot that holds it is not covered.
+func covers(now, stored any) bool {
+	switch st := stored.(type) {
+	case map[string]any:
+		n, ok := now.(map[string]any)
+		if !ok {
 			return false
 		}
+		for k, v := range st {
+			nv, ok := n[k]
+			if !ok || !covers(nv, v) {
+				return false
+			}
+		}
+		return true
+	case []any:
+		n, ok := now.([]any)
+		if !ok || len(n) != len(st) {
+			return false
+		}
+		for i := range st {
+			if !covers(n[i], st[i]) {
+				return false
+			}
+		}
+		return true
+	case nil:
+		return true
+	default:
+		switch now.(type) {
+		case map[string]any, []any:
+			return false
+		}
+		return true
 	}
-	return true
 }
 
 func (r *reader) hide(x *Example) {
