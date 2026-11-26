@@ -69,6 +69,19 @@ func TestManyCollidingKeysStayShort(t *testing.T) {
 	require.True(t, ok)
 	assert.Len(t, out, n+1, "every key keeps its value")
 	assert.Equal(t, "plain", out["k\uFFFD"], "a key without NUL keeps its name")
+	seen := make([]bool, n)
+	for k, v := range out {
+		if k == "k\uFFFD" {
+			continue
+		}
+		i, ok := v.(int)
+		require.True(t, ok, "%q holds %v", k, v)
+		require.False(t, seen[i], "value %d appears twice", i)
+		seen[i] = true
+	}
+	for i, ok := range seen {
+		assert.True(t, ok, "value %d is kept", i)
+	}
 	for k := range out {
 		assert.NotContains(t, k, "\x00")
 		assert.LessOrEqual(t, len(k), len("k")+12*len("\uFFFD")+len("\uFFFD")+4, "a key grows by a few bytes at most: %q", k)
