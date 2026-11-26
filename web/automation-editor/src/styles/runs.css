@@ -167,7 +167,7 @@
    duration is 0 and the fades keep at most --motion-fade (80 ms). ——— */
 /* A value that changed in place (a run's state, a node's state): the new one fades in over the old box. */
 .ae-swap { display: inline-flex; min-width: 0; }
-.ae-swap--in { animation: ae-swap-in var(--motion-fade) var(--ease-out) both; }
+.ae-swap--in { animation: ae-swap-in var(--motion-fade) var(--ease-out) backwards; }
 @keyframes ae-swap-in { from { opacity: 0.25; } }
 .ae-runstrip__state { display: inline-flex; flex: none; }
 /* Press response (T2) on rows: a shade at once (no transition), the row keeps its size in the list; chips
@@ -181,6 +181,6 @@
 @keyframes ae-sheet-out { to { opacity: 0; transform: translateY(24px); } }
 /* Dry run and Test node docks fade in and out. Opacity only: the dock takes the focus while it enters, and a
    translated dock would make its clipped parent scroll to reveal the field and stay scrolled. */
-.ae-dock--enter { animation: ae-fade var(--motion-base) var(--ease-out) both; }
+.ae-dock--enter { animation: ae-fade var(--motion-base) var(--ease-out) backwards; }
 .ae-dock.ae-layer--leaving { animation: ae-dock-out var(--motion-fast) var(--ease-in) both; pointer-events: none; }
 @keyframes ae-dock-out { to { opacity: 0; } }

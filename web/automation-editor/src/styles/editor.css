@@ -148,7 +148,7 @@
 .ae-edge--retract { transform-box: view-box; animation: ae-retract var(--motion-fast) var(--ease-in) both; }
 @keyframes ae-retract { to { opacity: 0; transform: scale(0); } }
 /* Run overlay (#1347): the path taken lights up edge by edge in step order (--ae-step set per edge). */
-.ae-edge--taken { animation: ae-edge-flash var(--motion-slow) var(--ease-out) both; animation-delay: calc(var(--ae-step, 0) * var(--motion-fast)); }
+.ae-edge--taken { animation: ae-edge-flash var(--motion-slow) var(--ease-out) backwards; animation-delay: calc(var(--ae-step, 0) * var(--motion-fast)); }
 /* An edge into a step that is waiting moves along its dashes; static under reduced motion. */
 .ae-edge--waiting { stroke-dasharray: 6 4; animation: ae-edge-wait calc(var(--motion-slow) * 3) linear infinite; } /* motion-allow: waiting edge */
 @keyframes ae-edge-wait { to { stroke-dashoffset: -20; } }

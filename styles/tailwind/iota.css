@@ -1764,13 +1764,16 @@ td:has(.table-cell-link):not(.sticky) {
     transform: scale(0.96);
   }
 
+  /* Entrances fill backwards only: their end state is the resting state, and a finished animation kept in
+     effect (fill forwards) keeps the element on its own compositing layer. Exits fill both: they hold the
+     end state until the element is removed. */
   /* A layer or row appearing: fade and a short rise. */
   .iota-enter {
-    animation: iota-enter var(--motion-base) var(--ease-out) both;
+    animation: iota-enter var(--motion-base) var(--ease-out) backwards;
   }
   /* Skeleton → content: a crossfade in the same box, no shift (S2). */
   .iota-fade-in {
-    animation: iota-fade var(--motion-fade) var(--ease-out) both;
+    animation: iota-fade var(--motion-fade) var(--ease-out) backwards;
   }
   /* A layer leaving: the reverse, shorter; the leaving layer is inert (A7). */
   .iota-exit {
@@ -1783,7 +1786,7 @@ td:has(.table-cell-link):not(.sticky) {
     pointer-events: none;
   }
   .iota-row-return {
-    animation: iota-row-return var(--motion-base) var(--ease-out) both;
+    animation: iota-row-return var(--motion-base) var(--ease-out) backwards;
   }
   /* A changed row or card (F5): highlighted about 4 s, then fades. Under reduced motion it holds and goes
      out in one step, without in-between frames. */
@@ -1803,7 +1806,7 @@ td:has(.table-cell-link):not(.sticky) {
   /* Inline confirmation above the buttons (U3): opens downward from its top edge. A clip, not a scale: focus
      moves into it while it opens, and its box must already be where it lands, or the page scrolls short. */
   .iota-reveal {
-    animation: iota-reveal var(--motion-base) var(--ease-out) both;
+    animation: iota-reveal var(--motion-base) var(--ease-out) backwards;
   }
   /* A visual "click" in place of a haptic one (touch): a short squeeze and back. */
   .iota-click {
