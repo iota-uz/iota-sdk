@@ -463,6 +463,13 @@ test('D1: after Discard the draft takes no edits until the version arrives; Back
   await page.goto(`/?view=editor&id=${DIGEST}&hold`)
   await expect(page.getByTestId('crumb')).toBeVisible()
   await rename(page, 'Draft of v3')
+  // A second edit, undone: the draft has a step to redo as well. The clock is fixed, so a Tidy in
+  // between keeps the two renames apart in the history.
+  await page.locator('.ae-tidy').click()
+  await rename(page, 'Redo target')
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Draft of v3')
+  await expect(page.getByRole('button', { name: 'Redo' })).toBeEnabled()
   const dialog = page.getByTestId('discard-dialog')
 
   // Back before the answer: the switch is dropped and the draft is editable again.
@@ -477,7 +484,10 @@ test('D1: after Discard the draft takes no edits until the version arrives; Back
   await expect(page.getByRole('button', { name: 'Redo' })).toBeDisabled()
   await page.locator('.iota-flow__pane, .ae-canvas').first().click({ position: { x: 5, y: 5 } })
   await page.keyboard.press('ControlOrMeta+z')
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Draft of v3')
   await page.keyboard.press('ControlOrMeta+Shift+z')
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Draft of v3')
+  await page.keyboard.press('ControlOrMeta+y')
   await expect(page.locator('.ae-toolbar__name')).toHaveText('Draft of v3')
   await page.goBack()
   await expect(page).not.toHaveURL(/version=/)
@@ -492,6 +502,50 @@ test('D1: after Discard the draft takes no edits until the version arrives; Back
   await dialog.getByTestId('discard-confirm').click()
   await expect(page.getByText('Opening v2: your changes were discarded')).toBeVisible()
   await expect.poll(() => held(page)).toEqual([2])
+  await release(page, 2)
+  await expect(page.getByTestId('open-latest')).toBeVisible()
+  await expect(page.getByText('Version v2 is open (read only)')).toBeVisible()
+})
+
+test('D1: a declined switch whose history entry a push replaced returns the URL of the version on screen', async ({ page }) => {
+  // The latest is on screen at entry 1; Back to v1 (entry 0) starts its request; the menu's v2 is
+  // pushed while v1 loads and replaces entry 1.
+  await page.goto(`/?view=editor&id=${DIGEST}&version=1&hold`)
+  await page.getByTestId('open-latest').click()
+  await expect.poll(() => held(page)).toEqual([0])
+  await release(page, 0)
+  await expect(page.getByTestId('open-latest')).toHaveCount(0)
+  await page.goBack()
+  await expect(page).toHaveURL(/version=1/)
+  await expect.poll(() => held(page)).toEqual([1])
+  await openVersion(page, 2)
+  await expect(page).toHaveURL(/version=2/)
+  await expect.poll(() => held(page)).toEqual([2])
+  await rename(page, 'Draft of v3')
+  await release(page, 2)
+  const dialog = page.getByTestId('discard-dialog')
+  await expect(dialog).toBeVisible()
+  await dialog.getByTestId('discard-cancel').click()
+  await expect(page).not.toHaveURL(/version=/)
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Draft of v3')
+  await expect(page.getByTestId('open-latest')).toHaveCount(0)
+})
+
+test('D1: Back or Forward before the first snapshot arrives loads the version the URL names', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&hold=all`)
+  await expect.poll(() => held(page)).toEqual([0])
+  await page.evaluate(() => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('version', '2')
+    window.history.pushState({ idx: 1 }, '', url)
+    window.history.back()
+  })
+  await expect(page).not.toHaveURL(/version=/)
+  await page.goForward()
+  await expect(page).toHaveURL(/version=2/)
+  // The request of the URL left is aborted; the one now named is the only one on its way.
+  await expect.poll(() => held(page)).toEqual([2])
+  expect(await aborted(page)).toContain(0)
   await release(page, 2)
   await expect(page.getByTestId('open-latest')).toBeVisible()
   await expect(page.getByText('Version v2 is open (read only)')).toBeVisible()

@@ -38,6 +38,7 @@ const fake: FakeOptions = {
   reviewFailsAfterChange: params.has('reviewFailsAfterChange'),
   oldVersionDelay: Number(params.get('oldVersionDelay') ?? '0'),
   hold: params.has('hold'),
+  holdFirst: params.get('hold') === 'all',
   can,
   calls: [],
   warn: params.has('warn'),

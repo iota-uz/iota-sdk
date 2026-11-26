@@ -28,6 +28,8 @@ export interface FakeOptions {
   oldVersionDelay: number
   /** Every automations.get after the first waits until the scenario releases it (window.__release). */
   hold: boolean
+  /** With hold: the first automations.get (the page's initial load) is held too (?hold=all). */
+  holdFirst: boolean
   can: { author: boolean; enable: boolean; operate: boolean }
   calls: { method: string; params: unknown }[]
   /** Validation warns about the first node (a pinned tool schema the server changed), with its fix. */
@@ -470,7 +472,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     const isList = body.method === 'automations.list' || body.method === 'automations.get' || body.method === 'automations.catalog'
     if (opts.scenario === 'loading' && isList) await new Promise(() => {})
     const signal = init?.signal
-    if (body.method === 'automations.get' && gets++ > 0 && opts.hold) await hold((body.params as { version?: number }).version ?? 0, signal)
+    if (body.method === 'automations.get' && (gets++ > 0 || opts.holdFirst) && opts.hold) await hold((body.params as { version?: number }).version ?? 0, signal)
     if (opts.oldVersionDelay > 0 && body.method === 'automations.get' && (body.params as { version?: number }).version) await pause(opts.oldVersionDelay, signal)
     if (opts.delay > 0 && !isList) await pause(opts.delay, signal)
     let payload: unknown

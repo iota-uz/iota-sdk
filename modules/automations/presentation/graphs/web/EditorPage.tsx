@@ -78,8 +78,9 @@ export default function EditorPage(): JSX.Element {
   window.history.replaceState({ ...(window.history.state as object | null), idx }, '')
   // The newest entry known to exist (a push drops the entries after it).
   let lastIdx = idx
-  // The entry that names the version on screen: where a declined navigation returns.
-  let rest = { idx, href: window.location.href }
+  // The entry that names the version on screen: where a declined navigation returns (gone: a push
+  // replaced it, so its URL is written back instead).
+  let rest: { idx: number; href: string; gone?: boolean } = { idx, href: window.location.href }
 
   const setURL = (mutate: (url: URL) => void, push = false) => {
     const url = new URL(window.location.href)
@@ -93,6 +94,8 @@ export default function EditorPage(): JSX.Element {
     if (push) {
       idx++
       lastIdx = idx
+      // The push drops the entries from idx on: the one that named the version on screen may be gone.
+      if (rest.idx >= idx) rest = { ...rest, gone: true }
       window.history.pushState({ idx }, '', url)
     } else {
       window.history.replaceState({ idx }, '', url)
@@ -112,8 +115,8 @@ export default function EditorPage(): JSX.Element {
   }
   /** Returns the URL to the entry of the version on screen. */
   const revert = () => {
-    if (rest.idx === idx) return
-    if (rest.idx <= lastIdx) {
+    if (!rest.gone && rest.idx === idx) return
+    if (!rest.gone && rest.idx <= lastIdx) {
       // The popstate that follows names the version on screen: nothing loads.
       window.history.go(rest.idx - idx)
       return
@@ -218,6 +221,8 @@ export default function EditorPage(): JSX.Element {
       setRunsView(view)
       setSelected(runs ? null : q.get('node'))
       if (info()) follow(norm(urlVersion()))
+      // Nothing on screen yet: the first snapshot is for the URL left, so the one now named is loaded.
+      else if (app.props.id) void load(urlVersion())
     }
     window.addEventListener('popstate', onPop)
     onCleanup(() => {
