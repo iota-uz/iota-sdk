@@ -330,6 +330,7 @@ an application that builds its own registry). Params are in the field language; 
 | Type | Behavior | Params | Outcomes | Output |
 |---|---|---|---|---|
 | `set` | effect (in the step) | `values: map<name, cel>` | `done` | one field per name (`OutputKeys`) |
+| `set_state` | effect (in the step) | `key` (tpl, ≤ 200 chars), `value` (cel, ≤ 16 KiB as JSON; absent with `delete`), `ttl` (`20m`, `2h`, `7d`: 1 minute to 365 days; default none), `delete` | `set`, `failed` | `{key, deleted, expires_at?}` |
 | `code` | call | `lang ts\|js`, `source` ≤ 100 000, `secrets[]`, `connections[]`, `fetch`, `timeout` (30s, ≤ 5m), `outcomes[]` (≤ 20, default `done`) | declared, `failed` | `{output, logs}` |
 | `http` | call | `method`, `url` (tpl), `headers`/`query` (map of tpl), `body {kind none\|json\|form\|text, value: cel\|tpl, template: tpl}`, `auth {secret (a NAME), scheme bearer\|basic\|header, header} \| {connection}`, `timeout` (30s, ≤ 120s), `success` (cel over `status`, `headers`, `body`, `url`; default `status < 400`), `idempotency_header` | `success`, `failed` | `{status, headers, body, url, body_omitted?}` |
 | `start_automation` | effect (in the step) | `automation_id`, `trigger_id?`, `input: map<name, cel>`, `subject` (cel `{entity, key}`; default the run's) | `started`, `failed` | `{run_id}` |
@@ -368,16 +369,19 @@ an application that builds its own registry). Params are in the field language; 
   the headers of a secret's authorization and the idempotency key whatever their names: `Sensitive`).
   With `auth` the URL names its https host before any template (`https://api.example.com/{{ ... }}`). A
   refusal is `network_blocked` with the host only; a DNS or dial failure is `unavailable` (nothing was
-  sent); a body over 10 MiB is `response_too_large`; a 429 with `Retry-After` is repeated by the engine's
+  sent); a body over 10 MiB or a header section over 64 KiB (`code.WithMaxHeaderBytes`) is
+  `response_too_large`; a 429 with `Retry-After` is repeated by the engine's
   rule. Only `GET`/`HEAD` and a request with `idempotency_header` (it carries the call's idempotency key)
   are idempotent (`catalog.IdempotentCall`); the header is one of the request's own (not one the
   transport sets: `Host`, `Content-Length`, `Connection`, `Authorization`, ...), and such a changing
   request is not followed off its origin (`redirect_refused`), where its key would not go. A response the success expression rejects takes
   `failed` with the response in the output and `output.error.code = http_status`. The node type declares
-  `NodeSpec.MaxOutputBytes` above the engine's payload limit (6× the body, the worst JSON escaping), so
-  any body up to 10 MiB comes back. `body.value` is CEL or a `{{ }}` template: the text of a `text` body,
-  the JSON text of an object or array of a `json` body, the encoded form of a `form` body;
-  `body.template` is always a template.
+  `NodeSpec.MaxOutputBytes` above the engine's payload limit (6× the body and the headers, the worst JSON
+  escaping), so any body up to 10 MiB comes back with its headers. `body.value` is CEL or a `{{ }}`
+  template: as a template, the text of a `text` body, the JSON text of an object or array of a `json`
+  body, the encoded form of a `form` body; as CEL, its value, so a CEL string of a `json` body is a JSON
+  string whatever its text (the step passes the mode to the node: `graph.Effect.Templated`,
+  `catalog.CallInput.Templated`). `body.template` is always a template.
 - **Another graph.** The run-as needs `Automations.Operate`, as for a manual start (`forbidden`). Both
   nodes start the target's enabled version in the step's transaction (`engine.RunStarter`,
   `Runtime.StartFromStep`) through `trigger_id`, else its first «Called by an automation» trigger
@@ -398,7 +402,15 @@ an application that builds its own registry). Params are in the field language; 
   by its status (`engine.WakeResolver`). Its output comes from the run when the event withheld it (the run
   read sensitive fields) and this run's run-as may read them; otherwise `output: null,
   output_withheld: true`. A run started by `start_automation` lives on its own. The composition provides
-  `engine.RunStarter` (the `*engine.Runtime`); without it the nodes fail with `runs_unavailable`.
+  `engine.RunStarter` (the `*engine.Runtime`; `modules/automations` provides it whenever it runs the
+  engine); without it the nodes fail with `runs_unavailable`.
+- **Run output.** An `end` node's `output: map<name, cel>` is the run's output, which a
+  `run_automation` reads as `nodes.<id>.output.output.<name>`; an `end` without it gives its params
+  (`{reason}`), as before. The graph version may declare `output_schema` (JSON Schema of `type:
+  object`): a save checks every `end` against it (required names present, no name a closed schema
+  does not take, each expression's CEL type one the property's `type` takes; a timestamp is a string,
+  a duration a number), and the run checks the computed values against it when it ends: a mismatch
+  fails the run with `INVALID_OUTPUT`.
 - **Before the call.** A failure to read a secret or open a connection, or of the compiler, is
   `unavailable` (retryable), never `outcome_unknown`: nothing ran.
 - **Actions.** A graph names an action as `{"type": "action", "params": {"action": "core.user.block",
@@ -421,6 +433,36 @@ an application that builds its own registry). Params are in the field language; 
   `*ActionError` is `failed` with its code, dots and all. `servicectx.Context` builds the services' context
   (the run-as as the user). The SDK's actions: `core.user.block`, `core.user.unblock`,
   `core.group.add_user`, `core.group.remove_user`, `crm.chat.send_message`.
+
+### Memory between runs: `set_state` and `state` (#1390)
+
+A graph remembers facts between its runs (a chat already has a task, a release is already announced, how many
+times a rule fired). `automation.state(tenant_id, automation_id, key, value jsonb, expires_at, updated_at,
+updated_by_run)` holds them per tenant and automation; `pkg/automation/state` is its one writer and reader.
+
+- **Write.** The `set_state` node (`behavior=effect`, outcomes `set` and `failed`) writes or deletes one key in
+  the transaction of the step, so the write commits with the step or not at all, and a node that fails
+  writes nothing. It declares `DryRun: capture`: a dry run and a backtest trace the rendered key and value
+  and write nothing. A refusal is the node's `failed` outcome with `output.error.code`:
+  `state_value_too_large` (over 16 KiB as JSON), `state_value_invalid` (no JSON form, or a NUL character),
+  `state_key_invalid` (empty or over 200 characters),
+  `state_ttl_invalid` and `state_limit_exceeded` (more than 10 000 live keys; expired ones do not count, and
+  rewriting a key that is there is always allowed).
+- **Read.** In the expressions and templates of a step (not of a trigger's filter), `state` is a lookup-only
+  map: `state.get(key)` is the value or `null`, `state.has(key)` tells whether the key is there, and
+  `state[key]` / `key in state` work too. `get` and `has` are member functions of every `map<string, dyn>`.
+  Keys are read one at a time from the step's own transaction, so a run sees the values as of its step
+  (its own earlier writes included), and a key read twice in one step has one value. A key past its
+  `expires_at` is not seen, whether or not the sweep has removed its row (`Runtime.Prune` removes them in
+  batches). A subject variable named `state` wins over the memory.
+- **Dry run.** `DryRunInput.AutomationID` (the saved graph; `id` of `automation_dry_run` and of the editor's
+  `automations.dry_run`) lets the dry run read that graph's memory; it never writes it.
+- **People and agents.** `Runtime.Memory()` lists keys (with a search), reads, sets and deletes them with
+  `Automations.Read` / `Automations.Author`; deleting a graph drops its keys. The editor's graph settings
+  show the list (search, edit the value as JSON with a lifetime, delete), through
+  `automations.state_list|state_set|state_delete`. `mcpops.WithMemory(rt.Memory())` adds the MCP tools
+  `automation_state_list` and `automation_state_get` (read) and the guarded changes `automation.state.set` and
+  `automation.state.delete` (author).
 
 ### Effect nodes beyond a single outcome, and the notification nodes (#1338)
 
@@ -646,6 +688,16 @@ of `pkg/mcp` (#1084) and are reached through `lookup` / `execute` (#1314). Every
   about the operation or by `DispatchEffects` (`changes.Config.Auditor`).
 - A receipt item's `result` is shown on a retried `apply_changes` and on `operation_get` only
   while the caller still passes the kind's policy; otherwise only status, ids and revisions.
+- Composition: `pkg/mcp/mcpwiring.NewComponent` is the application's MCP composition. It is on
+  when the application passes its `Registry` (and then requires `Authorizer`, an
+  `mcp.ConfirmingAuditor` as `Auditor`, and `ApprovalURL`; no environment flag). At start it
+  registers the tools modules contribute (`mcpwiring.ContributeTools`) and the changes tools
+  over the contributed kinds (`mcpwiring.ContributeKinds`) with `changes.Config.Auditor` set, and,
+  in a process with the API or worker capability, calls `DispatchEffects` every
+  `DispatchInterval` (5s). The automations module contributes the `mcpops` tools and kinds with
+  its pages under `http.origin` as URLs, and its engine runs with `Config.Links` =
+  `engine.NewLinks(origin, "<automations path>/%s/runs/%s")` (`WithEngineConfig` may replace it).
+  The gateway is built over the registry after `composition.Start`.
 - `HUMAN_REQUIRED` is the shared failure `approval_required` / `open_approval` with an issue of
   code `HUMAN_REQUIRED` and the URL of the page where the person acts. The engine marks
   `automation.run` and `automation.call` human-only (`workflow.NativeContract.HumanOnly`), so the

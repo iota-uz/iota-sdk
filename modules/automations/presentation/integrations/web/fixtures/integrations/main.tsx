@@ -34,6 +34,11 @@ const fake: FakeOptions = {
   testFailOnce: params.has('testFailOnce'),
   refreshFails: params.has('refreshFails'),
   conflictOnce: params.has('conflictOnce') ? (params.get('conflictOnce') === 'error' ? 'error' : 'result') : '',
+  // An author (manage=0) holds no Secrets.Manage either unless the query says so.
+  secrets: params.has('secrets') ? params.get('secrets') !== '0' : params.get('manage') !== '0',
+  noSecrets: params.has('noSecrets'),
+  secretConflictOnce: params.has('secretConflictOnce'),
+  ...(params.has('presets') ? { presets: params.get('presets')!.split(',').filter(Boolean) } : {}),
   calls: [],
 }
 ;(window as unknown as { __calls: FakeOptions['calls'] }).__calls = fake.calls
@@ -50,7 +55,7 @@ const context = {
   theme,
   route: { id: 'automations.integrations', path: '/settings/integrations', featureId: 'fixture' },
   locale: { language: lang, messages },
-  permissions: ['Connections.Manage'],
+  permissions: ['Connections.Manage', 'Secrets.Manage'],
   services: { rpc: '/settings/integrations/rpc' },
   initial: { basePath: '/settings/integrations', automationsPath: '/automations', configured: !params.has('unconfigured') },
 }

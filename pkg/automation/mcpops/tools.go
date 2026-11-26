@@ -117,6 +117,7 @@ func Tools(svc engine.Service, auth engine.Authoring, reg catalog.Registry, urls
 			"; more is limit_exceeded. At most 50 events, the entries of a batch counted one by one. Requires " + engine.PermAuthor + ".",
 		Input: dryRunSchema(), Annotations: readOnly("Dry-run automation"), Policy: AuthorPolicy,
 	}, t.dryRun))
+	t.addState(add, readOnly)
 	if len(errs) > 0 {
 		return nil, serrors.Wrap(op, errors.Join(errs...))
 	}
@@ -533,10 +534,11 @@ func (t *tools) validate(ctx context.Context, a engine.Actor, in validateIn) (va
 		return validateOut{}, tooLarge("/graph")
 	}
 	out := validateOut{OK: true, Errors: []graph.GraphError{}, Warnings: []graph.GraphError{}}
-	err := t.auth.Validate(ctx, a, in.Graph)
+	warnings, err := t.auth.Validate(ctx, a, in.Graph)
 	var ve *engine.ValidationError
 	switch {
 	case err == nil:
+		out.Warnings = append(out.Warnings, warnings...)
 	case errors.As(err, &ve):
 		out.OK = false
 		out.Errors = append(out.Errors, ve.Errors...)
@@ -605,11 +607,13 @@ func (t *tools) dryRun(ctx context.Context, a engine.Actor, in dryRunIn) (dryRun
 			mcp.Issue{Path: "/allow_live", Code: "required", Message: "live decisions need allow_live: true"})
 	}
 	raw := in.Graph
+	var saved uuid.UUID
 	if in.ID != "" {
 		id, err := parseID("id", in.ID)
 		if err != nil {
 			return dryRunOut{}, err
 		}
+		saved = id
 		version := in.Version
 		if version == 0 {
 			am, err := t.svc.Get(ctx, a, id)
@@ -628,7 +632,7 @@ func (t *tools) dryRun(ctx context.Context, a engine.Actor, in dryRunIn) (dryRun
 	if len(raw) > MaxGraphBytes {
 		return dryRunOut{}, tooLarge("/id")
 	}
-	dr := engine.DryRunInput{Graph: raw, Subject: in.Subject, Context: in.Context, Events: in.Events, Decisions: in.Decisions,
+	dr := engine.DryRunInput{Graph: raw, AutomationID: saved, Subject: in.Subject, Context: in.Context, Events: in.Events, Decisions: in.Decisions,
 		RealCalls: engine.RealCallsNone}
 	if in.AllowLive {
 		// Only decision nodes call for real, at most MaxLiveCalls times; every other execute node is

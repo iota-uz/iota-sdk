@@ -1,10 +1,12 @@
 package connectors
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
@@ -33,9 +35,23 @@ func (d *directory) Register(c Connector) error {
 	if err := checkDescriptor(c.Kind(), desc); err != nil {
 		return serrors.Wrap(op, err)
 	}
+	if _, ok := c.(ConnectionAuthorizer); ok && len(desc.OAuth2Presets) > 0 {
+		// Two sign-ins of different kinds: the connection's own authorization server (it is saved first, then
+		// signed in) and the platform's providers (the sign-in makes the connections). A state of one would be
+		// finished as the other, so a connector has one.
+		return serrors.Wrap(op, fmt.Errorf("%w: connector %s declares OAuth2 presets and is a ConnectionAuthorizer", ErrInvalid, desc.Kind))
+	}
 	if ca, ok := c.(CodeAccessor); ok {
-		if err := ca.CodeAccess().Validate(); err != nil {
+		access := ca.CodeAccess()
+		check := access.Validate
+		if _, resolved := c.(CodeBaseURLResolver); resolved {
+			check = access.ValidateResolved
+		}
+		if err := check(); err != nil {
 			return serrors.Wrap(op, fmt.Errorf("connector %s: %w", desc.Kind, err))
+		}
+		if _, operates := c.(CodeOperator); len(access.Operations) > 0 && !operates {
+			return serrors.Wrap(op, fmt.Errorf("%w: connector %s declares code operations and is not a CodeOperator", ErrInvalid, desc.Kind))
 		}
 	}
 	d.mu.Lock()
@@ -93,6 +109,32 @@ func checkDescriptor(kind catalog.ConnectorKind, d Descriptor) error {
 	default:
 		return fmt.Errorf("%w: connector %s: auth %q is not api_key, basic, oauth2 or custom", ErrInvalid, kind, d.Auth)
 	}
+	// AuthParams add to the authorization URL: they never replace what the flow itself sets.
+	reserved := func(params map[string]string) error {
+		for k := range params {
+			switch strings.ToLower(k) {
+			case "state", "client_id", "redirect_uri", "response_type", "scope", "code_challenge", "code_challenge_method":
+				return fmt.Errorf("%w: connector %s: AuthParams may not set %q", ErrInvalid, kind, k)
+			}
+		}
+		return nil
+	}
+	if d.OAuth2 != nil {
+		if err := reserved(d.OAuth2.AuthParams); err != nil {
+			return err
+		}
+	}
+	for name, cfg := range d.OAuth2Presets {
+		if err := reserved(cfg.AuthParams); err != nil {
+			return err
+		}
+		if d.Auth == AuthOAuth2 || name == "" || cfg.AuthURL == "" || cfg.TokenURL == "" {
+			return fmt.Errorf("%w: connector %s: OAuth2 preset %q needs a name, AuthURL and TokenURL, and a connector that is not auth oauth2", ErrInvalid, kind, name)
+		}
+		if cc := cfg.ClientCredential; cc == "" || cc == string(kind) {
+			return fmt.Errorf("%w: connector %s: OAuth2 preset %q needs a client credential named apart from the kind", ErrInvalid, kind, name)
+		}
+	}
 	switch d.Platform {
 	case "", PlatformNone, PlatformAuto, PlatformOptIn:
 	default:
@@ -101,6 +143,9 @@ func checkDescriptor(kind catalog.ConnectorKind, d Descriptor) error {
 	if len(d.Credentials) > 0 {
 		if _, err := graph.SchemaParams(d.Credentials); err != nil {
 			return fmt.Errorf("%w: connector %s: credentials schema: %v", ErrInvalid, kind, err)
+		}
+		if err := checkAnnotations(kind, d.Credentials); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -123,6 +168,65 @@ func SecretFields(d Descriptor) map[string]bool {
 		}
 	}
 	return out
+}
+
+// AuthorizationOnlyFields are the credential fields whose schema property has "x-authorization-only": true:
+// the connector uses them only to authorize its own requests (an API token). They are never served as a
+// secret by name (SecretResolver, a node's CONNECTION__FIELD), so code reaches the API only through the
+// connection, never with the credential itself.
+func AuthorizationOnlyFields(d Descriptor) map[string]bool {
+	out := map[string]bool{}
+	props, ok := schemaProperties(d.Credentials)
+	if !ok {
+		return out // no readable properties: SecretFields has none either, so nothing is served by name
+	}
+	for name, p := range props {
+		raw, set := p["x-authorization-only"]
+		if !set {
+			continue
+		}
+		// Fail closed: only an explicit false lets the field be served; any other value (true, "false", null,
+		// a number) withholds it. Directory.Register refuses such a schema anyway.
+		if !isJSONFalse(raw) {
+			out[name] = true
+		}
+	}
+	return out
+}
+
+// schemaProperties are the raw keywords of each property of a credentials schema; a property that is not
+// an object is kept with no keywords.
+func schemaProperties(schema json.RawMessage) (map[string]map[string]json.RawMessage, bool) {
+	var doc struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	if len(schema) == 0 || json.Unmarshal(schema, &doc) != nil {
+		return nil, false
+	}
+	out := make(map[string]map[string]json.RawMessage, len(doc.Properties))
+	for name, raw := range doc.Properties {
+		var kw map[string]json.RawMessage
+		_ = json.Unmarshal(raw, &kw)
+		out[name] = kw
+	}
+	return out, true
+}
+
+// isJSONFalse and isJSONTrue tell the JSON literals exactly: json.Unmarshal takes null into a bool as false.
+func isJSONFalse(raw json.RawMessage) bool { return string(bytes.TrimSpace(raw)) == "false" }
+func isJSONTrue(raw json.RawMessage) bool  { return string(bytes.TrimSpace(raw)) == "true" }
+
+// checkAnnotations refuses a credentials schema whose x-authorization-only is not a boolean.
+func checkAnnotations(kind catalog.ConnectorKind, schema json.RawMessage) error {
+	props, _ := schemaProperties(schema)
+	for name, p := range props {
+		if raw, set := p["x-authorization-only"]; set {
+			if !isJSONFalse(raw) && !isJSONTrue(raw) {
+				return fmt.Errorf("%w: connector %s: credentials property %s: x-authorization-only is not a boolean", ErrInvalid, kind, name)
+			}
+		}
+	}
+	return nil
 }
 
 // ValidateCredentials checks credentials against the connector's credentials schema. Issues name the

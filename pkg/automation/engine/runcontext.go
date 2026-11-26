@@ -14,6 +14,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/automation/state"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
 )
 
@@ -100,6 +101,9 @@ type RunContextInput struct {
 	Now     time.Time
 	// Vars are the subject's variables; nil: loaded with the run-as rights (SubjectLoader).
 	Vars map[string]any
+	// StateDB is what the step reads the automation's memory (state) through: the step's transaction, so
+	// the step sees its own and the committed writes; nil: the database (a dry run, a test node).
+	StateDB state.Querier
 	// Overrides replace parts of the context: "nodes.<id>.output" (a dry run's given answers) or a
 	// top-level variable of the subject. Applied last.
 	Overrides map[string]any
@@ -139,6 +143,13 @@ func (r *Runtime) BuildRunContext(ctx context.Context, in RunContextInput) (grap
 	}
 	if gctx.Nodes == nil {
 		gctx.Nodes = map[string]graph.NodeState{}
+	}
+	if in.AutomationID != uuid.Nil {
+		var db state.Querier = r.reader(ctx)
+		if in.StateDB != nil {
+			db = in.StateDB
+		}
+		gctx.State = state.NewReader(ctx, db, in.TenantID, in.AutomationID)
 	}
 	if links := r.cfg.Links; links != nil {
 		if subject.Entity != graph.SubjectNone {

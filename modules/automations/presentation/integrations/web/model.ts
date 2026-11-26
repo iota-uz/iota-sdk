@@ -90,6 +90,30 @@ export function schemaFields(schema: unknown): FormField[] {
   })
 }
 
+/** The sign-in presets of a connector that has a form and a sign-in (gmail, m365): the keys of the preset field's x-oauth-client. */
+export function knownPresets(connector: ConnectorView): string[] {
+  const props = (connector.credential_schema as { properties?: Record<string, { 'x-oauth-client'?: Record<string, string> }> } | undefined)?.properties
+  return Object.keys(props?.preset?.['x-oauth-client'] ?? {})
+}
+
+/** The presets the application can sign in with now (their OAuth2 client is configured). */
+export function availablePresets(connector: ConnectorView): string[] {
+  return (connector.oauth_presets ?? []).filter((p) => knownPresets(connector).includes(p))
+}
+
+/** The sign-in preset a connection was made with, when it was made by a sign-in. */
+export function connectionPreset(connector: ConnectorView, connection: { fields?: Record<string, string> } | undefined): string | undefined {
+  const p = connection?.fields?.preset
+  return p && knownPresets(connector).includes(p) ? p : undefined
+}
+
+/** The choices of a preset field: the form («custom») and the providers that can be signed in with; none else is shown. */
+export function presetOptions(connector: ConnectorView, options: readonly string[] | undefined): string[] {
+  const known = knownPresets(connector)
+  const available = availablePresets(connector)
+  return (options ?? []).filter((o) => !known.includes(o) || available.includes(o))
+}
+
 function humanize(name: string): string {
   const s = name.replace(/[_-]+/g, ' ').trim()
   return s.charAt(0).toUpperCase() + s.slice(1)
@@ -121,6 +145,7 @@ export function fieldErrorText(t: Translator, code: string): string {
     case 'required': return t('Form.Required')
     case 'name': return t('Form.NameFormat')
     case 'taken': return t('Form.NameTaken')
+    case 'in_use': return t('Form.BotInUse')
     default: return t('Form.Invalid')
   }
 }
@@ -142,6 +167,15 @@ export const OAUTH_ERRORS = ['denied', 'state', 'exchange', 'unavailable', 'refu
 /** The phrase of an OAuth2 return code. */
 export function oauthErrorText(t: Translator, code: string): string {
   return t(`OAuth.${(OAUTH_ERRORS as readonly string[]).includes(code) ? code : 'exchange'}`)
+}
+
+/**
+ * The phrase of a warning the server asks to confirm. Its token is the code bound to the bot it was raised for
+ * ("foreign_webhook@222222"): the account is for the server's check, the phrase is the code's.
+ */
+export function warningText(t: Translator, token: string): string {
+  const at = token.indexOf('@')
+  return t(`Form.Warnings.${at < 0 ? token : token.slice(0, at)}`)
 }
 
 /** The phrase of a failed save; never a raw code or the provider's text. */
@@ -208,4 +242,81 @@ export function missingRequired(fields: readonly FormField[], values: Record<str
     if ((values[f.name] ?? '').trim() === '') out[f.name] = 'required'
   }
   return out
+}
+
+export type SecretView = RPC['automations.secrets.list']['result']['secrets'][number]
+export type SecretSaveResult = RPC['automations.secrets.create']['result']
+
+/** A secret's name: upper case Latin letters, digits and _, starting with a letter (API_KEY). */
+export const SECRET_NAME_RE = /^[A-Z][A-Z0-9_]{0,63}$/
+
+/** What the field holds instead of a saved value: the value is never sent back, so nothing of it is shown. */
+export const MASKED_VALUE = '••••••'
+
+/** A name typed in any case, as the store keeps it: API key → API_KEY. */
+export function secretName(typed: string): string {
+  return typed.toUpperCase().replace(/[\s-]+/g, '_')
+}
+
+/** The localized text of a field error of the secret form. */
+export function secretFieldErrorText(t: Translator, code: string): string {
+  switch (code) {
+    case 'required': return t('Form.Required')
+    case 'secret_name': return t('Secrets.Form.NameFormat')
+    case 'taken': return t('Secrets.Form.NameTaken')
+    default: return t('Form.Invalid')
+  }
+}
+
+/** Fields of the secret form the screen refuses before a request: a value is required where one is entered. */
+export function secretFormErrors(mode: 'create' | 'edit' | 'rotate', name: string, value: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  if (mode !== 'rotate') {
+    if (name.trim() === '') out.name = 'required'
+    else if (!SECRET_NAME_RE.test(name.trim())) out.name = 'secret_name'
+  }
+  if (mode !== 'edit' && value === '') out.value = 'required'
+  return out
+}
+
+/** The phrase of a refused save of a secret; never a value. */
+export function secretSaveErrorText(t: Translator, r: SecretSaveResult): string {
+  switch (r.error) {
+    case 'name_taken': return t('Secrets.Form.NameTaken')
+    case 'version_conflict': return t('Secrets.Form.VersionConflict')
+    case 'unavailable': return t('Secrets.Form.Unavailable')
+    case 'invalid_input': return t('Form.Invalid')
+    default: return t('Secrets.Form.Failed')
+  }
+}
+
+/** The safe facts of a secret in words: created, rotated (when it was), last used. */
+export function secretMeta(t: Translator, s: SecretView, lang: string): string[] {
+  let fmt: Intl.DateTimeFormat
+  try { fmt = new Intl.DateTimeFormat(lang, { dateStyle: 'medium' }) } catch { fmt = new Intl.DateTimeFormat('en', { dateStyle: 'medium' }) }
+  const date = (iso: string) => fmt.format(new Date(iso))
+  const out = [t('Secrets.Created', { date: date(s.created_at) })]
+  if (s.rotated_at && s.rotated_at !== s.created_at) out.push(t('Secrets.Rotated', { date: date(s.rotated_at) }))
+  out.push(s.last_used_at ? t('Secrets.LastUsed', { date: date(s.last_used_at) }) : t('Secrets.NeverUsed'))
+  return out
+}
+
+/** The editable fields of the secret form. */
+export type SecretDraft = { name: string; description: string }
+
+/**
+ * The form's fields after a version conflict loaded `latest`: a field the person left as it was in `prev` (the
+ * version the form showed) takes the latest value, so the next save does not send a stale one back as a change;
+ * a field the person changed keeps what they typed.
+ */
+export function rebaseSecretDraft(draft: SecretDraft, prev: SecretDraft, latest: SecretDraft): SecretDraft {
+  return {
+    name: draft.name.trim() === prev.name ? latest.name : draft.name,
+    description: draft.description.trim() === prev.description ? latest.description : draft.description,
+  }
+}
+
+/** Secrets by name, as nodes refer to them. */
+export function sortSecrets(list: readonly SecretView[]): SecretView[] {
+  return [...list].sort((a, b) => a.name.localeCompare(b.name))
 }

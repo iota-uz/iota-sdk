@@ -3,13 +3,17 @@ package automations
 import (
 	"context"
 	"log/slog"
+	"net/url"
 	"sort"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/flow"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/email"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine/ownernotice"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
@@ -33,6 +37,42 @@ func WithEngineConfig(tune func(*engine.Config)) Option {
 	}
 }
 
+// WithSubjectLink gives the page of a subject entity's record (its key → a path or an absolute URL): the
+// run view's «Open <subject>» and a run context's subject.url. core.user links to /users/<id> unless
+// replaced.
+func WithSubjectLink(entity string, resolve engine.SubjectURLResolver) Option {
+	return func(c *component) {
+		if entity == "" || resolve == nil {
+			return
+		}
+		if c.subjectLinks == nil {
+			c.subjectLinks = map[string]engine.SubjectURLResolver{}
+		}
+		c.subjectLinks[entity] = resolve
+	}
+}
+
+// newLinks is the link registry of runs and subjects under origin (an empty origin keeps links relative).
+func (c *component) newLinks(origin string) (*engine.LinkRegistry, error) {
+	// The run pages are the ones pageURLs links to (the same origin and path).
+	pages := c.pages(origin)
+	links := engine.NewLinks(pages.origin, pages.path+"/%s/runs/%s")
+	resolvers := map[string]engine.SubjectURLResolver{
+		"core.user": func(_ context.Context, _ uuid.UUID, key string) (string, error) {
+			return "/users/" + url.PathEscape(key), nil
+		},
+	}
+	for entity, r := range c.subjectLinks {
+		resolvers[entity] = r
+	}
+	for entity, r := range resolvers {
+		if err := links.Register(entity, r); err != nil {
+			return nil, err
+		}
+	}
+	return links, nil
+}
+
 // WithoutEngine leaves the automation engine out: no runs execute in this process and the automations
 // pages are not mounted (the integrations page still is).
 func WithoutEngine() Option {
@@ -45,9 +85,25 @@ func WithoutBackground() Option {
 	return func(c *component) { c.noBackground = true }
 }
 
+// unavailableStarter is the RunStarter of a composition whose module has the engine on but no extension
+// core provides what it runs on (the workflow engine, the subject loader, the database): a start from a
+// step is the node's runs_unavailable failure, never a failure of the application.
+type unavailableStarter struct{}
+
+func (unavailableStarter) StartFromStep(context.Context, pgx.Tx, engine.StepContext, engine.StepStart) (engine.RunRef, error) {
+	return engine.RunRef{}, &engine.StepError{Code: flow.CodeUnavailable,
+		Message: "the automation engine does not run in this composition: no workflow engine, subject loader or database"}
+}
+
 // engineHolder is the composition's engine; rt is nil when the composition cannot run one (the module's
 // engine is turned off, or no extension core provides the workflow engine and the subject loader).
-type engineHolder struct{ rt *engine.Runtime }
+type engineHolder struct {
+	rt *engine.Runtime
+	// behaviors are the behaviors the engine runs graphs with (Config.Behaviors after the tuning).
+	behaviors *graph.Behaviors
+	// links are the engine's links (Config.Links after the tuning).
+	links engine.Links
+}
 
 // runtime is the composition's engine, nil when it cannot run one.
 func (c *component) runtime(container *composition.Container) (*engine.Runtime, error) {
@@ -62,11 +118,14 @@ func (c *component) runtime(container *composition.Container) (*engine.Runtime, 
 }
 
 // defaultEngineConfig is the engine's configuration before the application's tuning: it records what
-// calls spend (the SMS nodes' units, for one) in automation.connector_usage.
-func defaultEngineConfig(db *pgxpool.Pool, wf *workflow.Engine, users host.SubjectLoader, reg catalog.Registry, creds connectors.CredentialSource) engine.Config {
+// calls spend (the SMS nodes' units, for one) in automation.connector_usage, matches the triggers of
+// the SDK's connectors (the email connector's subject_contains), and knows the connectors' descriptors,
+// so only the secret fields of a connection are masked in a call's output and errors (a server URL or an
+// auth kind a tool echoes stays as the node checked it).
+func defaultEngineConfig(db *pgxpool.Pool, wf *workflow.Engine, users host.SubjectLoader, reg catalog.Registry, creds connectors.CredentialSource, dir connectors.Directory) engine.Config {
 	return engine.Config{
-		DB: db, Workflows: wf, Users: users, Catalog: reg, Credentials: creds, Logger: slog.Default(),
-		Usage: connectors.NewUsageRecorder(db),
+		DB: db, Workflows: wf, Users: users, Catalog: reg, Credentials: creds, Connectors: dir, Logger: slog.Default(),
+		Usage: connectors.NewUsageRecorder(db), MatchHooks: email.MatchHooks(),
 	}
 }
 
@@ -98,15 +157,33 @@ func (c *component) buildEngine(b *composition.Builder) {
 			return nil, err
 		}
 		// The store's usage index is the engine's: the credentials are resolved when a call first opens one.
-		cfg := defaultEngineConfig(db, wf, users, reg, lazyCredentials{container: container})
+		cfg := containerEngineConfig(container, db, wf, users, reg)
+		if c.links != nil {
+			cfg.Links = c.links
+		}
 		for _, tune := range c.engineTune {
 			tune(&cfg)
+		}
+		// Human nodes open tasks of the workflow engine unless the application gave its own bridge.
+		if cfg.Tasks == nil {
+			cfg.Tasks = engine.NewHumanBridge(cfg.Limits.WaitMax)
 		}
 		rt, err := engine.NewRuntime(cfg)
 		if err != nil {
 			return nil, err
 		}
-		return &engineHolder{rt: rt}, nil
+		return &engineHolder{rt: rt, behaviors: cfg.Behaviors, links: cfg.Links}, nil
+	})
+	// start_automation and run_automation start the runs of other graphs through the engine (builtins.go).
+	composition.Provide[engine.RunStarter](b, func(container *composition.Container) (engine.RunStarter, error) {
+		rt, err := c.runtime(container)
+		if err != nil {
+			return nil, err
+		}
+		if rt == nil {
+			return unavailableStarter{}, nil
+		}
+		return rt, nil
 	})
 	wiring.ContributeNativeWorkflows(b, func(container *composition.Container) (map[string]workflow.NativeContract, error) {
 		rt, err := c.runtime(container)
@@ -208,6 +285,41 @@ type builtinNode struct{ spec graph.NodeSpec }
 
 func (n builtinNode) Spec() graph.NodeSpec            { return n.spec }
 func (builtinNode) Requires() []catalog.ConnectorKind { return nil }
+
+// containerEngineConfig is the default configuration of the engine the module builds in a container: the
+// connection store and the connector directory are resolved when the engine first needs them.
+func containerEngineConfig(container *composition.Container, db *pgxpool.Pool, wf *workflow.Engine, users host.SubjectLoader, reg catalog.Registry) engine.Config {
+	return defaultEngineConfig(db, wf, users, reg, lazyCredentials{container: container}, lazyDirectory{container: container})
+}
+
+// lazyDirectory resolves the connector directory when the engine first asks it (the directory is built
+// after the engine). A directory that does not resolve knows no connector: every credential value is
+// masked then.
+type lazyDirectory struct{ container *composition.Container }
+
+func (l lazyDirectory) Register(c connectors.Connector) error {
+	dir, err := composition.Resolve[connectors.Directory](l.container)
+	if err != nil {
+		return err
+	}
+	return dir.Register(c)
+}
+
+func (l lazyDirectory) List() []connectors.Connector {
+	dir, err := composition.Resolve[connectors.Directory](l.container)
+	if err != nil {
+		return nil
+	}
+	return dir.List()
+}
+
+func (l lazyDirectory) Get(kind catalog.ConnectorKind) (connectors.Connector, bool) {
+	dir, err := composition.Resolve[connectors.Directory](l.container)
+	if err != nil {
+		return nil, false
+	}
+	return dir.Get(kind)
+}
 
 // lazyCredentials resolves the connection store when a call first opens a connection.
 type lazyCredentials struct{ container *composition.Container }

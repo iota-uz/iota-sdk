@@ -6,9 +6,9 @@ import {
 } from '@iota-uz/sdk/solid-ui'
 import { rpcContracts, type Props, type RPC } from './Integrations.solid.generated'
 import {
-  CATEGORY_KEY, NAME_RE, changedCredentials, oauthErrorText, reasonSentence, reasonText, errorCode, fieldErrorText, groupByCategory, missingRequired, newCredentials, saveErrorText,
-  schemaFields, slugify, translator, usageHref, usedByText,
-  type ConnectionView, type ConnectorView, type FormField, type ListResult, type Status, type Translator, type UsageView,
+  CATEGORY_KEY, MASKED_VALUE, NAME_RE, rebaseSecretDraft, secretFieldErrorText, secretFormErrors, secretMeta, secretName, secretSaveErrorText, sortSecrets, changedCredentials, oauthErrorText, reasonSentence, reasonText, errorCode, fieldErrorText, groupByCategory, missingRequired, newCredentials, saveErrorText, warningText,
+  schemaFields, availablePresets, connectionPreset, knownPresets, presetOptions, slugify, translator, usageHref, usedByText,
+  type ConnectionView, type ConnectorView, type FormField, type ListResult, type SecretView, type Status, type Translator, type UsageView,
 } from './model'
 
 type Call = <K extends keyof RPC>(method: K, params: RPC[K]['params']) => Promise<RPC[K]['result']>
@@ -153,9 +153,31 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
     onCleanup(() => window.removeEventListener('popstate', pop))
   })
 
-  const setDisabled = async (c: ConnectionView, disabled: boolean, undo = false) => {
+  const setDisabled = async (c: ConnectionView, disabled: boolean, undo = false, confirm?: string[]) => {
     try {
-      const r = await call('automations.connections.set_disabled', { id: c.id, disabled })
+      const r = await call('automations.connections.set_disabled', { id: c.id, disabled, ...(confirm ? { confirm } : {}) })
+      if (r.error === 'confirmation_required') {
+        // The bot has been given to another service while the connection was off: enabling it again would
+        // take its messages away, so the person says so first.
+        const codes = r.warnings ?? []
+        // What was confirmed on the earlier attempts stays confirmed: the next answer may name one more warning.
+        const confirmedNow = [...new Set([...(confirm ?? []), ...codes])]
+        toast.notify({
+          variant: 'error', title: (codes.length ? codes : ['foreign_webhook']).map((w) => warningText(t, w)).join(' '),
+          action: { label: t('Form.ConfirmWarning'), onAction: () => setDisabled(c, disabled, undo, confirmedNow) },
+        })
+        return
+      }
+      if (r.error || !r.connection) {
+        toast.notify({ variant: 'error', title: t(r.error === 'invalid_input' ? 'Form.BotInUse' : 'Toast.Failed') })
+        return
+      }
+      if (!disabled && r.connection.status !== 'connected') {
+        // The provider refused the setup: the connection is saved with its error, not enabled.
+        refetch()
+        toast.notify({ variant: 'error', title: t('Toast.Failed') })
+        return
+      }
       highlight(r.connection.id)
       refetch()
       toast.notify({
@@ -214,16 +236,20 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
         </Show>
       }>
         {(list) => (
-          <Show when={list().connectors.length > 0} fallback={<EmptyState title={t('Empty.Title')} description={t('Empty.Text')} data-testid="integrations-empty" />}>
-            <For each={groupByCategory(list().connectors)}>{(group) => (
-              <section class="flex flex-col gap-3" aria-labelledby={`cat-${group.category}`}>
-                <h2 id={`cat-${group.category}`} class="text-base font-medium text-100">{t(`Categories.${CATEGORY_KEY[group.category]}`)}</h2>
-                <div class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
-                  <For each={group.connectors}>{(connector) => <ConnectorCard ctx={ctx} connector={connector} />}</For>
-                </div>
-              </section>
-            )}</For>
-          </Show>
+          <>
+            {/* A secrets administrator who does not manage connections sees the secrets only. */}
+            <Show when={list().connectors.length > 0} fallback={<Show when={!list().can_manage_secrets}><EmptyState title={t('Empty.Title')} description={t('Empty.Text')} data-testid="integrations-empty" /></Show>}>
+              <For each={groupByCategory(list().connectors)}>{(group) => (
+                <section class="flex flex-col gap-3" aria-labelledby={`cat-${group.category}`}>
+                  <h2 id={`cat-${group.category}`} class="text-base font-medium text-100">{t(`Categories.${CATEGORY_KEY[group.category]}`)}</h2>
+                  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                    <For each={group.connectors}>{(connector) => <ConnectorCard ctx={ctx} connector={connector} />}</For>
+                  </div>
+                </section>
+              )}</For>
+            </Show>
+            <Show when={list().can_manage_secrets}><SecretsSection ctx={ctx} /></Show>
+          </>
         )}
       </Show>
       {/* Keyed by the form session: another target (history from edit A to edit B) is a new draft with
@@ -342,14 +368,48 @@ function ConnectorCard(props: { ctx: Ctx; connector: ConnectorView }) {
         </Show>
       </div>
       <Show when={props.ctx.canManage() && props.ctx.configured}>
-        <div class="mt-auto">
-          <Button variant={c().connections.length > 0 ? 'secondary' : 'primary'} size="sm" class="min-h-11 sm:min-h-9"
-            onClick={() => props.ctx.openForm({ mode: 'create', connector: c() })} data-testid={`connect-${c().kind}`}>
-            {c().connections.length > 0 ? t('ConnectAnother') : t('Connect')}
-          </Button>
+        <div class="mt-auto flex flex-col gap-2">
+          <div class="flex flex-wrap gap-2">
+            <Button variant={c().connections.length > 0 ? 'secondary' : 'primary'} size="sm" class="min-h-11 sm:min-h-9"
+              onClick={() => props.ctx.openForm({ mode: 'create', connector: c() })} data-testid={`connect-${c().kind}`}>
+              {c().connections.length > 0 ? t('ConnectAnother') : t('Connect')}
+            </Button>
+            <For each={availablePresets(c())}>{(preset) => <PresetSignIn ctx={props.ctx} connector={c()} preset={preset} />}</For>
+          </div>
         </div>
       </Show>
     </article>
+  )
+}
+
+/**
+ * A provider's sign-in straight from the card of a connector that has a form and a sign-in (an email box):
+ * «Sign in with Google», «Sign in with Microsoft 365». It names no connection: the server signs the same
+ * account in again or names a new pair itself, and the provider sends the browser back to the page.
+ */
+function PresetSignIn(props: { ctx: Ctx; connector: ConnectorView; preset: string }) {
+  const t = props.ctx.t
+  const toast = useToast()
+  const [busy, setBusy] = createSignal(false)
+  const provider = () => t(`Form.PresetProvider.${props.preset}`)
+  const start = async () => {
+    if (busy()) return
+    setBusy(true)
+    try {
+      const r = await props.ctx.call('automations.connections.oauth_start', { kind: props.connector.kind, name: '', preset: props.preset })
+      window.location.assign(r.authorize_url)
+    } catch (e) {
+      setBusy(false)
+      const code = errorCode(e)
+      console.warn('automations: oauth_start failed', code)
+      toast.notify({ variant: 'error', title: code === 'unavailable' ? t('OAuth.unavailable') : t('Toast.Failed') })
+    }
+  }
+  return (
+    <Button variant="secondary" size="sm" class="min-h-11 sm:min-h-9" loading={busy()} aria-disabled={busy() || undefined}
+      onClick={() => void start()} data-testid={`signin-${props.connector.kind}-${props.preset}`}>
+      {busy() ? t('Form.Redirecting', { connector: provider() }) : t('Form.SignInWith', { connector: provider() })}
+    </Button>
   )
 }
 
@@ -427,7 +487,7 @@ function ConnectionRow(props: { ctx: Ctx; connector: ConnectorView; connection: 
   }
   const reauth = async () => {
     try {
-      const r = await props.ctx.call('automations.connections.oauth_start', { kind: props.connector.kind, name: c().name, connection_id: c().id })
+      const r = await props.ctx.call('automations.connections.oauth_start', { kind: props.connector.kind, name: c().name, connection_id: c().id, ...presetParam(connectionPreset(props.connector, c())) })
       window.location.assign(r.authorize_url)
     } catch (e) {
       console.warn('automations: oauth_start failed', errorCode(e))
@@ -471,7 +531,7 @@ function ConnectionRow(props: { ctx: Ctx; connector: ConnectorView; connection: 
           </Dropdown>
         </Show>
       </div>
-      <Show when={c().status === 'needs_reauth' && (props.connector.auth === 'oauth2' || c().sign_in) && props.ctx.canManage()}>
+      <Show when={c().status === 'needs_reauth' && (props.connector.auth === 'oauth2' || c().sign_in || connectionPreset(props.connector, c()) !== undefined) && props.ctx.canManage()}>
         <div><Button size="sm" onClick={() => void reauth()} class="min-h-11 sm:min-h-9" data-testid="reauth">{t('SignInAgain')}</Button></div>
       </Show>
       <div role="status" aria-live="polite" class="flex min-h-5 flex-col gap-1 text-sm" data-testid="check-status">
@@ -517,18 +577,38 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
   const [notice, setNotice] = createSignal<string>()
   const [fieldErrors, setFieldErrors] = createSignal<Record<string, string>>({})
   const [error, setError] = createSignal<string>()
+  // Warnings the connector raised for these credentials (a bot another service uses): the save goes
+  // through only once the person confirmed them.
+  const [warnings, setWarnings] = createSignal<string[]>([])
+  const [confirmed, setConfirmed] = createSignal(false)
+  // Warnings the person confirmed on earlier attempts of this draft: a later answer may name one more, and the
+  // ones already confirmed are sent with it, so the two never alternate.
+  const [accepted, setAccepted] = createSignal<string[]>([])
   const [busy, setBusy] = createSignal(false)
   const [slow, setSlow] = createSignal(false)
   let slowTimer: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => clearTimeout(slowTimer))
-  const oauth = () => connector().auth === 'oauth2'
+  // A connector with a form and a sign-in (an email box) chooses by its preset field: a provider's sign-in,
+  // or the form. Only the providers the application can sign in with are offered.
+  const preset = () => (editing() ? connectionPreset(connector(), editing()) ?? 'custom' : values().preset || 'custom')
+  const presetSignIn = () => (editing() ? connectionPreset(connector(), editing()) !== undefined : availablePresets(connector()).includes(preset()))
+  const oauth = () => connector().auth === 'oauth2' || presetSignIn()
   const oauthState = () => props.state.oauth
   // Editing an OAuth2 connection changes its name only; signing in again is its own action.
   const signIn = () => oauth() && !editing()
+  const providerTitle = () => (connector().auth === 'oauth2' ? connector().title : t(`Form.PresetProvider.${preset()}`))
 
   createEffect(() => { if (!nameTouched() && !editing()) setName(slugify(displayName(), connector().kind)) })
   const secretSet = (f: string) => Boolean(editing()) && !replaced().has(f)
-  const setValue = (k: string, v: string) => setValues((cur) => ({ ...cur, [k]: v }))
+  // New credentials are another bot: what was confirmed for the earlier ones does not carry over.
+  const setValue = (k: string, v: string) => {
+    setValues((cur) => ({ ...cur, [k]: v })); setWarnings([]); setAccepted([]); setConfirmed(false)
+    clearConfirmError() // the confirmation asked for was about the earlier credentials, not these
+  }
+  // Only the "confirm first" message goes when the credentials or the switch change: a version conflict (and its
+  // «Load latest») or another failure of the last save stays until the next save.
+  const clearConfirmError = () => { if (error() === t('Form.ConfirmRequired')) setError(undefined) }
+  const confirmList = () => [...new Set([...accepted(), ...warnings()])]
 
   const begin = () => { setBusy(true); setSlow(false); setError(undefined); setNotice(undefined); setRetry(false); setConflict(false); slowTimer = setTimeout(() => setSlow(true), 4000) }
   const end = () => { setBusy(false); setSlow(false); clearTimeout(slowTimer) }
@@ -541,10 +621,15 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
     if (!oauth()) Object.assign(local, missingRequired(fields(), values(), secretSet))
     setFieldErrors(local)
     if (Object.keys(local).length > 0) { focusFirstError(local); return }
+    if (warnings().length > 0 && !confirmed()) {
+      setError(t('Form.ConfirmRequired'))
+      queueMicrotask(() => formRef?.querySelector<HTMLElement>('[data-field="confirm_warnings"]')?.focus())
+      return
+    }
     begin()
     try {
       if (signIn()) {
-        const r = await props.ctx.call('automations.connections.oauth_start', { kind: connector().kind, name: name(), display_name: displayName() })
+        const r = await props.ctx.call('automations.connections.oauth_start', { kind: connector().kind, name: name(), display_name: displayName(), ...presetParam(connector().auth === 'oauth2' ? undefined : preset()) })
         window.location.assign(r.authorize_url)
         return
       }
@@ -553,9 +638,11 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
       const result = e
         ? await props.ctx.call('automations.connections.update', {
           id: e.id, version: e.version, display_name: displayName(), idempotency_key: idempotencyKey, ...(creds ? { credentials: creds } : {}),
+          ...(confirmed() ? { confirm: confirmList() } : {}),
         })
         : await props.ctx.call('automations.connections.create', {
           kind: connector().kind, name: name(), display_name: displayName(), credentials: newCredentials(fields(), values()), idempotency_key: idempotencyKey,
+          ...(confirmed() ? { confirm: confirmList() } : {}),
         })
       if (result.ok && result.connection) {
         const saved = result.connection
@@ -569,6 +656,15 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
         end(); props.onSaved(saved, !e); return
       }
       end()
+      if (result.error === 'confirmation_required') {
+        // The request did nothing: ask again for the same intent, with the warnings confirmed.
+        if (confirmed()) setAccepted(confirmList())
+        setWarnings(result.warnings ?? [])
+        setConfirmed(false)
+        setError(undefined)
+        queueMicrotask(() => formRef?.querySelector<HTMLElement>('[data-field="confirm_warnings"]')?.focus())
+        return
+      }
       const { idempotency_key: changedRetry, ...fieldsLeft } = result.fields ?? {}
       setFieldErrors(fieldsLeft)
       if (changedRetry) {
@@ -631,7 +727,7 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
     if (!e || busy()) return
     begin()
     try {
-      const r = await props.ctx.call('automations.connections.oauth_start', { kind: connector().kind, name: e.name, connection_id: e.id })
+      const r = await props.ctx.call('automations.connections.oauth_start', { kind: connector().kind, name: e.name, connection_id: e.id, ...presetParam(connectionPreset(connector(), e)) })
       window.location.assign(r.authorize_url)
     } catch (err) {
       end()
@@ -664,18 +760,32 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
           data-field="name" error={fieldErrors().name ? fieldErrorText(t, fieldErrors().name!) : undefined} disabled={busy() || Boolean(editing())}
           required={!editing()} autocomplete="off" spellcheck={false} />
         <Show when={!oauth()} fallback={
-          <Show when={editing()} fallback={<p class="text-sm text-200">{t('Form.OAuthHint', { connector: connector().title })}</p>}>
+          <Show when={editing()} fallback={<>
+            <Show when={connector().auth !== 'oauth2'}><PresetField t={t} connector={connector()} field={fields().find((f) => f.name === 'preset')} value={preset()} onInput={(v) => setValue('preset', v)} disabled={busy()} /></Show>
+            <p class="text-sm text-200">{t('Form.OAuthHint', { connector: providerTitle() })}</p>
+          </>}>
             <div class="flex flex-col items-start gap-2">
-              <p class="text-sm text-200">{t('Form.OAuthHint', { connector: connector().title })}</p>
+              <p class="text-sm text-200">{t('Form.OAuthHint', { connector: providerTitle() })}</p>
               <Button type="button" variant="secondary" class="min-h-11 sm:min-h-9" onClick={() => void reauth()} disabled={busy()} data-testid="form-reauth">{t('SignInAgain')}</Button>
             </div>
           </Show>
         }>
-          <For each={fields()}>{(f) => <CredentialField t={t} field={f} value={values()[f.name] ?? ''} onInput={(v) => setValue(f.name, v)}
+          <For each={fields()}>{(f) => <Show when={f.name !== 'preset' || knownPresets(connector()).length === 0} fallback={
+            // A saved connection with a login and a password stays one: it is not turned into a provider's sign-in
+            // from here (an edit saves credentials, it does not start a sign-in), so the choice is for a new one.
+            <Show when={!editing()}><PresetField t={t} connector={connector()} field={f} value={preset()} onInput={(v) => setValue('preset', v)} disabled={busy()} /></Show>}>
+            <CredentialField t={t} field={f} value={values()[f.name] ?? ''} onInput={(v) => setValue(f.name, v)}
             error={fieldErrors()[f.name] ? fieldErrorText(t, fieldErrors()[f.name]!) : undefined} disabled={busy()}
             secretSet={secretSet(f.name)} shown={shown().has(f.name)}
             onShow={(s) => setShown((cur) => { const n = new Set(cur); if (s) n.add(f.name); else n.delete(f.name); return n })}
-            onReplace={(r) => setReplaced((cur) => { const n = new Set(cur); if (r) n.add(f.name); else { n.delete(f.name); setValue(f.name, '') } return n })} />}</For>
+            onReplace={(r) => setReplaced((cur) => { const n = new Set(cur); if (r) n.add(f.name); else { n.delete(f.name); setValue(f.name, '') } return n })} /></Show>}</For>
+        </Show>
+        <Show when={warnings().length > 0}>
+          <div class="flex flex-col items-start gap-2 rounded-md border border-subtle p-3" role="group" data-testid="form-warnings">
+            <For each={warnings()}>{(code) => <p role="alert" class="text-sm text-pink">{warningText(t, code)}</p>}</For>
+            <Switch checked={confirmed()} label={t('Form.ConfirmWarning')} onChange={(e) => { setConfirmed(e.currentTarget.checked); clearConfirmError() }}
+              disabled={busy()} data-field="confirm_warnings" data-testid="form-confirm" />
+          </div>
         </Show>
         <Show when={error()}>
           <div class="flex flex-col items-start gap-2">
@@ -691,13 +801,34 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
           <Button type="button" variant="secondary" class="min-h-11 justify-center" data-dialog-close aria-disabled={busy() || undefined}
             onClick={() => { if (!busy()) props.onClose() }}>{t('Form.Cancel')}</Button>
           <Button type="submit" class="min-h-11 justify-center" loading={busy()} aria-disabled={busy() || undefined} data-testid="form-save">
-            {busy() ? (signIn() ? t('Form.Redirecting', { connector: connector().title }) : t('Form.Saving'))
-              : signIn() ? t('Form.SignInWith', { connector: connector().title }) : retry() ? t('Retry') : t('Form.Save')}
+            {busy() ? (signIn() ? t('Form.Redirecting', { connector: providerTitle() }) : t('Form.Saving'))
+              : signIn() ? t('Form.SignInWith', { connector: providerTitle() }) : retry() ? t('Retry') : t('Form.Save')}
           </Button>
         </div>
       </form>
     </ViewDrawer>
   )
+}
+
+/** The preset choice of a connector with a form and a sign-in: the form, and the providers that can be signed in with. */
+function PresetField(props: { t: Translator; connector: ConnectorView; field: FormField | undefined; value: string; onInput: (v: string) => void; disabled: boolean }) {
+  const options = () => presetOptions(props.connector, props.field?.options)
+  return (
+    <Show when={props.field && options().length > 1}>
+      <label class="flex flex-col gap-2 text-sm">
+        <span class="form-control-label">{props.field!.title}</span>
+        <select class="form-control h-11 rounded-md border border-default bg-surface-300 px-3 text-100" value={props.value} disabled={props.disabled}
+          onChange={(e) => props.onInput(e.currentTarget.value)} data-field="preset" data-testid="preset">
+          <For each={options()}>{(o) => <option value={o} selected={o === props.value}>{props.t(`Form.Preset.${o}`)}</option>}</For>
+        </select>
+      </label>
+    </Show>
+  )
+}
+
+/** The preset a sign-in is for, as an RPC param (a connector whose own auth is OAuth2 has none). */
+function presetParam(preset: string | undefined): { preset?: string } {
+  return preset && preset !== 'custom' ? { preset } : {}
 }
 
 function CredentialField(props: {
@@ -854,5 +985,269 @@ function DeleteDialog(props: { ctx: Ctx; connector: ConnectorView; connection: C
         </ConfirmationDialog>
       </div>
     </Show>
+  )
+}
+
+type SecretFormState = { mode: 'create' } | { mode: 'edit' | 'rotate'; secret: SecretView }
+
+/**
+ * The built-in «Secret» connector: the tenant's secrets that Code and HTTP nodes read by name. A value is
+ * entered (create, rotate) and never comes back: a secret is shown by its name, description and dates,
+ * its value only as a mask.
+ */
+function SecretsSection(props: { ctx: Ctx }) {
+  const t = props.ctx.t
+  const toast = useToast()
+  const [secrets, setSecrets] = createSignal<SecretView[]>()
+  const [failed, setFailed] = createSignal(false)
+  const [form, setForm] = createSignal<SecretFormState>()
+  const [deleting, setDeleting] = createSignal<SecretView>()
+  // Loads overlap (a save, a delete, a retry): only the latest request may set the list or the failure, so a
+  // slower earlier response never replaces a newer list.
+  let generation = 0
+  const load = async (): Promise<SecretView[] | undefined> => {
+    const current = ++generation
+    setFailed(false)
+    try {
+      const list = sortSecrets((await props.ctx.call('automations.secrets.list', {})).secrets)
+      if (current === generation) setSecrets(list)
+      return list
+    } catch (e) {
+      console.warn('automations: secrets.list failed', errorCode(e))
+      if (current === generation) setFailed(true)
+      return undefined
+    }
+  }
+  void load()
+  const saved = (secret: SecretView, mode: SecretFormState['mode']) => {
+    setForm(undefined)
+    props.ctx.highlight(secret.id)
+    void load()
+    const key = mode === 'create' ? 'Secrets.Toast.Created' : mode === 'rotate' ? 'Secrets.Toast.Rotated' : 'Secrets.Toast.Updated'
+    toast.notify({ variant: 'success', title: t(key, { name: secret.name }) })
+  }
+  return (
+    <section class="flex flex-col gap-3" aria-labelledby="cat-secrets" data-testid="secrets-section">
+      <h2 id="cat-secrets" class="text-base font-medium text-100">{t('Secrets.Category')}</h2>
+      {/* The same grid as the connector cards: the secret card is one of them. */}
+      <div class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+      <article class="flex min-w-0 flex-col gap-4 rounded-lg border border-subtle bg-surface-300 p-4" data-testid="connector-secret" aria-labelledby="connector-title-secret">
+        <div class="flex flex-wrap items-start gap-3">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-500 text-100" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="84" cy="172" r="44" /><line x1="115" y1="141" x2="208" y2="48" /><line x1="176" y1="80" x2="208" y2="112" /><line x1="148" y1="108" x2="172" y2="132" />
+            </svg>
+          </span>
+          <div class="flex min-w-0 flex-1 flex-col gap-1">
+            <h3 id="connector-title-secret" class="truncate font-medium text-100">{t('Secrets.Title')}</h3>
+            <p class="text-xs text-200">{t('Secrets.Kind')}</p>
+          </div>
+          <Button size="sm" variant={(secrets()?.length ?? 0) > 0 ? 'secondary' : 'primary'} class="min-h-11 sm:min-h-9"
+            onClick={() => setForm({ mode: 'create' })} data-testid="secret-add">{t('Secrets.Add')}</Button>
+        </div>
+        <p class="text-sm text-200">{t('Secrets.Summary')}</p>
+        <Show when={!failed()} fallback={
+          <div role="alert" class="flex flex-wrap items-center gap-3 text-sm" data-testid="secrets-load-error">
+            <span class="text-pink">{t('Secrets.LoadFailed')}</span>
+            <Button size="sm" variant="secondary" onClick={() => void load()}>{t('Retry')}</Button>
+          </div>
+        }>
+          <Show when={secrets()} fallback={<Skeleton variant="text" lines={2} />}>
+            {(list) => (
+              <Show when={list().length > 0} fallback={<p class="text-sm text-200" data-testid="no-secrets">{t('Secrets.Empty')}</p>}>
+                <ul class="flex flex-col" aria-label={t('Secrets.Category')} data-testid="secrets-list">
+                  <For each={list()}>{(secret) => (
+                    <SecretRow ctx={props.ctx} secret={secret} onEdit={() => setForm({ mode: 'edit', secret })}
+                      onRotate={() => setForm({ mode: 'rotate', secret })} onDelete={() => setDeleting(secret)} />
+                  )}</For>
+                </ul>
+              </Show>
+            )}
+          </Show>
+        </Show>
+      </article>
+      </div>
+      <Show when={form()} keyed>
+        {(f) => <SecretForm ctx={props.ctx} state={f} onClose={() => setForm(undefined)} onSaved={(secret) => saved(secret, f.mode)} reload={load} />}
+      </Show>
+      <Show when={deleting()} keyed>
+        {(secret) => <DeleteSecretDialog ctx={props.ctx} secret={secret} onClose={() => setDeleting(undefined)} onDeleted={() => {
+          setDeleting(undefined)
+          void load()
+          toast.notify({ variant: 'success', title: t('Secrets.Toast.Deleted', { name: secret.name }) })
+        }} />}
+      </Show>
+    </section>
+  )
+}
+
+function SecretRow(props: { ctx: Ctx; secret: SecretView; onEdit: () => void; onRotate: () => void; onDelete: () => void }) {
+  const t = props.ctx.t
+  const s = () => props.secret
+  const [menuOpen, setMenuOpen] = createSignal(false)
+  const pick = (fn: () => void) => () => { setMenuOpen(false); fn() }
+  return (
+    <li class={`flex items-start gap-2 border-t border-subtle py-3 first:border-t-0 first:pt-0 ${props.ctx.highlighted() === s().id ? 'rounded-md outline outline-2 outline-offset-4 outline-brand-500' : ''}`} data-testid={`secret-${s().name}`}>
+      <div class="flex min-w-0 flex-1 flex-col gap-1">
+        <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span class="break-all font-mono text-sm font-medium text-100">{s().name}</span>
+          <span class="font-mono text-sm tracking-widest text-200" role="img" aria-label={t('Secrets.Masked')} data-testid="secret-masked">{MASKED_VALUE}</span>
+        </div>
+        <Show when={s().description}><p class="text-sm text-200">{s().description}</p></Show>
+        <p class="text-xs text-200" data-testid="secret-meta">{secretMeta(t, s(), props.ctx.lang).join(' · ')}</p>
+      </div>
+      <Dropdown open={menuOpen()} onOpenChange={setMenuOpen} class={menuOpen() ? 'z-30' : undefined} label={t('Secrets.Actions', { name: s().name })} menuClass="min-w-56"
+        trigger={<span class="flex h-11 w-11 items-center justify-center rounded-md text-200 sm:h-9 sm:w-9" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><circle cx="128" cy="64" r="16" /><circle cx="128" cy="128" r="16" /><circle cx="128" cy="192" r="16" /></svg>
+        </span>}>
+        <DropdownItem onClick={pick(props.onEdit)} data-testid="secret-menu-edit">{t('Secrets.Menu.Edit')}</DropdownItem>
+        <DropdownItem onClick={pick(props.onRotate)} data-testid="secret-menu-rotate">{t('Secrets.Menu.Rotate')}</DropdownItem>
+        <DropdownItem onClick={pick(props.onDelete)} class="text-pink" data-testid="secret-menu-delete">{t('Secrets.Menu.Delete')}</DropdownItem>
+      </Dropdown>
+    </li>
+  )
+}
+
+/** Creates a secret, renames or describes one, or writes its new value. The value field is never prefilled. */
+function SecretForm(props: { ctx: Ctx; state: SecretFormState; onClose: () => void; onSaved: (s: SecretView) => void; reload: () => Promise<SecretView[] | undefined> }) {
+  const t = props.ctx.t
+  const mode = props.state.mode
+  // The version the change applies to: the one the form opened with, or the latest after a conflict.
+  const [base, setBase] = createSignal(props.state.mode === 'create' ? undefined : props.state.secret)
+  const [name, setName] = createSignal(base()?.name ?? '')
+  const [description, setDescription] = createSignal(base()?.description ?? '')
+  const [value, setValue] = createSignal('')
+  const [shown, setShown] = createSignal(false)
+  const [fieldErrors, setFieldErrors] = createSignal<Record<string, string>>({})
+  const [error, setError] = createSignal<string>()
+  const [busy, setBusy] = createSignal(false)
+  let formRef: HTMLFormElement | undefined
+  const focusFirstError = (errs: Record<string, string>) => queueMicrotask(() => {
+    const first = Object.keys(errs)[0]
+    if (first) formRef?.querySelector<HTMLElement>(`[data-field="${CSS.escape(first)}"]`)?.focus()
+  })
+  const submit = async (event: Event) => {
+    event.preventDefault()
+    if (busy()) return
+    const local = secretFormErrors(mode, name(), value())
+    setFieldErrors(local)
+    setError(undefined)
+    if (Object.keys(local).length > 0) { focusFirstError(local); return }
+    setBusy(true)
+    try {
+      const b = base()
+      const r = mode === 'create'
+        ? await props.ctx.call('automations.secrets.create', { name: name().trim(), description: description().trim(), value: value() })
+        : mode === 'rotate'
+          ? await props.ctx.call('automations.secrets.rotate', { id: b!.id, version: b!.version, value: value() })
+          : await props.ctx.call('automations.secrets.update', {
+            id: b!.id, version: b!.version,
+            ...(name().trim() !== b!.name ? { name: name().trim() } : {}),
+            ...(description().trim() !== b!.description ? { description: description().trim() } : {}),
+          })
+      if (r.ok && r.secret) {
+        setBusy(false)
+        setValue('') // the value leaves the page with the request
+        props.onSaved(r.secret)
+        return
+      }
+      setFieldErrors(r.fields ?? {})
+      setError(secretSaveErrorText(t, r))
+      if (r.error === 'version_conflict' && b) {
+        // The latest version is loaded: what the person typed stays, the next save applies it to that version.
+        // A field the person did not touch follows the latest version, so the save does not send the old one back.
+        // The form stays busy until the draft and the base are rebased: a save meanwhile would send a stale version.
+        try {
+          const latest = (await props.reload())?.find((x) => x.id === b.id)
+          if (latest) {
+            const next = rebaseSecretDraft({ name: name(), description: description() }, b, latest)
+            setName(next.name)
+            setDescription(next.description)
+            setBase(latest)
+          }
+        } catch (e) {
+          console.warn('automations: reloading the secret after a conflict failed', errorCode(e))
+        }
+      }
+      setBusy(false)
+      if (r.fields) focusFirstError(r.fields)
+    } catch (e) {
+      setBusy(false)
+      const code = errorCode(e)
+      console.warn('automations: secret save failed', code)
+      setError(t(code === 'unavailable' ? 'Secrets.Form.Unavailable' : 'Secrets.Form.Failed'))
+    }
+  }
+  const title = () => mode === 'create' ? t('Secrets.Form.TitleNew') : t(mode === 'rotate' ? 'Secrets.Form.TitleRotate' : 'Secrets.Form.TitleEdit', { name: base()!.name })
+  const fieldError = (f: string) => (fieldErrors()[f] ? secretFieldErrorText(t, fieldErrors()[f]!) : undefined)
+  return (
+    <ViewDrawer open onOpenChange={(open) => { if (!open && !busy()) props.onClose() }} busy={busy()} title={title()} closeLabel={t('Close')} data-testid="secret-form">
+      <form ref={formRef} class="flex flex-col gap-4 p-4 md:p-6" onSubmit={(e) => void submit(e)} novalidate data-version={base()?.version}>
+        <Show when={mode !== 'rotate'}>
+          <Input label={t('Secrets.Form.Name')} value={name()} onInput={(e) => setName(secretName(e.currentTarget.value))}
+            description={t('Secrets.Form.NameHint')} placeholder="API_KEY" data-field="name" error={fieldError('name')} disabled={busy()} required autocomplete="off" spellcheck={false} class="font-mono" />
+          <Textarea label={t('Secrets.Form.DescriptionLabel')} value={description()} onInput={(e) => setDescription(e.currentTarget.value)} rows={3}
+            description={t('Secrets.Form.DescriptionHint')} data-field="description" error={fieldError('description')} disabled={busy()} />
+          <Show when={mode === 'edit'}><p class="text-sm text-200" data-testid="secret-rename-hint">{t('Secrets.Form.RenameHint')}</p></Show>
+        </Show>
+        <Show when={mode !== 'edit'}>
+          <Show when={mode === 'rotate'}><p class="text-sm text-200">{t('Secrets.Form.RotateHint')}</p></Show>
+          <Input label={t(mode === 'rotate' ? 'Secrets.Form.NewValue' : 'Secrets.Form.Value')} type={shown() ? 'text' : 'password'} value={value()}
+            onInput={(e) => setValue(e.currentTarget.value)} data-field="value" error={fieldError('value')}
+            disabled={busy()} required autocomplete="new-password" spellcheck={false}
+            addonRight={<button type="button" class="mx-2 min-h-11 px-2 text-sm text-200 sm:min-h-0" aria-pressed={shown()} onClick={() => setShown(!shown())}>
+              {shown() ? t('Form.Hide') : t('Form.Show')}
+            </button>} />
+          <p class="text-sm text-200" data-testid="secret-value-hint">{t('Secrets.Form.ValueHint')}</p>
+        </Show>
+        <Show when={error()}><p role="alert" class="text-sm text-pink" data-testid="secret-form-error">{error()}</p></Show>
+        <div class="sticky bottom-0 flex flex-col-reverse gap-2 border-t border-subtle bg-surface-300 pt-4 sm:flex-row sm:justify-end">
+          <Button type="button" variant="secondary" class="min-h-11 justify-center" data-dialog-close aria-disabled={busy() || undefined}
+            onClick={() => { if (!busy()) props.onClose() }}>{t('Form.Cancel')}</Button>
+          <Button type="submit" class="min-h-11 justify-center" loading={busy()} aria-disabled={busy() || undefined} data-testid="secret-save">
+            {busy() ? t('Secrets.Form.Saving') : t(mode === 'rotate' ? 'Secrets.Form.Rotate' : 'Secrets.Form.Save')}
+          </Button>
+        </div>
+      </form>
+    </ViewDrawer>
+  )
+}
+
+function DeleteSecretDialog(props: { ctx: Ctx; secret: SecretView; onClose: () => void; onDeleted: () => void }) {
+  const t = props.ctx.t
+  const [busy, setBusy] = createSignal(false)
+  const [error, setError] = createSignal<string>()
+  let root: HTMLDivElement | undefined
+  const confirm = async () => {
+    if (busy()) return
+    setBusy(true)
+    setError(undefined)
+    try {
+      await props.ctx.call('automations.secrets.delete', { id: props.secret.id })
+      setBusy(false)
+      props.onDeleted()
+    } catch (e) {
+      setBusy(false)
+      const code = errorCode(e)
+      console.warn('automations: secret delete failed', code)
+      // Already gone (another administrator deleted it): the list is what is left.
+      if (code === 'not_found') { props.onDeleted(); return }
+      setError(t(code === 'unavailable' ? 'Secrets.Form.Unavailable' : 'Toast.Failed'))
+    }
+  }
+  return (
+    <div ref={root}>
+      <ConfirmationDialog open onOpenChange={(open) => { if (!open && !busy()) props.onClose() }} busy={busy()} danger
+        heading={t('Secrets.Delete.Title', { name: props.secret.name })}
+        text={<>
+          {t('Secrets.Delete.Text', { name: props.secret.name })}
+          <Show when={error()}><span role="alert" class="mt-2 block text-pink">{error()}</span></Show>
+        </>}
+        confirmText={t('Secrets.Delete.Confirm')} cancelText={t('Secrets.Delete.Cancel')} closeLabel={t('Close')}
+        initialFocus={() => root?.ownerDocument.querySelector<HTMLElement>('[data-testid="secret-delete-dialog"] [data-test-id="dialog-cancel-btn"]') ?? undefined}
+        onCancel={props.onClose} onConfirm={() => void confirm()} data-testid="secret-delete-dialog">
+        <DialogBusyStatus class="px-4" />
+      </ConfirmationDialog>
+    </div>
   )
 }

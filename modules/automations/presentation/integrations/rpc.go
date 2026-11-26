@@ -38,23 +38,34 @@ func (c *Controller) bindings() []solid.Binding {
 		bind(MethodSetDisabled, c.setDisabled),
 		bind(MethodDelete, c.delete),
 		bind(MethodPlatform, c.setPlatform),
+		bind(MethodOptions, c.options),
+		bind(MethodSecretsList, c.listSecrets),
+		bind(MethodSecretsCreate, c.createSecret),
+		bind(MethodSecretsUpdate, c.updateSecret),
+		bind(MethodSecretsRotate, c.rotateSecret),
+		bind(MethodSecretsDelete, c.deleteSecret),
 	}
 }
 
 var manage = permissions.ConnectionsManage.Name()
 
 func (c *Controller) list(ctx context.Context, _ Empty) (ListResponse, error) {
-	sub, err := caller(ctx, manage, permissions.AutomationsAuthor.Name())
+	author := permissions.AutomationsAuthor.Name()
+	sub, err := caller(ctx, manage, author, manageSecrets)
 	if err != nil {
 		return ListResponse{}, err
 	}
 	canManage := sub.Has(manage)
+	out := ListResponse{Connectors: []ConnectorView{}, CanManage: canManage, CanManageSecrets: c.cfg.Secrets != nil && sub.Has(manageSecrets)}
+	if !canManage && !sub.Has(author) {
+		// A secrets administrator who does not manage connections sees the secrets only.
+		return out, nil
+	}
 	entries, err := c.cfg.Service.List(ctx, actor(sub), services.ListOptions{WithFields: canManage})
 	if err != nil {
 		return ListResponse{}, err
 	}
 	lang := listext.LangFromContext(ctx)
-	out := ListResponse{Connectors: make([]ConnectorView, 0, len(entries)), CanManage: canManage}
 	for _, e := range entries {
 		out.Connectors = append(out.Connectors, connectorView(e, lang, canManage))
 	}
@@ -81,6 +92,7 @@ func connectorView(e services.ConnectorEntry, lang string, canManage bool) Conne
 		Nodes:            nodeTitles(e.Connector, lang),
 		Connections:      make([]ConnectionView, 0, len(e.Connections)),
 	}
+	v.OAuthPresets = e.OAuthPresets
 	if e.Platform != nil {
 		v.Platform = &PlatformView{Policy: PlatformPolicy(e.Platform.Policy), Available: e.Platform.Available, EnabledForTenant: e.Platform.EnabledForTenant}
 	}
@@ -220,8 +232,15 @@ func saveResult(entry services.ConnectionEntry, err error) (SaveResponse, error)
 	var (
 		invalid *services.InvalidInputError
 		failed  *services.TestFailedError
+		confirm *connectors.ConfirmationRequiredError
 	)
 	switch {
+	case errors.As(err, &confirm):
+		codes := make([]string, 0, len(confirm.Warnings))
+		for _, w := range confirm.Warnings {
+			codes = append(codes, w.Token())
+		}
+		return SaveResponse{Error: ErrConfirmationRequired, Warnings: codes}, nil
 	case errors.As(err, &invalid):
 		return SaveResponse{Error: ErrInvalidInput, Fields: invalid.Fields}, nil
 	case errors.As(err, &failed):
@@ -243,7 +262,7 @@ func (c *Controller) create(ctx context.Context, req CreateRequest) (SaveRespons
 	}
 	return saveResult(c.cfg.Service.Create(ctx, actor(sub), services.CreateInput{
 		Kind: kindOf(req.Kind), Name: req.Name, DisplayName: req.DisplayName, Credentials: req.Credentials,
-		IdempotencyKey: req.IdempotencyKey,
+		IdempotencyKey: req.IdempotencyKey, Confirmed: req.Confirm,
 	}))
 }
 
@@ -258,7 +277,7 @@ func (c *Controller) update(ctx context.Context, req UpdateRequest) (SaveRespons
 	}
 	return saveResult(c.cfg.Service.Update(ctx, actor(sub), services.UpdateInput{
 		ID: id, Version: req.Version, DisplayName: req.DisplayName, Credentials: req.Credentials,
-		IdempotencyKey: req.IdempotencyKey,
+		IdempotencyKey: req.IdempotencyKey, Confirmed: req.Confirm,
 	}))
 }
 
@@ -290,11 +309,24 @@ func (c *Controller) setDisabled(ctx context.Context, req SetDisabledRequest) (C
 	if err != nil {
 		return ConnectionResponse{}, err
 	}
-	e, err := c.cfg.Service.SetDisabled(ctx, actor(sub), id, req.Disabled)
+	e, err := c.cfg.Service.SetDisabled(ctx, actor(sub), id, req.Disabled, req.Confirm)
+	var confirm *connectors.ConfirmationRequiredError
+	if errors.As(err, &confirm) {
+		codes := make([]string, 0, len(confirm.Warnings))
+		for _, w := range confirm.Warnings {
+			codes = append(codes, w.Token())
+		}
+		return ConnectionResponse{Error: ErrConfirmationRequired, Warnings: codes}, nil
+	}
+	var invalid *services.InvalidInputError
+	if errors.As(err, &invalid) {
+		return ConnectionResponse{Error: ErrInvalidInput}, nil
+	}
 	if err != nil {
 		return ConnectionResponse{}, mapErr(err)
 	}
-	return ConnectionResponse{Connection: connectionView(e)}, nil
+	v := connectionView(e)
+	return ConnectionResponse{Connection: &v}, nil
 }
 
 func (c *Controller) delete(ctx context.Context, req IDRequest) (DeleteResponse, error) {
@@ -315,6 +347,27 @@ func (c *Controller) delete(ctx context.Context, req IDRequest) (DeleteResponse,
 		return DeleteResponse{Error: ErrConnectionInUse, Usages: usageViews(inUse.Uses)}, nil
 	}
 	return DeleteResponse{}, mapErr(err)
+}
+
+// options serves the pickers of the graph editor: an author, not only an administrator, chooses a chat.
+func (c *Controller) options(ctx context.Context, req OptionsRequest) (OptionsResponse, error) {
+	sub, err := caller(ctx, manage, permissions.AutomationsAuthor.Name())
+	if err != nil {
+		return OptionsResponse{}, err
+	}
+	id, err := parseID(req.ConnectionID)
+	if err != nil {
+		return OptionsResponse{}, err
+	}
+	opts, err := c.cfg.Service.Options(ctx, actor(sub), id, req.Source, req.Query)
+	if err != nil {
+		return OptionsResponse{}, mapErr(err)
+	}
+	out := OptionsResponse{Options: make([]OptionView, 0, len(opts))}
+	for _, o := range opts {
+		out.Options = append(out.Options, OptionView{Value: o.Value, Label: o.Label, Group: o.Group})
+	}
+	return out, nil
 }
 
 func (c *Controller) setPlatform(ctx context.Context, req PlatformRequest) (OKResponse, error) {
@@ -344,7 +397,7 @@ func (c *Controller) oauthStart(ctx context.Context, req OAuthStartRequest) (OAu
 	if r != nil {
 		redirect = c.redirectURL(r)
 	}
-	authURL, err := c.cfg.Service.OAuthStart(ctx, actor(sub), kindOf(req.Kind), req.Name, req.DisplayName, connID, redirect)
+	authURL, err := c.cfg.Service.OAuthStartPreset(ctx, actor(sub), kindOf(req.Kind), req.Preset, req.Name, req.DisplayName, connID, redirect)
 	if err != nil {
 		return OAuthStartResponse{}, mapErr(err)
 	}

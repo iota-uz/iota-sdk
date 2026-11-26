@@ -12,6 +12,10 @@ test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(new Date('20
 const DIGEST = '00000000-0000-4000-8000-0000000000a1'
 const WELCOME = '00000000-0000-4000-8000-0000000000a2'
 const STALE = '00000000-0000-4000-8000-0000000000a3'
+const FAILED_RUN = '00000000-0000-4000-8000-0000000000f1'
+const BLOCKED_RUN = '00000000-0000-4000-8000-0000000000f3'
+const OLD_RUN = '00000000-0000-4000-8000-0000000000f5'
+const runOpen = async (p: Page) => { await expect(p.getByTestId('run-strip')).toBeVisible(); await expect(p.locator('.ae-runview .iota-flow__node, .ae-runview .ae-outline__item').first()).toBeVisible() }
 
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: { method: string; params: unknown }[] }).__calls)
 const settle = (page: Page) => page.evaluate(() => Promise.all(document.getAnimations()
@@ -31,6 +35,11 @@ const states: { name: string; query: string; ready: (p: Page) => Promise<void>; 
     open: async (p) => { await listed(p); await toggleOf(p, STALE).click() },
     ready: async (p) => { await expect(p.getByTestId('review-blocked')).toBeVisible() },
   },
+  // #1347: the Runs tab, a run with its node's drawer, a blocked run, no runs, a run not found.
+  { name: 'runs', query: `view=editor&id=${DIGEST}&run=${FAILED_RUN}&node=email`, ready: async (p) => { await runOpen(p); await expect(p.getByTestId('run-node')).toBeVisible() } },
+  { name: 'run-blocked', query: `view=editor&id=${DIGEST}&run=${BLOCKED_RUN}`, ready: async (p) => { await runOpen(p); await expect(p.getByTestId('run-resolve')).toBeVisible() } },
+  { name: 'runs-empty', query: `view=editor&id=${STALE}&tab=runs`, ready: async (p) => { await expect(p.getByTestId('runs-empty')).toBeVisible() } },
+  { name: 'run-not-found', query: 'view=run&run=00000000-0000-4000-8000-00000000dead', ready: async (p) => { await expect(p.getByTestId('run-not-found')).toBeVisible() } },
   {
     name: 'review-code', query: 'view=editor&id=' + DIGEST, scope: '[data-testid="review-dialog"]',
     open: async (p) => { await p.getByTestId('review-and-enable').click() },
@@ -274,10 +283,11 @@ test('D1: Back restores the tab the URL names', async ({ page }) => {
   await page.goto(`/?view=editor&id=${WELCOME}`)
   await expect(page.getByTestId('crumb')).toBeVisible()
   await page.getByRole('tab', { name: 'Runs' }).click()
-  await expect(page).toHaveURL(/tab=runs/)
+  // The newest run opens in place of the bare tab (the same history entry).
+  await expect(page).toHaveURL(/\/runs\/00000000-0000-4000-8000-0000000000f2/)
   await expect(page.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
   await page.goBack()
-  await expect(page).not.toHaveURL(/tab=runs/)
+  await expect(page).not.toHaveURL(/tab=runs|\/runs\//)
   await expect(page.getByRole('tab', { name: 'Edit' })).toHaveAttribute('aria-selected', 'true')
   await page.goForward()
   await expect(page.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
@@ -520,4 +530,271 @@ test('D1: a declined Back or Forward leaves the history as it was', async ({ pag
     }
   }
   expect(await held(page)).toEqual([])
+})
+
+test('RV1–RV3: Runs is a tab of the same shell; the draft survives; the list is the open version\'s, the newest opens', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}`)
+  await expect(page.locator('.ae-canvas')).toBeVisible()
+  await page.locator('.ae-toolbar__name').click()
+  await page.getByLabel('Name').fill('Digest (draft)')
+  await page.keyboard.press('Escape')
+  await page.getByRole('tab', { name: 'Runs' }).click()
+  // The canvas tools are hidden; the draft, its version and Save stay.
+  await expect(page.getByRole('button', { name: 'Validate' })).toHaveCount(0)
+  await expect(page.locator('.ae-save')).toBeVisible()
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Digest (draft)')
+  await expect(page.getByTestId('run-row')).toHaveCount(2)
+  await expect(page).toHaveURL(new RegExp(`/runs/${FAILED_RUN}`))
+  await expect(page.getByTestId('run-state')).toHaveText('Failed')
+  await expect(page.getByTestId('run-error')).toHaveText('The mail server refused the message')
+  await expect(page.getByTestId('run-version-banner')).toHaveCount(0)
+  await expect(page.getByTestId('run-conn')).toHaveText('Finished')
+  await expect(page.locator('.ae-runview .iota-flow__node[data-id="email"]')).toHaveClass(/ae-card--failed/)
+  // The list asks for the open version's runs only.
+  const listed = (await calls(page)).filter((c) => c.method === 'automations.runs').map((c) => (c.params as { version?: number }).version)
+  expect(listed.every((v) => v === 3)).toBe(true)
+  await page.getByRole('tab', { name: 'Edit' }).click()
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Digest (draft)')
+  await expect(page.getByRole('button', { name: 'Validate' })).toBeVisible()
+})
+
+test('RV2/RV5: ↑ ↓ move between runs; state and subject filters and the node live in the URL', async ({ page }) => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.goto(`/?view=editor&id=${DIGEST}&tab=runs`)
+  await expect(page.getByTestId('run-row')).toHaveCount(2)
+  await page.getByTestId('run-row').first().focus()
+  await page.keyboard.press('ArrowDown')
+  await expect(page).toHaveURL(new RegExp(`/runs/${BLOCKED_RUN}`))
+  await expect(page.getByTestId('run-state')).toHaveText('Blocked')
+  await expect(page.getByTestId('run-row').nth(1)).toBeFocused()
+  await page.keyboard.press('ArrowUp')
+  await expect(page).toHaveURL(new RegExp(`/runs/${FAILED_RUN}`))
+  // The node's drawer: input and output as a tree, a node the run did not reach says so.
+  await page.locator('.ae-runview .iota-flow__node[data-id="email"]').click()
+  await expect(page).toHaveURL(/node=email/)
+  const drawer = page.getByTestId('run-node')
+  await expect(drawer).toContainText('sales@acme.test')
+  await expect(drawer).toContainText('The mail server refused the message')
+  await drawer.getByRole('button', { name: 'Copy: Input' }).click()
+  await expect(drawer.getByRole('status').filter({ hasText: 'Copied' })).toHaveCount(1)
+  await page.keyboard.press('Escape')
+  await expect(page).not.toHaveURL(/node=/)
+  await page.getByRole('button', { name: 'Failed' }).click()
+  await expect(page).toHaveURL(/state=failed/)
+  await expect(page.getByTestId('run-row')).toHaveCount(1)
+  await page.getByTestId('runs-search').fill('zzz')
+  await expect(page.getByTestId('runs-empty-filter')).toBeVisible()
+  await expect(page).toHaveURL(/subject=zzz/)
+  await page.getByRole('button', { name: 'Reset filters' }).click()
+  await expect(page.getByTestId('run-row')).toHaveCount(2)
+  await expect(page).not.toHaveURL(/state=|subject=/)
+  const filtered = (await calls(page)).filter((c) => c.method === 'automations.runs').map((c) => c.params as { state?: string[]; subject?: string })
+  expect(filtered.some((p) => p.state?.join() === 'failed')).toBe(true)
+  expect(filtered.some((p) => p.subject === 'zzz')).toBe(true)
+})
+
+test('RV6: a link with only a run id opens its graph; a run that is not there says so', async ({ page }) => {
+  await page.goto(`/?view=run&run=${BLOCKED_RUN}`)
+  await expect(page).toHaveURL(new RegExp(`/automations/${DIGEST}/runs/${BLOCKED_RUN}$`))
+  await page.goto('/?view=run&run=00000000-0000-4000-8000-00000000dead')
+  await expect(page.getByTestId('run-not-found')).toContainText('Run not found')
+  // Inside the editor, a run that is not found has its own screen too.
+  await page.goto(`/?view=editor&id=${DIGEST}&run=00000000-0000-4000-8000-00000000dead`)
+  await expect(page.getByTestId('run-not-found')).toContainText('Run not found')
+})
+
+test('RV10: Retry and Resolve a blocked call; Cancel is confirmed with the focus on «Keep running»', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&run=${BLOCKED_RUN}&delay=300`)
+  await expect(page.getByTestId('run-state')).toHaveText('Blocked')
+  const retry = page.getByTestId('run-retry')
+  // F1: a second click while the request runs is ignored. Both clicks land at once in the page: a click
+  // after the answer would wait for a Retry that is hidden until the run's new state.
+  await retry.evaluate((button) => {
+    ;(button as HTMLButtonElement).click()
+    ;(button as HTMLButtonElement).click()
+  })
+  await expect(page.getByText('The call is repeated')).toBeVisible()
+  const retries = (await calls(page)).filter((c) => c.method === 'automations.run_retry')
+  expect(retries).toHaveLength(1)
+  expect(retries[0]!.params).toEqual({ run_id: BLOCKED_RUN, wait_id: 'call-1' })
+  await expect(page.getByTestId('run-state')).toHaveText('Running')
+  await page.getByTestId('run-cancel').click()
+  const dialog = page.getByTestId('cancel-dialog')
+  await expect(dialog.getByRole('button', { name: 'Keep running' })).toBeFocused()
+  await dialog.getByRole('button', { name: 'Cancel run' }).click()
+  await expect(page.getByText('Run cancelled')).toBeVisible()
+  await expect(page.getByTestId('run-state')).toHaveText('Cancelled')
+  await expect(page.getByTestId('run-cancel')).toHaveCount(0)
+})
+
+test('RV10: Resolve picks an outcome of the blocked step', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&run=${BLOCKED_RUN}`)
+  await page.getByTestId('run-resolve').click()
+  const dialog = page.getByTestId('resolve-dialog')
+  await dialog.getByRole('combobox').click()
+  await page.getByRole('option', { name: /^sent/ }).click()
+  await dialog.getByTestId('resolve-confirm').click()
+  await expect(page.getByText('The run goes on')).toBeVisible()
+  const resolved = (await calls(page)).find((c) => c.method === 'automations.run_resolve')!
+  expect(resolved.params).toEqual({ run_id: BLOCKED_RUN, wait_id: 'call-1', outcome: 'sent' })
+  await expect(page.getByTestId('run-state')).toHaveText('Done')
+})
+
+test('RV10 / S5: without Operate there is no Cancel, Retry or Resolve in the DOM', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&run=${BLOCKED_RUN}&cannot=operate`)
+  await expect(page.getByTestId('run-state')).toHaveText('Blocked')
+  await expect(page.getByTestId('run-retry')).toHaveCount(0)
+  await expect(page.getByTestId('run-resolve')).toHaveCount(0)
+  await expect(page.getByTestId('run-cancel')).toHaveCount(0)
+})
+
+test('RV3: a run of another version opens by its link on that version\'s graph, with its banner', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&run=${OLD_RUN}`)
+  await expect(page.getByTestId('run-version-banner')).toContainText('Run on version 2')
+  await expect(page.getByTestId('run-row')).toHaveCount(2) // the open version's list, without this run
+  const versions = (await calls(page)).filter((c) => c.method === 'automations.get' && (c.params as { version?: number }).version === 2)
+  expect(versions).toHaveLength(1)
+})
+
+test('RV6: a run-only link keeps the node it names', async ({ page }) => {
+  await page.goto(`/?view=run&run=${BLOCKED_RUN}&node=email`)
+  await expect(page).toHaveURL(new RegExp(`/automations/${DIGEST}/runs/${BLOCKED_RUN}\\?node=email$`))
+})
+
+test('RV7: the decision mode reaches the server', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}`)
+  await page.getByTestId('open-dry-run').click()
+  await page.getByTestId('dry-run').getByRole('radio', { name: 'Live call' }).check()
+  await page.getByTestId('dry-run-start').click()
+  await expect(page.getByTestId('dry-trace')).toBeVisible()
+  const sent = (await calls(page)).find((c) => c.method === 'automations.dry_run')!.params as { decisions?: string }
+  expect(sent.decisions).toBe('live')
+})
+
+test('RV8 / F3: a retry after a lost answer sends the same key and the step runs once', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${DIGEST}&testLostOnce`)
+  await page.locator('.iota-flow__node[data-id="email"]').click()
+  await page.getByTestId('open-test-node').click()
+  await page.getByTestId('test-start').click()
+  await page.getByTestId('test-confirm').getByRole('button', { name: 'Run for real' }).click()
+  await expect(page.getByTestId('test-node').getByRole('alert')).toBeVisible()
+  await page.getByTestId('test-start').click()
+  await page.getByTestId('test-confirm').getByRole('button', { name: 'Run for real' }).click()
+  await expect(page.getByTestId('test-result')).toContainText('m-1')
+  const keys = (await calls(page)).filter((c) => c.method === 'automations.test_node').map((c) => (c.params as { idempotency_key?: string }).idempotency_key)
+  expect(keys).toHaveLength(2)
+  expect(keys[0]).toBeTruthy()
+  expect(keys[1]).toBe(keys[0])
+})
+
+test('#1439: the chat of a Telegram step is picked from the chats its connection knows', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${STALE}&telegram`)
+  await page.locator('.iota-flow__node[data-id="notify"]').click()
+  await page.getByRole('combobox', { name: 'Chat' }).click()
+  await expect(page.getByRole('option', { name: 'Alice Karimova (@alice)' })).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Sales team' })).toBeVisible()
+  const asked = (await calls(page)).filter((c) => c.method === 'automations.search_options').map((c) => c.params)
+  expect(asked[0]).toEqual({ source: 'telegram.chats', query: '', connection: 'c-1' })
+})
+
+// #1390: the memory of a graph between runs sits in its settings: a list of keys with a search, a change
+// of a value and a delete.
+test.describe('state panel', () => {
+  const settings = async (page: Page, query = '') => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`/?view=editor&id=${DIGEST}${query}`)
+    await expect(page.getByTestId('crumb')).toBeVisible()
+    await page.getByRole('button', { name: 'Settings' }).click()
+  }
+  const stateCalls = async (page: Page, method: string) => (await calls(page)).filter((c) => c.method === method)
+
+  test('lists the keys, searches, changes and deletes', async ({ page }) => {
+    await settings(page)
+    const panel = page.getByTestId('state-panel')
+    await expect(panel.getByTestId('state-list').locator('li')).toHaveCount(3)
+    await expect(panel.getByTestId('state-total')).toHaveText('3 of 10000 keys')
+    await expect(panel.locator('[data-key="release:v2.4"]')).toContainText('does not expire')
+    await expect(panel.locator('[data-key="chat:42"]')).toContainText('"task":"T-17"')
+    await expectNoA11yViolations(page, { include: ['[data-testid="state-panel"]'] })
+
+    await panel.getByTestId('state-search').fill('chat')
+    await expect(panel.getByTestId('state-list').locator('li')).toHaveCount(1)
+    await panel.getByTestId('state-search').fill('nothing')
+    await expect(panel.getByTestId('state-empty')).toHaveText('No key matches.')
+    await panel.getByTestId('state-search').fill('')
+    await expect(panel.getByTestId('state-list').locator('li')).toHaveCount(3)
+
+    // A change: the value is JSON; a value that is not is refused before the request.
+    await panel.getByRole('button', { name: 'Edit: rule:daily:count' }).click()
+    const editor = panel.getByTestId('state-editor')
+    await expect(editor.locator('[data-field="state-key"] input, input[data-field="state-key"]').first()).toHaveValue('rule:daily:count')
+    await editor.locator('textarea[data-field="state-value"]').fill('{broken')
+    await editor.getByTestId('state-save').click()
+    await expect(editor.getByTestId('state-error')).toHaveText('The value is not valid JSON.')
+    expect(await stateCalls(page, 'automations.state_set')).toHaveLength(0)
+    await editor.locator('textarea[data-field="state-value"]').fill('4')
+    await editor.locator('input[data-field="state-ttl"]').fill('2h')
+    await editor.getByTestId('state-save').click()
+    await expect(editor).toHaveCount(0)
+    expect((await stateCalls(page, 'automations.state_set')).map((c) => c.params)).toEqual([{ id: DIGEST, key: 'rule:daily:count', value: 4, ttl: '2h' }])
+
+    // A new key; a value over the limit is refused with the engine's words.
+    await panel.getByTestId('state-add').click()
+    await panel.locator('input[data-field="state-key"]').fill('big')
+    await panel.locator('textarea[data-field="state-value"]').fill(JSON.stringify('x'.repeat(20000)))
+    await panel.getByTestId('state-save').click()
+    await expect(panel.getByTestId('state-error')).toContainText('state_value_too_large')
+    await panel.getByRole('button', { name: 'Cancel' }).click()
+
+    // A delete asks once.
+    await panel.getByRole('button', { name: 'Delete: release:v2.4' }).click()
+    expect(await stateCalls(page, 'automations.state_delete')).toHaveLength(0)
+    await panel.getByTestId('state-confirm-delete').click()
+    await expect(panel.locator('[data-key="release:v2.4"]')).toHaveCount(0)
+    expect((await stateCalls(page, 'automations.state_delete')).map((c) => c.params)).toEqual([{ id: DIGEST, key: 'release:v2.4' }])
+    await expect(panel.getByTestId('state-total')).toHaveText('2 of 10000 keys')
+  })
+
+  test('edits made while a save runs stay open', async ({ page }) => {
+    await settings(page, '&delay=1000')
+    const panel = page.getByTestId('state-panel')
+    await panel.getByRole('button', { name: 'Edit: rule:daily:count' }).click()
+    const value = panel.locator('textarea[data-field="state-value"]')
+    await value.fill('4')
+    await panel.getByTestId('state-save').click()
+    await value.fill('5')
+    // The save of 4 is answered; the 5 typed meanwhile is not dropped.
+    await expect(panel.locator('[data-key="rule:daily:count"] code').nth(1)).toHaveText('4')
+    await expect(value).toHaveValue('5')
+  })
+
+  test('no next page is asked for while the first one reloads', async ({ page }) => {
+    await settings(page, '&statePage=1&delay=1000')
+    const panel = page.getByTestId('state-panel')
+    const rows = panel.getByTestId('state-list').locator('li')
+    await expect(rows).toHaveCount(1)
+    await panel.getByRole('button', { name: 'Delete: chat:42' }).click()
+    await panel.getByTestId('state-confirm-delete').click()
+    // The key is deleted and the first page is on its way again: «Show more» waits for it.
+    await expect(panel.getByTestId('state-more')).toBeDisabled()
+    await expect(panel.locator('[data-key="release:v2.4"]')).toBeVisible()
+    await panel.getByTestId('state-more').click()
+    await expect(rows).toHaveCount(2)
+    await expect(panel.locator('[data-key="chat:42"]')).toHaveCount(0)
+  })
+
+  test('without Automations.Author the keys are read only', async ({ page }) => {
+    await settings(page, '&cannot=author')
+    const panel = page.getByTestId('state-panel')
+    await expect(panel.getByTestId('state-list').locator('li')).toHaveCount(3)
+    await expect(panel.getByTestId('state-add')).toHaveCount(0)
+    await expect(panel.getByRole('button', { name: /^Edit/ })).toHaveCount(0)
+    await expect(panel.getByRole('button', { name: /^Delete/ })).toHaveCount(0)
+  })
+
+  test('a screen without the memory has no panel', async ({ page }) => {
+    await settings(page, '&state=off')
+    await expect(page.getByTestId('state-panel')).toHaveCount(0)
+    expect(await stateCalls(page, 'automations.state_list')).toHaveLength(0)
+  })
 })

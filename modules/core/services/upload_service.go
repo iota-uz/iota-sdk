@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -135,11 +136,45 @@ func (s *UploadService) GetPaginated(ctx context.Context, params *upload.FindPar
 
 func (s *UploadService) Create(ctx context.Context, data *upload.CreateDTO) (upload.Upload, error) {
 	if data.UploadsPath != "" || s.uploadsPath == "" {
-		return s.create(ctx, data, true, true)
+		return s.create(ctx, data, true, true, false)
 	}
 	configured := *data
 	configured.UploadsPath = s.uploadsPath
-	return s.create(ctx, &configured, true, true)
+	return s.create(ctx, &configured, true, true, false)
+}
+
+// DownloadableByRoute reports whether the signed-in download route of the upload controller serves an upload stored
+// at the path (see PublicUploadPath, which the route itself uses).
+func (s *UploadService) DownloadableByRoute(storedPath string) bool {
+	return PublicUploadPath(s.uploadsPath, storedPath)
+}
+
+// PublicUploadPath reports whether a stored path is inside the public uploads root and outside its private
+// namespace: what the public file handler and the download route serve. Paths are compared as the route compares
+// them (cleaned, in the layout form of the storage), so a root such as "../uploads" gives the same answer here as
+// there.
+func PublicUploadPath(uploadsRoot, storedPath string) bool {
+	root := strings.Trim(filepath.ToSlash(filepath.Clean(uploadsRoot)), "/")
+	candidate := strings.TrimPrefix(path.Clean("/"+filepath.ToSlash(upload.LayoutPath(storedPath))), "/")
+	if root == "" || root == "." || !strings.HasPrefix(candidate, root+"/") {
+		return false
+	}
+	rest := strings.TrimPrefix(candidate, root+"/")
+	return rest != uploadsconfig.PrivateDirectory && !strings.HasPrefix(rest, uploadsconfig.PrivateDirectory+"/")
+}
+
+// CreateKeeping stores an upload in the public root, or returns the tenant's existing upload of the same content
+// exactly as it is: its record, its name and its path are not changed, and it is not moved out of a private namespace
+// into the public root. For content that comes from outside (a file a chat sends), where a match with a file that
+// was stored for another purpose, perhaps under an HTML name or privately, must neither publish it nor rename it.
+// A slug that another content holds is a conflict, not a replacement.
+func (s *UploadService) CreateKeeping(ctx context.Context, data *upload.CreateDTO) (upload.Upload, error) {
+	if data.UploadsPath != "" || s.uploadsPath == "" {
+		return s.create(ctx, data, true, false, true)
+	}
+	configured := *data
+	configured.UploadsPath = s.uploadsPath
+	return s.create(ctx, &configured, true, false, true)
 }
 
 // CreatePrivate stores an upload in a caller-provided non-public namespace.
@@ -152,7 +187,7 @@ func (s *UploadService) CreatePrivate(ctx context.Context, data *upload.CreateDT
 	}
 	privateData := *data
 	privateData.UploadsPath = privatePath
-	return s.create(ctx, &privateData, false, false, privatePath)
+	return s.create(ctx, &privateData, false, false, false, privatePath)
 }
 
 // pathWithin compares filesystem layouts, so S3 keys match the same roots as local paths.
@@ -165,7 +200,7 @@ func pathWithin(root, candidate string) bool {
 	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
-func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, deduplicateByHash, replaceSlug bool, requiredPath ...string) (upload.Upload, error) {
+func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, deduplicateByHash, replaceSlug, keepExisting bool, requiredPath ...string) (upload.Upload, error) {
 	const op serrors.Op = "UploadService.create"
 	if location := s.storageLocation(); location != "" && data.StorageLocation == "" {
 		located := *data
@@ -220,7 +255,7 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 				up = entity
 			}
 		}
-		if data.UploadsPath != "" && !pathWithin(data.UploadsPath, up.Path()) {
+		if !keepExisting && data.UploadsPath != "" && !pathWithin(data.UploadsPath, up.Path()) {
 			rooted := upload.NewWithID(up.ID(), up.TenantID(), up.Hash(), upload.LocatePath(data.StorageLocation, filepath.Join(data.UploadsPath, filepath.Base(upload.LayoutPath(up.Path())))), up.Name(), up.Slug(), up.Size().Bytes(), up.Mimetype(), up.Type(), up.CreatedAt(), up.UpdatedAt(), upload.WithUploadsPath(data.UploadsPath))
 			rooted.SetGeoPoint(up.GeoPoint())
 			if err := s.storage.Save(ctx, rooted.Path(), bytes); err != nil {

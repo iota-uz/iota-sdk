@@ -162,6 +162,8 @@ type GraphView struct {
 	next          map[string]map[string]string // node → outcome → target (first edge)
 	// reaching are the triggers each node is reachable from, in graph order (a trigger reaches itself).
 	reaching map[string][]string
+	// output is the graph's compiled output schema (nil: none, or it does not compile).
+	output ParamsSpec
 }
 
 // Catalog is the catalog the graph is checked against.
@@ -394,6 +396,7 @@ func copyGraph(g Graph) Graph {
 		out.Nodes[i] = n
 	}
 	out.Edges = append([]Edge(nil), g.Edges...)
+	out.OutputSchema = copyMap(g.OutputSchema)
 	return out
 }
 

@@ -2,6 +2,8 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -10,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/automation/state"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 )
 
@@ -37,6 +40,43 @@ func TestPreparedEffectsAreUsedOnlyForTheSameStepAndTheSameVariables(t *testing.
 	assert.Equal(t, fresh, m.preparedEffects(&tokenRow{ID: uuid.New(), StepSeq: 2}, "n", fresh), "another token")
 	assert.Empty(t, m.preparedEffects(tok, "n", nil), "a fresh evaluation that rendered no effect (it failed) takes its failure")
 	assert.Equal(t, hashVars(vars), hashVars(map[string]any{"order": map[string]any{"owner": 7}}), "the hash is stable")
+}
+
+// The memory a step read is part of what it was prepared over: once a key reads differently, the prepared
+// effects and the preparation are no longer used.
+func TestPreparationIsNotReusedOverChangedMemory(t *testing.T) {
+	tok := &tokenRow{ID: uuid.New(), StepSeq: 2, NodeID: "n"}
+	prepared := []graph.Effect{{Node: "n", Params: map[string]any{"stamp": "prepared"}}}
+	fresh := []graph.Effect{{Node: "n", Params: map[string]any{"stamp": "fresh"}}}
+	reader := func(value string) *state.Reader {
+		return state.NewReader(context.Background(), valueDB(value), uuid.New(), uuid.New())
+	}
+	first := reader(`{"n": 1}`)
+	_, _, err := first.Lookup("k")
+	require.NoError(t, err)
+	prep := &preparedStep{token: tok.ID, seq: 3, node: "n", varsHash: hashVars(nil), memory: first.Snapshot(), attempts: 1,
+		PreparedEffect: PreparedEffect{Value: "checked", Effects: prepared}}
+	m := &mover{x: &execution{prepared: prep}, varsHash: hashVars(nil), memory: reader(`{"n": 1}`)}
+	assert.Equal(t, prepared, m.preparedEffects(tok, "n", fresh), "the same value: what was prepared is applied")
+	require.NotNil(t, m.preparedFor(tok, 3))
+
+	m.memory = reader(`{"n": 2}`) // another run wrote the key meanwhile
+	assert.Equal(t, fresh, m.preparedEffects(tok, "n", fresh))
+	assert.Nil(t, m.preparedFor(tok, 3), "a new preparation is asked for")
+}
+
+// valueDB is a memory whose every key holds one JSON value.
+type valueDB string
+
+func (v valueDB) QueryRow(context.Context, string, ...any) pgx.Row { return v }
+
+func (v valueDB) Scan(dest ...any) error {
+	raw, ok := dest[1].(*json.RawMessage)
+	if !ok {
+		return errors.New("the value is the second column")
+	}
+	*raw = json.RawMessage(v)
+	return nil
 }
 
 // A preparation that no longer fits what the step reads is not handed to the node: the step prepares again, a

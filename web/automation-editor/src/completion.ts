@@ -78,6 +78,9 @@ export function contextPaths(input: { catalog: EditorCatalog; graph: AutomationG
   }
   const isNode = nodeId !== null && graph.nodes.some((n) => n.id === nodeId)
   if (isNode) {
+    // The graph's memory between runs, read by key in a step (not in a trigger's filter): state.get(key) is the
+    // value or null, state.has(key) a bool.
+    out.push({ path: 'state', type: 'map', description: 'state.get(key), state.has(key)', source: 'context' })
     const upstream = ancestors(graph, nodeId!)
     for (const node of graph.nodes) {
       if (!upstream.has(node.id)) continue

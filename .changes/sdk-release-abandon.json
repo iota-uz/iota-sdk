@@ -1,0 +1,1 @@
+{"bump":"none","summary":"Release tooling: `sdk controller abandon` retires a partially published version whose Go module cannot be downloaded; the next release takes a version above it. No change to the SDK module."}

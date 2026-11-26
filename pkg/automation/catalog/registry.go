@@ -79,12 +79,46 @@ type View struct {
 	// Unavailable lists node types and event keys left out, with the reason
 	// ("connection_unavailable", "permission").
 	Unavailable map[string]string
+	// UnavailableEvents and UnavailableNodes are the same by namespace: an event and a node type may share a
+	// key, and the reason of one is not the other's. Unavailable holds both (a node type's reason wins a
+	// shared key); a rule that is about one of them reads its own map.
+	UnavailableEvents map[string]string
+	UnavailableNodes  map[string]string
 	// NodeRequires and EventRequires are the connector kinds each node type and event of the catalog
 	// works with (any one of them).
-	NodeRequires  map[string][]ConnectorKind
-	EventRequires map[string][]ConnectorKind
+	NodeRequires map[string][]ConnectorKind
+	// UnavailableRequires are the connector kinds of the node types in Unavailable for want of a
+	// connection: what they work with does not depend on whether the tenant has it now.
+	UnavailableRequires map[string][]ConnectorKind
+	EventRequires       map[string][]ConnectorKind
 	// Connections are the tenant's working connections by kind, preferred first.
 	Connections map[ConnectorKind][]ConnectionRef
+	// TenantOnlyEvents are the events (TenantConnectionTriggers) and TenantOnlyNodes the node types
+	// (TenantConnectionNode) that only the tenant's own connections serve; their keys are apart, since an
+	// event and a node type may share one.
+	TenantOnlyEvents map[string]bool
+	TenantOnlyNodes  map[string]bool
+	// PlatformWithheld are the kinds the application offers by platform credential that this tenant cannot
+	// use now: a node of such a kind that is unavailable is unavailable for want of the platform key.
+	PlatformWithheld map[ConnectorKind]bool
+}
+
+// OwnConnections are the refs of connected that are the tenant's own connections: no platform credential.
+func OwnConnections(connected map[ConnectorKind][]ConnectionRef) map[ConnectorKind][]ConnectionRef {
+	return ownRefs(connected)
+}
+
+// ownRefs are the refs of connected that are the tenant's own connections: no platform credential.
+func ownRefs(connected map[ConnectorKind][]ConnectionRef) map[ConnectorKind][]ConnectionRef {
+	out := make(map[ConnectorKind][]ConnectionRef, len(connected))
+	for k, refs := range connected {
+		for _, r := range refs {
+			if !strings.HasPrefix(r.ID, PlatformPrefix) {
+				out[k] = append(out[k], r)
+			}
+		}
+	}
+	return out
 }
 
 // JSON is the view for the editor and the API: graph.View with NodeView.Requires filled.
@@ -343,20 +377,35 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 			}
 		}
 	}
+	var withheld map[ConnectorKind]bool
+	if po, ok := r.avail.(PlatformOffers); ok {
+		w, err := po.PlatformWithheld(ctx, tenantID)
+		if err != nil {
+			return View{}, serrors.Wrap(op, err)
+		}
+		withheld = w
+	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	v := View{
+		PlatformWithheld: withheld,
 		Catalog: graph.Catalog{
 			Events: map[string]graph.EventSpec{}, Nodes: map[string]graph.NodeSpec{},
 			Subjects: map[string]graph.SubjectSpec{}, MixedSubject: r.mixed,
 		},
-		Unavailable:   map[string]string{},
-		NodeRequires:  map[string][]ConnectorKind{},
-		EventRequires: map[string][]ConnectorKind{},
-		Connections:   connected,
+		Unavailable:         map[string]string{},
+		UnavailableEvents:   map[string]string{},
+		UnavailableNodes:    map[string]string{},
+		NodeRequires:        map[string][]ConnectorKind{},
+		UnavailableRequires: map[string][]ConnectorKind{},
+		EventRequires:       map[string][]ConnectorKind{},
+		Connections:         connected,
+		TenantOnlyEvents:    map[string]bool{},
+		TenantOnlyNodes:     map[string]bool{},
 	}
-	reason := func(requires []ConnectorKind, permission string) string {
+	own := ownRefs(connected)
+	reason := func(requires []ConnectorKind, permission string, from map[ConnectorKind][]ConnectionRef) string {
 		if o.author != nil && !o.author.Has(permission) {
 			return ReasonPermission
 		}
@@ -364,7 +413,7 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 			return ""
 		}
 		for _, k := range requires {
-			if len(connected[k]) > 0 {
+			if len(from[k]) > 0 {
 				return ""
 			}
 		}
@@ -376,8 +425,15 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 		if pt, ok := e.source.(PermissionedTriggers); ok {
 			access, _ = pt.Access(key)
 		}
-		if why := reason(e.requires, access.ReadPermission); why != "" {
+		from := connected
+		if tc, ok := e.source.(TenantConnectionTriggers); ok && tc.TenantConnectionOnly(key) {
+			from = own
+			v.TenantOnlyEvents[key] = true
+		}
+		if why := reason(e.requires, access.ReadPermission, from); why != "" {
 			v.Unavailable[key] = why
+			v.UnavailableEvents[key] = why
+			delete(v.TenantOnlyEvents, key)
 			continue
 		}
 		spec := copyEvent(e.spec)
@@ -419,8 +475,18 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 		if o.author == nil {
 			perm = ""
 		}
-		if why := reason(e.requires, perm); why != "" {
+		from := connected
+		if tc, ok := e.node.(TenantConnectionNode); ok && tc.TenantConnectionOnly() {
+			from = own
+			v.TenantOnlyNodes[typ] = true
+		}
+		if why := reason(e.requires, perm, from); why != "" {
 			v.Unavailable[typ] = why
+			v.UnavailableNodes[typ] = why
+			delete(v.TenantOnlyNodes, typ)
+			if why == ReasonConnectionUnavailable {
+				v.UnavailableRequires[typ] = append([]ConnectorKind(nil), e.requires...)
+			}
 			continue
 		}
 		spec := e.node.Spec()
@@ -444,11 +510,12 @@ func (r *registry) ForTenant(ctx context.Context, tenantID uuid.UUID, opts ...Vi
 		if _, ok := v.Catalog.Events[n.Wait.Event.Value]; ok {
 			continue
 		}
-		why := v.Unavailable[n.Wait.Event.Value]
+		why := v.UnavailableEvents[n.Wait.Event.Value]
 		if why == "" {
 			why = ReasonConnectionUnavailable
 		}
 		v.Unavailable[typ] = why
+		v.UnavailableNodes[typ] = why
 		delete(v.Catalog.Nodes, typ)
 		delete(v.NodeRequires, typ)
 	}

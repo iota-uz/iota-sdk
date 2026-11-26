@@ -58,6 +58,7 @@ const permBlock = "Users.Block"
 // blockAction records the users it blocked: its effect.
 type blockAction struct {
 	output  json.RawMessage // set: the output Run answers with
+	err     error           // set: the error Run fails with
 	onRun   func(ctx context.Context)
 	inv     string
 	mu      sync.Mutex
@@ -100,6 +101,9 @@ func (a *blockAction) Run(ctx context.Context, actor spi.Subject, args json.RawM
 	a.mu.Lock()
 	a.blocked = append(a.blocked, in.UserID)
 	a.mu.Unlock()
+	if a.err != nil {
+		return "", nil, a.err
+	}
 	if a.output != nil {
 		return "done", a.output, nil
 	}

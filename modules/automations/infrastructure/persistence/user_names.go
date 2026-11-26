@@ -37,3 +37,44 @@ func (u *UserNames) Names(ctx context.Context, tenantID uuid.UUID, ids []int64) 
 	}
 	return out, serrors.FromDB("automations.UserNames", rows.Err())
 }
+
+// UserOption is a user a picker offers.
+type UserOption struct {
+	ID    int64
+	Name  string
+	Email string
+}
+
+// SearchActive lists active (not blocked) users of the tenant whose name or email contains query,
+// without the excluded ids, by name, at most limit.
+func (u *UserNames) SearchActive(ctx context.Context, tenantID uuid.UUID, query string, exclude []int64, limit int) ([]UserOption, error) {
+	const op = "automations.UserNames.SearchActive"
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+	if exclude == nil {
+		exclude = []int64{}
+	}
+	pattern := "%" + strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(strings.TrimSpace(query)) + "%"
+	rows, err := u.db.Query(ctx, `
+		SELECT id, coalesce(first_name, ''), coalesce(last_name, ''), coalesce(email, '') FROM users
+		WHERE tenant_id = $1 AND NOT is_blocked AND type <> 'system' AND NOT (id = ANY($2))
+		  AND (coalesce(first_name, '') || ' ' || coalesce(last_name, '') ILIKE $3 OR coalesce(email, '') ILIKE $3)
+		ORDER BY lower(coalesce(first_name, '') || ' ' || coalesce(last_name, '')), id
+		LIMIT $4`, tenantID, exclude, pattern, limit)
+	if err != nil {
+		return nil, serrors.FromDB(op, err)
+	}
+	defer rows.Close()
+	out := []UserOption{}
+	for rows.Next() {
+		var o UserOption
+		var first, last string
+		if err := rows.Scan(&o.ID, &first, &last, &o.Email); err != nil {
+			return nil, serrors.FromDB(op, err)
+		}
+		o.Name = strings.TrimSpace(first + " " + last)
+		out = append(out, o)
+	}
+	return out, serrors.FromDB(op, rows.Err())
+}

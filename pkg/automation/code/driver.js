@@ -90,10 +90,11 @@
   }
 
   class ConnectionError extends ErrorCtor {
-    constructor(message, code) {
+    constructor(message, code, retryable) {
       super(message);
       this.name = "ConnectionError";
       this.code = code;
+      this.retryable = retryable === true;
     }
   }
 
@@ -159,18 +160,88 @@
         throw fail(new TypeErrorCtor("connection call failed: " + Str(e && e.message)), site);
       }
       const r = await rpc("connection", ticket);
-      if (r.refused) throw fail(new ConnectionError(Str(r.refused), Str(r.code)), site);
+      if (r.refused) throw fail(new ConnectionError(Str(r.refused), Str(r.code), r.retryable), site);
       if (r.blocked) throw fail(new NetworkBlocked(Str(r.blocked)), site);
       if (r.error) throw fail(new TypeErrorCtor("connection call failed: " + Str(r.error)), site);
       return response(r);
     };
+
+    // env.connections.<name>.fetch(pathOrURL, init?): fetch on the connection's API; the host adds the
+    // authorization over any header of the same name.
+    const connectionFetch = (name) => async (path, init) => {
+      const site = new ErrorCtor();
+      if (++fetches > limits.maxFetches) {
+        throw fail(new TypeErrorCtor("connection fetch failed: at most " + limits.maxFetches + " fetches per run"), site);
+      }
+      const req = create(null);
+      req.connection = name;
+      req.fetch = true;
+      req.path = Str(path);
+      if (init !== undefined && init !== null) {
+        if (init.method !== undefined) req.httpMethod = Str(init.method);
+        if (init.headers !== undefined && init.headers !== null) {
+          const h = create(null);
+          const names = keys(init.headers);
+          for (let i = 0; i < names.length; i++) h[Str(names[i])] = Str(init.headers[names[i]]);
+          req.headers = h;
+        }
+        if (init.body !== undefined && init.body !== null) req.body = Str(init.body);
+        if (init.redirect !== undefined) req.redirect = Str(init.redirect);
+      }
+      let ticket;
+      try {
+        ticket = rpcSync("fetchStage", stringify(req));
+      } catch (e) {
+        throw fail(new TypeErrorCtor("connection fetch failed: " + Str(e && e.message)), site);
+      }
+      const r = await rpc("connection", ticket);
+      if (r.refused) throw fail(new ConnectionError(Str(r.refused), Str(r.code), r.retryable), site);
+      if (r.blocked) throw fail(new NetworkBlocked(Str(r.blocked)), site);
+      if (r.error) throw fail(new TypeErrorCtor("connection fetch failed: " + Str(r.error)), site);
+      return response(r);
+    };
+
+    // env.connections.<name>.<operation>(args?): a Go operation; the argument and the result are JSON.
+    const connectionOperation = (name, operation) => async (args) => {
+      const site = new ErrorCtor();
+      if (++fetches > limits.maxFetches) {
+        throw fail(new TypeErrorCtor("connection call failed: at most " + limits.maxFetches + " fetches per run"), site);
+      }
+      const req = create(null);
+      req.connection = name;
+      req.operation = operation;
+      if (args !== undefined && args !== null) {
+        let text;
+        try {
+          text = stringify(args);
+        } catch (e) {
+          throw fail(new TypeErrorCtor("connection call failed: the arguments are not JSON"), site);
+        }
+        if (text !== undefined) req.args = Str(text);
+      }
+      let ticket;
+      try {
+        ticket = rpcSync("fetchStage", stringify(req));
+      } catch (e) {
+        throw fail(new TypeErrorCtor("connection call failed: " + Str(e && e.message)), site);
+      }
+      const r = await rpc("operation", ticket);
+      if (r.refused) throw fail(new ConnectionError(Str(r.refused), Str(r.code), r.retryable), site);
+      if (r.blocked) throw fail(new NetworkBlocked(Str(r.blocked)), site);
+      if (r.error) throw fail(new TypeErrorCtor("connection call failed: " + Str(r.error)), site);
+      return r.value === undefined ? null : r.value;
+    };
+
     const connections = create(null);
     const connNames = keys(conns);
     for (let i = 0; i < connNames.length; i++) {
       const name = connNames[i];
-      const methods = conns[name];
+      const spec = conns[name];
       const c = create(null);
-      for (let j = 0; j < methods.length; j++) c[methods[j]] = connectionCall(name, methods[j]);
+      if (spec.baseUrl) c.baseUrl = Str(spec.baseUrl);
+      for (let j = 0; j < spec.methods.length; j++) c[spec.methods[j]] = connectionCall(name, spec.methods[j]);
+      for (let j = 0; j < spec.operations.length; j++) c[spec.operations[j]] = connectionOperation(name, spec.operations[j]);
+      if (spec.fetch) c.fetch = connectionFetch(name);
       connections[name] = freeze(c);
     }
 

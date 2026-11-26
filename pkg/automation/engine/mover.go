@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/automation/state"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -34,6 +35,9 @@ type mover struct {
 	// varsHash is a hash of the subject's variables this step read with the run-as's rights now: a
 	// preparation made for the step is reused only while it is the same.
 	varsHash string
+	// memory is what this step reads the automation's memory through: a preparation is reused only while
+	// the keys the step that asked for it read are what they were.
+	memory *state.Reader
 }
 
 func (m *mover) in() *graph.Interpreter { return m.x.ie.in }
@@ -82,6 +86,11 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 		if nt, ok := m.x.r.cfg.Catalog.Node(node.Type); ok && needsReauth(ctx, m.x.r.cfg.DB, m.x.tenant, node.Params[catalog.ConnectionParam], nt.Requires()) {
 			return behavior, m.nodeFailed(ctx, tok, node.ID, behavior, 0, nil, StepError{Code: catalog.CallUnauthorized, Message: msgNeedsReauth})
 		}
+		// The node names the platform credential, or the platform credential is the one it would use, and
+		// the tenant's administrator has not enabled it or switched it off after the run started.
+		if ref, _ := node.Params[catalog.ConnectionParam].(string); strings.HasPrefix(ref, catalog.PlatformPrefix) || (ref == "" && m.x.ie.platformOff[node.Type]) {
+			return behavior, m.nodeFailed(ctx, tok, node.ID, behavior, 0, nil, StepError{Code: catalog.CallUnavailable, Message: platformOffMessage})
+		}
 		return behavior, m.nodeFailed(ctx, tok, node.ID, behavior, 0, nil, StepError{Code: CodeConnectionUnavailable,
 			Message: fmt.Sprintf("%s needs a connection the tenant does not have", node.Type)})
 	}
@@ -90,11 +99,15 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 		return behavior, err
 	}
 	m.varsHash = hashVars(gctx.Vars)
+	m.memory, _ = gctx.State.(*state.Reader)
 	active, err := m.activeTokens(ctx)
 	if err != nil {
 		return behavior, err
 	}
 	st := in.Start(node.ID, &graph.StepContext{Ctx: gctx, Token: tok.Path, From: tok.From, Tokens: active})
+	if err := memoryFailure(ctx, gctx); err != nil {
+		return behavior, err
+	}
 	st.Effects = m.preparedEffects(tok, node.ID, st.Effects)
 	switch st.Kind {
 	case graph.StepFailed, graph.StepMissingContext:
@@ -110,7 +123,12 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 		if reason == "" {
 			reason = "ended at " + node.ID
 		}
-		return behavior, m.finish(ctx, tok, false, nil, reason, st.End)
+		// The end's output is the run's (a run_automation reads it); an end without one gives its params.
+		output := st.End
+		if o, ok := st.End["output"].(map[string]any); ok {
+			output = o
+		}
+		return behavior, m.finish(ctx, tok, false, nil, reason, output)
 	case graph.StepCall:
 		return behavior, m.call(ctx, tok, node, spec, st)
 	case graph.StepWait:
@@ -161,22 +179,28 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 // preparedEffects are the effects the step applies: those its preparation was made for, when the step is the
 // one prepared (the same token, step number and node) and what the run-as may read through the subject's
 // variables is unchanged since — so a right lost in between is honored by the fresh evaluation, never bypassed
-// by an effect rendered earlier — else the ones the fresh evaluation rendered. A step whose fresh evaluation
+// by an effect rendered earlier — and so are the keys of the memory the preparing step read, else the ones the fresh evaluation rendered. A step whose fresh evaluation
 // renders no effects (it failed) takes its failure, as it would without a preparation: the preparation read
 // and wrote nothing, so nothing is lost.
 func (m *mover) preparedEffects(tok *tokenRow, node string, fresh []graph.Effect) []graph.Effect {
 	p := m.x.preparedStepFor(tok.ID, tok.StepSeq+1, node)
-	if p == nil || len(fresh) == 0 || len(p.Effects) != len(fresh) || p.varsHash != m.varsHash {
+	if p == nil || len(fresh) == 0 || len(p.Effects) != len(fresh) || !m.fits(p) {
 		return fresh
 	}
 	return p.Effects
+}
+
+// fits reports that what a preparation was made over is what the step reads now: the subject's variables and
+// the keys of the memory.
+func (m *mover) fits(p *preparedStep) bool {
+	return p.varsHash == m.varsHash && m.memory.Same(p.memory)
 }
 
 // maxPrepareAttempts bounds how many times a step is prepared again because what it reads changed in between.
 const maxPrepareAttempts = 3
 
 // preparedFor is the preparation the effect node of this step gets: the one made for it, while the subject's
-// variables the run-as may read are what they were when it was made. A preparation that no longer fits is not
+// variables the run-as may read and the memory keys read are what they were when it was made. A preparation that no longer fits is not
 // handed over: the step asks for a new one, outside the transaction. After maxPrepareAttempts the preparation is
 // marked Exhausted and the step is not applied but retried later (a platform error), so a node that asked for a
 // check never acts without it.
@@ -185,7 +209,7 @@ func (m *mover) preparedFor(tok *tokenRow, seq int) *PreparedEffect {
 	switch {
 	case p == nil:
 		return nil
-	case p.varsHash == m.varsHash:
+	case m.fits(p):
 		return &p.PreparedEffect
 	case p.attempts >= maxPrepareAttempts:
 		return &PreparedEffect{Exhausted: true}
@@ -229,6 +253,9 @@ func (m *mover) applyEffects(ctx context.Context, tok *tokenRow, node graph.Node
 	var np *needsPrepareError
 	if errors.As(err, &np) {
 		np.varsHash = m.varsHash
+		if m.memory != nil {
+			np.memory = m.memory.Snapshot()
+		}
 	}
 	if err == nil && serr == nil && res.Output != nil {
 		serr = m.outputTooLarge(node.ID, res.Output, "the output of "+node.ID)
@@ -390,7 +417,7 @@ func (m *mover) call(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	}
 	sc := m.stepContext(tok, seq)
 	if len(st.Effects) > 0 {
-		sc.Context = st.Effects[0].Context
+		sc.Context, sc.Templated = st.Effects[0].Context, st.Effects[0].Templated
 	}
 	if fo := m.in().FailedOutcome(node.ID); fo != "" {
 		// Connected to a node that handles the failure: an edge to ignore (or none, inside a construct)
@@ -480,6 +507,20 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	if wi.Event == "" {
 		kind = waitTimer
 	}
+	// A node type that names the conversation it waits in (WaitKeyer) listens there or nowhere: a run that
+	// cannot say which conversation (the connection is not the tenant's own, cannot be resolved) never
+	// falls back to the run's own conversation, or to none, where another chat's message could answer it.
+	var keyed *SubjectRef
+	if kind == waitEvent {
+		var serr *StepError
+		var err error
+		if keyed, serr, err = m.keyedSubject(ctx, node, params); err != nil {
+			return err // the catalog could not be read: the step is tried again, the run is not failed for it
+		}
+		if serr != nil {
+			return m.nodeFailed(ctx, tok, node.ID, behavior, 0, input, *serr)
+		}
+	}
 	timeout := m.capWait(wi.Timeout)
 	if kind == waitEvent && timeout == 0 {
 		timeout = m.x.r.cfg.Limits.WaitMax // a wait never outlives WaitMax
@@ -502,7 +543,11 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 			f := wi.Filter
 			w.Filter = &f
 		}
-		w.Subject = m.waitSubject(node, ev, params)
+		if keyed != nil {
+			w.Subject = keyed
+		} else {
+			w.Subject = m.waitSubject(node, ev, params)
+		}
 		if nt, ok := m.x.r.cfg.Catalog.Node(node.Type); ok && effectOut != nil {
 			if ek, ok := nt.(EffectWaitKeyer); ok {
 				if s, ok := ek.EffectWaitSubject(params, effectOut); ok {
@@ -523,6 +568,48 @@ func (m *mover) wait(ctx context.Context, tok *tokenRow, node graph.Node, spec g
 	}
 	tok.Status = tokWaiting
 	return saveToken(ctx, m.tx, m.x.tenant, m.x.run.ID, *tok)
+}
+
+// keyedSubject is the conversation a wait of a WaitKeyer node listens on, nil for a node type that does not
+// name one. The connection it is keyed by is the one in the params, or, when they leave it out, the one the
+// node resolves to as a call does (the tenant's own one for a node that takes no platform credential). It
+// is a step error when that connection or the conversation cannot be named; a failure to read the tenant's
+// connections is an ordinary error (storage), which retries the step rather than failing the node.
+func (m *mover) keyedSubject(ctx context.Context, node graph.Node, params map[string]any) (*SubjectRef, *StepError, error) {
+	nt, ok := m.x.r.cfg.Catalog.Node(node.Type)
+	if !ok {
+		return nil, nil, nil
+	}
+	wk, keyed := nt.(WaitKeyer)
+	if !keyed {
+		return nil, nil, nil
+	}
+	unnamed := &StepError{Code: CodeConnectionUnavailable, Message: node.ID + " cannot name the conversation it waits in: its connection or its chat is not usable"}
+	view, err := m.x.r.cfg.Catalog.ForTenant(ctx, m.x.tenant)
+	if err != nil {
+		return nil, nil, fmt.Errorf("the connections of the tenant could not be read for %s: %w", node.ID, err)
+	}
+	if kinds := view.NodeRequires[node.Type]; len(kinds) > 0 {
+		connections := view.Connections
+		if view.TenantOnlyNodes[node.Type] {
+			connections = catalog.OwnConnections(connections)
+		}
+		ref, _, err := catalog.ResolveConnection(connections, kinds, params[catalog.ConnectionParam])
+		if err != nil {
+			return nil, unnamed, nil
+		}
+		out := make(map[string]any, len(params)+1)
+		for k, v := range params {
+			out[k] = v
+		}
+		out[catalog.ConnectionParam] = ref.ID
+		params = out
+	}
+	s, ok := wk.WaitSubject(params)
+	if !ok {
+		return nil, unnamed, nil
+	}
+	return &s, nil, nil
 }
 
 // waitSubject is the subject a wait listens on: the run's when the event is about the run's entity, the
@@ -1112,6 +1199,9 @@ func (m *mover) wakeEvent(ctx context.Context, tok *tokenRow, w waitRow, ev inbo
 		gctx.Now = ev.OccurredAt
 	}
 	matched, st := m.in().WaitMatches(w.NodeID, gev, gctx)
+	if err := memoryFailure(ctx, gctx); err != nil {
+		return err
+	}
 	if st != nil {
 		if err := closeWait(ctx, m.tx, m.x.tenant, w, waitCancelled); err != nil {
 			return err
@@ -1157,6 +1247,17 @@ func (m *mover) result(ctx context.Context, tok *tokenRow, w waitRow, wr WaitRes
 	}
 	if err := closeWait(ctx, m.tx, m.x.tenant, w, waitFired); err != nil {
 		return err
+	}
+	if len(wr.Logs) > 0 {
+		// The call's step keeps what the node logged (masked by the call), whatever the outcome.
+		logs, err := json.Marshal(wr.Logs)
+		if err != nil {
+			return err
+		}
+		if _, err := m.tx.Exec(ctx, `UPDATE automation.steps SET logs = $5 WHERE tenant_id = $1 AND run_id = $2 AND token_id = $3 AND seq = $4`,
+			m.x.tenant, m.x.run.ID, tok.ID, w.Spec.Seq, logs); err != nil {
+			return serrors.FromDB(opRun, err)
+		}
 	}
 	_, spec, _ := m.spec(w.NodeID)
 	behavior := string(spec.Behavior)
@@ -1257,7 +1358,16 @@ func (m *mover) answer(ctx context.Context, tok *tokenRow, w waitRow, gev graph.
 	if err != nil {
 		return err
 	}
-	outcome, out, err := asker.Answer(raw)
+	var (
+		outcome string
+		out     json.RawMessage
+	)
+	if pa, ok := asker.(ParamAnswerer); ok {
+		params, _ := m.in().View().Params(w.NodeID)
+		outcome, out, err = pa.AnswerFor(params, raw)
+	} else {
+		outcome, out, err = asker.Answer(raw)
+	}
 	if err != nil {
 		return m.nodeFailed(ctx, tok, w.NodeID, behavior, w.Spec.Seq, nil, StepError{Code: graph.FailInvalidAnswer, Message: err.Error()})
 	}
@@ -1398,7 +1508,7 @@ func (m *mover) context(ctx context.Context, tok *tokenRow) (graph.Context, erro
 	}
 	return m.x.r.BuildRunContext(ctx, RunContextInput{
 		TenantID: m.x.tenant, AutomationID: m.x.run.AutomationID, RunID: m.x.run.ID, Subject: m.x.run.Subject, RunAs: m.x.subject,
-		Event: event, Events: evs, Nodes: nodes, Foreach: each, Now: m.s.now, Vars: vars,
+		Event: event, Events: evs, Nodes: nodes, Foreach: each, Now: m.s.now, Vars: vars, StateDB: m.tx,
 	})
 }
 
@@ -1490,5 +1600,19 @@ func (m *mover) withheldOutput(ctx context.Context, gev graph.Event) error {
 	var changed bool
 	m.s.sensitive, changed = mergeRefs(m.s.sensitive, refs)
 	m.s.sensitiveChanged = m.s.sensitiveChanged || changed
+	return nil
+}
+
+// memoryFailure is the platform failure an expression of the step met reading the automation's memory: the
+// expression failed with the database's text, but the step is retried, not failed. Any other failure of a
+// lookup stays the expression's own.
+func memoryFailure(ctx context.Context, gctx graph.Context) error {
+	r, ok := gctx.State.(*state.Reader)
+	if !ok {
+		return nil
+	}
+	if err := r.Err(); err != nil && (host.IsInfrastructure(err) || ctx.Err() != nil) {
+		return err
+	}
 	return nil
 }

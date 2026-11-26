@@ -33,12 +33,15 @@ const fake: FakeOptions = {
   layoutConflict: params.has('layoutConflict'),
   conflictOnce: params.has('conflictOnce'),
   liveFailsOnce: params.has('liveFailsOnce'),
+  testLostOnce: params.has('testLostOnce'),
+  statePage: Number(params.get('statePage') ?? '0'),
   reviewFailsAfterChange: params.has('reviewFailsAfterChange'),
   oldVersionDelay: Number(params.get('oldVersionDelay') ?? '0'),
   hold: params.has('hold'),
   can,
   calls: [],
   warn: params.has('warn'),
+  telegram: params.has('telegram'),
 }
 ;(window as unknown as { __calls: FakeOptions['calls'] }).__calls = fake.calls
 installFake('/automations/rpc', fake)
@@ -60,7 +63,7 @@ const context = {
   initial: {
     basePath: '/automations', integrationsPath: '/settings/integrations', view,
     ...(params.get('id') ? { id: params.get('id')! } : {}), ...(params.get('run') ? { run: params.get('run')! } : {}),
-    can, agent,
+    can, agent, state: params.get('state') !== 'off',
   },
 }
 document.getElementById('iota-client-context')!.textContent = JSON.stringify(context)

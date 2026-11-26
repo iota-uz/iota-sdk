@@ -182,59 +182,20 @@ func (c *Connector) BeginAuthorization(ctx context.Context, in connectors.Author
 	if err != nil {
 		return "", "", err
 	}
-	_, creds, err := st.Get(ctx, in.TenantID, in.ConnectionID)
-	if err != nil {
-		return "", "", err
-	}
-	cf, err := readConfig(creds)
-	if err != nil {
-		return "", "", fmt.Errorf("%w: %v", connectors.ErrInvalid, err)
-	}
-	if cf.auth != AuthOAuth2 {
-		return "", "", fmt.Errorf("%w: the connection does not sign in with OAuth", connectors.ErrInvalid)
-	}
-	as, err := c.discover(ctx, cf)
-	if err != nil {
-		return "", "", err
-	}
-	_, creds, err = st.UpdateCredentials(ctx, in.TenantID, in.ConnectionID, func(_ connectors.Connection, cur connectors.Credentials) (*connectors.CredentialChange, error) {
-		next := cur
-		changed := false
-		set := func(k, v string) {
-			if next[k] != v {
-				next[k], changed = v, true
-			}
+	var (
+		as    authServer
+		cf    config
+		creds connectors.Credentials
+	)
+	for attempt := 1; ; attempt++ {
+		as, cf, creds, err = c.beginOnce(ctx, st, in)
+		if !errors.Is(err, errServerChanged) {
+			break
 		}
-		// A client this connector registered is the issuer's: another issuer needs its own.
-		stale := next[KeyRegistered] == "true" && next[KeyIssuer] != as.Issuer
-		if next[KeyClientID] == "" || stale {
-			if as.Registration == "" {
-				return nil, ErrNoClient
-			}
-			reg, err := c.register(ctx, as, in.RedirectURL, next[KeyScopes])
-			if err != nil {
-				return nil, err
-			}
-			set(KeyClientID, reg.ClientID)
-			set(KeyClientSecret, reg.ClientSecret)
-			set(KeyRegistered, "true")
+		if attempt == maxDiscoveries {
+			return "", "", fmt.Errorf("%w: the connection's server kept changing while the sign-in began; start it again", connectors.ErrInvalid)
 		}
-		if next[KeyIssuer] != as.Issuer {
-			// Tokens of another issuer are no longer this connection's.
-			for _, k := range []string{KeyAccessToken, KeyRefreshToken, KeyExpiresAt, KeyResource} {
-				if next[k] != "" {
-					delete(next, k)
-					changed = true
-				}
-			}
-		}
-		set(KeyIssuer, as.Issuer)
-		set(KeyTokenEndpoint, as.Token)
-		if !changed {
-			return nil, nil //nolint:nilnil // no change: the connection keeps its credentials
-		}
-		return &connectors.CredentialChange{Credentials: next}, nil
-	})
+	}
 	if err != nil {
 		return "", "", err
 	}
@@ -277,6 +238,83 @@ func (c *Connector) BeginAuthorization(ctx context.Context, in connectors.Author
 	}
 	auth.RawQuery = q.Encode()
 	return auth.String(), state, nil
+}
+
+// errServerChanged: the connection's server changed between the read the discovery used and the row
+// lock; the sign-in discovers again.
+var errServerChanged = errors.New("mcp: the connection's server changed")
+
+// maxDiscoveries is how many times a sign-in discovers a server that keeps changing.
+const maxDiscoveries = 3
+
+// sameServer reports whether two credential sets name the same server with the same auth kind (what the
+// discovery read).
+func sameServer(a, b connectors.Credentials) bool {
+	return strings.TrimSpace(a[KeyServerURL]) == strings.TrimSpace(b[KeyServerURL]) && a[KeyAuth] == b[KeyAuth]
+}
+
+// beginOnce discovers the authorization server of the connection as read and stores the client and the
+// endpoints under the row lock, while the row still names the server that was discovered.
+func (c *Connector) beginOnce(ctx context.Context, st Store, in connectors.AuthorizationStart) (authServer, config, connectors.Credentials, error) {
+	_, read, err := st.Get(ctx, in.TenantID, in.ConnectionID)
+	if err != nil {
+		return authServer{}, config{}, nil, err
+	}
+	cf, err := readConfig(read)
+	if err != nil {
+		return authServer{}, config{}, nil, fmt.Errorf("%w: %v", connectors.ErrInvalid, err)
+	}
+	if cf.auth != AuthOAuth2 {
+		return authServer{}, config{}, nil, fmt.Errorf("%w: the connection does not sign in with OAuth", connectors.ErrInvalid)
+	}
+	as, err := c.discover(ctx, cf)
+	if err != nil {
+		return authServer{}, config{}, nil, err
+	}
+	_, creds, err := st.UpdateCredentials(ctx, in.TenantID, in.ConnectionID, func(_ connectors.Connection, cur connectors.Credentials) (*connectors.CredentialChange, error) {
+		// The discovery read the connection before the lock: a server changed meanwhile has another
+		// authorization server, discovered again.
+		if !sameServer(cur, read) {
+			return nil, errServerChanged
+		}
+		next := cur
+		changed := false
+		set := func(k, v string) {
+			if next[k] != v {
+				next[k], changed = v, true
+			}
+		}
+		// A client this connector registered is the issuer's: another issuer needs its own.
+		stale := next[KeyRegistered] == "true" && next[KeyIssuer] != as.Issuer
+		if next[KeyClientID] == "" || stale {
+			if as.Registration == "" {
+				return nil, ErrNoClient
+			}
+			reg, err := c.register(ctx, as, in.RedirectURL, next[KeyScopes])
+			if err != nil {
+				return nil, err
+			}
+			set(KeyClientID, reg.ClientID)
+			set(KeyClientSecret, reg.ClientSecret)
+			set(KeyRegistered, "true")
+		}
+		if next[KeyIssuer] != as.Issuer {
+			// Tokens of another issuer are no longer this connection's.
+			for _, k := range []string{KeyAccessToken, KeyRefreshToken, KeyExpiresAt, KeyResource} {
+				if next[k] != "" {
+					delete(next, k)
+					changed = true
+				}
+			}
+		}
+		set(KeyIssuer, as.Issuer)
+		set(KeyTokenEndpoint, as.Token)
+		if !changed {
+			return nil, nil //nolint:nilnil // no change: the connection keeps its credentials
+		}
+		return &connectors.CredentialChange{Credentials: next}, nil
+	})
+	return as, cf, creds, err
 }
 
 // register is Dynamic Client Registration (RFC 7591) of a public client with the callback.

@@ -79,7 +79,7 @@ func (s *store) UpdateCredentials(ctx context.Context, tenantID, id uuid.UUID,
 		if change.Credentials != nil {
 			// The metadata stays while the tokens change: checked against both sets now, as a refresh of
 			// the built-in OAuth2 does.
-			next = scrubAcrossChange(next, creds, change.Credentials)
+			next = scrubAcrossChange(next, allSecret, creds, change.Credentials)
 		}
 		identity, err := json.Marshal(next.Identity)
 		if err != nil {

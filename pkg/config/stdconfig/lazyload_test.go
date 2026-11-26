@@ -11,8 +11,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/eskizconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/jevconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/meiliconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/openaiconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/redisconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/smtpconfig"
@@ -49,6 +51,8 @@ func TestLazyLoading_EmptySource_AllOptionalFeaturesDisabled(t *testing.T) {
 		"twilio":      reflect.TypeOf(twilioconfig.Config{}),
 		"eskiz":       reflect.TypeOf(eskizconfig.Config{}),
 		"meili":       reflect.TypeOf(meiliconfig.Config{}),
+		"openai":      reflect.TypeOf(openaiconfig.Config{}),
+		"jev":         reflect.TypeOf(jevconfig.Config{}),
 		"googleoauth": reflect.TypeOf(googleoauthconfig.Config{}),
 		"redis":       reflect.TypeOf(redisconfig.Config{}),
 		"payments":    reflect.TypeOf(paymentsconfig.Config{}),

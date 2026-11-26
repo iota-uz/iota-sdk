@@ -26,7 +26,7 @@ const menu = async (page: Page, name: string) => {
 
 test('IN1: cards by category with status in words and an icon; states', async ({ page }) => {
   await open(page)
-  await expect(page.getByRole('heading', { level: 2 })).toHaveText(['Messaging', 'Email', 'AI', 'Documents'])
+  await expect(page.getByRole('heading', { level: 2 })).toHaveText(['Messaging', 'Email', 'AI', 'Documents', 'Secrets'])
   const card = page.getByTestId('connector-telegram_bot')
   await expect(card.getByRole('heading', { name: 'Telegram bot' })).toBeVisible()
   await expect(card.getByText('API key')).toBeVisible()
@@ -42,13 +42,42 @@ test('IN1: cards by category with status in words and an icon; states', async ({
   expect(text).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/)
   await expectNoA11yViolations(page)
 
-  await open(page, 'scenario=empty')
+  await open(page, 'scenario=empty&secrets=0')
   await expect(page.getByTestId('integrations-empty')).toContainText('Integrations are not set up in this application')
 
   await page.goto('/?scenario=error')
   const failure = page.getByTestId('integrations-load-error')
   await expect(failure).toContainText('Could not load integrations.')
   await expect(failure.getByRole('button', { name: 'Retry' })).toBeVisible()
+})
+
+test('a bot another service uses is connected only after the person confirms it', async ({ page }) => {
+  await open(page)
+  await page.getByTestId('connect-telegram_bot').click()
+  const form = page.getByTestId('connection-form')
+  await form.getByLabel('Name', { exact: true }).fill('Shared bot')
+  await form.locator('[data-field="bot_token"]').fill('foreign')
+  await form.getByTestId('form-save').click()
+  // The warning says what connecting does to the other service; nothing is saved yet.
+  const warning = form.getByTestId('form-warnings')
+  await expect(warning).toContainText('already used by another service')
+  await expect(warning).toContainText('will stop receiving messages')
+  await expect(form).toBeVisible()
+  expect(await callsOf(page, 'connections.create')).toHaveLength(1)
+
+  // Without the confirmation the save does not go again.
+  await form.getByTestId('form-save').click()
+  await expect(form.getByTestId('form-error')).toContainText('Confirm that you want to connect this bot')
+  expect(await callsOf(page, 'connections.create')).toHaveLength(1)
+
+  await form.getByText('Connect anyway').click()
+  await expect(form.getByTestId('form-confirm')).toBeChecked()
+  await form.getByTestId('form-save').click()
+  await expect(form).toHaveCount(0)
+  const created = await callsOf(page, 'connections.create')
+  expect(created).toHaveLength(2)
+  expect(created[1]!.params.confirm).toEqual(['foreign_webhook@222222']) // the whole token, not the code
+  await expect(row(page, 'shared_bot')).toBeVisible()
 })
 
 test('S2: loading is a skeleton of the cards', async ({ page }) => {
@@ -389,7 +418,7 @@ test('IN8/T6: 390 px has one column and no horizontal scroll; the form fills the
   await page.setViewportSize({ width: 390, height: 844 })
   await open(page, 'lang=ru')
   // The populated layout, not a page before mount or after a load error, is what is measured.
-  await expect(page.locator('article')).toHaveCount(4)
+  await expect(page.locator('article')).toHaveCount(5) // four connectors and the secrets
   await expect(page.getByTestId('connector-telegram_bot')).toBeVisible()
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   expect(overflow).toBeLessThanOrEqual(0)
@@ -403,6 +432,69 @@ test('IN8/T6: 390 px has one column and no horizontal scroll; the form fills the
   // The drawer slides in: axe measures contrast of the settled layer.
   await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)))
   await expectNoA11yViolations(page)
+})
+
+test('an email box signs in with a provider the application has, and offers no other', async ({ page }) => {
+  await open(page, 'scenario=email')
+  await page.getByTestId('connect-imap').click()
+  const preset = page.getByTestId('preset')
+  // Only the form and the providers whose OAuth2 client is configured (gmail here, not m365).
+  await expect(preset.locator('option')).toHaveText(['Any server (login and password)', 'Gmail (sign in with Google)'])
+  await expect(page.getByLabel('IMAP server')).toBeVisible()
+  await preset.selectOption('gmail')
+  await expect(page.getByLabel('IMAP server')).toHaveCount(0)
+  await expect(page.getByText('You will be sent to Google')).toBeVisible()
+  // A name of its own: the page already holds a seeded connection, which must not stand for the new one.
+  await page.getByLabel('Name', { exact: true }).fill('support_inbox')
+  await page.getByTestId('form-save').click()
+  // The sign-in, not a save of credentials: the fake provider sends the browser back with the connection.
+  await expect(page).toHaveURL(/connected=/)
+  await expect(row(page, 'support_inbox')).toBeVisible()
+  await expect(row(page, 'support_inbox').locator('[data-status="connected"]')).toBeVisible()
+})
+
+test('an email card signs in with Google or Microsoft 365 in one click, only with providers the application has', async ({ page }) => {
+  await open(page, 'scenario=email&presets=gmail,m365')
+  const card = page.getByTestId('connector-imap')
+  await expect(card.getByTestId('signin-imap-gmail')).toHaveText('Sign in with Google')
+  await expect(card.getByTestId('signin-imap-m365')).toHaveText('Sign in with Microsoft 365')
+  // A connector without sign-in presets has no such buttons.
+  await expect(page.getByTestId('connector-smtp').locator('[data-testid^="signin-"]')).toHaveCount(0)
+  await card.getByTestId('signin-imap-m365').click()
+  // The provider sends the browser back with the new connection; it was made by the Microsoft 365 sign-in.
+  await expect(page).toHaveURL(/connected=/)
+  await expect(page.getByTestId('connector-imap').locator('[data-status="connected"]')).toHaveCount(2)
+  await page.keyboard.press('Escape')
+  await menu(page, 'drive_2')
+  await row(page, 'drive_2').getByTestId('menu-edit').click()
+  await expect(page.getByText('You will be sent to Microsoft 365')).toBeVisible()
+
+  // Only the providers whose OAuth2 client is configured are offered.
+  await page.evaluate(() => window.sessionStorage.clear())
+  await open(page, 'scenario=email')
+  await expect(page.getByTestId('connector-imap').getByTestId('signin-imap-gmail')).toBeVisible()
+  await expect(page.getByTestId('connector-imap').getByTestId('signin-imap-m365')).toHaveCount(0)
+  // An author without Connections.Manage is offered no sign-in.
+  await page.evaluate(() => window.sessionStorage.clear())
+  await open(page, 'scenario=email&manage=0')
+  await expect(page.locator('[data-testid^="signin-"]')).toHaveCount(0)
+})
+
+test('a saved login-and-password connection is not offered a provider sign-in on edit', async ({ page }) => {
+  await open(page, 'scenario=email')
+  await menu(page, 'office_inbox')
+  await row(page, 'office_inbox').getByTestId('menu-edit').click()
+  // The edit saves credentials: a provider that would need a sign-in is not on offer, the form stays.
+  await expect(page.getByLabel('IMAP server')).toHaveValue('imap.acme.uz')
+  await expect(page.getByTestId('preset')).toHaveCount(0)
+})
+
+test('a sign-in connection of a form-and-sign-in connector is signed in again with its preset', async ({ page }) => {
+  await open(page, 'scenario=email')
+  await expect(row(page, 'robot_inbox').getByTestId('reauth')).toHaveText('Sign in again')
+  await row(page, 'robot_inbox').getByTestId('reauth').click()
+  await expect(page).toHaveURL(/connected=/)
+  await expect(row(page, 'robot_inbox').locator('[data-status="connected"]')).toBeVisible()
 })
 
 test('MCP: a connection with OAuth is saved, then signed in; one that needs it offers «Sign in again»', async ({ page }) => {
@@ -423,4 +515,150 @@ test('MCP: a connection with OAuth is saved, then signed in; one that needs it o
   // Saved first, then signed in as that connection: the return names it.
   await expect(page).toHaveURL(/connected=.*kind=mcp&edit=/)
   await expect(page.getByTestId('connection-form')).toContainText('Billing tools')
+})
+
+const secretRow = (page: Page, name: string) => page.getByTestId(`secret-${name}`)
+const secretMenu = async (page: Page, name: string, item: 'edit' | 'rotate' | 'delete') => {
+  await secretRow(page, name).locator('summary[aria-haspopup]').click()
+  await secretRow(page, name).getByTestId(`secret-menu-${item}`).click()
+}
+
+test('Secrets: listed by name with safe facts and a mask; a value is entered once and never shown again', async ({ page }) => {
+  await open(page)
+  const section = page.getByTestId('secrets-section')
+  await expect(section.getByRole('heading', { level: 2 })).toHaveText('Secrets')
+  await expect(section).toContainText('Code and HTTP nodes read by name')
+  await expect(page.locator('[data-testid="secrets-list"] > li')).toHaveCount(2)
+  const crm = secretRow(page, 'CRM_API_KEY')
+  await expect(crm).toContainText('amoCRM API key for the order sync')
+  await expect(crm.getByTestId('secret-meta')).toHaveText('Created Oct 2, 2026 · Rotated Nov 12, 2026 · Last used Nov 20, 2026')
+  await expect(secretRow(page, 'WEBHOOK_SIGNING_SECRET').getByTestId('secret-meta')).toHaveText('Created Nov 18, 2026 · Not used yet')
+  await expect(crm.getByTestId('secret-masked')).toHaveText('••••••')
+  await expect(crm.getByTestId('secret-masked')).toHaveAttribute('aria-label', 'Value hidden')
+
+  await page.getByTestId('secret-add').click()
+  const form = page.getByTestId('secret-form')
+  // Nothing typed: the form names the fields and sends nothing.
+  await form.getByTestId('secret-save').click()
+  await expect(form.getByText('Fill in this field.')).toHaveCount(2)
+  expect(await callsOf(page, 'secrets.create')).toHaveLength(0)
+  // The name is typed as the store keeps it.
+  await form.locator('[data-field="name"]').fill('payme key')
+  await expect(form.locator('[data-field="name"]')).toHaveValue('PAYME_KEY')
+  await form.locator('[data-field="description"]').fill('Payme merchant key')
+  await expect(form.getByTestId('secret-value-hint')).toHaveText('Stored encrypted. After saving it is never shown again.')
+  await form.locator('[data-field="value"]').fill('sk-live-very-secret')
+  await expect(form.locator('[data-field="value"]')).toHaveAttribute('type', 'password')
+  await form.getByTestId('secret-save').click()
+  await expect(form).toHaveCount(0)
+  await expect(page.getByText('PAYME_KEY is saved. Its value will not be shown again.')).toBeVisible()
+  const created = await callsOf(page, 'secrets.create')
+  expect(created).toHaveLength(1)
+  expect(created[0]!.params).toEqual({ name: 'PAYME_KEY', description: 'Payme merchant key', value: 'sk-live-very-secret' })
+  await expect(secretRow(page, 'PAYME_KEY')).toContainText('Payme merchant key')
+  // The value is nowhere on the page: not in the list, not in a field.
+  expect(await page.content()).not.toContain('sk-live-very-secret')
+
+  // A name that is taken is refused at its field.
+  await page.getByTestId('secret-add').click()
+  await form.locator('[data-field="name"]').fill('CRM_API_KEY')
+  await form.locator('[data-field="value"]').fill('x')
+  await form.getByTestId('secret-save').click()
+  await expect(form.getByTestId('secret-form-error')).toHaveText('A secret with this name already exists.')
+  await expect(form.locator('[data-field="name"]')).toHaveAttribute('aria-invalid', 'true')
+  await expectNoA11yViolations(page, { include: ['[data-testid="secret-form"]'] })
+})
+
+test('Secrets: rename and describe, rotate the value, delete after a confirmation', async ({ page }) => {
+  await open(page)
+  await secretMenu(page, 'WEBHOOK_SIGNING_SECRET', 'edit')
+  const form = page.getByTestId('secret-form')
+  await expect(form.locator('[data-field="value"]')).toHaveCount(0) // editing never touches the value
+  await expect(form).toContainText('will stop finding it')
+  await form.locator('[data-field="name"]').fill('WEBHOOK_SECRET')
+  await form.locator('[data-field="description"]').fill('Signs the shop webhooks')
+  await form.getByTestId('secret-save').click()
+  await expect(form).toHaveCount(0)
+  const updated = await callsOf(page, 'secrets.update')
+  expect(updated[0]!.params).toEqual({ id: '00000000-0000-4000-9000-000000000002', version: 1, name: 'WEBHOOK_SECRET', description: 'Signs the shop webhooks' })
+  await expect(secretRow(page, 'WEBHOOK_SECRET')).toContainText('Signs the shop webhooks')
+
+  await secretMenu(page, 'CRM_API_KEY', 'rotate')
+  await expect(form.locator('[data-field="name"]')).toHaveCount(0)
+  await expect(form.locator('[data-field="value"]')).toHaveValue('') // the current value is not shown
+  await form.getByTestId('secret-save').click()
+  await expect(form.getByText('Fill in this field.')).toBeVisible()
+  await form.locator('[data-field="value"]').fill('new-crm-value')
+  await form.getByTestId('secret-save').click()
+  await expect(form).toHaveCount(0)
+  await expect(page.getByText('CRM_API_KEY has a new value')).toBeVisible()
+  expect((await callsOf(page, 'secrets.rotate'))[0]!.params).toEqual({ id: '00000000-0000-4000-9000-000000000001', version: 3, value: 'new-crm-value' })
+  await expect(secretRow(page, 'CRM_API_KEY').getByTestId('secret-meta')).toContainText('Rotated Nov 20, 2026')
+
+  await secretMenu(page, 'CRM_API_KEY', 'delete')
+  const dialog = page.getByTestId('secret-delete-dialog')
+  await expect(dialog).toContainText('Delete CRM_API_KEY?')
+  await expect(dialog).toContainText('nodes that read CRM_API_KEY will fail')
+  await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
+  await dialog.getByRole('button', { name: 'Delete secret' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(secretRow(page, 'CRM_API_KEY')).toHaveCount(0)
+  expect(await callsOf(page, 'secrets.delete')).toHaveLength(1)
+})
+
+test('Secrets: a version conflict loads the latest version and keeps what was typed', async ({ page }) => {
+  await open(page, 'secretConflictOnce')
+  await secretMenu(page, 'CRM_API_KEY', 'rotate')
+  const form = page.getByTestId('secret-form')
+  await form.locator('[data-field="value"]').fill('rotated')
+  await form.getByTestId('secret-save').click()
+  await expect(form.getByTestId('secret-form-error')).toContainText('Someone changed this secret meanwhile')
+  // The conflict reloads the list and the form moves to the latest version before the next save.
+  await expect(secretRow(page, 'CRM_API_KEY')).toContainText('Changed by another administrator')
+  await expect(form.locator('form')).toHaveAttribute('data-version', '4')
+  await expect(form.locator('[data-field="value"]')).toHaveValue('rotated')
+  await form.getByTestId('secret-save').click()
+  await expect(form).toHaveCount(0)
+  const rotations = await callsOf(page, 'secrets.rotate')
+  expect(rotations.map((c) => c.params.version)).toEqual([3, 4])
+})
+
+test('Secrets: after a version conflict an untouched field takes the latest value, an edited one stays', async ({ page }) => {
+  await open(page, 'secretConflictOnce')
+  await secretMenu(page, 'CRM_API_KEY', 'edit')
+  const form = page.getByTestId('secret-form')
+  await form.locator('[data-field="name"]').fill('CRM_KEY')
+  await form.getByTestId('secret-save').click()
+  await expect(form.getByTestId('secret-form-error')).toContainText('Someone changed this secret meanwhile')
+  await expect(form.locator('form')).toHaveAttribute('data-version', '4')
+  // The other administrator changed the description: the form shows theirs, the typed name stays.
+  await expect(form.locator('[data-field="description"]')).toHaveValue('Changed by another administrator')
+  await expect(form.locator('[data-field="name"]')).toHaveValue('CRM_KEY')
+  await form.getByTestId('secret-save').click()
+  await expect(form).toHaveCount(0)
+  const updates = await callsOf(page, 'secrets.update')
+  expect(updates.map((c) => c.params)).toEqual([
+    { id: '00000000-0000-4000-9000-000000000001', version: 3, name: 'CRM_KEY' },
+    { id: '00000000-0000-4000-9000-000000000001', version: 4, name: 'CRM_KEY' },
+  ])
+  await expect(secretRow(page, 'CRM_KEY')).toContainText('Changed by another administrator')
+})
+
+test('Secrets: who sees them — a secrets administrator alone, none for an author or without the right', async ({ page }) => {
+  await open(page, 'scenario=empty')
+  await expect(page.getByTestId('integrations-empty')).toHaveCount(0)
+  await expect(page.getByTestId('secrets-list')).toBeVisible()
+
+  await open(page, 'manage=0')
+  await expect(page.getByTestId('connector-telegram_bot')).toBeVisible()
+  await expect(page.getByTestId('secrets-section')).toHaveCount(0)
+  expect(await callsOf(page, 'secrets.list')).toHaveLength(0)
+
+  await open(page, 'secrets=0')
+  await expect(page.getByTestId('connector-telegram_bot')).toBeVisible()
+  await expect(page.getByTestId('secrets-section')).toHaveCount(0)
+
+  await open(page, 'noSecrets')
+  await expect(page.getByTestId('no-secrets')).toContainText('No secrets yet')
+  await expect(page.getByTestId('secret-add')).toBeVisible()
 })

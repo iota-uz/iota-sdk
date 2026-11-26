@@ -16,6 +16,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,6 +30,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
+	"github.com/iota-uz/iota-sdk/pkg/automation/code"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
@@ -57,6 +60,11 @@ type Config struct {
 	// Credentials opens the connection a call runs with (connectors.Store); nil: only calls without a
 	// connector run.
 	Credentials connectors.CredentialSource
+	// Connectors, when set, tells which fields of a connection's credentials are secret (the x-secret
+	// fields of the connector's descriptor): only those are masked in the output and the errors of a call.
+	// A connection's public fields (a provider's name, an endpoint) then reach the output as they are.
+	// nil, or a connector that declares no secret field: every credential value is masked.
+	Connectors connectors.Directory
 	// CallLimits bound the calls of automation.call.
 	CallLimits CallLimits
 	// Usage records what calls spent (optional).
@@ -113,6 +121,7 @@ type Runtime struct {
 type interpEntry struct {
 	in          *graph.Interpreter
 	unavailable map[string]bool // node types the tenant's catalog lacks now
+	platformOff map[string]bool // of those, the ones that lack the platform key the tenant's administrator withheld
 	specs       map[string]graph.NodeSpec
 	events      map[string]graph.EventSpec
 	joinOf      map[string]string // a parallel → its join
@@ -275,7 +284,16 @@ func (r *Runtime) interpreter(ctx context.Context, tenant, automation uuid.UUID,
 	if err != nil {
 		return nil, &host.InfraError{Err: err}
 	}
-	key := fmt.Sprintf("%s|%s|%d|%s", tenant, automation, version, view.Catalog.Revision)
+	// The platform keys the tenant lacks decide the code of a node that lost its connection: they are part
+	// of what the entry was built from.
+	withheld := make([]string, 0, len(view.PlatformWithheld))
+	for k, off := range view.PlatformWithheld {
+		if off {
+			withheld = append(withheld, string(k))
+		}
+	}
+	sort.Strings(withheld)
+	key := fmt.Sprintf("%s|%s|%d|%s|%s", tenant, automation, version, view.Catalog.Revision, strings.Join(withheld, ","))
 	r.mu.Lock()
 	if e, ok := r.interps[key]; ok {
 		e.used = time.Now()
@@ -289,6 +307,7 @@ func (r *Runtime) interpreter(ctx context.Context, tenant, automation uuid.UUID,
 	}
 	cat := view.Catalog
 	unavailable := map[string]bool{}
+	platformOff := map[string]bool{}
 	for _, n := range g.Nodes {
 		if _, ok := cat.Nodes[n.Type]; ok {
 			continue
@@ -307,12 +326,17 @@ func (r *Runtime) interpreter(ctx context.Context, tenant, automation uuid.UUID,
 		}
 		cat.Nodes[n.Type] = spec
 		unavailable[n.Type] = true
+		for _, k := range nt.Requires() {
+			if view.PlatformWithheld[k] {
+				platformOff[n.Type] = true
+			}
+		}
 	}
 	in, err := graph.NewInterpreter(cat, g, r.graphOptions())
 	if err != nil {
 		return nil, err
 	}
-	e := &interpEntry{in: in, unavailable: unavailable, specs: cat.Nodes, events: cat.Events, joinOf: map[string]string{}, used: time.Now()}
+	e := &interpEntry{in: in, unavailable: unavailable, platformOff: platformOff, specs: cat.Nodes, events: cat.Events, joinOf: map[string]string{}, used: time.Now()}
 	for _, n := range g.Nodes {
 		if cat.Nodes[n.Type].Behavior != graph.BehaviorJoin {
 			continue
@@ -372,4 +396,27 @@ func (p permissiveParams) Parse(raw map[string]any) (map[string]any, []graph.Iss
 		out[catalog.ConnectionParam] = c
 	}
 	return out, issues
+}
+
+// credentialMasker is the masker of a call that runs with creds of a connector of kind: the secret
+// fields of its descriptor when the engine knows them, else every value.
+func (r *Runtime) credentialMasker(kind catalog.ConnectorKind, creds catalog.Credentials) Masker {
+	if r.cfg.Connectors == nil {
+		return code.NewMasker(map[string]string(creds))
+	}
+	c, ok := r.cfg.Connectors.Get(kind)
+	if !ok {
+		return code.NewMasker(map[string]string(creds))
+	}
+	secret := connectors.SecretFields(c.Descriptor())
+	if len(secret) == 0 {
+		return code.NewMasker(map[string]string(creds))
+	}
+	values := make(map[string]string, len(secret))
+	for field, v := range creds {
+		if secret[field] {
+			values[field] = v
+		}
+	}
+	return code.NewMasker(values)
 }

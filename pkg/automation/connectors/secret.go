@@ -19,7 +19,8 @@ type secretResolver struct {
 
 // SecretResolver serves a package secret named "<connection name>.<field>" from the connection of
 // that name in the invocation's tenant: only a field the connector's credentials schema marks
-// "x-secret", only of a connected connection. A name without a dot, or no connection of that name, goes
+// "x-secret" and not "x-authorization-only" (a credential only the connector's own authorization uses),
+// only of a connected connection. A name without a dot, or no connection of that name, goes
 // to fallback (nil: not found). The host checks that the package declared the secret before asking.
 //
 // The directory tells which fields are secret; the issue's contract had SecretResolver(store, fallback),
@@ -56,7 +57,7 @@ func (r *secretResolver) Secret(ctx context.Context, sc spi.Scope, name string) 
 	}
 	c := match[0]
 	conn, ok := r.dir.Get(c.Kind)
-	if !ok || !SecretFields(conn.Descriptor())[field] {
+	if !ok || !SecretFields(conn.Descriptor())[field] || AuthorizationOnlyFields(conn.Descriptor())[field] {
 		return "", serrors.Wrap(op, fmt.Errorf("%w: %s is not a secret field of connector %s", ErrNotFound, field, c.Kind))
 	}
 	// Name, kind and status are checked on the row the credentials come from: List is an earlier

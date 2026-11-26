@@ -53,6 +53,6 @@ func Components() []composition.Component {
 func Natives() []native.Contributor {
 	return []native.Contributor{
 		coreservices.Natives, crm.Natives, hrm.Natives,
-		finance.Natives, warehouse.Natives, billing.Natives, projects.Natives,
+		finance.Natives, warehouse.Natives, billing.Natives, projects.Natives, automations.Natives,
 	}
 }

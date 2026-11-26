@@ -34,7 +34,7 @@ const (
 // HUMAN_REQUIRED.
 func Kinds(svc engine.Service, auth engine.Authoring, urls URLs, opts ...Option) []changes.Kind {
 	b := base{svc: svc, auth: auth, urls: urls, o: buildOptions(opts)}
-	return []changes.Kind{createKind{b}, updateKind{b}, layoutKind{b}}
+	return append([]changes.Kind{createKind{b}, updateKind{b}, layoutKind{b}}, stateKinds(b)...)
 }
 
 type base struct {
@@ -190,11 +190,11 @@ func (b base) check(ctx context.Context, op string, f fields, id uuid.UUID) []mc
 
 // validateGraph checks the graph as the principal; its errors are issues under /fields/graph.
 func (b base) validateGraph(ctx context.Context, a engine.Actor, raw json.RawMessage) ([]mcp.Issue, []mcp.Issue, error) {
-	err := b.auth.Validate(ctx, a, raw)
+	warnings, err := b.auth.Validate(ctx, a, raw)
 	var ve *engine.ValidationError
 	switch {
 	case err == nil:
-		return nil, nil, nil
+		return nil, graphIssues("/fields/graph", warnings), nil
 	case errors.As(err, &ve):
 		return graphIssues("/fields/graph", ve.Errors), graphIssues("/fields/graph", ve.Warnings), nil
 	}

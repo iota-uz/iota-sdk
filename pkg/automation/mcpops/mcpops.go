@@ -11,11 +11,17 @@
 // (workflow.NativeContract.HumanOnly), so the extension runtime's workflow tools (pkg/extruntime/mcptools)
 // refuse the same actions on their instances and tasks wherever they are registered.
 //
-// Composition:
+// Composition: the automations module (modules/automations) contributes Tools and Kinds to the
+// application's MCP composition (pkg/mcp/mcpwiring), with the module's pages as URLs and the engine's
+// Config.Links set to the editor's run pages. By hand:
 //
 //	tools, err := mcpops.Tools(rt.Service(), rt.Authoring(), catalogRegistry, urls)
 //	registry.Register(tools...)
 //	changes.NewService(changes.Config{Kinds: append(kinds, mcpops.Kinds(rt.Service(), rt.Authoring(), urls)...), ...})
+//
+// With WithMemory(rt.Memory()) both also offer the memory of a graph between its runs: the tools
+// automation_state_list and automation_state_get (Automations.Read) and the changes automation.state.set
+// and automation.state.delete (Automations.Author).
 //
 // HUMAN_REQUIRED refusals of a plan and every applied change are entries of the MCP engine's audit
 // (mcp.Audit), with the principal and the client. engine.Config.Links.RunURL is the run page the
@@ -85,6 +91,7 @@ type Option func(*options)
 type options struct {
 	subjects  SubjectResolver
 	behaviors *graph.Behaviors
+	memory    engine.Memory
 }
 
 // WithSubjects replaces how the acting user's rights are read.

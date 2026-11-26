@@ -15,6 +15,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/automation/state"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
@@ -234,7 +235,7 @@ func (s *service) SaveVersion(ctx context.Context, a Actor, id uuid.UUID, in Sav
 // triggersReadable reports whether the author may read every event the graph's triggers are on.
 func triggersReadable(view catalog.View, g graph.Graph) bool {
 	for _, t := range g.Triggers {
-		if view.Unavailable[t.Event] == catalog.ReasonPermission {
+		if view.UnavailableEvents[t.Event] == catalog.ReasonPermission {
 			return false
 		}
 	}
@@ -747,7 +748,11 @@ func (s *service) Delete(ctx context.Context, a Actor, id uuid.UUID) error {
 			return err
 		}
 		_, err = tx.Exec(ctx, `UPDATE automation.automations SET deleted_at = now() WHERE tenant_id = $1 AND id = $2`, a.TenantID, id)
-		return serrors.FromDB(opService, err)
+		if err != nil {
+			return serrors.FromDB(opService, err)
+		}
+		// A deleted graph keeps no memory.
+		return state.DeleteAll(ctx, tx, a.TenantID, id)
 	})
 	if err != nil {
 		return err

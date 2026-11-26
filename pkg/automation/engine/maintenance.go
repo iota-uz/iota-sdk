@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/automation/state"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/workflow"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -96,6 +97,7 @@ func (r *Runtime) Prune(ctx context.Context) (int64, error) {
 		sql string
 		arg any
 	}{
+		{`DELETE FROM automation.inbound_actions WHERE ctid IN (SELECT ctid FROM automation.inbound_actions WHERE updated_at < now() - $1::interval LIMIT 1000)`, pgInterval(r.cfg.Retention.Steps.Seconds())},
 		{`DELETE FROM automation.inbound_dedup WHERE ctid IN (SELECT ctid FROM automation.inbound_dedup WHERE seen_at < now() - $1::interval LIMIT 1000)`, pgInterval(r.cfg.Retention.Steps.Seconds())},
 		{`DELETE FROM automation.correlations WHERE ctid IN (SELECT ctid FROM automation.correlations WHERE expires_at < now() - $1::interval LIMIT 1000)`, pgInterval(0)},
 		{`DELETE FROM automation.decision_cache WHERE ctid IN (SELECT ctid FROM automation.decision_cache WHERE created_at < now() - $1::interval LIMIT 1000)`, pgInterval(DecisionTTL.Seconds())},
@@ -105,6 +107,12 @@ func (r *Runtime) Prune(ctx context.Context) (int64, error) {
 			return total, serrors.FromDB(opMaintain, err)
 		}
 		total += tag.RowsAffected()
+	}
+	// The expired keys of the automations' memory (a read never shows one, so this only frees the rows).
+	purged, err := state.Purge(ctx, r.cfg.DB)
+	total += purged
+	if err != nil {
+		return total, err
 	}
 	return total, ctx.Err()
 }

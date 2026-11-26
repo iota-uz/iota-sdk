@@ -13,6 +13,9 @@ const (
 	ViewList   View = "list"
 	ViewNew    View = "new"
 	ViewEditor View = "editor"
+	// ViewRun is a link that knows only a run's id (/automations/runs/{run}): the screen finds the run's
+	// graph and opens its Runs tab there, or says the run is not found.
+	ViewRun View = "run"
 )
 
 // Props are the initial props of the screen.
@@ -29,6 +32,8 @@ type Props struct {
 	Can Can    `json:"can"`
 	// Agent: the session is an agent's; enabling is a human's.
 	Agent bool `json:"agent"`
+	// State: the memory of a graph between runs can be listed and edited (the engine's Memory is wired).
+	State bool `json:"state"`
 }
 
 // Can is what the caller may do.
@@ -450,11 +455,25 @@ type RunManualResponse struct {
 
 // DryRunRequest is automations.dry_run.
 type DryRunRequest struct {
+	// ID is the saved graph whose memory (state) the dry run reads; empty: a graph that is not saved.
+	ID      string                     `json:"id,omitempty"`
 	Graph   json.RawMessage            `json:"graph"`
 	Subject Subject                    `json:"subject"`
 	Context map[string]json.RawMessage `json:"context,omitempty"`
 	Events  []json.RawMessage          `json:"events"`
+	// Decisions is how the decisions of models (an LLM, a classifier) are taken: scripted (the default: from
+	// the context), cached (from the decision cache, else a real call recorded there) or live (a real call).
+	Decisions Decisions `json:"decisions,omitempty"`
 }
+
+// Decisions is how a dry run takes the decisions of models.
+type Decisions string
+
+const (
+	DecisionsScripted Decisions = "scripted"
+	DecisionsCached   Decisions = "cached"
+	DecisionsLive     Decisions = "live"
+)
 
 // TraceStep is a step of a dry run.
 type TraceStep struct {
@@ -469,17 +488,24 @@ type TraceStep struct {
 	Output  json.RawMessage   `json:"output,omitempty"`
 }
 
-// DryRunResponse is the trace of a dry run.
+// DryRunResponse is the trace of a dry run and the number of calls it made to providers (a decision
+// taken from the cache is a step with status cached, not a call).
 type DryRunResponse struct {
-	Trace []TraceStep `json:"trace"`
+	Trace     []TraceStep `json:"trace"`
+	LiveCalls int         `json:"live_calls"`
 }
 
 // TestNodeRequest is automations.test_node.
 type TestNodeRequest struct {
+	// ID is the saved graph whose memory (state) the node reads; empty: a graph that is not saved.
+	ID      string                     `json:"id,omitempty"`
 	Graph   json.RawMessage            `json:"graph"`
 	NodeID  string                     `json:"node_id"`
 	Subject *Subject                   `json:"subject,omitempty"`
 	Context map[string]json.RawMessage `json:"context,omitempty"`
+	// IdempotencyKey names the test the author confirmed: a retry with it gets the first answer and makes
+	// no second call (F3).
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
 }
 
 // TestNodeError is why a tested node failed.
@@ -490,9 +516,12 @@ type TestNodeError struct {
 
 // TestNodeResponse is TestNodeResult of #1331.
 type TestNodeResponse struct {
-	Outcome    string          `json:"outcome"`
-	Output     json.RawMessage `json:"output,omitempty"`
-	Logs       []string        `json:"logs,omitempty"`
+	Outcome string          `json:"outcome"`
+	Output  json.RawMessage `json:"output,omitempty"`
+	Logs    []string        `json:"logs,omitempty"`
+	// Request is the rendered params of the call the node made (its prompt, its classifier input), the
+	// connection's secrets masked.
+	Request    json.RawMessage `json:"request,omitempty"`
 	DurationMS int64           `json:"duration_ms,omitempty"`
 	Error      *TestNodeError  `json:"error,omitempty"`
 }
@@ -516,8 +545,13 @@ type RunsRequest struct {
 	AutomationID string     `json:"automation_id"`
 	Version      int        `json:"version,omitempty"`
 	State        []RunState `json:"state,omitempty"`
-	Cursor       string     `json:"cursor,omitempty"`
-	Limit        int        `json:"limit,omitempty"`
+	// Subject narrows the runs to subjects whose key starts with it (case-insensitive) or whose name the
+	// host finds by it (engine.SubjectSearcher, with the viewer's rights).
+	Subject string `json:"subject,omitempty"`
+	// Node narrows the runs to those that took a step on the node (a Test node's example).
+	Node   string `json:"node,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+	Limit  int    `json:"limit,omitempty"`
 }
 
 // StepError is why a step or a run failed.
@@ -530,19 +564,21 @@ type StepError struct {
 
 // RunSummary is a run in a list (RunSummary of #1347).
 type RunSummary struct {
-	RunID        string     `json:"run_id"`
-	AutomationID string     `json:"automation_id"`
-	Version      int        `json:"version"`
-	State        RunState   `json:"state"`
-	Status       RunStatus  `json:"status"`
-	Reason       string     `json:"reason,omitempty"`
-	TriggerKind  string     `json:"trigger_kind"`
-	TriggerID    string     `json:"trigger_id"`
-	Subject      Subject    `json:"subject"`
-	CurrentNodes []string   `json:"current_nodes"`
-	Error        *StepError `json:"error"`
-	CreatedAt    string     `json:"created_at"`
-	UpdatedAt    string     `json:"updated_at"`
+	RunID        string    `json:"run_id"`
+	AutomationID string    `json:"automation_id"`
+	Version      int       `json:"version"`
+	State        RunState  `json:"state"`
+	Status       RunStatus `json:"status"`
+	Reason       string    `json:"reason,omitempty"`
+	TriggerKind  string    `json:"trigger_kind"`
+	TriggerID    string    `json:"trigger_id"`
+	Subject      Subject   `json:"subject"`
+	CurrentNodes []string  `json:"current_nodes"`
+	// SubjectURL is the page of the run's subject (automations.run only; "" without a link).
+	SubjectURL string     `json:"subject_url,omitempty"`
+	Error      *StepError `json:"error"`
+	CreatedAt  string     `json:"created_at"`
+	UpdatedAt  string     `json:"updated_at"`
 }
 
 // RunsResponse is a page of runs.
@@ -551,9 +587,11 @@ type RunsResponse struct {
 	NextCursor *string      `json:"next_cursor"`
 }
 
-// RunRequest names a run.
+// RunRequest names a run. Nodes adds the latest step of each named node (≤ 50) to the run's latest
+// steps, wherever it is in the run (a node test's example).
 type RunRequest struct {
-	RunID string `json:"run_id"`
+	RunID string   `json:"run_id"`
+	Nodes []string `json:"nodes,omitempty"`
 }
 
 // TokenView is a token of a run.
@@ -579,12 +617,16 @@ type StepView struct {
 	StartedAt string          `json:"started_at"`
 	EndedAt   *string         `json:"ended_at"`
 	Warnings  []string        `json:"warnings,omitempty"`
-	Hidden    bool            `json:"hidden,omitempty"`
+	// Logs are what the node logged, masked by the engine.
+	Logs   []string `json:"logs,omitempty"`
+	Hidden bool     `json:"hidden,omitempty"`
 }
 
 // WaitView is a wait of a run.
 type WaitView struct {
-	TokenID   string  `json:"token_id"`
+	TokenID string `json:"token_id"`
+	// NodeID is the node the wait belongs to.
+	NodeID    string  `json:"node_id"`
 	WaitID    string  `json:"wait_id"`
 	Kind      string  `json:"kind"`
 	EventKind string  `json:"event_kind,omitempty"`
@@ -594,10 +636,12 @@ type WaitView struct {
 
 // RunData is a run with its tokens, steps and waits (RunData of #1347).
 type RunData struct {
-	Run    RunSummary  `json:"run"`
-	Tokens []TokenView `json:"tokens"`
-	Steps  []StepView  `json:"steps"`
-	Waits  []WaitView  `json:"waits"`
+	Run RunSummary `json:"run"`
+	// Event is the event that started the run, projected for the viewer.
+	Event  json.RawMessage `json:"event,omitempty"`
+	Tokens []TokenView     `json:"tokens"`
+	Steps  []StepView      `json:"steps"`
+	Waits  []WaitView      `json:"waits"`
 }
 
 // RunCancelResponse is ok, or run_finished.
@@ -631,6 +675,26 @@ type RunRef struct {
 	RunID string `json:"run_id"`
 }
 
+// SearchOptionsRequest is automations.search_options: the choices of a param field with x-options-source (its
+// source) for the step's connection.
+type SearchOptionsRequest struct {
+	Source     string `json:"source"`
+	Query      string `json:"query"`
+	Connection string `json:"connection"`
+}
+
+// SearchOptionsResponse are the choices; none for a connection that offers none (a platform credential).
+type SearchOptionsResponse struct {
+	Options []OptionView `json:"options"`
+}
+
+// OptionView is a choice; Group is a key the editor names (private, group).
+type OptionView struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+	Group string `json:"group,omitempty"`
+}
+
 // MCPToolsRequest is automations.mcp_tools: the tools of an MCP connection.
 type MCPToolsRequest struct {
 	Connection string `json:"connection"`
@@ -650,4 +714,48 @@ type MCPTool struct {
 type MCPToolsResponse struct {
 	Tools []MCPTool `json:"tools"`
 	Error string    `json:"error,omitempty"`
+}
+
+// StateListRequest is automations.state_list: the keys of a graph's memory between runs.
+type StateListRequest struct {
+	ID string `json:"id"`
+	// Search is a substring of the key.
+	Search string `json:"search,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+	Limit  int    `json:"limit,omitempty"`
+}
+
+// StateEntry is one key of the memory.
+type StateEntry struct {
+	Key          string          `json:"key"`
+	Value        json.RawMessage `json:"value"`
+	ExpiresAt    *string         `json:"expires_at"`
+	UpdatedAt    string          `json:"updated_at"`
+	UpdatedByRun *string         `json:"updated_by_run"`
+}
+
+// StateListResponse is a page of keys in key order; Total counts every key the graph holds.
+type StateListResponse struct {
+	Items      []StateEntry `json:"items"`
+	NextCursor *string      `json:"next_cursor"`
+	Total      int          `json:"total"`
+}
+
+// StateSetRequest is automations.state_set: write a key. TTL is a duration (20m, 2h, 7d) or empty.
+type StateSetRequest struct {
+	ID    string          `json:"id"`
+	Key   string          `json:"key"`
+	Value json.RawMessage `json:"value"`
+	TTL   string          `json:"ttl,omitempty"`
+}
+
+// StateSetResponse is the key as written.
+type StateSetResponse struct {
+	Entry StateEntry `json:"entry"`
+}
+
+// StateKeyRequest is automations.state_delete.
+type StateKeyRequest struct {
+	ID  string `json:"id"`
+	Key string `json:"key"`
 }

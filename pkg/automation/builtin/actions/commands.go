@@ -184,7 +184,7 @@ func Run(ctx context.Context, a Action, subject spi.Subject, args json.RawMessag
 	}
 	if spec.Args != nil {
 		if err := manifest.ValidateValue(*spec.Args, args); err != nil {
-			return nil, &pool.WireError{Kind: pool.ErrKindValidation, Code: ErrorPrefix + CodeInvalidArgs, Message: err.Error()}
+			return nil, &pool.WireError{Kind: pool.ErrKindValidation, Code: ErrorPrefix + CodeInvalidArgs, Message: nulFree(err.Error())}
 		}
 	}
 	outcome, out, err := a.Run(ctx, subject, args)
@@ -195,7 +195,7 @@ func Run(ctx context.Context, a Action, subject spi.Subject, args json.RawMessag
 			// A refusal of the action itself (the service's own check): a domain failure the graph handles.
 			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + CodeForbidden, Message: "the run-as may not " + key}
 		case errors.Is(err, ErrInvalidArgs):
-			return nil, &pool.WireError{Kind: pool.ErrKindValidation, Code: ErrorPrefix + CodeInvalidArgs, Message: err.Error()}
+			return nil, &pool.WireError{Kind: pool.ErrKindValidation, Code: ErrorPrefix + CodeInvalidArgs, Message: nulFree(err.Error())}
 		case errors.As(err, &ae) && slices.Contains(spec.Errors, ae.Code):
 			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + ae.Code, Message: nulFree(ae.Message)}
 		case errors.As(err, &ae):
@@ -213,7 +213,7 @@ func Run(ctx context.Context, a Action, subject spi.Subject, args json.RawMessag
 	}
 	if len(out) > 0 && string(out) != "null" && spec.Output != nil {
 		if err := manifest.ValidateValue(*spec.Output, out); err != nil {
-			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + CodeInvalidOutput, Message: err.Error()}
+			return nil, &pool.WireError{Kind: pool.ErrKindDomain, Code: ErrorPrefix + CodeInvalidOutput, Message: nulFree(err.Error())}
 		}
 	}
 	// The host and the workflow record the output in jsonb, which refuses U+0000: a NUL byte of the
@@ -226,4 +226,4 @@ func Run(ctx context.Context, a Action, subject spi.Subject, args json.RawMessag
 }
 
 // nulFree is text without U+0000, which the records of the host refuse.
-func nulFree(s string) string { return strings.ReplaceAll(s, "\x00", "\uFFFD") }
+func nulFree(s string) string { return catalog.TextWithoutNUL(s) }

@@ -1048,7 +1048,9 @@ export function Canvas(props: CanvasProps): JSX.Element {
               </Show>
               <Show when={!item()?.error && item()?.warning}><span class="ae-badge ae-badge--warning" title={item()?.warning}>!</span></Show>
             </div>
-            <div class="ae-card__sub" title={name().subtitle}>{name().subtitle}</div>
+            <Show when={props.overlay?.notes?.get(id)} fallback={<div class="ae-card__sub" title={name().subtitle}>{name().subtitle}</div>}>
+              {(note) => <div class="ae-card__sub ae-card__note" title={note()}>{note()}</div>}
+            </Show>
           </div>
         }>
           {(render) => <div class="ae-card__body">{render()(item)}</div>}
@@ -1199,7 +1201,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
             <Icon name="broom" />
           </button>
         </Show>
-        <button type="button" class="ae-iconbtn ae-iconbtn--text" aria-label={t().canvas.zoomReset} title={t().canvas.zoomReset} onClick={() => api.zoomReset()}>
+        <button type="button" class="ae-iconbtn ae-iconbtn--text" aria-label={`${Math.round(viewport().zoom * 100)}% · ${t().canvas.zoomReset}`} title={t().canvas.zoomReset} onClick={() => api.zoomReset()}>
           {Math.round(viewport().zoom * 100)}%
         </button>
       </div>

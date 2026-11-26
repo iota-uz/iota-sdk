@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  MSG, changedCredentials, oauthErrorText, reasonText, errorCode, groupByCategory, missingRequired, newCredentials, saveErrorText, schemaFields, slugify,
+  MSG, availablePresets, connectionPreset, knownPresets, presetOptions, changedCredentials, oauthErrorText, reasonText, errorCode, groupByCategory, missingRequired, newCredentials, saveErrorText, schemaFields, slugify, warningText,
   translator, usageHref, usedByText, type ConnectorView,
+  MASKED_VALUE, SECRET_NAME_RE, secretFieldErrorText, secretFormErrors, secretMeta, rebaseSecretDraft, secretName, secretSaveErrorText, sortSecrets, type SecretView,
 } from './model'
 
 const messages: Record<string, string> = {
@@ -93,5 +94,103 @@ describe('model', () => {
   it('links a use to the graph and its node', () => {
     expect(usageHref('/automations/', { automation_id: 'a1', name: 'n', version: 2, enabled: true, node_ids: ['send'] })).toBe('/automations/a1?node=send')
     expect(usageHref('/automations', { automation_id: 'a1', name: 'n', version: 2, enabled: true, node_ids: [] })).toBe('/automations/a1')
+  })
+})
+
+describe('warningText', () => {
+  it('shows the phrase of the code, whatever bot the confirmation is bound to', () => {
+    const t = (key: string) => key
+    expect(warningText(t, 'foreign_webhook')).toBe('Form.Warnings.foreign_webhook')
+    expect(warningText(t, 'polling_unknown@222222')).toBe('Form.Warnings.polling_unknown')
+  })
+})
+
+describe('sign-in presets of a connector with a form', () => {
+  const connector = {
+    kind: 'imap', oauth_presets: ['gmail'],
+    credential_schema: { type: 'object', properties: { preset: { type: 'string', enum: ['custom', 'gmail', 'm365'], 'x-oauth-client': { gmail: 'google_oauth', m365: 'microsoft_oauth' } } } },
+  } as unknown as ConnectorView
+
+  it('knows the providers, and offers only those the application has', () => {
+    expect(knownPresets(connector)).toEqual(['gmail', 'm365'])
+    expect(availablePresets(connector)).toEqual(['gmail'])
+    expect(presetOptions(connector, ['custom', 'gmail', 'm365'])).toEqual(['custom', 'gmail'])
+    expect(presetOptions({ ...connector, oauth_presets: [] } as ConnectorView, ['custom', 'gmail', 'm365'])).toEqual(['custom'])
+  })
+
+  it('tells a sign-in connection by its preset, even when its provider is not offered now', () => {
+    expect(connectionPreset(connector, { fields: { preset: 'm365' } })).toBe('m365')
+    expect(connectionPreset(connector, { fields: { preset: 'custom' } })).toBeUndefined()
+    expect(connectionPreset(connector, { fields: {} })).toBeUndefined()
+    expect(connectionPreset({ kind: 'x', credential_schema: {} } as unknown as ConnectorView, { fields: { preset: 'gmail' } })).toBeUndefined()
+  })
+})
+
+describe('secrets', () => {
+  const st = translator((k) => ({
+    [MSG + 'Form.Required']: 'Fill in this field.',
+    [MSG + 'Form.Invalid']: 'Check this value.',
+    [MSG + 'Secrets.Form.NameFormat']: 'Use API_KEY.',
+    [MSG + 'Secrets.Form.NameTaken']: 'Taken.',
+    [MSG + 'Secrets.Form.VersionConflict']: 'Changed meanwhile.',
+    [MSG + 'Secrets.Form.Unavailable']: 'Store unavailable.',
+    [MSG + 'Secrets.Form.Failed']: 'Could not save.',
+    [MSG + 'Secrets.Created']: 'Created {date}',
+    [MSG + 'Secrets.Rotated']: 'Rotated {date}',
+    [MSG + 'Secrets.LastUsed']: 'Last used {date}',
+    [MSG + 'Secrets.NeverUsed']: 'Not used yet',
+  } as Record<string, string>)[k] ?? k)
+  const secret = (extra: Partial<SecretView> = {}): SecretView => ({
+    id: 's1', name: 'API_KEY', description: '', version: 1, created_at: '2026-11-02T10:00:00Z', updated_at: '2026-11-02T10:00:00Z',
+    rotated_at: '2026-11-02T10:00:00Z', last_used_at: null, ...extra,
+  })
+
+  it('accepts names as the store keeps them', () => {
+    for (const ok of ['API_KEY', 'A', 'X1_2']) expect(SECRET_NAME_RE.test(ok), ok).toBe(true)
+    for (const bad of ['api_key', '1KEY', '_KEY', 'KEY-1', 'A'.repeat(65)]) expect(SECRET_NAME_RE.test(bad), bad).toBe(false)
+    expect(secretName('api key')).toBe('API_KEY')
+    expect(secretName('crm-token')).toBe('CRM_TOKEN')
+  })
+
+  it('refuses an empty value and a bad name before a request, per mode', () => {
+    expect(secretFormErrors('create', '', '')).toEqual({ name: 'required', value: 'required' })
+    expect(secretFormErrors('create', 'api', 'x')).toEqual({ name: 'secret_name' })
+    expect(secretFormErrors('edit', 'API_KEY', '')).toEqual({})
+    expect(secretFormErrors('rotate', '', '')).toEqual({ value: 'required' })
+    expect(secretFieldErrorText(st, 'secret_name')).toBe('Use API_KEY.')
+    expect(secretFieldErrorText(st, 'taken')).toBe('Taken.')
+    expect(secretFieldErrorText(st, 'anything')).toBe('Check this value.')
+  })
+
+  it('explains a refused save without a raw code', () => {
+    expect(secretSaveErrorText(st, { ok: false, error: 'name_taken' })).toBe('Taken.')
+    expect(secretSaveErrorText(st, { ok: false, error: 'version_conflict' })).toBe('Changed meanwhile.')
+    expect(secretSaveErrorText(st, { ok: false, error: 'unavailable' })).toBe('Store unavailable.')
+    expect(secretSaveErrorText(st, { ok: false })).toBe('Could not save.')
+  })
+
+  it('tells the safe facts: created, rotated only when it was, last used', () => {
+    // Dates are shown in the viewer's time zone: the expected text is formatted the same way, not hardcoded.
+    const day = (iso: string) => new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(new Date(iso))
+    expect(secretMeta(st, secret(), 'en')).toEqual([`Created ${day('2026-11-02T10:00:00Z')}`, 'Not used yet'])
+    expect(secretMeta(st, secret({ rotated_at: '2026-11-10T08:00:00Z', last_used_at: '2026-11-20T09:00:00Z' }), 'en'))
+      .toEqual([`Created ${day('2026-11-02T10:00:00Z')}`, `Rotated ${day('2026-11-10T08:00:00Z')}`, `Last used ${day('2026-11-20T09:00:00Z')}`])
+    expect(day('2026-11-02T12:00:00Z')).toMatch(/^Nov [123], 2026$/)
+    expect(sortSecrets([secret({ name: 'B' }), secret({ name: 'A' })]).map((s) => s.name)).toEqual(['A', 'B'])
+    expect(MASKED_VALUE).not.toMatch(/[A-Za-z0-9]/)
+  })
+
+  it('after a version conflict, takes the latest value of a field the person did not change', () => {
+    const prev = { name: 'API_KEY', description: 'old' }
+    const latest = { name: 'CRM_KEY', description: 'theirs' }
+    // Only the description was edited: the name follows the latest version, so no rename is sent back.
+    expect(rebaseSecretDraft({ name: 'API_KEY', description: 'mine' }, prev, latest)).toEqual({ name: 'CRM_KEY', description: 'mine' })
+    // Only the name was edited: the description follows the latest version.
+    expect(rebaseSecretDraft({ name: 'NEW_KEY', description: 'old' }, prev, latest)).toEqual({ name: 'NEW_KEY', description: 'theirs' })
+    // Nothing edited: the form shows the latest version; both edited: both stay.
+    expect(rebaseSecretDraft(prev, prev, latest)).toEqual(latest)
+    expect(rebaseSecretDraft({ name: 'X', description: 'y' }, prev, latest)).toEqual({ name: 'X', description: 'y' })
+    // Whitespace the save would trim away is no change.
+    expect(rebaseSecretDraft({ name: 'API_KEY', description: 'old  ' }, prev, latest)).toEqual(latest)
   })
 })

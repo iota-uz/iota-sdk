@@ -168,11 +168,11 @@ func ResolveConnection(connected map[ConnectorKind][]ConnectionRef, kinds []Conn
 func ConnectionRule(v View) func(graph.Graph) []graph.GraphError {
 	return func(g graph.Graph) []graph.GraphError {
 		var out []graph.GraphError
-		check := func(path string, kinds []ConnectorKind, params map[string]any) {
+		checkIn := func(path string, connections map[ConnectorKind][]ConnectionRef, kinds []ConnectorKind, params map[string]any) {
 			if len(kinds) == 0 {
 				return
 			}
-			_, _, err := ResolveConnection(v.Connections, kinds, params[ConnectionParam])
+			_, _, err := ResolveConnection(connections, kinds, params[ConnectionParam])
 			switch {
 			case errors.Is(err, ErrConnectionRequired):
 				out = append(out, graph.GraphError{Path: path + ".params." + ConnectionParam, Code: CodeConnectionRequired,
@@ -183,20 +183,28 @@ func ConnectionRule(v View) func(graph.Graph) []graph.GraphError {
 			}
 		}
 		for i, t := range g.Triggers {
-			if v.Unavailable[t.Event] == ReasonConnectionUnavailable {
+			if v.UnavailableEvents[t.Event] == ReasonConnectionUnavailable {
 				out = append(out, graph.GraphError{Path: fmt.Sprintf("triggers[%d].event", i), Code: CodeConnectionUnavailable,
 					Message: fmt.Sprintf("%s needs a connection the tenant does not have", t.Event)})
 				continue
 			}
-			check(fmt.Sprintf("triggers[%d]", i), v.EventRequires[t.Event], t.Params)
+			connections := v.Connections
+			if v.TenantOnlyEvents[t.Event] {
+				connections = ownRefs(connections)
+			}
+			checkIn(fmt.Sprintf("triggers[%d]", i), connections, v.EventRequires[t.Event], t.Params)
 		}
 		for i, n := range g.Nodes {
-			if v.Unavailable[n.Type] == ReasonConnectionUnavailable {
+			if v.UnavailableNodes[n.Type] == ReasonConnectionUnavailable {
 				out = append(out, graph.GraphError{Path: fmt.Sprintf("nodes[%d].type", i), Code: CodeConnectionUnavailable,
 					Message: fmt.Sprintf("%s needs a connection the tenant does not have", n.Type)})
 				continue
 			}
-			check(fmt.Sprintf("nodes[%d]", i), v.NodeRequires[n.Type], n.Params)
+			connections := v.Connections
+			if v.TenantOnlyNodes[n.Type] {
+				connections = ownRefs(connections)
+			}
+			checkIn(fmt.Sprintf("nodes[%d]", i), connections, v.NodeRequires[n.Type], n.Params)
 		}
 		return out
 	}

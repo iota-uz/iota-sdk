@@ -46,6 +46,9 @@ type Context struct {
 	// Subject is `subject`: {entity, key, url}; Run is `run`: {id, url}. Nil: empty strings.
 	Subject map[string]any
 	Run     map[string]any
+	// State is `state`, the automation's memory: its keys are read one at a time by the expressions of a
+	// step. Nil: no key is there.
+	State expr.Lookup
 }
 
 // ForeachItem is what the body of a foreach reads as foreach.<id>.
@@ -143,6 +146,9 @@ type Effect struct {
 	// Context is the step's expression context as JSON (event, nodes, subject, run, the subject's
 	// variables, tenant, now) for a node type that declares StepContext; nil otherwise.
 	Context map[string]any `json:"context,omitempty"`
+	// Templated are the Mixed params (NodeSpec.Mixed) rendered as {{ }} templates, by ParamPath.String;
+	// every other Mixed param was evaluated as CEL. A node reads a rendered text apart from a CEL string.
+	Templated []string `json:"templated,omitempty"`
 }
 
 // WaitIntent is what a wait sleeps on: an event kind (empty: only the timeout), a filter, a timeout.
@@ -344,6 +350,9 @@ func (s *StepContext) Effect(node Node, spec NodeSpec) (Effect, *Step) {
 		rendered = setKeys(rendered, path, j)
 	}
 	e := Effect{Node: node.Type, Params: rendered}
+	for _, p := range mixedTemplates(params, spec) {
+		e.Templated = append(e.Templated, p.String())
+	}
 	if spec.StepContext {
 		c, err := jsonOut(vars)
 		if err != nil {
@@ -402,8 +411,13 @@ func varsOf(ctx Context) map[string]any {
 	// subject and run are the run's own unless the subject's context declares a variable of that name.
 	vars["subject"] = infoOf(ctx.Subject, "entity", "key", "url")
 	vars["run"] = infoOf(ctx.Run, "id", "url")
+	if ctx.State != nil {
+		vars[StateVar] = ctx.State
+	} else {
+		vars[StateVar] = map[string]any{}
+	}
 	for k, v := range ctx.Vars {
-		vars[k] = v
+		vars[k] = v // a subject's variable named state wins
 	}
 	if ctx.Event != nil {
 		vars["event"] = ctx.Event

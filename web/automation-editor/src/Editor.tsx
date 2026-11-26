@@ -31,7 +31,7 @@ import { isMac } from './locale'
 import { Outline } from './Outline'
 import type { PaletteChoice, PaletteMode } from './Palette'
 import { keyLabel, strings } from './strings'
-import type { AutomationGraph, AutomationLayout, CanvasApi, CanvasMenu, EditorProps, GraphError, XY } from './types'
+import type { AutomationGraph, AutomationLayout, CanvasApi, CanvasMenu, EditorProps, GraphError, Overlay, RunData, XY } from './types'
 import { localErrors } from './validation'
 import { rebaseErrors, type ValidationState } from './validation'
 import { isEditableTarget } from './xy/dom'
@@ -47,6 +47,11 @@ const ContextMenu = lazy(() => loadMenu().then((m) => ({ default: m.ContextMenu 
 const SettingsDialog = lazy(() => import('./SettingsDialog').then((m) => ({ default: m.SettingsDialog })))
 const ValidationPanel = lazy(() => import('./ValidationPanel').then((m) => ({ default: m.ValidationPanel })))
 const KeyMap = lazy(() => import('./KeyMap').then((m) => ({ default: m.KeyMap })))
+// The runs view and the Dry run / Test node panels (#1347) are their own chunk, loaded on first use.
+const loadRuns = () => import('./runs')
+const RunsTab = lazy(() => loadRuns().then((m) => ({ default: m.RunsTab })))
+const DryRunPanel = lazy(() => loadRuns().then((m) => ({ default: m.DryRunPanel })))
+const TestPanel = lazy(() => loadRuns().then((m) => ({ default: m.TestPanel })))
 
 export const VALIDATE_DEBOUNCE_MS = 800
 export const LAYOUT_DEBOUNCE_MS = 500
@@ -75,6 +80,20 @@ function EditorBody(props: EditorProps): JSX.Element {
   const toast = useToast()
   const mac = isMac()
   const readOnly = () => Boolean(props.readOnly)
+  // Rights come from the host; without them an editable graph's author may dry run and test.
+  const canAuthor = () => props.can?.author ?? !readOnly()
+  const canOperate = () => props.can?.operate ?? false
+  const runsAvailable = () => Boolean(props.api.runs && props.api.run && props.automationId)
+  const [ownTab, setOwnTab] = createSignal<'edit' | 'runs'>('edit')
+  const tab = () => props.tab ?? ownTab()
+  const changeTab = (next: 'edit' | 'runs') => {
+    if (props.onTab) props.onTab(next)
+    else setOwnTab(next)
+  }
+  // Runs read in this editor and the graphs of other versions: they outlive a tab switch, so a finished
+  // run is not asked for again and its poll does not resume.
+  const runCache = new Map<string, RunData>()
+  const versionCache = new Map<number, Promise<{ graph: AutomationGraph; layout: AutomationLayout }>>()
 
   // ——— draft & history ———
   const initial: Snapshot = { graph: props.graph, layout: ensureLayout(props.graph, props.catalog, props.layout) }
@@ -133,6 +152,9 @@ function EditorBody(props: EditorProps): JSX.Element {
   const [online, setOnline] = createSignal(true)
   const [areaSize, setAreaSize] = createSignal({ width: 0, height: 0 })
   const [versionsMenu, setVersionsMenu] = createSignal<XY | null>(null)
+  // The docked Dry run or Test node panel, and the overlay of its result on the draft.
+  const [dock, setDock] = createSignal<{ kind: 'dry' } | { kind: 'test'; node: string } | null>(null)
+  const [localOverlay, setLocalOverlay] = createSignal<{ overlay: Overlay; graph: AutomationGraph } | null>(null)
   let canvasApi: CanvasApi | null = null
   let area: HTMLDivElement | undefined
   let root: HTMLDivElement | undefined
@@ -142,7 +164,11 @@ function EditorBody(props: EditorProps): JSX.Element {
   createEffect(on(draft, (graph) => {
     const id = selected()
     if (id && !findItem(graph, id)) setSelected(null)
+    const d = dock()
+    if (d?.kind === 'test' && !findItem(graph, d.node)) setDock(null)
   }))
+  // A result belongs to the draft it ran on: an edit takes its overlay off the canvas.
+  const overlay = () => props.overlay ?? (localOverlay()?.graph === draft() ? localOverlay()!.overlay : null)
 
   // Crossing to the phone width closes every editing layer; the outline is read-only (T7).
   createEffect(on(mobile, (phone) => {
@@ -581,7 +607,7 @@ function EditorBody(props: EditorProps): JSX.Element {
   const layerOpen = () => palette() !== null || menu() !== null || versionsMenu() !== null || settingsOpen() || keymapOpen() || confirmReload()
 
   const onKeyDown = (event: KeyboardEvent) => {
-    if (!inEditor(event.target) || mobile() || props.tab === 'runs') return
+    if (!inEditor(event.target) || mobile() || tab() === 'runs') return
     const target = event.target as HTMLElement | null
     if (target?.closest?.('dialog[open]')) return
     const mod = mac ? event.metaKey : event.ctrlKey
@@ -730,10 +756,10 @@ function EditorBody(props: EditorProps): JSX.Element {
           <span class="ae-tag ae-tag--dirty" title={t().toolbar.unsaved}><Icon name="dot" size={12} /><span class="ae-sr">{t().toolbar.unsaved}</span></span>
         </Show>
       </div>
-      <Show when={props.onTab}>
+      <Show when={props.onTab || runsAvailable()}>
         <div class="ae-toolbar__tabs" role="tablist" aria-label={t().toolbar.label}>
-          <button type="button" role="tab" class="ae-tab" aria-selected={(props.tab ?? 'edit') === 'edit'} onClick={() => props.onTab?.('edit')}>{t().toolbar.edit}</button>
-          <button type="button" role="tab" class="ae-tab" aria-selected={props.tab === 'runs'} onClick={() => props.onTab?.('runs')}>
+          <button type="button" role="tab" class="ae-tab" aria-selected={tab() === 'edit'} onClick={() => changeTab('edit')} data-testid="tab-edit">{t().toolbar.edit}</button>
+          <button type="button" role="tab" class="ae-tab" aria-selected={tab() === 'runs'} onClick={() => changeTab('runs')} data-testid="tab-runs">
             {t().toolbar.runs}
             <Show when={props.runsCount !== undefined}><span class="ae-count">{props.runsCount}</span></Show>
           </button>
@@ -741,6 +767,7 @@ function EditorBody(props: EditorProps): JSX.Element {
       </Show>
       <div class="ae-toolbar__actions">
         <Show when={!mobile()}>
+          <Show when={tab() === 'edit'}>
           <button type="button" class="ae-btn ae-btn--ghost" onClick={() => { setValidationOpen(true); void validate() }} aria-keyshortcuts={mac ? 'Meta+Enter' : 'Control+Enter'}>
             <Show when={validation().status === 'checking'} fallback={<Icon name={allErrors().length > 0 ? 'error' : 'check'} />}><span class="ae-spinner" aria-hidden="true" /></Show>
             <span>{validation().status === 'checking' ? t().toolbar.validating : t().toolbar.validate}</span>
@@ -755,6 +782,12 @@ function EditorBody(props: EditorProps): JSX.Element {
           </Show>
           <button type="button" class="ae-iconbtn" aria-label={t().toolbar.settings} title={t().toolbar.settings} onClick={() => setSettingsOpen(true)}><Icon name="settings" /></button>
           <button type="button" class="ae-iconbtn" aria-label={t().toolbar.keys} title={t().toolbar.keys} onClick={() => setKeymapOpen(true)}><Icon name="keys" /></button>
+          <Show when={canAuthor()}>
+            <button type="button" class="ae-btn ae-btn--ghost" aria-pressed={dock()?.kind === 'dry'} onClick={() => setDock((d) => (d?.kind === 'dry' ? null : { kind: 'dry' }))} data-testid="open-dry-run">
+              <Icon name="running" /><span>{t().toolbar.dryRun}</span>
+            </button>
+          </Show>
+          </Show>
           <Show when={props.versions && props.versions.length > 0 && props.onOpenVersion}>
             <button
               type="button"
@@ -831,17 +864,41 @@ function EditorBody(props: EditorProps): JSX.Element {
     <div ref={root} class="ae-editor" classList={{ 'ae-editor--mobile': mobile(), 'ae-editor--coarse': coarse() }} lang={props.locale}>
       {toolbar()}
       {banners()}
-      <Show when={mobile()}>
+      <Show when={mobile() && !(tab() === 'runs' && !props.runsBody && runsAvailable())}>
         <div class="ae-mobile">
           <p class="ae-mobile__note" role="note">{t().states.mobile}</p>
-          <Outline graph={draft()} catalog={props.catalog} overlay={props.overlay} locale={props.locale} />
+          <Outline graph={draft()} catalog={props.catalog} overlay={overlay()} locale={props.locale} />
         </div>
       </Show>
-      <Show when={props.tab === 'runs' && !mobile()}>
+      <Show when={tab() === 'runs' && props.runsBody && !mobile()}>
         <div class="ae-runs">{props.runsBody}</div>
       </Show>
+      <Show when={tab() === 'runs' && !props.runsBody && runsAvailable()}>
+        <div class="ae-runs">
+          <Suspense fallback={<div class="ae-runs-tab" role="status" aria-busy="true" aria-label={t().states.loading} />}>
+            <RunsTab
+              api={props.api}
+              catalog={props.catalog}
+              locale={props.locale}
+              automationId={props.automationId!}
+              version={base()}
+              graph={saved()}
+              layout={layout()}
+              {...(props.runsView ? { view: props.runsView } : {})}
+              {...(props.onRunsView ? { onView: props.onRunsView } : {})}
+              operate={canOperate()}
+              {...(props.onOpenVersion ? { onOpenVersion: props.onOpenVersion } : {})}
+              {...(props.subjectHref ? { subjectHref: props.subjectHref } : {})}
+              {...(props.onStartRun ? { onStart: props.onStartRun } : {})}
+              mobile={mobile()}
+              cache={runCache}
+              versions={versionCache}
+            />
+          </Suspense>
+        </div>
+      </Show>
       <Show when={!mobile()}>
-        <div class="ae-work" classList={{ 'ae-work--hidden': props.tab === 'runs' }}>
+        <div class="ae-work" classList={{ 'ae-work--hidden': tab() === 'runs' }}>
           <div class="ae-main">
             <div ref={area} class="ae-area">
               <Canvas
@@ -850,7 +907,7 @@ function EditorBody(props: EditorProps): JSX.Element {
                 layout={layout()}
                 errors={errorsShown()}
                 warnings={checked().warnings}
-                overlay={props.overlay}
+                overlay={overlay()}
                 selected={selected()}
                 onSelect={(id) => {
                   setSelected(id)
@@ -915,6 +972,36 @@ function EditorBody(props: EditorProps): JSX.Element {
               />
               </Suspense>
             </Show>
+            <Show when={dock()} keyed>
+              {(dockValue) => { const d = () => dockValue; return (
+                <Suspense fallback={<div class="ae-dock ae-panel--loading" role="status" aria-busy="true" aria-label={t().states.loading} />}>
+                  <Show when={d().kind === 'dry'} fallback={
+                    <TestPanel
+                      graph={draft()}
+                      catalog={props.catalog}
+                      api={props.api}
+                      locale={props.locale}
+                      node={(d() as { node: string }).node}
+                      {...(props.automationId ? { automationId: props.automationId } : {})}
+                      cache={runCache}
+                      {...(props.connectionName ? { connectionName: props.connectionName } : {})}
+                      onOverlay={(o) => setLocalOverlay(o ? { overlay: o, graph: draft() } : null)}
+                      onClose={() => setDock(null)}
+                    />
+                  }>
+                    <DryRunPanel
+                      graph={draft()}
+                      catalog={props.catalog}
+                      api={props.api}
+                      locale={props.locale}
+                      onOverlay={(o) => setLocalOverlay(o ? { overlay: o, graph: draft() } : null)}
+                      onPick={(id) => { setSelected(id); canvasApi?.focus(id) }}
+                      onClose={() => setDock(null)}
+                    />
+                  </Show>
+                </Suspense>
+              ) }}
+            </Show>
             {props.panels}
           </div>
           <Show when={selected()}>
@@ -939,6 +1026,7 @@ function EditorBody(props: EditorProps): JSX.Element {
                   locale={props.locale}
                   readOnly={readOnly()}
                   fieldSlot={props.fieldSlot}
+                  searchOptions={props.api.searchOptions?.bind(props.api)}
                   errors={allErrors()}
                   focusField={focusField()}
                   onChange={(graph, key) => commitGraph(graph, key)}
@@ -949,6 +1037,13 @@ function EditorBody(props: EditorProps): JSX.Element {
                   }}
                 />
                 </Suspense>
+                <Show when={canAuthor() && draft().nodes.some((n) => n.id === id())}>
+                  <div class="ae-side__foot">
+                    <button type="button" class="ae-btn ae-btn--secondary" aria-pressed={dock()?.kind === 'test' && (dock() as { node: string }).node === id()} onClick={() => setDock({ kind: 'test', node: id() })} data-testid="open-test-node">
+                      <Icon name="manual" /><span>{t().toolbar.testNode}</span>
+                    </button>
+                  </div>
+                </Show>
               </div>
             )}
           </Show>
@@ -961,6 +1056,7 @@ function EditorBody(props: EditorProps): JSX.Element {
         graph={draft()}
         locale={props.locale}
         readOnly={editingBlocked()}
+        slot={props.settingsSlot}
         onChange={(patch, key) => commitGraph({ ...draft(), ...patch }, key)}
         onClose={() => setSettingsOpen(false)}
       />

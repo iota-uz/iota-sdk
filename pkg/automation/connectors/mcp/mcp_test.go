@@ -726,7 +726,7 @@ func TestToolsOfAServerReplacedMidRequestAreNotKept(t *testing.T) {
 	_, err := c.Tools(context.Background(), tenant, id)
 	require.Equal(t, catalog.CallUnavailable, callCode(err), "%v", err)
 	st.onGet = nil
-	_, ok := c.cache.get(cacheKey{tenant, id}, 2, time.Now())
+	ok := c.cache.has(cacheKey{tenant, id})
 	require.False(t, ok, "nothing is cached for the new settings")
 }
 
@@ -820,7 +820,7 @@ func TestToolsListedWithARotatedTokenAreNotKept(t *testing.T) {
 	c := New(WithStore(st), withFake(srv, nil))
 	_, err := c.Tools(context.Background(), tenant, id)
 	require.Equal(t, catalog.CallUnavailable, callCode(err), "%v", err)
-	_, ok := c.cache.get(cacheKey{tenant, id}, 2, time.Now())
+	ok := c.cache.has(cacheKey{tenant, id})
 	require.False(t, ok)
 }
 
