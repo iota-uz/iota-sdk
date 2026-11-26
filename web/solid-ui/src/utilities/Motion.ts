@@ -79,10 +79,20 @@ export function createFlash(): { flash(key: string): void; flashing(key: string)
   const [keys, setKeys] = createSignal<ReadonlyMap<string, number>>(new Map())
   const timers = new Map<string, ReturnType<typeof setTimeout>>()
   let serial = 0
+  const frame = (run: () => void) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => run()) : setTimeout(run, 0))
   const flash = (key: string) => {
     clearTimeout(timers.get(key))
     const mark = ++serial
-    setKeys((current) => new Map(current).set(key, mark))
+    const mount = () => setKeys((current) => new Map(current).set(key, mark))
+    // Flashed again while it shows: the class comes off for a rendered frame, so the animation starts over.
+    if (keys().has(key)) {
+      setKeys((current) => {
+        const next = new Map(current)
+        next.delete(key)
+        return next
+      })
+      frame(() => frame(mount))
+    } else mount()
     timers.set(key, setTimeout(() => {
       timers.delete(key)
       setKeys((current) => {

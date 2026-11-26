@@ -585,6 +585,48 @@ test.describe('motion', () => {
     await expect(palette).toHaveCount(0)
   })
 
+  test('a closing menu keeps its items through its exit', async ({ page }) => {
+    await open(page)
+    await page.locator('.ae-pane').click({ button: 'right', position: { x: 900, y: 700 } })
+    const menu = page.locator('.ae-menu')
+    await expect(menu.locator('.ae-menu__item').first()).toBeVisible()
+    const count = await menu.locator('.ae-menu__item').count()
+    await page.keyboard.press('Escape')
+    await expect(menu).toHaveClass(/ae-layer--leaving/)
+    expect(await menu.locator('.ae-menu__item').count()).toBe(count)
+    await expect(menu).toHaveCount(0)
+  })
+
+  test('Tidy fits where the cards land; a keyboard move during the glide is kept', async ({ page }) => {
+    await open(page, 'graph=multi')
+    const start = await center(card(page, 'a_check').locator('.ae-card__title'))
+    // Far away, so the old and the new layout differ a lot.
+    await drag(page, start, { x: start.x + 400, y: start.y + 300 })
+    await page.waitForTimeout(100)
+    const dragged = (await card(page, 'a_check').evaluate((el) => (el as HTMLElement).style.transform)).match(/translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/)!.slice(1).map(Number)
+    await page.locator('.ae-controls .ae-tidy').click()
+    await expect(page.locator('.ae-canvas--tidying')).toHaveCount(0)
+    const area = (await page.locator('.ae-canvas').boundingBox())!
+    for (const box of await page.locator('.iota-flow__node').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON() as DOMRect))) {
+      expect(box.x).toBeGreaterThanOrEqual(area.x - 1)
+      expect(box.y).toBeGreaterThanOrEqual(area.y - 1)
+      expect(box.x + box.width).toBeLessThanOrEqual(area.x + area.width + 1)
+      expect(box.y + box.height).toBeLessThanOrEqual(area.y + area.height + 1)
+    }
+    // A glide in flight lands at once when Alt+arrow moves a card: the move starts from where the undo
+    // lands and no later frame overwrites it.
+    const xy = (t: string) => t.match(/translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/)!.slice(1).map(Number)
+    await page.getByLabel('Undo').click()
+    await card(page, 'a_check').focus()
+    await page.keyboard.down('Alt')
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.up('Alt')
+    await expect(page.locator('.ae-canvas--tidying')).toHaveCount(0)
+    await page.waitForTimeout(500)
+    const [x, y] = xy(await card(page, 'a_check').evaluate((el) => (el as HTMLElement).style.transform))
+    expect([x, y]).toEqual([dragged[0], dragged[1]! + 16])
+  })
+
   test('the node panel slides out inert and focus goes back to the card', async ({ page }) => {
     await open(page)
     await card(page, 'send_email').click()

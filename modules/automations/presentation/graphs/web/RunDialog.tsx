@@ -19,7 +19,8 @@ function Choice(props: {
         value={props.value} options={props.options} onChange={(e) => props.onChange(e.currentTarget.value)} data-field={props.field} />
     }>
       <div class="flex flex-col gap-1">
-        <Combobox label={props.label} aria-label={props.ariaLabel} placeholder={props.placeholder} value={props.value} options={props.options} searchable
+        {/* The name goes on the input itself: a visible label, or a visually hidden one for an aria-label. */}
+        <Combobox label={props.label ?? (props.ariaLabel ? <span class="sr-only">{props.ariaLabel}</span> : undefined)} placeholder={props.placeholder} value={props.value} options={props.options} searchable
           onValueChange={(v) => props.onChange(Array.isArray(v) ? (v[0] ?? '') : String(v))} data-field={props.field} />
         <Show when={props.description}><p class="text-xs text-300">{props.description}</p></Show>
         <Show when={props.error}><p role="alert" class="text-sm text-danger">{props.error}</p></Show>

@@ -59,7 +59,8 @@ export function StatePanel(props: { id: string; canEdit: boolean }): JSX.Element
   let section: HTMLElement | undefined
   // The inline confirmation takes the focus on «Cancel» (U1); closing it gives the focus back to «Delete»
   // of the same key, so the keyboard never falls to the page's start (K3).
-  const ask = (key: string) => { setDeleteError(undefined); setConfirming(key) }
+  // No other confirmation opens while a delete or a save runs: its answer belongs to the row that asked.
+  const ask = (key: string) => { if (busy()) return; setDeleteError(undefined); setConfirming(key) }
   const dismiss = () => {
     const key = confirming()
     setConfirming(undefined)

@@ -50,14 +50,15 @@ export function NodeDrawer(props: NodeDrawerProps): JSX.Element {
     return parts.join(' · ') || shortTime(s.started_at, props.locale)
   }
   const icon = () => name().icon ?? (findItem(props.graph, props.node)?.kind === 'trigger' ? 'event' : catalogNode(props.catalog, (findItem(props.graph, props.node)?.item as { type?: string } | undefined)?.type ?? '')?.behavior ?? 'node')
-  const titleId = `ae-run-node-${props.node}`
+  // Follows the node shown: a drawer kept through its exit and reopened on another node labels that one.
+  const titleId = () => `ae-run-node-${props.node}`
 
   return (
-    <section class="ae-panel ae-run-node" classList={{ 'ae-run-node--sheet': props.sheet }} aria-labelledby={titleId} data-testid="run-node">
+    <section class="ae-panel ae-run-node" classList={{ 'ae-run-node--sheet': props.sheet }} aria-labelledby={titleId()} data-testid="run-node">
       <header class="ae-panel__head">
         <span class="ae-panel__icon"><Icon name={icon()} /></span>
         <div class="ae-panel__titles">
-          <h2 class="ae-panel__title" id={titleId} title={name().title} tabindex="-1">{name().title}</h2>
+          <h2 class="ae-panel__title" id={titleId()} title={name().title} tabindex="-1">{name().title}</h2>
           <Show when={name().subtitle}><p class="ae-panel__sub">{name().subtitle}</p></Show>
         </div>
         <Show when={props.state}>

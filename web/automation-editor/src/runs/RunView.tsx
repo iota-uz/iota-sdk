@@ -224,8 +224,12 @@ export function RunView(props: RunViewProps): JSX.Element {
   }
   createEffect(on(() => props.node, (node, previous) => {
     if (!props.mobile || !node) return
-    if (!previous) opener = document.activeElement instanceof HTMLElement && !sheet?.contains(document.activeElement) ? document.activeElement : null
-    else queueMicrotask(focusTitle)
+    if (!previous) {
+      opener = document.activeElement instanceof HTMLElement && !sheet?.contains(document.activeElement) ? document.activeElement : null
+      // A sheet kept through its exit is not mounted again: reopening it takes the focus here (after the
+      // close's own focus return has run).
+      if (sheet?.isConnected) queueMicrotask(() => queueMicrotask(focusTitle))
+    } else queueMicrotask(focusTitle)
   }))
   const trapFocus = (event: KeyboardEvent) => {
     if (!props.mobile || event.key !== 'Tab' || !sheet) return

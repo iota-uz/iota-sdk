@@ -156,8 +156,10 @@ export function Combobox(props: ComboboxProps) {
       const option = visibleOptions()[activeIndex()]
       if (option) select(option)
       else if (local.canCreateNew && query().trim()) local.onCreate?.(query().trim())
-    } else if (event.key === 'Escape') {
+    } else if (event.key === 'Escape' && open()) {
+      // Only the list closes: the dialog or drawer around it keeps the Escape for when the list is closed.
       event.preventDefault()
+      event.stopPropagation()
       setOpen(false)
     }
   }
@@ -239,7 +241,7 @@ export function Combobox(props: ComboboxProps) {
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(item) }
                   else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); move(event.key === 'ArrowDown' ? 1 : -1) }
-                  else if (event.key === 'Escape') { setOpen(false); input.focus() }
+                  else if (event.key === 'Escape') { event.stopPropagation(); setOpen(false); input.focus() }
                 }}
               >
                 <span class="inline-flex min-w-0 items-baseline gap-1.5"><span class="whitespace-nowrap">{item.label}</span><Show when={item.count !== undefined}><span class="text-xs text-200 whitespace-nowrap">({item.count!.toLocaleString()})</span></Show></span>

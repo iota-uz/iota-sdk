@@ -737,7 +737,7 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
     queueMicrotask(() => {
       const first = Object.keys(errs)[0]
       const el = first ? formRef?.querySelector<HTMLElement>(`[data-field="${CSS.escape(first)}"]`) : undefined
-      el?.focus()
+      focusField(el)
     })
   }
 
@@ -805,6 +805,13 @@ function ConnectionForm(props: { ctx: Ctx; state: FormState; onClose: () => void
       </form>
     </ViewDrawer>
   )
+}
+
+/** Focuses a field by its data-field element: a Combobox carries it on its wrapper, so its input takes the focus. */
+function focusField(el: HTMLElement | null | undefined) {
+  if (!el) return
+  const inner = el.matches('input, select, textarea, button') ? el : el.querySelector<HTMLElement>('[role="combobox"], input, select, textarea')
+  ;(inner ?? el).focus()
 }
 
 /** The preset choice of a connector with a form and a sign-in: the form, and the providers that can be signed in with. */
@@ -1138,7 +1145,7 @@ function SecretForm(props: { ctx: Ctx; state: SecretFormState; onClose: () => vo
   let formRef: HTMLFormElement | undefined
   const focusFirstError = (errs: Record<string, string>) => queueMicrotask(() => {
     const first = Object.keys(errs)[0]
-    if (first) formRef?.querySelector<HTMLElement>(`[data-field="${CSS.escape(first)}"]`)?.focus()
+    if (first) focusField(formRef?.querySelector<HTMLElement>(`[data-field="${CSS.escape(first)}"]`))
   })
   const submit = async (event: Event) => {
     event.preventDefault()

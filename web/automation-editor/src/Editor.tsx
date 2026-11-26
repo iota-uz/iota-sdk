@@ -565,8 +565,9 @@ function EditorBody(props: EditorProps): JSX.Element {
   }
 
   // ——— menus ———
+  // From the menu as shown: a closing menu keeps its items through its exit animation.
   const menuItems = createMemo<MenuItem[]>(() => {
-    const m = menu()
+    const m = menuLayer.value()
     if (!m) return []
     const items: MenuItem[] = []
     const editable = !readOnly()

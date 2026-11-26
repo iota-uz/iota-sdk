@@ -208,6 +208,14 @@ export function Canvas(props: CanvasProps): JSX.Element {
     tweenFrame = requestAnimationFrame(frame)
   }
   onCleanup(() => cancelAnimationFrame(tweenFrame))
+  // A drag or a keyboard move takes the positions over: a glide in flight lands at once, so its next frame
+  // cannot overwrite the move.
+  const stopTween = () => {
+    if (!untrack(tidying)) return
+    cancelAnimationFrame(tweenFrame)
+    setTidying(false)
+    setPositions(reconcile(structuredClone(untrack(() => shown()))))
+  }
 
   const errorMap = createMemo(() => errorsByItem(props.graph, props.errors))
   const lost = createMemo(() => connectionLost(props.graph, props.errors))
@@ -531,13 +539,15 @@ export function Canvas(props: CanvasProps): JSX.Element {
     }
   }
 
-  const bounds = (only?: string[]) => {
+  // `settledOnly` reads the committed layout: Fit right after Tidy frames where the cards land, not where
+  // the glide starts.
+  const bounds = (only?: string[], settledOnly = false) => {
     const geometries = geometryMap()
     const list = only ?? ids()
     if (list.length === 0) return null
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
     for (const id of list) {
-      const p = positions[id]
+      const p = settledOnly ? committed[id] ?? positions[id] : positions[id]
       const g = geometries.get(id)
       if (!p || !g) continue
       minX = Math.min(minX, p.x)
@@ -549,7 +559,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
   }
 
   const fit = () => {
-    const b = bounds()
+    const b = bounds(undefined, true)
     const { width, height } = size()
     if (!b || !panZoom || width === 0) return
     panZoom.set(viewportForBounds(b, width, height, 0.12), 0)
@@ -700,6 +710,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
   const onPointerDown = (event: PointerEvent) => {
     activePointers.add(event.pointerId)
     downAt = { x: event.clientX, y: event.clientY }
+    stopTween()
     syncLookup()
     if (activePointers.size > 1) {
       cancelLongPress()
@@ -845,6 +856,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
     const key = event.key
     if (key.startsWith('Arrow') && event.altKey && movable()) {
       event.preventDefault()
+      stopTween()
       const delta = { ArrowLeft: { x: -GRID, y: 0 }, ArrowRight: { x: GRID, y: 0 }, ArrowUp: { x: 0, y: -GRID }, ArrowDown: { x: 0, y: GRID } }[key]!
       const moving = selection().includes(id) ? selection() : [id]
       keyMove = new Set([...(keyMove ?? []), ...moving])
