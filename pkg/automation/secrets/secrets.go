@@ -118,6 +118,19 @@ type FormerRoots interface {
 	FormerRoots(tenantID uuid.UUID) []Ref
 }
 
+// Configurable is an optional interface of a Writer (and of the Manager over it) that can be built without
+// what it needs to write: the sealed adapter without its keyring answers ErrUnavailable to every call.
+// Configured false tells the page to offer no write; a Writer without it is taken as configured.
+type Configurable interface {
+	Configured() bool
+}
+
+// IsConfigured reports whether v can write: false only when v implements Configurable and says so.
+func IsConfigured(v any) bool {
+	c, ok := v.(Configurable)
+	return !ok || c.Configured()
+}
+
 // DefaultLocator is "<prefix>tenants/<tenant>/automation/secrets/<secret>"; prefix is the environment
 // ("prod/"), may be empty.
 func DefaultLocator(prefix string) Locator { return defaultLocator{prefix: prefix} }

@@ -37,6 +37,8 @@ const fake: FakeOptions = {
   // An author (manage=0) holds no Secrets.Manage either unless the query says so.
   secrets: params.has('secrets') ? params.get('secrets') !== '0' : params.get('manage') !== '0',
   noSecrets: params.has('noSecrets'),
+  // No encryption key: the built-in secret store cannot write either.
+  secretsConfigured: !params.has('unconfigured'),
   secretConflictOnce: params.has('secretConflictOnce'),
   ...(params.has('presets') ? { presets: params.get('presets')!.split(',').filter(Boolean) } : {}),
   calls: [],

@@ -258,6 +258,7 @@
         "Category": "Sirlar",
         "Title": "Sir",
         "Kind": "Oʻrnatilgan",
+        "NotConfigured": "Sirlarni saqlab boʻlmaydi: ilovada shifrlash kaliti sozlanmagan. Ilova administratoridan uni sozlashni soʻrang.",
         "Summary": "Code va HTTP tugunlari nomi boʻyicha oʻqiydigan qiymatlar (masalan, API kalitlari). Saqlangan qiymat boshqa koʻrsatilmaydi.",
         "Empty": "Hozircha sirlar yoʻq. Sir qoʻshing va uni Code yoki HTTP tugunida nomi boʻyicha oʻqing.",
         "Add": "Sir qoʻshish",

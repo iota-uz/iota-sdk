@@ -143,6 +143,9 @@ type ListResponse struct {
 	// CanManageSecrets is whether the page shows the tenant's secrets: the application manages secrets
 	// and the caller holds Secrets.Manage.
 	CanManageSecrets bool `json:"can_manage_secrets"`
+	// SecretsConfigured is false when the secret store cannot write (the built-in store without an
+	// encryption key): the page offers no create or rotation.
+	SecretsConfigured bool `json:"secrets_configured"`
 }
 
 // IDRequest names a connection.

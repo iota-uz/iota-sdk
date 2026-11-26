@@ -258,6 +258,7 @@
         "Category": "Segredos",
         "Title": "Segredo",
         "Kind": "Integrado",
+        "NotConfigured": "Não é possível salvar segredos: o aplicativo não tem uma chave de criptografia configurada. Peça ao administrador do aplicativo para configurá-la.",
         "Summary": "Valores como chaves de API que os nós Code e HTTP leem pelo nome. Um valor salvo nunca é mostrado novamente.",
         "Empty": "Ainda não há segredos. Adicione um e leia-o em um nó Code ou HTTP pelo nome.",
         "Add": "Adicionar segredo",
