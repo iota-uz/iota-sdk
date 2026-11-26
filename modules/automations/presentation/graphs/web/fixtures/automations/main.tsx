@@ -30,6 +30,7 @@ const fake: FakeOptions = {
   scenario: (params.get('scenario') as FakeOptions['scenario']) ?? 'default',
   delay: Number(params.get('delay') ?? '0'),
   labelFails: params.get('labelFails') ?? undefined,
+  delayOnly: params.get('delayOnly') ?? undefined,
   changeOnce: params.has('changeOnce'),
   layoutConflict: params.has('layoutConflict'),
   conflictOnce: params.has('conflictOnce'),

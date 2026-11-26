@@ -160,6 +160,31 @@ test('BT3c: a failed save restores the label the examples read last, after anoth
   await expect.poll(async () => (await calls(page)).filter((c) => c.method === 'automations.example_label').map((c) => c.params.outcome)).toEqual(['refund', 'sales', 'support'])
 })
 
+test('BT3d: examples read while a save is pending keep the edit on screen; its failure restores the label they read', async ({ page }) => {
+  await page.goto(`/?${base}&dataset=${DS}&labelFails=support&delay=1500&delayOnly=automations.example_label`)
+  const rows = page.locator('[data-testid^="example-"]')
+  await expect(rows.nth(3)).toContainText('Do you have a discount for schools?')
+  const testid = (await rows.nth(3).getAttribute('data-testid'))!
+  const other = (await rows.nth(5).getAttribute('data-testid'))!.replace('example-', '')
+  const select = page.getByTestId(testid).getByTestId('label-intent')
+  await select.selectOption('support')
+  // While the save is on the way another user labels the example «refund» (and another one, which moves
+  // the count), and the examples are read again.
+  const reads = async () => (await calls(page)).filter((c) => c.method === 'automations.dataset_examples').length
+  const before = await reads()
+  await page.evaluate(([exampleId, otherId]) => {
+    const elsewhere = (window as unknown as { __elsewhere: (m: string, p: unknown) => unknown }).__elsewhere
+    elsewhere('automations.example_label', { example_id: exampleId, node: 'intent', outcome: 'refund' })
+    elsewhere('automations.example_label', { example_id: otherId, node: 'intent', outcome: 'sales' })
+    window.dispatchEvent(new Event('online'))
+  }, [testid.replace('example-', ''), other] as const)
+  await expect.poll(reads).toBeGreaterThan(before)
+  await expect(select).toHaveValue('support')
+  // The save fails: the rollback shows the label the examples read, not the one before the edit.
+  await expect.poll(() => select.inputValue(), { timeout: 5000 }).not.toBe('support')
+  expect(await select.inputValue()).toBe('refund')
+})
+
 test('BT4: the cases table filters by classifier and mismatches, in the URL; «Reset filters» clears only them', async ({ page }) => {
   await page.goto(`/?${base}&backtest=${V2}`)
   await expect(page.getByTestId('metrics-intent')).toContainText('Correct 60% (3 of 5)')

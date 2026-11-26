@@ -11,6 +11,8 @@ export interface FakeOptions {
   scenario: 'default' | 'empty' | 'loading' | 'error'
   /** Delay of every action (ms); lists answer at once. */
   delay: number
+  /** With delay: only this method waits (?delayOnly=<method>). */
+  delayOnly?: string
   /** A label save of this outcome fails (?labelFails=<outcome>). */
   labelFails?: string
   /** The code of the graph changes once between the review and the enable (a digest refusal). */
@@ -598,7 +600,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     const signal = init?.signal
     if (body.method === 'automations.get' && (gets++ > 0 || opts.holdFirst) && opts.hold) await hold((body.params as { version?: number }).version ?? 0, signal)
     if (opts.oldVersionDelay > 0 && body.method === 'automations.get' && (body.params as { version?: number }).version) await pause(opts.oldVersionDelay, signal)
-    if (opts.delay > 0 && !isList) await pause(opts.delay, signal)
+    if (opts.delay > 0 && !isList && (!opts.delayOnly || opts.delayOnly === body.method)) await pause(opts.delay, signal)
     let payload: unknown
     try {
       if (opts.scenario === 'error' && isList) rpcError('internal', 'internal error')
