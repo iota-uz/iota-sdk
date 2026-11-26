@@ -462,12 +462,20 @@ test('D1: after Discard the draft takes no edits until the version arrives; Back
   await expect.poll(() => held(page)).toEqual([2])
   await expect(page.getByText('Opening v2: your changes were discarded')).toBeVisible()
   await expect(page.locator('.ae-save')).toHaveCount(0)
+  // Undo and Redo are edits too: neither the buttons nor the shortcuts touch the draft meanwhile.
+  await expect(page.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Redo' })).toBeDisabled()
+  await page.locator('.iota-flow__pane, .ae-canvas').first().click({ position: { x: 5, y: 5 } })
+  await page.keyboard.press('ControlOrMeta+z')
+  await page.keyboard.press('ControlOrMeta+Shift+z')
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Draft of v3')
   await page.goBack()
   await expect(page).not.toHaveURL(/version=/)
   await expect.poll(() => aborted(page)).toEqual([2])
   await expect(page.getByText('Opening v2: your changes were discarded')).toHaveCount(0)
   await expect(page.locator('.ae-save')).toBeVisible()
   await expect(page.locator('.ae-toolbar__name')).toHaveText('Draft of v3')
+  await expect(page.getByRole('button', { name: 'Undo' })).toBeEnabled()
 
   // Discard again and wait: the version opens.
   await openVersion(page, 2)
