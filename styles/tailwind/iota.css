@@ -1800,9 +1800,9 @@ td:has(.table-cell-link):not(.sticky) {
     box-shadow: inset 0 0 0 1px oklch(var(--clr-border-brand) / 45%);
     animation: iota-flash var(--motion-flash) var(--ease-standard) both;
   }
-  /* Inline confirmation above the buttons (U3): opens downward from its top edge. */
+  /* Inline confirmation above the buttons (U3): opens downward from its top edge. A clip, not a scale: focus
+     moves into it while it opens, and its box must already be where it lands, or the page scrolls short. */
   .iota-reveal {
-    transform-origin: top;
     animation: iota-reveal var(--motion-base) var(--ease-out) both;
   }
   /* A visual "click" in place of a haptic one (touch): a short squeeze and back. */
@@ -1854,8 +1854,8 @@ td:has(.table-cell-link):not(.sticky) {
   100% { opacity: 0; }
 }
 @keyframes iota-reveal {
-  from { opacity: 0; transform: scaleY(0.92); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; clip-path: inset(0 0 100% 0); }
+  to { opacity: 1; clip-path: inset(0); }
 }
 @keyframes iota-click {
   50% { transform: scale(0.94); }

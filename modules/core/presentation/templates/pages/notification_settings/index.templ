@@ -551,13 +551,13 @@ templ ChannelConnectionForm(conn ChannelConnection, canManage bool) {
 			<p class="mt-2 text-sm text-100" role="status">{ pageCtx.T("NotificationSettings." + conn.MessageKey) }</p>
 		}
 		if len(conn.Options) == 0 {
-			<p class="mt-3 text-sm text-100" role="status">
+			<p class="mt-3 text-sm text-100">
 				{ pageCtx.T("NotificationSettings.Connection.None", args) }
 				<a href="/settings/integrations" class="text-primary-600 hover:underline">{ pageCtx.T("NotificationSettings.Connection.Integrations") }</a>
 			</p>
 		} else {
 			if conn.Current == "" {
-				<p class="mt-3 text-sm text-yellow" role="status">{ pageCtx.T("NotificationSettings.Connection.Unavailable", args) }</p>
+				<p class="mt-3 text-sm text-yellow">{ pageCtx.T("NotificationSettings.Connection.Unavailable", args) }</p>
 			}
 			<div class="mt-3 flex flex-col items-start gap-3">
 				@base.Combobox(base.ComboboxProps{
