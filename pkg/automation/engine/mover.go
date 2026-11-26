@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
+	"github.com/iota-uz/iota-sdk/pkg/automation/state"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/events"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/host"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -34,6 +35,9 @@ type mover struct {
 	// varsHash is a hash of the subject's variables this step read with the run-as's rights now: a
 	// preparation made for the step is reused only while it is the same.
 	varsHash string
+	// memory is what this step reads the automation's memory through: a preparation is reused only while
+	// the keys the step that asked for it read are what they were.
+	memory *state.Reader
 }
 
 func (m *mover) in() *graph.Interpreter { return m.x.ie.in }
@@ -95,11 +99,15 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 		return behavior, err
 	}
 	m.varsHash = hashVars(gctx.Vars)
+	m.memory, _ = gctx.State.(*state.Reader)
 	active, err := m.activeTokens(ctx)
 	if err != nil {
 		return behavior, err
 	}
 	st := in.Start(node.ID, &graph.StepContext{Ctx: gctx, Token: tok.Path, From: tok.From, Tokens: active})
+	if err := memoryFailure(ctx, gctx); err != nil {
+		return behavior, err
+	}
 	st.Effects = m.preparedEffects(tok, node.ID, st.Effects)
 	switch st.Kind {
 	case graph.StepFailed, graph.StepMissingContext:
@@ -171,22 +179,28 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 // preparedEffects are the effects the step applies: those its preparation was made for, when the step is the
 // one prepared (the same token, step number and node) and what the run-as may read through the subject's
 // variables is unchanged since — so a right lost in between is honored by the fresh evaluation, never bypassed
-// by an effect rendered earlier — else the ones the fresh evaluation rendered. A step whose fresh evaluation
+// by an effect rendered earlier — and so are the keys of the memory the preparing step read, else the ones the fresh evaluation rendered. A step whose fresh evaluation
 // renders no effects (it failed) takes its failure, as it would without a preparation: the preparation read
 // and wrote nothing, so nothing is lost.
 func (m *mover) preparedEffects(tok *tokenRow, node string, fresh []graph.Effect) []graph.Effect {
 	p := m.x.preparedStepFor(tok.ID, tok.StepSeq+1, node)
-	if p == nil || len(fresh) == 0 || len(p.Effects) != len(fresh) || p.varsHash != m.varsHash {
+	if p == nil || len(fresh) == 0 || len(p.Effects) != len(fresh) || !m.fits(p) {
 		return fresh
 	}
 	return p.Effects
+}
+
+// fits reports that what a preparation was made over is what the step reads now: the subject's variables and
+// the keys of the memory.
+func (m *mover) fits(p *preparedStep) bool {
+	return p.varsHash == m.varsHash && m.memory.Same(p.memory)
 }
 
 // maxPrepareAttempts bounds how many times a step is prepared again because what it reads changed in between.
 const maxPrepareAttempts = 3
 
 // preparedFor is the preparation the effect node of this step gets: the one made for it, while the subject's
-// variables the run-as may read are what they were when it was made. A preparation that no longer fits is not
+// variables the run-as may read and the memory keys read are what they were when it was made. A preparation that no longer fits is not
 // handed over: the step asks for a new one, outside the transaction. After maxPrepareAttempts the preparation is
 // marked Exhausted and the step is not applied but retried later (a platform error), so a node that asked for a
 // check never acts without it.
@@ -195,7 +209,7 @@ func (m *mover) preparedFor(tok *tokenRow, seq int) *PreparedEffect {
 	switch {
 	case p == nil:
 		return nil
-	case p.varsHash == m.varsHash:
+	case m.fits(p):
 		return &p.PreparedEffect
 	case p.attempts >= maxPrepareAttempts:
 		return &PreparedEffect{Exhausted: true}
@@ -239,6 +253,9 @@ func (m *mover) applyEffects(ctx context.Context, tok *tokenRow, node graph.Node
 	var np *needsPrepareError
 	if errors.As(err, &np) {
 		np.varsHash = m.varsHash
+		if m.memory != nil {
+			np.memory = m.memory.Snapshot()
+		}
 	}
 	if err == nil && serr == nil && res.Output != nil {
 		serr = m.outputTooLarge(node.ID, res.Output, "the output of "+node.ID)
@@ -1182,6 +1199,9 @@ func (m *mover) wakeEvent(ctx context.Context, tok *tokenRow, w waitRow, ev inbo
 		gctx.Now = ev.OccurredAt
 	}
 	matched, st := m.in().WaitMatches(w.NodeID, gev, gctx)
+	if err := memoryFailure(ctx, gctx); err != nil {
+		return err
+	}
 	if st != nil {
 		if err := closeWait(ctx, m.tx, m.x.tenant, w, waitCancelled); err != nil {
 			return err
@@ -1488,7 +1508,7 @@ func (m *mover) context(ctx context.Context, tok *tokenRow) (graph.Context, erro
 	}
 	return m.x.r.BuildRunContext(ctx, RunContextInput{
 		TenantID: m.x.tenant, AutomationID: m.x.run.AutomationID, RunID: m.x.run.ID, Subject: m.x.run.Subject, RunAs: m.x.subject,
-		Event: event, Events: evs, Nodes: nodes, Foreach: each, Now: m.s.now, Vars: vars,
+		Event: event, Events: evs, Nodes: nodes, Foreach: each, Now: m.s.now, Vars: vars, StateDB: m.tx,
 	})
 }
 
@@ -1580,5 +1600,19 @@ func (m *mover) withheldOutput(ctx context.Context, gev graph.Event) error {
 	var changed bool
 	m.s.sensitive, changed = mergeRefs(m.s.sensitive, refs)
 	m.s.sensitiveChanged = m.s.sensitiveChanged || changed
+	return nil
+}
+
+// memoryFailure is the platform failure an expression of the step met reading the automation's memory: the
+// expression failed with the database's text, but the step is retried, not failed. Any other failure of a
+// lookup stays the expression's own.
+func memoryFailure(ctx context.Context, gctx graph.Context) error {
+	r, ok := gctx.State.(*state.Reader)
+	if !ok {
+		return nil
+	}
+	if err := r.Err(); err != nil && (host.IsInfrastructure(err) || ctx.Err() != nil) {
+		return err
+	}
 	return nil
 }

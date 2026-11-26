@@ -46,6 +46,9 @@ type Context struct {
 	// Subject is `subject`: {entity, key, url}; Run is `run`: {id, url}. Nil: empty strings.
 	Subject map[string]any
 	Run     map[string]any
+	// State is `state`, the automation's memory: its keys are read one at a time by the expressions of a
+	// step. Nil: no key is there.
+	State expr.Lookup
 }
 
 // ForeachItem is what the body of a foreach reads as foreach.<id>.
@@ -402,8 +405,13 @@ func varsOf(ctx Context) map[string]any {
 	// subject and run are the run's own unless the subject's context declares a variable of that name.
 	vars["subject"] = infoOf(ctx.Subject, "entity", "key", "url")
 	vars["run"] = infoOf(ctx.Run, "id", "url")
+	if ctx.State != nil {
+		vars[StateVar] = ctx.State
+	} else {
+		vars[StateVar] = map[string]any{}
+	}
 	for k, v := range ctx.Vars {
-		vars[k] = v
+		vars[k] = v // a subject's variable named state wins
 	}
 	if ctx.Event != nil {
 		vars["event"] = ctx.Event

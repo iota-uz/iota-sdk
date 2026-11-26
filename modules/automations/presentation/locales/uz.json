@@ -320,7 +320,10 @@
         "LoadReview": "tekshiruvni yuklash",
         "LoadRuns": "ishga tushirishlarni yuklash",
         "Run": "ishga tushirish",
-        "LoadLive": "kutilayotgan ishga tushirishlarni sanash"
+        "LoadLive": "kutilayotgan ishga tushirishlarni sanash",
+        "LoadState": "xotirani yuklash",
+        "SaveState": "kalitni saqlash",
+        "DeleteState": "kalitni o‘chirish"
       },
       "Columns": {
         "Attention": "Eʼtibor talab qiladi",
@@ -512,6 +515,33 @@
       "Enable": {
         "NoRight": "Avtomatlashtirishlarni «Avtomatlashtirishlarni yoqish» huquqiga ega inson yoqadi va oʻchiradi.",
         "AgentNote": "Agent avtomatlashtirishlarni yoqmaydi: buni inson oʻz seansidan qiladi."
+      },
+      "State": {
+        "Title": "Ishga tushirishlar orasidagi xotira",
+        "Hint": "Avtomatlashtirish keyingi ishga tushirishlar uchun nimani eslab qoladi. «Qiymatni eslab qolish» tuguni yozadi, ifodalar state.get(kalit) va state.has(kalit) orqali o‘qiydi.",
+        "Add": "Kalit qo‘shish",
+        "Key": "Kalit",
+        "KeyRequired": "Kalitni kiriting.",
+        "Value": "Qiymat",
+        "ValueHint": "JSON, 16 KiB dan oshmasin: \"matn\", 42, true, {\"a\": 1}.",
+        "InvalidJSON": "Qiymat yaroqli JSON emas.",
+        "Ttl": "Amal qilish muddati",
+        "TtlHint": "20m, 2h yoki 7d: 1 daqiqadan 365 kungacha. Bo‘sh — kalit tugamaydi.",
+        "Save": "Saqlash",
+        "Saved": "Kalit saqlandi",
+        "Deleted": "Kalit o‘chirildi",
+        "Edit": "O‘zgartirish",
+        "Delete": "O‘chirish",
+        "ConfirmDelete": "Kalitni o‘chirish",
+        "Search": "Kalit bo‘yicha qidirish",
+        "Loading": "Yuklanmoqda…",
+        "Empty": "Hozircha hech narsa eslab qolinmagan.",
+        "NoMatch": "Mos kalit yo‘q.",
+        "ExpiresAt": "{when} tugaydi",
+        "NoExpiry": "tugamaydi",
+        "UpdatedAt": "{when} o‘zgargan",
+        "Total": "Kalitlar: {count} / {max}",
+        "More": "Yana ko‘rsatish"
       }
     },
     "Title": "Avtomatlashtirishlar",

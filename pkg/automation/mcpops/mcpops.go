@@ -17,6 +17,10 @@
 //	registry.Register(tools...)
 //	changes.NewService(changes.Config{Kinds: append(kinds, mcpops.Kinds(rt.Service(), rt.Authoring(), urls)...), ...})
 //
+// With WithMemory(rt.Memory()) both also offer the memory of a graph between its runs: the tools
+// automation_state_list and automation_state_get (Automations.Read) and the changes automation.state.set
+// and automation.state.delete (Automations.Author).
+//
 // HUMAN_REQUIRED refusals of a plan and every applied change are entries of the MCP engine's audit
 // (mcp.Audit), with the principal and the client. engine.Config.Links.RunURL is the run page the
 // workflow tools point to.
@@ -85,6 +89,7 @@ type Option func(*options)
 type options struct {
 	subjects  SubjectResolver
 	behaviors *graph.Behaviors
+	memory    engine.Memory
 }
 
 // WithSubjects replaces how the acting user's rights are read.

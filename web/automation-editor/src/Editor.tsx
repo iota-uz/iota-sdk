@@ -1054,6 +1054,7 @@ function EditorBody(props: EditorProps): JSX.Element {
         graph={draft()}
         locale={props.locale}
         readOnly={editingBlocked()}
+        slot={props.settingsSlot}
         onChange={(patch, key) => commitGraph({ ...draft(), ...patch }, key)}
         onClose={() => setSettingsOpen(false)}
       />
