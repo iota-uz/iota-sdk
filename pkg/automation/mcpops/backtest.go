@@ -410,14 +410,17 @@ type costOut struct {
 }
 
 type reportOut struct {
-	Backtest      backtestOut     `json:"backtest"`
-	Examples      int             `json:"examples"`
-	Ends          map[string]int  `json:"ends"`
-	Classifiers   []classifierOut `json:"classifiers"`
-	Mismatches    []mismatchOut   `json:"mismatches"`
-	MismatchTotal int             `json:"mismatch_total"`
-	Effects       []effectOut     `json:"effects"`
-	Cost          costOut         `json:"cost"`
+	Backtest backtestOut `json:"backtest"`
+	Examples int         `json:"examples"`
+	// SnapshotsWithheld counts the examples that ran without their subject's snapshot (the runner may
+	// not read it now): their results are not those of the state at the event.
+	SnapshotsWithheld int             `json:"snapshots_withheld"`
+	Ends              map[string]int  `json:"ends"`
+	Classifiers       []classifierOut `json:"classifiers"`
+	Mismatches        []mismatchOut   `json:"mismatches"`
+	MismatchTotal     int             `json:"mismatch_total"`
+	Effects           []effectOut     `json:"effects"`
+	Cost              costOut         `json:"cost"`
 }
 
 type changeOut struct {
@@ -450,7 +453,7 @@ type reportResult struct {
 }
 
 func reportOf(r backtest.Report) reportOut {
-	out := reportOut{Backtest: backtestOf(r.Backtest), Examples: r.Examples, Ends: r.Ends, MismatchTotal: r.MismatchTotal,
+	out := reportOut{Backtest: backtestOf(r.Backtest), Examples: r.Examples, SnapshotsWithheld: r.SnapshotsWithheld, Ends: r.Ends, MismatchTotal: r.MismatchTotal,
 		Classifiers: make([]classifierOut, 0, len(r.Classifiers)), Mismatches: make([]mismatchOut, 0, len(r.Mismatches)),
 		Effects: make([]effectOut, 0, len(r.Effects)), Cost: costOut(r.Cost)}
 	for _, c := range r.Classifiers {

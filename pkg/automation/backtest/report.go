@@ -20,10 +20,12 @@ type scored struct {
 	occurredAt time.Time
 	end        string
 	triggered  bool
-	outcomes   map[string]string
-	decisions  []Decision
-	effects    []Effect
-	labels     map[string]Label
+	// snapshotWithheld: the example ran without its subject's snapshot (the runner may not read it).
+	snapshotWithheld bool
+	outcomes         map[string]string
+	decisions        []Decision
+	effects          []Effect
+	labels           map[string]Label
 }
 
 // decisionOf is the status of the first decision of node in a result ("" when it made none).
@@ -147,6 +149,9 @@ func buildReport(b Backtest, decisionNodes map[string]bool, rows []scored) Repor
 		if r.triggered {
 			rep.Triggered++
 		}
+		if r.snapshotWithheld {
+			rep.SnapshotsWithheld++
+		}
 		seen := map[string]bool{}
 		for _, e := range r.effects {
 			s, ok := effects[e.Node]
@@ -204,6 +209,8 @@ type analysis struct {
 	effects   []Effect
 	errText   string
 	trace     []engine.TraceStep
+	// snapshotWithheld: the example ran without its subject's snapshot, which the runner may not read.
+	snapshotWithheld bool
 }
 
 // analyze reads a dry run's trace: how it ended, the first outcome of each node, the decisions of the

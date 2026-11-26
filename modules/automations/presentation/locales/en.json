@@ -733,6 +733,7 @@
         "Report": {
           "Examples": "Events",
           "Triggered": "Started the graph",
+          "SnapshotsWithheld": "Events run without the state of their subject at the event, which you may not read: {count} of {total}. Their results may differ from those of the state at the event.",
           "Calls": "Decisions",
           "CallsValue": "{live} asked · {cached} cached",
           "Cost": "Paid for decisions",
@@ -764,6 +765,7 @@
           "NotReached": "not reached",
           "Expected": "expected {outcome}",
           "Error": "The graph stopped with an error on this event.",
+          "SnapshotWithheld": "The event ran without the state of its subject at the event: you may not read it.",
           "NoEffects": "No effect.",
           "WouldDo": "Would have done:",
           "EffectCount": {

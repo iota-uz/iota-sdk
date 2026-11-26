@@ -262,7 +262,10 @@ type Example struct {
 	Snapshot            json.RawMessage
 	HasSnapshot         bool
 	SnapshotApproximate bool
-	OccurredAt          time.Time
+	// SnapshotReadWith are the permissions of the author (CreatedBy) the snapshot was read with; reads
+	// never return them.
+	SnapshotReadWith []string
+	OccurredAt       time.Time
 	// Origin is the source within its kind ("connection:<id>", "module:<name>"); CreatedBy imported it.
 	Origin    string
 	CreatedBy int64
@@ -365,6 +368,9 @@ type Result struct {
 	Trace     []engine.TraceStep
 	Error     string
 	LiveCalls int
+	// SnapshotWithheld: the example has a snapshot of its subject the runner may not read now; it ran
+	// without the subject's state.
+	SnapshotWithheld bool
 	// Mismatches are the labeled nodes whose outcome is not the label.
 	Mismatches []string
 }
@@ -449,10 +455,13 @@ type Report struct {
 	Backtest Backtest
 	Examples int
 	// Triggered counts the examples on which a trigger fired, those that then stopped with an error included.
-	Triggered   int
-	Ends        map[string]int
-	Classifiers []ClassifierMetrics
-	Mismatches  []Mismatch
+	Triggered int
+	// SnapshotsWithheld counts the examples that ran without their subject's snapshot, which the runner
+	// may not read now: their results are not those of the state at the event.
+	SnapshotsWithheld int
+	Ends              map[string]int
+	Classifiers       []ClassifierMetrics
+	Mismatches        []Mismatch
 	// MismatchTotal counts all the mismatches (Mismatches lists at most MaxMismatches).
 	MismatchTotal int
 	Effects       []EffectSummary

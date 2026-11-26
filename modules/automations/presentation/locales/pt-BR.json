@@ -733,6 +733,7 @@
         "Report": {
           "Examples": "Eventos",
           "Triggered": "Iniciaram o grafo",
+          "SnapshotsWithheld": "Eventos executados sem o estado do seu sujeito no momento do evento, que você não pode ler: {count} de {total}. Os resultados deles podem diferir dos obtidos com esse estado.",
           "Calls": "Decisões",
           "CallsValue": "{live} pedidas · {cached} do cache",
           "Cost": "Pago por decisões",
@@ -764,6 +765,7 @@
           "NotReached": "não alcançado",
           "Expected": "esperado {outcome}",
           "Error": "O grafo parou com erro neste evento.",
+          "SnapshotWithheld": "O evento foi executado sem o estado do seu sujeito no momento do evento: você não pode lê-lo.",
           "NoEffects": "Nenhum efeito.",
           "WouldDo": "Teria feito:",
           "EffectCount": {

@@ -50,10 +50,22 @@ func TestSubjectOKChecksNestedFields(t *testing.T) {
 		{"a subject not visible now", "o2", `{"order":{"name":"A"}}`, false},
 		{"no snapshot", "o2", `null`, true},
 	} {
-		assert.Equal(t, c.ok, r.subjectOK(ctx, ref(c.key), json.RawMessage(c.snapshot)), c.name)
+		assert.Equal(t, c.ok, r.subjectOK(ctx, ref(c.key), json.RawMessage(c.snapshot), 99, []string{}), c.name)
 	}
 	noLoader := &reader{s: &Svc{}, subjects: map[engine.SubjectRef]any{}}
-	assert.False(t, noLoader.subjectOK(ctx, ref("o1"), json.RawMessage(`{"total":1}`)), "without a loader")
+	assert.False(t, noLoader.subjectOK(ctx, ref("o1"), json.RawMessage(`{"total":1}`), 99, []string{}), "without a loader")
+
+	// The snapshot's author, holding every permission it was read with, reads it whatever the record
+	// became: a list item changed, the record gone. Without one of those permissions, or for another
+	// author, the record as it is now decides.
+	author := &reader{s: &Svc{cfg: Config{Subjects: stub}}, a: Actor{UserID: 7, Subject: spi.Subject{Permissions: []string{"Order.Read", "Order.Secret"}}},
+		subjects: map[engine.SubjectRef]any{}}
+	changed := json.RawMessage(`{"order":{"lines":[{"sku":"z","qty":9}]}}`)
+	assert.True(t, author.subjectOK(ctx, ref("o1"), changed, 7, []string{"Order.Read"}), "a list item changed since")
+	assert.True(t, author.subjectOK(ctx, ref("gone"), changed, 7, []string{"Order.Read", "Order.Secret"}), "the record deleted since")
+	assert.False(t, author.subjectOK(ctx, ref("gone"), changed, 7, []string{"Order.Read", "Order.Audit"}), "a permission it was read with is lost")
+	assert.False(t, author.subjectOK(ctx, ref("gone"), changed, 8, []string{"Order.Read"}), "another author's snapshot")
+	assert.False(t, author.subjectOK(ctx, ref("gone"), changed, 7, nil), "no permissions recorded")
 }
 
 // A source's own key never meets a key derived from content; distinct keys stay distinct.

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -985,4 +986,106 @@ func TestKeylessHistoryReplaysOnce(t *testing.T) {
 	page, err := e.svc.Examples(ctx, a, ds, backtest.ExampleFilter{})
 	require.NoError(t, err)
 	assert.Len(t, page.Items, 2)
+}
+
+// records is a subject loader over records a test changes; a record not there is not found.
+type records struct {
+	mu   sync.Mutex
+	byID map[string]string
+}
+
+func (r *records) Load(_ context.Context, _ spi.Subject, ref engine.SubjectRef) (json.RawMessage, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	raw, ok := r.byID[ref.Key]
+	if !ok {
+		return nil, engine.ErrNotFound
+	}
+	return json.RawMessage(raw), nil
+}
+
+func (r *records) set(key, raw string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if raw == "" {
+		delete(r.byID, key)
+		return
+	}
+	r.byID[key] = raw
+}
+
+// varsSpy records the subject's variables each dry run is given.
+type varsSpy struct {
+	engine.Authoring
+	mu   sync.Mutex
+	vars []string
+}
+
+func (s *varsSpy) DryRun(ctx context.Context, a engine.Actor, in engine.DryRunInput) (engine.DryRunResult, error) {
+	s.mu.Lock()
+	s.vars = append(s.vars, string(in.Vars))
+	s.mu.Unlock()
+	return s.Authoring.DryRun(ctx, a, in)
+}
+
+func (s *varsSpy) take() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := s.vars
+	s.vars = nil
+	return out
+}
+
+// The subject's snapshot is the state at the event: its importer, who still holds the permissions it was
+// read with, runs it whatever the record became since (a list item changed, the record deleted). Another
+// author whom the record as it is now does not show it runs without it, and the result and the report say so.
+func TestSnapshotIsTheStateAtTheEvent(t *testing.T) {
+	recs := &records{byID: map[string]string{"c-1": `{"order":{"lines":[{"sku":"x","qty":2}]}}`}}
+	spy := &varsSpy{}
+	e := newEnvWith(t, func(_ *env, _ catalog.Registry, cfg *backtest.Config) {
+		cfg.Subjects = recs
+		spy.Authoring = cfg.Authoring
+		cfg.Authoring = spy
+	})
+	ctx := context.Background()
+	a := e.human()
+	am, _, err := e.rt.Service().Create(ctx, a, engine.CreateInput{Graph: json.RawMessage(graphV1)})
+	require.NoError(t, err)
+	e.publish("c-1", message{Text: "buy"}, time.Now().Add(-time.Hour))
+	ds, err := e.svc.CreateDataset(ctx, a, backtest.CreateDatasetInput{AutomationID: am.ID, Name: "d"})
+	require.NoError(t, err)
+	_, err = e.svc.Import(ctx, a, ds, backtest.ImportSource{Kind: backtest.ImportJournal, Window: backtest.TimeWindow{From: time.Now().Add(-24 * time.Hour)}})
+	require.NoError(t, err)
+	e.drain()
+	stored := `{"order":{"lines":[{"sku":"x","qty":2}]}}`
+
+	for name, now := range map[string]string{"a list item changed": `{"order":{"lines":[{"sku":"x","qty":3}]}}`, "the record deleted": ""} {
+		recs.set("c-1", now)
+		rep := e.run(a, backtest.RunInput{DatasetID: ds})
+		got := spy.take()
+		require.Len(t, got, 1, name)
+		assert.JSONEq(t, stored, got[0], name)
+		assert.Zero(t, rep.SnapshotsWithheld, name)
+	}
+
+	// Another author: the record is gone, nothing shows they may read the snapshot.
+	other := e.actor(2, engine.OriginHuman)
+	rep := e.run(other, backtest.RunInput{DatasetID: ds})
+	got := spy.take()
+	require.Len(t, got, 1)
+	assert.JSONEq(t, `{}`, got[0])
+	assert.Equal(t, 1, rep.SnapshotsWithheld)
+	res, err := e.svc.Results(ctx, other, rep.Backtest.ID, backtest.ResultFilter{})
+	require.NoError(t, err)
+	require.Len(t, res.Items, 1)
+	assert.True(t, res.Items[0].SnapshotWithheld)
+
+	// The importer without a permission the snapshot was read with: the record as it is now decides.
+	e.subjects.Grant(1, allPerms[:len(allPerms)-1]...)
+	recs.set("c-1", stored)
+	rep = e.run(a, backtest.RunInput{DatasetID: ds})
+	got = spy.take()
+	require.Len(t, got, 1)
+	assert.JSONEq(t, stored, got[0], "the record as it is now still holds every field")
+	assert.Zero(t, rep.SnapshotsWithheld)
 }

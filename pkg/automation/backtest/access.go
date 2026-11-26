@@ -21,7 +21,8 @@ import (
 //     and trace are not shown;
 //   - any other event is projected on the reader's catalog view: the sensitive fields the reader may not
 //     read are removed;
-//   - the subject's snapshot (read with the importer's rights) is the importer's only.
+//   - the subject's snapshot (read with the importer's rights) is the reader's when they read it with
+//     those rights (see subjectOK).
 type reader struct {
 	s    *Svc
 	a    Actor
@@ -93,8 +94,8 @@ const (
 // never returned (it was read with the importer's rights then), and an example the reader may not read
 // keeps its kind only, without title or subject.
 func (r *reader) example(ctx context.Context, x *Example) sight {
-	snapshot := x.Snapshot
-	x.Snapshot = nil
+	snapshot, readWith := x.Snapshot, x.SnapshotReadWith
+	x.Snapshot, x.SnapshotReadWith = nil, nil
 	if !r.mayRead(ctx, x.Origin) {
 		r.hide(x)
 		return seeNone
@@ -137,17 +138,27 @@ func (r *reader) example(ctx context.Context, x *Example) sight {
 	x.Event = seen
 	// The effects and the trace also derive from the subject's snapshot: they are the reader's only when
 	// the reader may read every field of it now.
-	if string(whole) != string(seen) || !r.subjectOK(ctx, x.Subject, snapshot) {
+	if string(whole) != string(seen) || !r.subjectOK(ctx, x.Subject, snapshot, x.CreatedBy, readWith) {
 		return seePartial
 	}
 	return seeAll
 }
 
-// subjectOK is whether the reader may read, now, every field of a stored snapshot of the subject, at
-// every depth: the record as the subject loader gives it to the reader now holds each of them (see
-// covers). No snapshot needs nothing; a subject that cannot be loaded allows no snapshot.
-func (r *reader) subjectOK(ctx context.Context, ref engine.SubjectRef, snapshot json.RawMessage) bool {
+// subjectOK is whether the reader may read a stored snapshot of the subject now. The snapshot is the
+// record as the loader gave it to its author (by) with the permissions readWith, at the event:
+//   - its author, who still holds every one of those permissions, reads it as they read it then, whatever
+//     the record became since (changed values and list items, a record deleted since): the loader's
+//     rights are the author's and their permissions;
+//   - anyone else (or the author who lost one of them) reads it only when the record as the loader gives
+//     it to them now holds each of its fields, at every depth (see covers); a subject that cannot be
+//     loaded allows no snapshot then.
+//
+// No snapshot needs nothing.
+func (r *reader) subjectOK(ctx context.Context, ref engine.SubjectRef, snapshot json.RawMessage, by int64, readWith []string) bool {
 	if len(snapshot) == 0 || string(snapshot) == "null" {
+		return true
+	}
+	if readWith != nil && by == r.a.UserID && holdsAll(r.a.Subject.Permissions, readWith) {
 		return true
 	}
 	var stored any
@@ -232,9 +243,23 @@ func covers(now, stored any) bool {
 	}
 }
 
+// holdsAll is whether have includes every permission of need.
+func holdsAll(have, need []string) bool {
+	set := make(map[string]bool, len(have))
+	for _, p := range have {
+		set[p] = true
+	}
+	for _, p := range need {
+		if !set[p] {
+			return false
+		}
+	}
+	return true
+}
+
 func (r *reader) hide(x *Example) {
 	x.Event = kindOnly(x.EventKind)
-	x.Title, x.Snapshot, x.HasSnapshot, x.Hidden = "", nil, false, true
+	x.Title, x.Snapshot, x.SnapshotReadWith, x.HasSnapshot, x.Hidden = "", nil, nil, false, true
 	x.Subject = engine.SubjectRef{}
 }
 

@@ -23,7 +23,8 @@ CREATE INDEX datasets_automation_idx ON automation.datasets (tenant_id, automati
 -- source within its kind ('connection:<id>', 'module:<name>', '' for the journal and synthetic events)
 -- and source_ref the event within its origin (the outbox event's id, a message id): one event is in a
 -- dataset once. snapshot NULL: the subject has no variables; snapshot_approximate: the record's state
--- was read when the event was imported, not as it was at the event. import_id is the import that added
+-- was read when the event was imported, not as it was at the event; snapshot_read_with: the permissions of
+-- the author (created_by) whose rights the snapshot was read with, then. import_id is the import that added
 -- it. deleted_at: the author deleted it while a backtest's result refers to it; it leaves the dataset
 -- and stays readable for those results.
 CREATE TABLE automation.dataset_examples (
@@ -41,6 +42,7 @@ CREATE TABLE automation.dataset_examples (
     subject_key text NOT NULL DEFAULT '',
     snapshot jsonb,
     snapshot_approximate boolean NOT NULL DEFAULT FALSE,
+    snapshot_read_with text[],
     occurred_at timestamp with time zone NOT NULL,
     created_by bigint NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -141,8 +143,10 @@ CREATE TABLE automation.backtest_results (
     backtest_id uuid NOT NULL,
     example_id uuid NOT NULL,
     end_kind text NOT NULL,
-    -- triggered: a trigger fired on the example (the run may then have stopped with an error)
+    -- triggered: a trigger fired on the example (the run may then have stopped with an error);
+    -- snapshot_withheld: the example has a snapshot the runner may not read, it ran without it
     triggered boolean NOT NULL DEFAULT FALSE,
+    snapshot_withheld boolean NOT NULL DEFAULT FALSE,
     outcomes jsonb NOT NULL DEFAULT '{}'::jsonb,
     decisions jsonb NOT NULL DEFAULT '[]'::jsonb,
     effects jsonb NOT NULL DEFAULT '[]'::jsonb,

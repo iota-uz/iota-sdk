@@ -733,6 +733,7 @@
         "Report": {
           "Examples": "事件",
           "Triggered": "启动了图",
+          "SnapshotsWithheld": "在没有事件发生时主体状态（您无权读取）的情况下运行的事件：{total} 个中的 {count} 个。其结果可能与使用该状态时的结果不同。",
           "Calls": "决策",
           "CallsValue": "询问 {live} · 缓存 {cached}",
           "Cost": "决策费用",
@@ -764,6 +765,7 @@
           "NotReached": "未到达",
           "Expected": "预期 {outcome}",
           "Error": "图在此事件上因错误停止。",
+          "SnapshotWithheld": "该事件在没有事件发生时主体状态的情况下运行：您无权读取该状态。",
           "NoEffects": "无效果。",
           "WouldDo": "本会执行：",
           "EffectCount": {

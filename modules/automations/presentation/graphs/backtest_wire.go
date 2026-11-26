@@ -317,13 +317,16 @@ type ReportResponse struct {
 	Backtest BacktestView `json:"backtest"`
 	Examples int          `json:"examples"`
 	// Triggered counts the examples on which a trigger fired (those that then stopped with an error too).
-	Triggered     int                 `json:"triggered"`
-	Ends          map[string]int      `json:"ends"`
-	Classifiers   []ClassifierView    `json:"classifiers"`
-	Mismatches    []MismatchView      `json:"mismatches"`
-	MismatchTotal int                 `json:"mismatch_total"`
-	Effects       []EffectSummaryView `json:"effects"`
-	Cost          CostView            `json:"cost"`
+	Triggered int `json:"triggered"`
+	// SnapshotsWithheld counts the examples that ran without their subject's snapshot, which the runner
+	// may not read now.
+	SnapshotsWithheld int                 `json:"snapshots_withheld"`
+	Ends              map[string]int      `json:"ends"`
+	Classifiers       []ClassifierView    `json:"classifiers"`
+	Mismatches        []MismatchView      `json:"mismatches"`
+	MismatchTotal     int                 `json:"mismatch_total"`
+	Effects           []EffectSummaryView `json:"effects"`
+	Cost              CostView            `json:"cost"`
 }
 
 // ResultsRequest is automations.backtest_results.
@@ -360,6 +363,8 @@ type ResultView struct {
 	Trace      []TraceStep       `json:"trace"`
 	Error      string            `json:"error,omitempty"`
 	Mismatches []string          `json:"mismatches"`
+	// SnapshotWithheld: the example ran without its subject's snapshot, which the runner may not read now.
+	SnapshotWithheld bool `json:"snapshot_withheld"`
 }
 
 // ResultsResponse is a page of results.

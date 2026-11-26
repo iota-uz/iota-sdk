@@ -713,6 +713,12 @@ function ReportPanel(props: {
               </div>
               <Show when={r().examples > 0}>
                 <Summary report={r()} />
+                <Show when={r().snapshots_withheld > 0}>
+                  <p class="flex items-start gap-2 rounded-lg border border-subtle bg-surface-600 p-3 text-sm" data-testid="report-snapshots-withheld">
+                    <Icon name="alert" class="mt-0.5 shrink-0 text-yellow" />
+                    {t('Backtests.Report.SnapshotsWithheld', { count: integer(r().snapshots_withheld, app.lang), total: integer(r().examples, app.lang) })}
+                  </p>
+                </Show>
                 <Metrics report={r()} title={title} />
                 <Cases backtestID={props.backtestID} classifiers={props.classifiers} report={r()} node={props.node} mismatch={props.mismatch} title={title} onView={props.onView} />
                 <Effects report={r()} title={title} />
@@ -950,6 +956,7 @@ function Cases(props: {
                           <td class="px-4 py-3" colSpan={3 + shown().length}>
                             <div class="flex flex-col gap-2 text-sm">
                               <Show when={r.error}><p class="flex items-center gap-1"><Icon name="alert" class="text-red-600" />{t('Backtests.Cases.Error')}</p></Show>
+                              <Show when={r.snapshot_withheld}><p class="flex items-center gap-1" data-testid="case-snapshot-withheld"><Icon name="alert" class="text-yellow" />{t('Backtests.Cases.SnapshotWithheld')}</p></Show>
                               <Show when={r.effects.length > 0} fallback={<p class="text-200">{t('Backtests.Cases.NoEffects')}</p>}>
                                 <p class="font-medium">{t('Backtests.Cases.WouldDo')}</p>
                                 <ul class="flex flex-col gap-2">

@@ -598,8 +598,12 @@ anything out and reports what the graph would have done for each of them.
   `Connections.Manage` or its creator).
 - **Snapshot at the event.** An example keeps its subject's state: `SnapshotLoader.SnapshotAt` when the
   engine's subject loader implements it, else the record as read at import, marked
-  `snapshot_approximate`. A backtest runs with that state (`DryRunInput.Vars`) and the event's time as
-  `now` (`DryRunInput.Now`). The automation's memory between runs is read as it is now (`DryRunInput.AutomationID`); a backtest never writes it.
+  `snapshot_approximate`, with the permissions of the author it was read as (`snapshot_read_with`). A
+  backtest runs with that state (`DryRunInput.Vars`) and the event's time as `now` (`DryRunInput.Now`).
+  The state is the runner's when they are its author and still hold those permissions, whatever the
+  record became since (changed values, a deleted record); anyone else gets it when the record as the
+  loader gives it to them now holds each of its fields and list items. Otherwise the example runs
+  without it: the result says `snapshot_withheld` and the report counts them (`snapshots_withheld`). The automation's memory between runs is read as it is now (`DryRunInput.AutomationID`); a backtest never writes it.
 - **Run.** `Service.Run` queues a backtest; the worker (`Svc.Serve`, run by the module with the engine)
   claims it with a lease and resumes after the examples it has results for. Each example is
   `engine.Authoring.DryRun` with `RealCalls: decisions`: effects are captured with their params, execute

@@ -273,6 +273,17 @@ test('BT4: the cases table filters by classifier and mismatches, in the URL; «R
   await expect(page).toHaveURL(new RegExp(`backtest=${V3}`))
 })
 
+test('BT4b: events run without their subject\'s snapshot are counted in the report and said in the case', async ({ page }) => {
+  await page.goto(`/?${base}&backtest=${V3}&withheld`)
+  await expect(page.getByTestId('report-snapshots-withheld')).toContainText('Events run without the state of their subject at the event, which you may not read: 1 of')
+  const rows = page.locator('[data-testid^="case-0"]')
+  await rows.first().getByTestId('case-toggle').click()
+  await expect(page.getByTestId('case-snapshot-withheld')).toContainText('The event ran without the state of its subject at the event')
+  await rows.nth(1).getByTestId('case-toggle').click()
+  await expect(page.getByTestId('case-detail')).toBeVisible()
+  await expect(page.getByTestId('case-snapshot-withheld')).toHaveCount(0)
+})
+
 test('BT5: live decisions show their cost before the run; an agent is offered cached decisions only; a run opens its progress', async ({ page }) => {
   await page.goto(`/?${base}`)
   await page.getByTestId('backtest-new').click()

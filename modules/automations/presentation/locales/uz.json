@@ -733,6 +733,7 @@
         "Report": {
           "Examples": "Hodisalar",
           "Triggered": "Grafni ishga tushirdi",
+          "SnapshotsWithheld": "Sizga koʻrish mumkin boʻlmagan, voqea paytidagi subyekt holatisiz bajarilgan voqealar: {total} tadan {count} ta. Ularning natijalari shu holat bilan olinadigan natijalardan farq qilishi mumkin.",
           "Calls": "Qarorlar",
           "CallsValue": "soʻralgan {live} · keshdan {cached}",
           "Cost": "Qarorlar uchun toʻlangan",
@@ -764,6 +765,7 @@
           "NotReached": "yetib bormadi",
           "Expected": "kutilgan: {outcome}",
           "Error": "Bu hodisada graf xato bilan toʻxtadi.",
+          "SnapshotWithheld": "Voqea subyektning voqea paytidagi holatisiz bajarildi: uni koʻrishingiz mumkin emas.",
           "NoEffects": "Effektsiz.",
           "WouldDo": "Qilgan boʻlardi:",
           "EffectCount": {

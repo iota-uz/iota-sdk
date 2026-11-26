@@ -524,7 +524,7 @@ func (s *Svc) AddSynthetic(ctx context.Context, a Actor, ds DatasetID, ev Synthe
 		title = string([]rune(title)[:200])
 	}
 	ex := exampleRow{id: uuid.New(), source: SourceSynthetic, title: title, kind: kind, event: event, subject: ev.Subject,
-		snapshot: snap, approximate: approx, at: at}
+		snapshot: snap, approximate: approx, readWith: a.Subject.Permissions, at: at}
 	err = pgx.BeginFunc(ctx, s.cfg.DB, func(tx pgx.Tx) error {
 		added, err := insertExamples(ctx, tx, a.TenantID, ds, a.UserID, []exampleRow{ex})
 		if err != nil {
@@ -577,16 +577,18 @@ func (s *Svc) snapshot(ctx context.Context, as spi.Subject, tenant uuid.UUID, re
 
 // exampleRow is an example to insert.
 type exampleRow struct {
-	id          uuid.UUID
-	source      string
-	origin      string // the source within its kind: "connection:<id>", "module:<name>"
-	ref         string
-	importID    uuid.UUID
-	title       string
-	kind        string
-	event       json.RawMessage
-	subject     engine.SubjectRef
-	snapshot    json.RawMessage
+	id       uuid.UUID
+	source   string
+	origin   string // the source within its kind: "connection:<id>", "module:<name>"
+	ref      string
+	importID uuid.UUID
+	title    string
+	kind     string
+	event    json.RawMessage
+	subject  engine.SubjectRef
+	snapshot json.RawMessage
+	// readWith are the permissions the snapshot was read with (the author's, then).
+	readWith    []string
 	approximate bool
 	at          time.Time
 }
@@ -626,8 +628,10 @@ func insertExamples(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, ds Dataset
 			continue
 		}
 		var snap any
+		var readWith []string
 		if len(r.snapshot) > 0 && string(r.snapshot) != "null" {
 			snap = r.snapshot
+			readWith = append([]string{}, r.readWith...) // not NULL: a snapshot always says what it was read with
 		}
 		var importID *uuid.UUID
 		if r.importID != uuid.Nil {
@@ -635,9 +639,9 @@ func insertExamples(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, ds Dataset
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO automation.dataset_examples (tenant_id, dataset_id, id, source, origin, source_ref, import_id, title, event_kind, event,
-				subject_entity, subject_key, snapshot, snapshot_approximate, occurred_at, created_by)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
-			tenant, ds, r.id, r.source, r.origin, r.ref, importID, r.title, r.kind, []byte(r.event), r.subject.Entity, r.subject.Key, snap, r.approximate, r.at, by); err != nil {
+				subject_entity, subject_key, snapshot, snapshot_approximate, snapshot_read_with, occurred_at, created_by)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+			tenant, ds, r.id, r.source, r.origin, r.ref, importID, r.title, r.kind, []byte(r.event), r.subject.Entity, r.subject.Key, snap, r.approximate, readWith, r.at, by); err != nil {
 			return c, dbErr(err)
 		}
 		n++
@@ -685,13 +689,13 @@ func pageLimit(n, def, maxN int) int {
 }
 
 const exampleColumns = `e.id, e.dataset_id, e.source, e.source_ref, e.title, e.event_kind, e.event, e.subject_entity, e.subject_key,
-	e.snapshot, e.snapshot_approximate, e.occurred_at, e.origin, e.created_by`
+	e.snapshot, e.snapshot_approximate, e.occurred_at, e.origin, e.created_by, e.snapshot_read_with`
 
 func scanExample(r pgx.Row) (Example, error) {
 	var x Example
 	var event, snap []byte
 	err := r.Scan(&x.ID, &x.DatasetID, &x.Source, &x.SourceRef, &x.Title, &x.EventKind, &event, &x.Subject.Entity, &x.Subject.Key,
-		&snap, &x.SnapshotApproximate, &x.OccurredAt, &x.Origin, &x.CreatedBy)
+		&snap, &x.SnapshotApproximate, &x.OccurredAt, &x.Origin, &x.CreatedBy, &x.SnapshotReadWith)
 	x.Event = event
 	if len(snap) > 0 {
 		x.Snapshot, x.HasSnapshot = snap, true
@@ -1187,7 +1191,7 @@ func (s *Svc) resultRows(ctx context.Context, a Actor, id BacktestID) ([]scored,
 	}
 	rows, err := s.cfg.DB.Query(ctx, `
 		SELECT r.example_id, e.title, e.occurred_at, e.origin, e.event_kind, e.event, e.subject_entity, e.subject_key, e.snapshot,
-			r.end_kind, r.triggered, r.outcomes, r.decisions, r.effects
+			e.created_by, e.snapshot_read_with, r.end_kind, r.triggered, r.snapshot_withheld, r.outcomes, r.decisions, r.effects
 		FROM automation.backtest_results r
 		JOIN automation.dataset_examples e ON e.tenant_id = r.tenant_id AND e.id = r.example_id
 		WHERE r.tenant_id = $1 AND r.backtest_id = $2 ORDER BY e.occurred_at, e.id`, tenant, id)
@@ -1202,7 +1206,7 @@ func (s *Svc) resultRows(ctx context.Context, a Actor, id BacktestID) ([]scored,
 		var x row
 		var outcomes, decisions, effects, event, snap []byte
 		if err := r.Scan(&x.example, &x.title, &x.occurredAt, &x.ex.Origin, &x.ex.EventKind, &event, &x.ex.Subject.Entity, &x.ex.Subject.Key, &snap,
-			&x.end, &x.triggered, &outcomes, &decisions, &effects); err != nil {
+			&x.ex.CreatedBy, &x.ex.SnapshotReadWith, &x.end, &x.triggered, &x.snapshotWithheld, &outcomes, &decisions, &effects); err != nil {
 			return x, err
 		}
 		x.ex.Event = event
@@ -1347,7 +1351,7 @@ func (s *Svc) Results(ctx context.Context, a Actor, id BacktestID, f ResultFilte
 		if c != nil {
 			where = ` AND (e.occurred_at, e.id) > (` + arg(c.At) + `, ` + arg(c.ID) + `)`
 		}
-		rows, err := tx.Query(ctx, fmt.Sprintf(from, exampleColumns+`, r.end_kind, r.outcomes, r.decisions, r.effects, r.trace, r.error, r.live_calls`)+
+		rows, err := tx.Query(ctx, fmt.Sprintf(from, exampleColumns+`, r.end_kind, r.outcomes, r.decisions, r.effects, r.trace, r.error, r.live_calls, r.snapshot_withheld`)+
 			where+` ORDER BY e.occurred_at, e.id LIMIT `+arg(limit+1), args...)
 		if err != nil {
 			return dbErr(err)
@@ -1357,7 +1361,7 @@ func (s *Svc) Results(ctx context.Context, a Actor, id BacktestID, f ResultFilte
 			var event, snap, outcomes, decisions, effects, trace []byte
 			err := r.Scan(&x.Example.ID, &x.Example.DatasetID, &x.Example.Source, &x.Example.SourceRef, &x.Example.Title, &x.Example.EventKind, &event,
 				&x.Example.Subject.Entity, &x.Example.Subject.Key, &snap, &x.Example.SnapshotApproximate, &x.Example.OccurredAt,
-				&x.Example.Origin, &x.Example.CreatedBy, &x.End, &outcomes, &decisions, &effects, &trace, &x.Error, &x.LiveCalls)
+				&x.Example.Origin, &x.Example.CreatedBy, &x.Example.SnapshotReadWith, &x.End, &outcomes, &decisions, &effects, &trace, &x.Error, &x.LiveCalls, &x.SnapshotWithheld)
 			if err != nil {
 				return x, err
 			}

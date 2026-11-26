@@ -470,7 +470,7 @@ func (c *Controller) backtestCancel(ctx context.Context, req BacktestRequest) (O
 
 func (c *Controller) reportView(ctx context.Context, a engine.Actor, r backtest.Report) ReportResponse {
 	names := c.names(ctx, a.TenantID, r.Backtest.CreatedBy)
-	out := ReportResponse{Backtest: backtestView(r.Backtest, names), Examples: r.Examples, Triggered: r.Triggered, Ends: r.Ends, MismatchTotal: r.MismatchTotal,
+	out := ReportResponse{Backtest: backtestView(r.Backtest, names), Examples: r.Examples, Triggered: r.Triggered, SnapshotsWithheld: r.SnapshotsWithheld, Ends: r.Ends, MismatchTotal: r.MismatchTotal,
 		Classifiers: make([]ClassifierView, 0, len(r.Classifiers)), Mismatches: make([]MismatchView, 0, len(r.Mismatches)),
 		Effects: make([]EffectSummaryView, 0, len(r.Effects)), Cost: CostView(r.Cost)}
 	if out.Ends == nil {
@@ -542,7 +542,7 @@ func (c *Controller) backtestResults(ctx context.Context, req ResultsRequest) (R
 	for _, r := range page.Items {
 		rv := ResultView{Example: exampleView(r.Example), End: EndKind(r.End), Outcomes: r.Outcomes, Error: r.Error,
 			Decisions: make([]DecisionView, 0, len(r.Decisions)), Effects: make([]EffectView, 0, len(r.Effects)),
-			Trace: make([]TraceStep, 0, len(r.Trace)), Mismatches: r.Mismatches}
+			Trace: make([]TraceStep, 0, len(r.Trace)), Mismatches: r.Mismatches, SnapshotWithheld: r.SnapshotWithheld}
 		if rv.Outcomes == nil {
 			rv.Outcomes = map[string]string{}
 		}

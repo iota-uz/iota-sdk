@@ -75,6 +75,8 @@ export interface BacktestFake {
   datasets: Dataset[]
   backtests: Backtest[]
   examples: Map<string, Example[]>
+  /** The first event of each backtest ran without its subject's snapshot (?withheld). */
+  withheld?: boolean
 }
 
 export function seedBacktests(empty: boolean): BacktestFake {
@@ -115,6 +117,7 @@ export function resultsOf(f: BacktestFake, b: Backtest): Result[] {
       decisions: [{ node: 'intent', outcome, status: b.decisions === 'live' || i % 2 === 0 ? 'live' : 'cached', cost_usd: 0.0021 }],
       effects: [{ node: send, params: { to: send === 'to_sales' ? 'sales@acme.test' : 'support@acme.test', subject: send === 'to_sales' ? 'Lead' : 'Ticket', body: (ex.event as { text: string }).text } }],
       trace: [], mismatches: label && label.outcome !== outcome ? ['intent'] : [],
+      snapshot_withheld: (f.withheld ?? false) && i === 0,
     }
   })
 }
@@ -137,7 +140,7 @@ export function reportOf(f: BacktestFake, b: Backtest): Report {
   for (const r of results) for (const e of r.effects) effects.set(e.node, (effects.get(e.node) ?? 0) + 1)
   const live = results.filter((r) => r.decisions[0]!.status === 'live').length
   return {
-    backtest: b, examples: results.length, triggered: results.length, ends: { ended: results.length },
+    backtest: b, examples: results.length, triggered: results.length, snapshots_withheld: results.filter((r) => r.snapshot_withheld).length, ends: { ended: results.length },
     classifiers: [{ node: 'intent', decision: true, labeled: labeled.length, correct, undecided: 0, accuracy: labeled.length > 0 ? correct / labeled.length : null, outcomes: metrics, distribution }],
     mismatches: results.filter((r) => r.mismatches.length > 0).map((r) => ({ example_id: r.example.id, title: r.example.title, occurred_at: r.example.occurred_at, node: 'intent', expected: r.example.labels.intent!.outcome, actual: r.outcomes.intent!, label_source: r.example.labels.intent!.source })),
     mismatch_total: results.filter((r) => r.mismatches.length > 0).length,

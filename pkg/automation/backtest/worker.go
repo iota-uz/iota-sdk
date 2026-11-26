@@ -229,7 +229,8 @@ func (im *importer) add(ev Event) error {
 		return nil
 	}
 	im.seen[key] = true
-	row := exampleRow{id: uuid.New(), source: im.source, origin: im.origin, importID: im.job.id, ref: key, title: ev.Title, kind: ev.Kind, event: body, subject: ev.Subject, at: at}
+	row := exampleRow{id: uuid.New(), source: im.source, origin: im.origin, importID: im.job.id, ref: key, title: ev.Title, kind: ev.Kind, event: body, subject: ev.Subject, at: at,
+		readWith: im.actor.Subject.Permissions}
 	if !im.full {
 		if len(ev.Snapshot) > 0 && string(ev.Snapshot) != "null" {
 			row.snapshot = ev.Snapshot
@@ -661,7 +662,7 @@ func (s *Svc) runExample(ctx context.Context, a Actor, rd *reader, j backtestJob
 	}
 	// What the runner may not read is not replayed: an event of a source they have no right to is not
 	// run, one with fields they may not read runs without them, and the subject's snapshot is used only
-	// when they may read every field of it now.
+	// when they may read it now (see subjectOK); one they may not is withheld, and the result says so.
 	snapshot := ex.Snapshot
 	view := ex
 	if rd.example(ctx, &view) == seeNone {
@@ -670,8 +671,13 @@ func (s *Svc) runExample(ctx context.Context, a Actor, rd *reader, j backtestJob
 	}
 	ex.Event = view.Event
 	vars := json.RawMessage(`{}`)
-	if len(snapshot) > 0 && rd.subjectOK(ctx, ex.Subject, snapshot) {
-		vars = snapshot
+	withheld := false
+	if len(snapshot) > 0 {
+		if rd.subjectOK(ctx, ex.Subject, snapshot, ex.CreatedBy, ex.SnapshotReadWith) {
+			vars = snapshot
+		} else {
+			withheld = true
+		}
 	}
 	if selfOnly(g, ex.Event) {
 		// As the live dispatch: a message the connector sent itself starts no trigger without include_self.
@@ -692,6 +698,7 @@ func (s *Svc) runExample(ctx context.Context, a Actor, rd *reader, j backtestJob
 	default:
 		return err
 	}
+	an.snapshotWithheld = withheld
 	return s.storeResult(ctx, j, ex, an, res.LiveCalls)
 }
 
@@ -710,9 +717,9 @@ func (s *Svc) storeResult(ctx context.Context, j backtestJob, ex Example, an ana
 			return err
 		}
 		_, err := tx.Exec(ctx, `
-			INSERT INTO automation.backtest_results (tenant_id, backtest_id, example_id, end_kind, triggered, outcomes, decisions, effects, trace, error, live_calls)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT DO NOTHING`,
-			j.tenant, j.id, ex.ID, an.end, an.triggered, enc(an.outcomes, "{}"), enc(an.decisions, "[]"), enc(an.effects, "[]"), enc(traceRecords(an.trace), "[]"), an.errText, liveCalls)
+			INSERT INTO automation.backtest_results (tenant_id, backtest_id, example_id, end_kind, triggered, outcomes, decisions, effects, trace, error, live_calls, snapshot_withheld)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) ON CONFLICT DO NOTHING`,
+			j.tenant, j.id, ex.ID, an.end, an.triggered, enc(an.outcomes, "{}"), enc(an.decisions, "[]"), enc(an.effects, "[]"), enc(traceRecords(an.trace), "[]"), an.errText, liveCalls, an.snapshotWithheld)
 		return dbErr(err)
 	})
 }

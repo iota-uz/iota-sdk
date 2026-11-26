@@ -18,6 +18,8 @@ export interface FakeOptions {
   staleReads?: boolean
   /** With delay: only these methods wait, lists among them (?delayOnly=<method>,<method>). */
   delayOnly?: string
+  /** The first event of each backtest ran without its subject's snapshot (?withheld). */
+  withheld?: boolean
   /** A label save of this outcome fails (?labelFails=<outcome>). */
   labelFails?: string
   /** The code of the graph changes once between the review and the enable (a digest refusal). */
@@ -243,6 +245,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
   // The message event replaces the base catalog's own (an empty payload) under the same key.
   const btCatalog = { ...catalog, events: [...catalog.events.filter((e) => e.key !== messageEvent.key), messageEvent], nodes: [...catalog.nodes, jevNode] }
   const bt = seedBacktests(opts.backtests === 'empty')
+  bt.withheld = opts.withheld
   let btSeq = 0
   const backtestOf = (id: string) => bt.backtests.find((b) => b.id === id) ?? rpcError('not_found', 'not found')
   const datasetOf = (id: string) => bt.datasets.find((d) => d.id === id) ?? rpcError('not_found', 'not found')
