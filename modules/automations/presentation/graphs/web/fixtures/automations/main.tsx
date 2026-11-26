@@ -31,6 +31,7 @@ const fake: FakeOptions = {
   delay: Number(params.get('delay') ?? '0'),
   labelFails: params.get('labelFails') ?? undefined,
   delayOnly: params.get('delayOnly') ?? undefined,
+  staleReads: params.has('staleReads'),
   changeOnce: params.has('changeOnce'),
   layoutConflict: params.has('layoutConflict'),
   conflictOnce: params.has('conflictOnce'),

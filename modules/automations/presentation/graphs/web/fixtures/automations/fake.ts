@@ -11,7 +11,9 @@ export interface FakeOptions {
   scenario: 'default' | 'empty' | 'loading' | 'error'
   /** Delay of every action (ms); lists answer at once. */
   delay: number
-  /** With delay: only this method waits (?delayOnly=<method>). */
+  /** With delay: the read waits after reading, so its answer holds the state at its start (?staleReads). */
+  staleReads?: boolean
+  /** With delay: only these methods wait, lists among them (?delayOnly=<method>,<method>). */
   delayOnly?: string
   /** A label save of this outcome fails (?labelFails=<outcome>). */
   labelFails?: string
@@ -600,7 +602,8 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     const signal = init?.signal
     if (body.method === 'automations.get' && (gets++ > 0 || opts.holdFirst) && opts.hold) await hold((body.params as { version?: number }).version ?? 0, signal)
     if (opts.oldVersionDelay > 0 && body.method === 'automations.get' && (body.params as { version?: number }).version) await pause(opts.oldVersionDelay, signal)
-    if (opts.delay > 0 && !isList && (!opts.delayOnly || opts.delayOnly === body.method)) await pause(opts.delay, signal)
+    const waits = opts.delay > 0 && (opts.delayOnly ? opts.delayOnly.split(',').includes(body.method) : !isList)
+    if (waits && !opts.staleReads) await pause(opts.delay, signal)
     let payload: unknown
     try {
       if (opts.scenario === 'error' && isList) rpcError('internal', 'internal error')
@@ -610,6 +613,8 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     } catch (error) {
       payload = { jsonrpc: '2.0', id: body.id, error }
     }
-    return new Response(JSON.stringify(payload), { status: 200, headers: { 'content-type': 'application/json' } })
+    const text = JSON.stringify(payload)
+    if (waits && opts.staleReads) await pause(opts.delay, signal)
+    return new Response(text, { status: 200, headers: { 'content-type': 'application/json' } })
   }
 }

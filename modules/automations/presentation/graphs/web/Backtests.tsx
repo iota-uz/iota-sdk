@@ -397,19 +397,18 @@ function DatasetPanel(props: {
   const confirmed = new Map<string, Label>()
   const queue = new Map<string, Promise<void>>()
   let editSeq = 0
-  // tick orders the commits this panel saw against the reads of examples: savedAt is the tick of a
-  // node's last committed save.
-  let tick = 0
-  const savedAt = new Map<string, number>()
+  // saved counts the saves of this panel that committed. A read of examples that began before one of
+  // them may predate it: it is not shown, the examples are read again. So every read shown is newer
+  // than every commit of this panel.
+  let saved = 0
   // Examples read while saves are pending keep the latest edit of those nodes on screen; the label they
-  // read is the server's, the rollback of those saves, unless a save of the node committed after the
-  // read began (the read may predate it).
-  const overlay = (items: ExampleView[], readAt: number): ExampleView[] => pending.size === 0 ? items : items.map((x) => {
+  // read is the server's, the rollback of those saves.
+  const overlay = (items: ExampleView[]): ExampleView[] => pending.size === 0 ? items : items.map((x) => {
     let labels: ExampleView['labels'] | undefined
     for (const [key, label] of latest) {
       const [id, node] = [key.slice(0, key.indexOf('/')), key.slice(key.indexOf('/') + 1)]
       if (id !== x.id || !pending.get(key)) continue
-      if ((savedAt.get(key) ?? 0) <= readAt) confirmed.set(key, x.labels[node])
+      confirmed.set(key, x.labels[node])
       labels ??= { ...x.labels }
       if (label) labels[node] = label
       else delete labels[node]
@@ -418,11 +417,14 @@ function DatasetPanel(props: {
   })
   const load = async () => {
     const mine = ++seq
-    const readAt = tick
+    const readAt = saved
     setError(undefined)
     try {
       const res = await app.call('automations.dataset_examples', { dataset_id: props.dataset.id, limit: 50 })
-      if (mine === seq) { setPage({ ...res, items: overlay(res.items, readAt) }); committed = mine }
+      if (mine !== seq) return
+      if (saved !== readAt) { void load(); return }
+      setPage({ ...res, items: overlay(res.items) })
+      committed = mine
     } catch (e) {
       if (mine === seq) setError(backtestErrorText(t, e, t('Backtests.Actions.LoadExamples')))
     }
@@ -433,12 +435,14 @@ function DatasetPanel(props: {
     const p = page()
     const of = committed
     if (!p?.next_cursor || more() || of !== seq) return
-    const readAt = tick
+    const readAt = saved
     setMore(true)
     try {
       const res = await app.call('automations.dataset_examples', { dataset_id: props.dataset.id, cursor: p.next_cursor, limit: 50 })
       if (of !== seq || page() !== p) return
-      setPage({ ...res, items: [...p.items, ...overlay(res.items, readAt)] })
+      // A continuation that may predate a save reads the examples again from the start.
+      if (saved !== readAt) { void load(); return }
+      setPage({ ...res, items: [...p.items, ...overlay(res.items)] })
     } catch (e) {
       app.toast.notify({ variant: 'error', title: backtestErrorText(t, e, t('Backtests.Actions.LoadExamples')), action: { label: t('Common.Retry'), onAction: () => void loadMore() } })
     } finally {
@@ -472,7 +476,7 @@ function DatasetPanel(props: {
       try {
         await app.call('automations.example_label', { example_id: ex.id, node, outcome })
         confirmed.set(key, applied)
-        savedAt.set(key, ++tick)
+        saved++
         // The dataset's labeled count is the overview's.
         props.onChanged()
       } catch (e) {
@@ -481,7 +485,7 @@ function DatasetPanel(props: {
       } finally {
         const left = (pending.get(key) ?? 1) - 1
         if (left > 0) pending.set(key, left)
-        else { pending.delete(key); latest.delete(key); savedAt.delete(key) }
+        else { pending.delete(key); latest.delete(key) }
       }
     }
     const next = (queue.get(key) ?? Promise.resolve()).then(save)

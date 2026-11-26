@@ -185,6 +185,39 @@ test('BT3d: examples read while a save is pending keep the edit on screen; its f
   expect(await select.inputValue()).toBe('refund')
 })
 
+test('BT3e: examples read before a save committed are not shown over it; they are read again', async ({ page }) => {
+  await page.goto(`/?${base}&dataset=${DS}&delay=1500&delayOnly=automations.dataset_examples,automations.backtests&staleReads`)
+  const rows = page.locator('[data-testid^="example-"]')
+  // An example labeled already: its save does not move the count, so nothing else reads the examples.
+  await expect(rows.nth(0)).toContainText('I want to buy 20 licenses')
+  const testid = (await rows.nth(0).getAttribute('data-testid'))!
+  const other = (await rows.nth(5).getAttribute('data-testid'))!.replace('example-', '')
+  const select = page.getByTestId(testid).getByTestId('label-intent')
+  const reads = async () => (await calls(page)).filter((c) => c.method === 'automations.dataset_examples').length
+  const before = await reads()
+  // Another user's label moves the count: the examples are read again, and that read answers 1.5 s
+  // later with the state at its start. The overview answers 1.5 s late too.
+  await page.evaluate((otherId) => {
+    ;(window as unknown as { __elsewhere: (m: string, p: unknown) => unknown }).__elsewhere('automations.example_label', { example_id: otherId, node: 'intent', outcome: 'sales' })
+    window.dispatchEvent(new Event('online'))
+  }, other)
+  await expect.poll(reads).toBeGreaterThan(before)
+  // Meanwhile the panel saves «support», at once; every value the field shows from then on is recorded.
+  await select.selectOption('support')
+  await expect.poll(async () => (await calls(page)).filter((c) => c.method === 'automations.example_label').length).toBe(1)
+  await page.evaluate((id) => {
+    const w = window as unknown as { __seen: string[] }
+    w.__seen = []
+    const el = document.querySelector(`[data-testid="${id}"] [data-testid="label-intent"]`) as HTMLSelectElement | null
+    setInterval(() => { const v = (document.querySelector(`[data-testid="${id}"] [data-testid="label-intent"]`) as HTMLSelectElement | null ?? el)?.value; if (v !== undefined) w.__seen.push(v) }, 20)
+  }, testid)
+  // The older read answers (1.5 s after it began); the overview read after the save answers later.
+  await page.waitForTimeout(4500)
+  const seen = await page.evaluate(() => (window as unknown as { __seen: string[] }).__seen)
+  expect(seen.length).toBeGreaterThan(10)
+  expect([...new Set(seen)]).toEqual(['support'])
+})
+
 test('BT4: the cases table filters by classifier and mismatches, in the URL; «Reset filters» clears only them', async ({ page }) => {
   await page.goto(`/?${base}&backtest=${V2}`)
   await expect(page.getByTestId('metrics-intent')).toContainText('Correct 60% (3 of 5)')
