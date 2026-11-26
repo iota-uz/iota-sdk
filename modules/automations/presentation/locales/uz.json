@@ -548,6 +548,8 @@
       "Backtests": {
         "Title": "Bektestlar",
         "Breadcrumbs": "Yoʻl",
+        "LoadFailed": "Bektestlarni yuklab boʻlmadi.",
+        "Stale": "Yangilab boʻlmadi: {reason}",
         "Back": "Barcha toʻplamlar va sinovlar",
         "NotFound": "Toʻplam topilmadi: u oʻchirilgan.",
         "Link": "Bektestlar",
@@ -581,7 +583,7 @@
           "UnsupportedSource": "Bu ulanish tarixini bermaydi.",
           "Finished": "Sinov allaqachon tugagan.",
           "HumanRequired": "Jonli qarorli sinovni faqat inson boshlaydi.",
-          "Forbidden": "Bektestlar uchun «Avtomatlashtirish yaratish» huquqi kerak."
+          "Forbidden": "Bektestlar uchun «Avtomatlashtirishlarni tahrirlash» huquqi kerak."
         },
         "Status": {
           "queued": "Navbatda",
@@ -667,6 +669,7 @@
         "Examples": {
           "Event": "Hodisa",
           "Untitled": "Matnsiz hodisa",
+          "Hidden": "Sizga ochiq boʻlmagan hodisa",
           "Approximate": "Yozuv hodisa paytidagi emas, import paytidagi holatda",
           "EmptyTitle": "Toʻplamda hodisalar yoʻq",
           "EmptyText": "Jurnal yoki ulanish hodisalarini import qiling yoki hodisani qoʻlda qoʻshing."
@@ -708,6 +711,7 @@
           "CachedCost": "Modellarga koʻpi bilan {calls} va faqat keshda yoʻq qarorlar uchun.",
           "LiveCost": "Modellarga {calls} gacha, taxminan {cost}.",
           "LiveCostUnknown": "Modellarga {calls} gacha; narxi hozircha nomaʼlum.",
+          "PerItem": "Grafda «Har biri uchun» bor: uning ichidagi qaror har bir hodisaga 20 martagacha hisoblanadi.",
           "NothingSent": "Hech narsa yuborilmaydi: xabarlar va boshqa effektlar faqat hisobotga yoziladi.",
           "Queued": "Ishchi kutilmoqda…",
           "Progress": "{total} tadan {done} ta hodisa",
@@ -777,7 +781,8 @@
           "NoOther": "Solishtirish uchun yana bitta sinov boshlang.",
           "Summary": "v{a} va v{b} orasida {common} ta umumiy hodisadan {changed} tasi farq qiladi.",
           "Changes": "v{a} → v{b}",
-          "Became": "boʻldi"
+          "Became": "boʻldi",
+          "ParamsChanged": "{effects}: oʻsha effekt, boshqa mazmun bilan"
         }
       }
     },

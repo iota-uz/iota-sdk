@@ -52,9 +52,20 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
           <Match when={init.view === 'list'}><List /></Match>
           <Match when={init.view === 'run'}><RunLink /></Match>
           <Match when={init.view === 'backtests'}>
-            <Suspense fallback={<div class="h-[calc(100vh-4rem)]" role="status" aria-busy="true" aria-label={ctx.t('Common.Loading')} />}>
-              <BacktestsPage />
-            </Suspense>
+            <ErrorBoundary fallback={(error) => {
+              console.warn('automations: the backtests did not load', error)
+              return (
+                <div role="alert" class="m-4 flex flex-col items-start gap-3 rounded-lg border border-subtle p-6" data-testid="backtests-load-error">
+                  <p>{ctx.t('Backtests.LoadFailed')}</p>
+                  {/* The browser keeps a failed module import: a retry loads the page again. */}
+                  <Button variant="secondary" onClick={() => window.location.reload()}>{ctx.t('Common.Retry')}</Button>
+                </div>
+              )
+            }}>
+              <Suspense fallback={<div class="h-[calc(100vh-4rem)]" role="status" aria-busy="true" aria-label={ctx.t('Common.Loading')} />}>
+                <BacktestsPage />
+              </Suspense>
+            </ErrorBoundary>
           </Match>
           <Match when={init.view !== 'list'}>
             <ErrorBoundary fallback={(error) => {

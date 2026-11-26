@@ -548,6 +548,8 @@
       "Backtests": {
         "Title": "回测",
         "Breadcrumbs": "路径",
+        "LoadFailed": "无法加载回测。",
+        "Stale": "无法刷新：{reason}",
         "Back": "所有数据集和回测",
         "NotFound": "未找到数据集：它已被删除。",
         "Link": "回测",
@@ -581,7 +583,7 @@
           "UnsupportedSource": "此连接无法提供其历史。",
           "Finished": "回测已经结束。",
           "HumanRequired": "只有人才能运行实时决策的回测。",
-          "Forbidden": "回测需要“创建自动化”权限。"
+          "Forbidden": "回测需要“编辑自动化”权限。"
         },
         "Status": {
           "queued": "排队中",
@@ -667,6 +669,7 @@
         "Examples": {
           "Event": "事件",
           "Untitled": "无文本的事件",
+          "Hidden": "您无权读取的事件",
           "Approximate": "记录为导入时的状态，而非事件发生时",
           "EmptyTitle": "数据集中没有事件",
           "EmptyText": "导入日志或连接的事件，或手动添加一个。"
@@ -708,6 +711,7 @@
           "CachedCost": "最多 {calls} 模型，仅用于缓存中缺少的决策。",
           "LiveCost": "最多 {calls} 模型，约 {cost}。",
           "LiveCostUnknown": "最多 {calls} 模型；费用尚未知。",
+          "PerItem": "该图含有“遍历”：其中的决策每个事件最多计 20 次。",
           "NothingSent": "不会发送任何内容：消息和其他效果只记录在报告中。",
           "Queued": "正在等待工作进程…",
           "Progress": "{total} 个事件中的 {done} 个",
@@ -777,7 +781,8 @@
           "NoOther": "再运行一个回测以进行比较。",
           "Summary": "v{a} 与 v{b} 之间，{common} 个共同事件中有 {changed} 个不同。",
           "Changes": "v{a} → v{b}",
-          "Became": "变为"
+          "Became": "变为",
+          "ParamsChanged": "{effects}：相同的效果，内容不同"
         }
       }
     },

@@ -293,7 +293,7 @@ func (c *Controller) datasetImport(ctx context.Context, req DatasetImportRequest
 func exampleView(x backtest.Example) ExampleView {
 	v := ExampleView{ID: x.ID.String(), Source: ExampleSource(x.Source), Title: x.Title, EventKind: x.EventKind, Event: x.Event,
 		Subject: Subject{Entity: x.Subject.Entity, Key: x.Subject.Key}, SnapshotApproximate: x.SnapshotApproximate,
-		HasSnapshot: len(x.Snapshot) > 0, OccurredAt: stamp(x.OccurredAt), Labels: make(map[string]LabelView, len(x.Labels))}
+		HasSnapshot: len(x.Snapshot) > 0, OccurredAt: stamp(x.OccurredAt), Hidden: x.Hidden, Labels: make(map[string]LabelView, len(x.Labels))}
 	if len(v.Event) == 0 {
 		v.Event = json.RawMessage("{}")
 	}
@@ -423,7 +423,7 @@ func (c *Controller) backtestEstimate(ctx context.Context, req BacktestRunReques
 	if nodes == nil {
 		nodes = []string{}
 	}
-	return EstimateResponse{Examples: est.Examples, DecisionNodes: nodes, MaxCalls: est.MaxCalls, CostUSD: est.CostUSD}, nil
+	return EstimateResponse{Examples: est.Examples, DecisionNodes: nodes, MaxCalls: est.MaxCalls, PerItem: est.PerItem, CostUSD: est.CostUSD}, nil
 }
 
 func (c *Controller) backtestRun(ctx context.Context, req BacktestRunRequest) (IDResponse, error) {
@@ -467,7 +467,7 @@ func (c *Controller) backtestCancel(ctx context.Context, req BacktestRequest) (O
 
 func (c *Controller) reportView(ctx context.Context, a engine.Actor, r backtest.Report) ReportResponse {
 	names := c.names(ctx, a.TenantID, r.Backtest.CreatedBy)
-	out := ReportResponse{Backtest: backtestView(r.Backtest, names), Examples: r.Examples, Ends: r.Ends, MismatchTotal: r.MismatchTotal,
+	out := ReportResponse{Backtest: backtestView(r.Backtest, names), Examples: r.Examples, Triggered: r.Triggered, Ends: r.Ends, MismatchTotal: r.MismatchTotal,
 		Classifiers: make([]ClassifierView, 0, len(r.Classifiers)), Mismatches: make([]MismatchView, 0, len(r.Mismatches)),
 		Effects: make([]EffectSummaryView, 0, len(r.Effects)), Cost: CostView(r.Cost)}
 	if out.Ends == nil {
@@ -586,7 +586,7 @@ func (c *Controller) backtestCompare(ctx context.Context, req CompareRequest) (C
 		Diffs: make([]ExampleDiffView, 0, len(cmp.Diffs))}
 	for _, d := range cmp.Diffs {
 		dv := ExampleDiffView{ExampleID: d.ExampleID.String(), Title: d.Title, OccurredAt: stamp(d.OccurredAt), EndA: EndKind(d.EndA), EndB: EndKind(d.EndB),
-			Changes: make([]OutcomeChangeView, 0, len(d.Changes)), EffectsA: d.EffectsA, EffectsB: d.EffectsB}
+			Changes: make([]OutcomeChangeView, 0, len(d.Changes)), EffectsA: d.EffectsA, EffectsB: d.EffectsB, ParamsChanged: d.ParamsChanged}
 		if dv.EffectsA == nil {
 			dv.EffectsA = []string{}
 		}

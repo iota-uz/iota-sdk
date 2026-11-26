@@ -19,16 +19,21 @@ CREATE TABLE automation.datasets (
 
 CREATE INDEX datasets_automation_idx ON automation.datasets (tenant_id, automation_id, created_at DESC);
 
--- An example: an event ({kind, ...payload}) and the state of its subject at the event. source_ref is the
--- source's identity of the event (the outbox event's id, a connector's message id): one event is in a
+-- An example: an event ({kind, ...payload}) and the state of its subject at the event. origin names the
+-- source within its kind ('connection:<id>', 'module:<name>', '' for the journal and synthetic events)
+-- and source_ref the event within its origin (the outbox event's id, a message id): one event is in a
 -- dataset once. snapshot NULL: the subject has no variables; snapshot_approximate: the record's state
--- was read when the event was imported, not as it was at the event.
+-- was read when the event was imported, not as it was at the event. import_id is the import that added
+-- it. deleted_at: the author deleted it while a backtest's result refers to it; it leaves the dataset
+-- and stays readable for those results.
 CREATE TABLE automation.dataset_examples (
     tenant_id uuid NOT NULL,
     dataset_id uuid NOT NULL,
     id uuid NOT NULL,
     source text NOT NULL CHECK (source IN ('journal', 'history', 'synthetic')),
+    origin text NOT NULL DEFAULT '',
     source_ref text NOT NULL DEFAULT '',
+    import_id uuid,
     title text NOT NULL DEFAULT '',
     event_kind text NOT NULL,
     event jsonb NOT NULL,
@@ -39,15 +44,16 @@ CREATE TABLE automation.dataset_examples (
     occurred_at timestamp with time zone NOT NULL,
     created_by bigint NOT NULL,
     created_at timestamp with time zone NOT NULL DEFAULT now(),
+    deleted_at timestamp with time zone,
     PRIMARY KEY (tenant_id, id),
     FOREIGN KEY (tenant_id, dataset_id) REFERENCES automation.datasets (tenant_id, id) ON DELETE CASCADE
 );
 
 CREATE INDEX dataset_examples_dataset_idx ON automation.dataset_examples (tenant_id, dataset_id, occurred_at, id);
 
-CREATE UNIQUE INDEX dataset_examples_source_idx ON automation.dataset_examples (tenant_id, dataset_id, source, source_ref)
+CREATE UNIQUE INDEX dataset_examples_source_idx ON automation.dataset_examples (tenant_id, dataset_id, source, origin, source_ref)
 WHERE
-    source_ref <> '';
+    source_ref <> '' AND deleted_at IS NULL;
 
 -- The expected outcome of a node for an example: expected is given with a synthetic event, manual is a
 -- person's label and wins over it.
@@ -95,7 +101,8 @@ CREATE INDEX dataset_imports_pending_idx ON automation.dataset_imports (created_
 WHERE
     status IN ('queued', 'running');
 
--- A backtest: one version of a graph over a dataset. decisions is cached or live.
+-- A backtest: one version of a graph over a dataset. decisions is cached or live. example_ids are the
+-- dataset's examples when the backtest was queued: what it runs and what its progress counts.
 CREATE TABLE automation.backtests (
     tenant_id uuid NOT NULL,
     id uuid NOT NULL,
@@ -104,6 +111,7 @@ CREATE TABLE automation.backtests (
     version integer NOT NULL CHECK (version >= 1),
     decisions text NOT NULL CHECK (decisions IN ('cached', 'live')),
     status text NOT NULL CHECK (status IN ('queued', 'running', 'done', 'failed', 'cancelled')),
+    example_ids uuid[] NOT NULL DEFAULT '{}',
     total integer NOT NULL DEFAULT 0,
     done integer NOT NULL DEFAULT 0,
     live_calls integer NOT NULL DEFAULT 0,
@@ -133,6 +141,8 @@ CREATE TABLE automation.backtest_results (
     backtest_id uuid NOT NULL,
     example_id uuid NOT NULL,
     end_kind text NOT NULL,
+    -- triggered: a trigger fired on the example (the run may then have stopped with an error)
+    triggered boolean NOT NULL DEFAULT FALSE,
     outcomes jsonb NOT NULL DEFAULT '{}'::jsonb,
     decisions jsonb NOT NULL DEFAULT '[]'::jsonb,
     effects jsonb NOT NULL DEFAULT '[]'::jsonb,
@@ -144,6 +154,8 @@ CREATE TABLE automation.backtest_results (
     FOREIGN KEY (tenant_id, backtest_id) REFERENCES automation.backtests (tenant_id, id) ON DELETE CASCADE,
     FOREIGN KEY (tenant_id, example_id) REFERENCES automation.dataset_examples (tenant_id, id) ON DELETE CASCADE
 );
+
+CREATE INDEX backtest_results_example_idx ON automation.backtest_results (tenant_id, example_id);
 
 -- +migrate Down
 DROP TABLE IF EXISTS automation.backtest_results;

@@ -601,6 +601,19 @@ func TestConnectionHistoryImport(t *testing.T) {
 	rep := e.run(a, backtest.RunInput{DatasetID: ds})
 	assert.Equal(t, map[string]int{"sales": 1}, classifier(rep, "cls").Distribution)
 
+	// Another author without the right to the connection sees the example's kind only.
+	hidden, err := e.svc.Examples(ctx, other, ds, backtest.ExampleFilter{})
+	require.NoError(t, err)
+	require.Len(t, hidden.Items, 1)
+	assert.True(t, hidden.Items[0].Hidden)
+	assert.Empty(t, hidden.Items[0].Title)
+	assert.JSONEq(t, `{"kind": "acmemail.received.v1"}`, string(hidden.Items[0].Event))
+	res, err := e.svc.Results(ctx, other, rep.Backtest.ID, backtest.ResultFilter{})
+	require.NoError(t, err)
+	require.Len(t, res.Items, 1)
+	assert.True(t, res.Items[0].Example.Hidden)
+	assert.Empty(t, res.Items[0].Trace)
+
 	// Past MaxExamples the import counts what it left out.
 	mc.history, mc.n = nil, backtest.MaxExamples+2
 	job, err = e.svc.Import(ctx, a, ds, backtest.ImportSource{Kind: backtest.ImportConnection, ConnectionID: conn.ID, Window: backtest.TimeWindow{From: now.Add(-24 * time.Hour)}})
@@ -701,4 +714,78 @@ func TestResultsPagesKeepTheirTotal(t *testing.T) {
 	other.TenantID = uuid.New()
 	_, err = e.svc.Count(ctx, other, am.ID)
 	require.ErrorIs(t, err, engine.ErrNotFound)
+}
+
+// A message the connector sent itself is replayed with by_self (read from the journal's cause, as the
+// live dispatch reads it): a trigger without include_self does not start on it.
+func TestJournalReplaysBySelf(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	a := e.human()
+	am, _, err := e.rt.Service().Create(ctx, a, engine.CreateInput{Graph: json.RawMessage(graphV1)})
+	require.NoError(t, err)
+	e.publish("c-1", message{Text: "buy from a client"}, time.Now().Add(-time.Hour))
+	e.publish("c-2", message{Text: "buy, sent by our own bot"}, time.Now().Add(-time.Hour))
+	_, err = e.db.Exec(ctx, `UPDATE extruntime.outbox_events SET cause = '{"inbound": {"connection_id": "x", "by_self": true}}'::jsonb WHERE subject_key = 'c-2'`)
+	require.NoError(t, err)
+	ds, err := e.svc.CreateDataset(ctx, a, backtest.CreateDatasetInput{AutomationID: am.ID, Name: "d"})
+	require.NoError(t, err)
+	_, err = e.svc.Import(ctx, a, ds, backtest.ImportSource{Kind: backtest.ImportJournal, Window: backtest.TimeWindow{From: time.Now().Add(-24 * time.Hour)}})
+	require.NoError(t, err)
+	e.drain()
+	rep := e.run(a, backtest.RunInput{DatasetID: ds})
+	assert.Equal(t, map[string]int{backtest.EndEnded: 1, backtest.EndNotTriggered: 1}, rep.Ends)
+	assert.Equal(t, 1, rep.Triggered)
+}
+
+// A synthetic payload keeps its numbers as written; a dated synthetic event keeps the loader's word on
+// its snapshot.
+func TestSyntheticKeepsLargeIntegers(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	a := e.human()
+	am, _, err := e.rt.Service().Create(ctx, a, engine.CreateInput{Graph: json.RawMessage(graphV1)})
+	require.NoError(t, err)
+	ds, err := e.svc.CreateDataset(ctx, a, backtest.CreateDatasetInput{AutomationID: am.ID, Name: "d"})
+	require.NoError(t, err)
+	_, err = e.svc.AddSynthetic(ctx, a, ds, backtest.SyntheticEvent{Kind: evMessage, Payload: json.RawMessage(`{"text": "x", "secret": 9007199254740993}`)})
+	require.NoError(t, err)
+	var raw string
+	require.NoError(t, e.db.QueryRow(ctx, `SELECT event::text FROM automation.dataset_examples WHERE dataset_id = $1`, ds).Scan(&raw))
+	assert.Contains(t, raw, "9007199254740993")
+}
+
+// A deleted example leaves the dataset but a finished backtest keeps its result, total and report; one no
+// backtest used is gone.
+func TestDeletedExampleKeepsFinishedResults(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	a := e.human()
+	am, _, err := e.rt.Service().Create(ctx, a, engine.CreateInput{Graph: json.RawMessage(graphV1)})
+	require.NoError(t, err)
+	ds, err := e.svc.CreateDataset(ctx, a, backtest.CreateDatasetInput{AutomationID: am.ID, Name: "d"})
+	require.NoError(t, err)
+	first, err := e.svc.AddSynthetic(ctx, a, ds, backtest.SyntheticEvent{Kind: evMessage, Payload: json.RawMessage(`{"text": "buy"}`)})
+	require.NoError(t, err)
+	_, err = e.svc.AddSynthetic(ctx, a, ds, backtest.SyntheticEvent{Kind: evMessage, Payload: json.RawMessage(`{"text": "help"}`)})
+	require.NoError(t, err)
+	rep := e.run(a, backtest.RunInput{DatasetID: ds})
+	require.Equal(t, 2, rep.Examples)
+	require.NoError(t, e.svc.DeleteExample(ctx, a, first))
+	d, err := e.svc.GetDataset(ctx, a, ds)
+	require.NoError(t, err)
+	assert.Equal(t, 1, d.Examples)
+	rep, err = e.svc.Report(ctx, a, rep.Backtest.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 2, rep.Examples)
+	assert.Equal(t, 2, rep.Backtest.Total)
+	assert.Equal(t, 2, rep.Backtest.Done)
+	// The next backtest runs the dataset as it is now.
+	assert.Equal(t, 1, e.run(a, backtest.RunInput{DatasetID: ds}).Examples)
+	third, err := e.svc.AddSynthetic(ctx, a, ds, backtest.SyntheticEvent{Kind: evMessage, Payload: json.RawMessage(`{"text": "x"}`)})
+	require.NoError(t, err)
+	require.NoError(t, e.svc.DeleteExample(ctx, a, third))
+	var n int
+	require.NoError(t, e.db.QueryRow(ctx, `SELECT count(*) FROM automation.dataset_examples WHERE id = $1`, third).Scan(&n))
+	assert.Zero(t, n, "an example no result refers to is deleted")
 }

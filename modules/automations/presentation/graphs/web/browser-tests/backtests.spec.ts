@@ -60,6 +60,17 @@ test('BT1: the editor links to «Backtests: N»; without Automations.Author the 
   await expect(link).toHaveAttribute('href', `/automations/${GRAPH}/backtests`)
   // The canvas is the editor's own: the link sits in the host's actions, not on the canvas.
   await expect(page.locator('.iota-flow [data-testid="backtests-link"]')).toHaveCount(0)
+  // Unsaved edits are not dropped by the link: the editor asks before the page goes (beforeunload).
+  await page.locator('.ae-toolbar__name').click()
+  await page.getByLabel('Name').fill('Edited routing')
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Edited routing')
+  await expect(page.locator('.ae-save')).toBeEnabled()
+  let asked = false
+  page.once('dialog', async (d) => { asked = d.type() === 'beforeunload'; await d.dismiss() })
+  await link.click({ noWaitAfter: true })
+  await expect.poll(() => asked).toBe(true)
+  await expect(page.locator('.ae-toolbar__name')).toHaveText('Edited routing')
   await page.goto(`/?view=editor&id=${GRAPH}&cannot=author`)
   await expect(page.getByTestId('crumb')).toBeVisible()
   await expect(page.getByTestId('backtests-link')).toHaveCount(0)
@@ -139,6 +150,13 @@ test('BT5: live decisions show their cost before the run; an agent is offered ca
   await expect(dlg.getByTestId('backtest-estimate')).toContainText('At most 6 calls to models')
   await dlg.getByTestId('decisions-live').check()
   await expect(dlg.getByTestId('backtest-estimate')).toContainText('Up to 6 calls to models, about $0.0126')
+  // A paid run waits for its estimate: while it is counted, «Run» is off.
+  await page.goto(`/?${base}&delay=1500`)
+  await page.getByTestId('backtest-new').click()
+  await dlg.getByTestId('decisions-live').check()
+  await expect(dlg.getByTestId('backtest-run-submit')).toBeDisabled()
+  await expect(dlg.getByTestId('backtest-estimate')).toContainText('about $0.0126')
+  await expect(dlg.getByTestId('backtest-run-submit')).toBeEnabled()
   await expect(dlg).toContainText('Nothing is sent')
   await dlg.getByTestId('backtest-run-submit').click()
   await expect(page.getByTestId('report-status')).toContainText('Waiting for the worker')

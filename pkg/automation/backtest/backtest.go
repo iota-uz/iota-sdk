@@ -256,6 +256,12 @@ type Example struct {
 	Snapshot            json.RawMessage
 	SnapshotApproximate bool
 	OccurredAt          time.Time
+	// Origin is the source within its kind ("connection:<id>", "module:<name>"); CreatedBy imported it.
+	Origin    string
+	CreatedBy int64
+	// Hidden: the reader may not read the event (the history of a connection or a module's source they
+	// have no right to): it keeps its kind only.
+	Hidden bool
 	// Labels are the example's labels by node; Label.Source says which one is in force.
 	Labels map[string]Label
 }
@@ -287,9 +293,11 @@ type Estimate struct {
 	Examples int
 	// DecisionNodes are the graph's nodes whose answers are decisions of models.
 	DecisionNodes []string
-	// MaxCalls bounds the calls to providers: every decision node on every example. A cached backtest
-	// makes only the calls the cache lacks.
+	// MaxCalls bounds the calls to providers: every decision node on every example, times
+	// MaxDecisionsPerItem when the graph has a foreach (PerItem). A backtest enforces the bound per example
+	// (an example past it ends with an error); a cached backtest makes only the calls the cache lacks.
 	MaxCalls int
+	PerItem  bool
 	// CostUSD is MaxCalls at the average cost of the nodes' decisions in earlier backtests of the
 	// automation; nil when no cost is known.
 	CostUSD *float64
@@ -424,8 +432,10 @@ type Cost struct {
 
 // Report is the report of a backtest.
 type Report struct {
-	Backtest    Backtest
-	Examples    int
+	Backtest Backtest
+	Examples int
+	// Triggered counts the examples on which a trigger fired, those that then stopped with an error included.
+	Triggered   int
 	Ends        map[string]int
 	Classifiers []ClassifierMetrics
 	Mismatches  []Mismatch
@@ -449,8 +459,10 @@ type ExampleDiff struct {
 	OccurredAt time.Time
 	EndA, EndB string
 	Changes    []OutcomeChange
-	// EffectsA and EffectsB are the nodes of the effects each would have made, when they differ.
+	// EffectsA and EffectsB are the nodes of the effects each would have made, when the effects differ;
+	// ParamsChanged: the same nodes, with other rendered params (a message's text changed).
 	EffectsA, EffectsB []string
+	ParamsChanged      bool
 }
 
 // Comparison puts two backtests side by side over the examples they share.
@@ -477,7 +489,8 @@ type Event struct {
 }
 
 // ConnectionRef is the connection a history importer reads, opened: with its credentials. A module's
-// source gets the zero value.
+// source gets no Connection and no Credentials but always As: it checks the records it emits against
+// As (the person the import runs for, with their rights now).
 type ConnectionRef struct {
 	Connection  connectors.Connection
 	Credentials connectors.Credentials

@@ -184,16 +184,19 @@ type LabelView struct {
 
 // ExampleView is an example of a dataset.
 type ExampleView struct {
-	ID                  string               `json:"id"`
-	Source              ExampleSource        `json:"source"`
-	Title               string               `json:"title"`
-	EventKind           string               `json:"event_kind"`
-	Event               json.RawMessage      `json:"event"`
-	Subject             Subject              `json:"subject"`
-	SnapshotApproximate bool                 `json:"snapshot_approximate"`
-	HasSnapshot         bool                 `json:"has_snapshot"`
-	OccurredAt          string               `json:"occurred_at"`
-	Labels              map[string]LabelView `json:"labels"`
+	ID                  string          `json:"id"`
+	Source              ExampleSource   `json:"source"`
+	Title               string          `json:"title"`
+	EventKind           string          `json:"event_kind"`
+	Event               json.RawMessage `json:"event"`
+	Subject             Subject         `json:"subject"`
+	SnapshotApproximate bool            `json:"snapshot_approximate"`
+	// Hidden: the reader may not read the event (history of a connection or a module source they have
+	// no right to): it keeps its kind only.
+	Hidden      bool                 `json:"hidden,omitempty"`
+	HasSnapshot bool                 `json:"has_snapshot"`
+	OccurredAt  string               `json:"occurred_at"`
+	Labels      map[string]LabelView `json:"labels"`
 }
 
 // ExamplesResponse is a page of examples.
@@ -238,6 +241,9 @@ type EstimateResponse struct {
 	Examples      int      `json:"examples"`
 	DecisionNodes []string `json:"decision_nodes"`
 	MaxCalls      int      `json:"max_calls"`
+	// PerItem: the graph has a foreach, so MaxCalls counts up to MaxDecisionsPerItem decisions of a node
+	// per example (a backtest enforces it).
+	PerItem bool `json:"per_item"`
 	// CostUSD is nil when no cost of these decisions is known yet.
 	CostUSD *float64 `json:"cost_usd"`
 }
@@ -303,8 +309,10 @@ type CostView struct {
 
 // ReportResponse is automations.backtest_report.
 type ReportResponse struct {
-	Backtest      BacktestView        `json:"backtest"`
-	Examples      int                 `json:"examples"`
+	Backtest BacktestView `json:"backtest"`
+	Examples int          `json:"examples"`
+	// Triggered counts the examples on which a trigger fired (those that then stopped with an error too).
+	Triggered     int                 `json:"triggered"`
 	Ends          map[string]int      `json:"ends"`
 	Classifiers   []ClassifierView    `json:"classifiers"`
 	Mismatches    []MismatchView      `json:"mismatches"`
@@ -380,6 +388,8 @@ type ExampleDiffView struct {
 	Changes    []OutcomeChangeView `json:"changes"`
 	EffectsA   []string            `json:"effects_a"`
 	EffectsB   []string            `json:"effects_b"`
+	// ParamsChanged: the same effects with other params (a message's text changed).
+	ParamsChanged bool `json:"params_changed,omitempty"`
 }
 
 // CompareResponse is automations.backtest_compare.

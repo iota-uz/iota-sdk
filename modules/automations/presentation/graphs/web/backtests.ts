@@ -39,6 +39,10 @@ export function nodeTitles(graph: AutomationGraph, catalog: EditorCatalog, lang:
     const title = n.title || n.id
     out.set(n.id, (count.get(n.title) ?? 0) > 1 ? `${title} · ${n.subtitle && n.subtitle !== n.id ? n.subtitle : n.id}` : title)
   }
+  // A subtitle that does not tell them apart either: the final names that still collide take the id.
+  const final = new Map<string, number>()
+  for (const v of out.values()) final.set(v, (final.get(v) ?? 0) + 1)
+  for (const [id, v] of out) if ((final.get(v) ?? 0) > 1) out.set(id, `${v} (${id})`)
   return out
 }
 

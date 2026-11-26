@@ -137,7 +137,7 @@ export function reportOf(f: BacktestFake, b: Backtest): Report {
   for (const r of results) for (const e of r.effects) effects.set(e.node, (effects.get(e.node) ?? 0) + 1)
   const live = results.filter((r) => r.decisions[0]!.status === 'live').length
   return {
-    backtest: b, examples: results.length, ends: { ended: results.length },
+    backtest: b, examples: results.length, triggered: results.length, ends: { ended: results.length },
     classifiers: [{ node: 'intent', decision: true, labeled: labeled.length, correct, undecided: 0, accuracy: labeled.length > 0 ? correct / labeled.length : null, outcomes: metrics, distribution }],
     mismatches: results.filter((r) => r.mismatches.length > 0).map((r) => ({ example_id: r.example.id, title: r.example.title, occurred_at: r.example.occurred_at, node: 'intent', expected: r.example.labels.intent!.outcome, actual: r.outcomes.intent!, label_source: r.example.labels.intent!.source })),
     mismatch_total: results.filter((r) => r.mismatches.length > 0).length,

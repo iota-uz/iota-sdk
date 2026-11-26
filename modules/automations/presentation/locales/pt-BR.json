@@ -548,6 +548,8 @@
       "Backtests": {
         "Title": "Backtests",
         "Breadcrumbs": "Caminho",
+        "LoadFailed": "Não foi possível carregar os backtests.",
+        "Stale": "Não foi possível atualizar: {reason}",
         "Back": "Todos os conjuntos e backtests",
         "NotFound": "O conjunto não foi encontrado: ele foi excluído.",
         "Link": "Backtests",
@@ -581,7 +583,7 @@
           "UnsupportedSource": "Esta conexão não fornece seu histórico.",
           "Finished": "O backtest já terminou.",
           "HumanRequired": "Apenas uma pessoa roda um backtest com decisões ao vivo.",
-          "Forbidden": "Backtests exigem a permissão «Criar automações»."
+          "Forbidden": "Backtests exigem a permissão «Editar automações»."
         },
         "Status": {
           "queued": "Na fila",
@@ -667,6 +669,7 @@
         "Examples": {
           "Event": "Evento",
           "Untitled": "Um evento sem texto",
+          "Hidden": "Um evento que você não tem permissão para ler",
           "Approximate": "O registro como estava na importação, não no evento",
           "EmptyTitle": "Não há eventos no conjunto",
           "EmptyText": "Importe eventos do diário ou de uma conexão, ou adicione um à mão."
@@ -708,6 +711,7 @@
           "CachedCost": "No máximo {calls} a modelos, só para decisões que faltam no cache.",
           "LiveCost": "Até {calls} a modelos, cerca de {cost}.",
           "LiveCostUnknown": "Até {calls} a modelos; o custo ainda não é conhecido.",
+          "PerItem": "O grafo tem um «Para cada»: uma decisão dentro dele conta até 20 vezes por evento.",
           "NothingSent": "Nada é enviado: mensagens e outros efeitos são apenas registrados no relatório.",
           "Queued": "Aguardando o worker…",
           "Progress": "{done} de {total} eventos",
@@ -777,7 +781,8 @@
           "NoOther": "Rode outro backtest para comparar.",
           "Summary": "{changed} de {common} eventos em comum diferem entre v{a} e v{b}.",
           "Changes": "v{a} → v{b}",
-          "Became": "virou"
+          "Became": "virou",
+          "ParamsChanged": "{effects}: o mesmo efeito com outro conteúdo"
         }
       }
     },

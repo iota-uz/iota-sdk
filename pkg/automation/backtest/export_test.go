@@ -14,9 +14,9 @@ func (s *Svc) ClaimBacktest(ctx context.Context) (uuid.UUID, uuid.UUID, bool, er
 
 // StillHolds is whether a live example of the backtest would run under lease.
 func (s *Svc) StillHolds(ctx context.Context, tenant, id, lease uuid.UUID) (bool, error) {
-	_, err := s.runExample(ctx, Actor{}, backtestJob{tenant: tenant, id: id, lease: lease, decisions: DecisionsLive}, nil, nil, "", Example{})
+	err := s.holds(ctx, s.cfg.DB, backtestJob{tenant: tenant, id: id, lease: lease}, false)
 	if err == errCancelled {
 		return false, nil
 	}
-	return true, nil
+	return err == nil, err
 }

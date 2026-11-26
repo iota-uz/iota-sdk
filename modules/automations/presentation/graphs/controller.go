@@ -146,7 +146,7 @@ var screen = solid.Import[Props]("./web/Automations.tsx", solid.WithRPC(
 	solid.Query[ExamplesRequest, ExamplesResponse]("automations.dataset_examples"),
 	solid.Action[SyntheticRequest, IDResponse]("automations.dataset_synthetic", solid.Invalidates("automations.backtests", "automations.dataset_examples")),
 	solid.Action[ExampleRequest, OKResponse]("automations.example_delete", solid.Invalidates("automations.backtests", "automations.dataset_examples")),
-	solid.Action[LabelRequest, OKResponse]("automations.example_label", solid.Invalidates("automations.dataset_examples", "automations.backtest_report", "automations.backtest_results")),
+	solid.Action[LabelRequest, OKResponse]("automations.example_label", solid.Invalidates("automations.backtests", "automations.dataset_examples", "automations.backtest_report", "automations.backtest_results")),
 	solid.Query[BacktestRunRequest, EstimateResponse]("automations.backtest_estimate"),
 	solid.Action[BacktestRunRequest, IDResponse]("automations.backtest_run", solid.Invalidates("automations.backtests", "automations.backtest_count")),
 	solid.Action[BacktestRequest, OKResponse]("automations.backtest_cancel", solid.Invalidates("automations.backtests", "automations.backtest_report")),

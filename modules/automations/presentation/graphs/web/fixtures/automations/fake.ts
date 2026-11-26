@@ -231,7 +231,8 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     versions: [1, 2, 3].map((v) => ({ version: v, graph: routeGraph(v) as Graph, by: 'Dilnoza Karimova', origin: 'human' as const, at: `2026-11-1${v}T08:00:00Z` })),
     layout: { msg: { x: 48, y: 96 }, intent: { x: 368, y: 96 }, to_sales: { x: 688, y: 32 }, to_support: { x: 688, y: 192 }, fin: { x: 1008, y: 96 } }, revision: 1, live: { runs: 0, waits: 0 }, code: [],
   }]
-  const btCatalog = { ...catalog, events: [...catalog.events, messageEvent], nodes: [...catalog.nodes, jevNode] }
+  // The message event replaces the base catalog's own (an empty payload) under the same key.
+  const btCatalog = { ...catalog, events: [...catalog.events.filter((e) => e.key !== messageEvent.key), messageEvent], nodes: [...catalog.nodes, jevNode] }
   const bt = seedBacktests(opts.backtests === 'empty')
   let btSeq = 0
   const backtestOf = (id: string) => bt.backtests.find((b) => b.id === id) ?? rpcError('not_found', 'not found')
@@ -277,7 +278,17 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       d.labeled = items.filter((x) => Object.keys(x.labels).length > 0).length
       return { id }
     },
-    'automations.example_delete': () => ({ ok: true }),
+    'automations.example_delete': (p) => {
+      for (const [ds, items] of bt.examples) {
+        const left = items.filter((x) => x.id !== p.example_id)
+        if (left.length === items.length) continue
+        bt.examples.set(ds, left)
+        const d = datasetOf(ds)
+        d.examples = left.length
+        d.labeled = left.filter((x) => Object.keys(x.labels).length > 0).length
+      }
+      return { ok: true }
+    },
     'automations.example_label': (p) => {
       for (const [ds, items] of bt.examples) {
         const ex = items.find((x) => x.id === p.example_id)
@@ -291,7 +302,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     },
     'automations.backtest_estimate': (p) => {
       const d = datasetOf(p.dataset_id)
-      return { examples: d.examples, decision_nodes: ['intent'], max_calls: d.examples, cost_usd: p.decisions === 'live' ? d.examples * 0.0021 : null }
+      return { examples: d.examples, decision_nodes: ['intent'], max_calls: d.examples, per_item: false, cost_usd: p.decisions === 'live' ? d.examples * 0.0021 : null }
     },
     'automations.backtest_run': (p) => {
       const d = datasetOf(p.dataset_id)

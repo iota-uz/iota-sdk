@@ -42,9 +42,12 @@ export default function BacktestsPage(): JSX.Element {
   let seq = 0
   let timer: ReturnType<typeof setTimeout> | undefined
   let highlightTimer: ReturnType<typeof setTimeout> | undefined
-  onCleanup(() => { clearTimeout(timer); clearTimeout(highlightTimer) })
+  // After the page goes, an answer on the way neither updates it nor schedules another poll.
+  let disposed = false
+  onCleanup(() => { disposed = true; seq++; clearTimeout(timer); clearTimeout(highlightTimer) })
 
   const load = async () => {
+    if (disposed) return
     const mine = ++seq
     clearTimeout(timer)
     setError(undefined)
@@ -178,7 +181,7 @@ export default function BacktestsPage(): JSX.Element {
           <Switch>
             <Match when={dlg().kind === 'create' || dlg().kind === 'import'}>
               <ImportDialog
-                automationID={id} dataset={(dlg() as { dataset?: DatasetView }).dataset} sources={data()?.sources ?? []}
+                automationID={id} dataset={(dlg() as { dataset?: DatasetView }).dataset} sources={data()?.sources ?? []} onCreated={() => void load()}
                 onDone={(ds) => { setDialog(null); changed(ds) }} onClose={() => setDialog(null)}
               />
             </Match>
@@ -217,6 +220,12 @@ function NotFound(props: { onBack: () => void }): JSX.Element {
   )
 }
 
+/** An example as a table names it; one the reader may not read says so. */
+function exampleText(t: ReturnType<typeof useApp>['t'], ex: ExampleView): string {
+  if (ex.hidden) return t('Backtests.Examples.Hidden')
+  return eventSummary(ex) || t('Backtests.Examples.Untitled')
+}
+
 function BackLink(props: { onBack: () => void }): JSX.Element {
   const t = useApp().t
   return (
@@ -235,6 +244,17 @@ function StatusLine(props: { status: BacktestView['status']; text?: string }): J
     <span class="inline-flex items-center gap-1.5 whitespace-nowrap" data-testid="job-status">
       <Icon name={icon()} class={tone()} />{props.text ?? t(`Backtests.Status.${props.status}`)}
     </span>
+  )
+}
+
+/** A refresh that failed over data already on screen: the data stays, marked stale, with a retry (S4). */
+function StaleLine(props: { message: string; onRetry: () => void; testid: string }): JSX.Element {
+  const t = useApp().t
+  return (
+    <p role="alert" class="flex flex-wrap items-center gap-2 text-sm text-200" data-testid={props.testid}>
+      <Icon name="alert" class="text-yellow" />{t('Backtests.Stale', { reason: props.message })}
+      <Button variant="ghost" size="sm" onClick={props.onRetry}>{t('Common.Retry')}</Button>
+    </p>
   )
 }
 
@@ -358,13 +378,17 @@ function DatasetPanel(props: {
   const [page, setPage] = createSignal<ExamplesResult>()
   const [error, setError] = createSignal<string>()
   const [more, setMore] = createSignal(false)
+  // seq names the read in flight; committed the one whose first page is on screen. A continuation
+  // appends only to the page it continues.
   let seq = 0
+  let committed = 0
+  onCleanup(() => { seq++ })
   const load = async () => {
     const mine = ++seq
     setError(undefined)
     try {
       const res = await app.call('automations.dataset_examples', { dataset_id: props.dataset.id, limit: 50 })
-      if (mine === seq) setPage(res)
+      if (mine === seq) { setPage(res); committed = mine }
     } catch (e) {
       if (mine === seq) setError(backtestErrorText(t, e, t('Backtests.Actions.LoadExamples')))
     }
@@ -373,10 +397,12 @@ function DatasetPanel(props: {
   createEffect(on(() => [props.dataset.id, props.dataset.examples, props.dataset.labeled] as const, () => void load()))
   const loadMore = async () => {
     const p = page()
-    if (!p?.next_cursor || more()) return
+    const of = committed
+    if (!p?.next_cursor || more() || of !== seq) return
     setMore(true)
     try {
       const res = await app.call('automations.dataset_examples', { dataset_id: props.dataset.id, cursor: p.next_cursor, limit: 50 })
+      if (of !== seq || page() !== p) return
       setPage({ ...res, items: [...p.items, ...res.items] })
     } catch (e) {
       app.toast.notify({ variant: 'error', title: backtestErrorText(t, e, t('Backtests.Actions.LoadExamples')), action: { label: t('Common.Retry'), onAction: () => void loadMore() } })
@@ -384,18 +410,32 @@ function DatasetPanel(props: {
       setMore(false)
     }
   }
+  // The latest edit of each example's node: a failed save rolls back only its own node, and only while
+  // no later edit of that node took its place.
+  const edits = new Map<string, number>()
+  let editSeq = 0
   const setLabel = async (ex: ExampleView, node: string, outcome: string) => {
-    const before = ex.labels[node]
-    const patch = (labels: ExampleView['labels']) => setPage((p) => p && { ...p, items: p.items.map((x) => (x.id === ex.id ? { ...x, labels } : x)) })
-    const next = { ...ex.labels }
-    if (outcome) next[node] = { outcome, source: 'manual', ...(before?.source === 'expected' ? { expected: before.outcome } : before?.expected ? { expected: before.expected } : {}) }
-    else if (before?.expected) next[node] = { outcome: before.expected, source: 'expected' }
-    else delete next[node]
-    patch(next)
+    const current = page()?.items.find((x) => x.id === ex.id) ?? ex
+    const before = current.labels[node]
+    const patchNode = (label: ExampleView['labels'][string] | undefined) => setPage((p) => p && {
+      ...p,
+      items: p.items.map((x) => {
+        if (x.id !== ex.id) return x
+        const labels = { ...x.labels }
+        if (label) labels[node] = label
+        else delete labels[node]
+        return { ...x, labels }
+      }),
+    })
+    const key = `${ex.id}/${node}`
+    const mine = ++editSeq
+    edits.set(key, mine)
+    if (outcome) patchNode({ outcome, source: 'manual', ...(before?.source === 'expected' ? { expected: before.outcome } : before?.expected ? { expected: before.expected } : {}) })
+    else patchNode(before?.expected ? { outcome: before.expected, source: 'expected' } : undefined)
     try {
       await app.call('automations.example_label', { example_id: ex.id, node, outcome })
     } catch (e) {
-      patch(ex.labels)
+      if (edits.get(key) === mine) patchNode(before)
       app.toast.notify({ variant: 'error', title: backtestErrorText(t, e, t('Backtests.Actions.Label')), action: { label: t('Common.Retry'), onAction: () => void setLabel(ex, node, outcome) } })
     }
   }
@@ -405,7 +445,7 @@ function DatasetPanel(props: {
     return (
       <div class="flex min-w-36 flex-col gap-0.5">
         <Select
-          aria-label={t('Backtests.Labels.Of', { node: title(), example: eventSummary(ex) || t('Backtests.Examples.Untitled') })}
+          aria-label={t('Backtests.Labels.Of', { node: title(), example: exampleText(t, ex) })}
           value={l()?.source === 'manual' ? l()!.outcome : ''}
           options={[{ value: '', label: l()?.source === 'expected' ? t('Backtests.Labels.Expected', { outcome: l()!.outcome }) : t('Backtests.Labels.None') }, ...c.outcomes.map((o) => ({ value: o, label: o }))]}
           onChange={(e) => void setLabel(ex, c.id, e.currentTarget.value)}
@@ -448,6 +488,9 @@ function DatasetPanel(props: {
           <button type="button" class="ae-iconbtn" aria-label={t('Backtests.Datasets.Delete')} title={t('Backtests.Datasets.Delete')} onClick={props.onDelete} data-testid="dataset-delete"><Icon name="trash" /></button>
         </div>
       </div>
+      <Show when={page() && error()}>
+        <StaleLine message={error()!} onRetry={() => void load()} testid="examples-stale" />
+      </Show>
       <Switch>
         <Match when={!page() && error()}>
           <div role="alert" class="flex flex-col items-start gap-3 rounded-lg border border-subtle p-6">
@@ -487,7 +530,7 @@ function DatasetPanel(props: {
                   {(ex) => (
                     <tr class="border-t border-subtle align-top" data-testid={`example-${ex.id}`}>
                       <td class="px-4 py-3 max-w-md">
-                        <p class="break-words">{eventSummary(ex) || t('Backtests.Examples.Untitled')}</p>
+                        <p class="break-words">{exampleText(t, ex)}</p>
                         {meta(ex)}
                       </td>
                       <For each={props.classifiers}>{(c) => <td class="px-4 py-3">{labelCell(ex, c)}</td>}</For>
@@ -502,7 +545,7 @@ function DatasetPanel(props: {
               {(ex) => (
                 <li class="flex flex-col gap-3 rounded-lg border border-subtle bg-surface-600 p-4 min-w-0">
                   <div class="min-w-0">
-                    <p class="break-words">{eventSummary(ex) || t('Backtests.Examples.Untitled')}</p>
+                    <p class="break-words">{exampleText(t, ex)}</p>
                     {meta(ex)}
                   </div>
                   <For each={props.classifiers}>
@@ -534,14 +577,17 @@ function ReportPanel(props: {
   const [cancelling, setCancelling] = createSignal(false)
   let seq = 0
   let timer: ReturnType<typeof setTimeout> | undefined
-  onCleanup(() => clearTimeout(timer))
+  // Leaving the report drops the answer on the way: it neither shows nor polls again.
+  let disposed = false
+  onCleanup(() => { disposed = true; seq++; clearTimeout(timer) })
   const load = async () => {
+    if (disposed) return
     const mine = ++seq
     clearTimeout(timer)
     setError(undefined)
     try {
       const r = await app.call('automations.backtest_report', { backtest_id: props.backtestID })
-      if (mine !== seq) return
+      if (mine !== seq || disposed) return
       setReport(r)
       if (active(r.backtest.status)) timer = setTimeout(() => void load(), POLL_MS)
     } catch (e) {
@@ -570,6 +616,9 @@ function ReportPanel(props: {
   return (
     <div class="flex flex-col gap-5" data-testid="report-panel">
       <BackLink onBack={props.onBack} />
+      <Show when={report() && error()}>
+        <StaleLine message={error()!} onRetry={() => void load()} testid="report-stale" />
+      </Show>
       <Switch>
         <Match when={!report() && error()}>
           <div role="alert" class="flex flex-col items-start gap-3 rounded-lg border border-subtle p-6" data-testid="report-error">
@@ -636,7 +685,7 @@ function Summary(props: { report: ReportResult }): JSX.Element {
   return (
     <dl class="grid grid-cols-2 gap-3 md:grid-cols-4" data-testid="report-summary">
       {item(t('Backtests.Report.Examples'), integer(r().examples, app.lang))}
-      {item(t('Backtests.Report.Triggered'), integer((r().ends.ended ?? 0) + (r().ends.waiting ?? 0), app.lang))}
+      {item(t('Backtests.Report.Triggered'), integer(r().triggered, app.lang))}
       {item(t('Backtests.Report.Calls'), t('Backtests.Report.CallsValue', { live: integer(cost().live_calls, app.lang), cached: integer(cost().cached_calls, app.lang) }), 'report-calls')}
       {item(t('Backtests.Report.Cost'), cost().live_calls > 0 || cost().cached_calls > 0 ? usd(cost().live_usd, app.lang) : '—', 'report-cost')}
     </dl>
@@ -708,14 +757,26 @@ function Cases(props: {
   const [error, setError] = createSignal<string>()
   const [more, setMore] = createSignal(false)
   const [open, setOpen] = createSignal<string>()
+  // seq names the read in flight; committed the read whose first page is on screen, of query (the
+  // backtest and its filters). Another query's rows never stay under the filters; a continuation appends
+  // only to the page it continues.
   let seq = 0
+  let committed = 0
+  let shownQuery = ''
+  onCleanup(() => { seq++ })
   const params = () => ({ backtest_id: props.backtestID, limit: 50, ...(props.node ? { node: props.node } : {}), ...(props.mismatch ? { mismatch: true } : {}) })
   const load = async () => {
     const mine = ++seq
+    const q = params()
+    const query = JSON.stringify(q)
+    if (query !== shownQuery) {
+      setPage(undefined)
+      shownQuery = query
+    }
     setError(undefined)
     try {
-      const res = await app.call('automations.backtest_results', params())
-      if (mine === seq) setPage(res)
+      const res = await app.call('automations.backtest_results', q)
+      if (mine === seq) { setPage(res); committed = mine }
     } catch (e) {
       if (mine === seq) setError(backtestErrorText(t, e, t('Backtests.Actions.LoadResults')))
     }
@@ -723,10 +784,12 @@ function Cases(props: {
   createEffect(on(() => [props.backtestID, props.node, props.mismatch, props.report.backtest.done] as const, () => void load()))
   const loadMore = async () => {
     const p = page()
-    if (!p?.next_cursor || more()) return
+    const of = committed
+    if (!p?.next_cursor || more() || of !== seq) return
     setMore(true)
     try {
       const res = await app.call('automations.backtest_results', { ...params(), cursor: p.next_cursor })
+      if (of !== seq || page() !== p) return
       setPage({ ...res, items: [...p.items, ...res.items] })
     } catch (e) {
       app.toast.notify({ variant: 'error', title: backtestErrorText(t, e, t('Backtests.Actions.LoadResults')) })
@@ -778,9 +841,12 @@ function Cases(props: {
           <Toggle label={t('Backtests.Cases.OnlyMismatches')} checked={props.mismatch} onChange={(e) => props.onView({ mismatch: e.currentTarget.checked })} data-testid="cases-mismatch" />
         </div>
       </div>
+      <Show when={page() && error()}>
+        <StaleLine message={error()!} onRetry={() => void load()} testid="cases-stale" />
+      </Show>
       <Switch>
         <Match when={!page() && error()}>
-          <div role="alert" class="flex flex-col items-start gap-2"><p>{error()}</p><Button variant="secondary" size="sm" onClick={() => void load()}>{t('Common.Retry')}</Button></div>
+          <div role="alert" class="flex flex-col items-start gap-2" data-testid="cases-error"><p>{error()}</p><Button variant="secondary" size="sm" onClick={() => void load()}>{t('Common.Retry')}</Button></div>
         </Match>
         <Match when={!page()}>
           <div role="status" aria-busy="true" aria-label={t('Common.Loading')}><Skeleton variant="table" lines={4} /></div>
@@ -814,7 +880,7 @@ function Cases(props: {
                         <td class="px-4 py-3 max-w-sm">
                           <button type="button" class="text-left break-words hover:underline focus-visible:outline-2 focus-visible:outline-primary-500" aria-expanded={open() === r.example.id}
                             onClick={() => setOpen(open() === r.example.id ? undefined : r.example.id)} data-testid="case-toggle">
-                            {eventSummary(r.example) || t('Backtests.Examples.Untitled')}
+                            {exampleText(t, r.example)}
                           </button>
                           <time class="block text-xs text-300 tabular-nums" datetime={r.example.occurred_at}>{absoluteTime(r.example.occurred_at, app.lang)}</time>
                         </td>
@@ -964,7 +1030,9 @@ function Compare(props: { backtestID: string; compare: string | null; others: Ba
                             </td>
                             <td class="px-4 py-3 text-200">
                               <Show when={d.effects_a.length > 0 || d.effects_b.length > 0} fallback="—">
-                                {(d.effects_a.map(props.title).join(', ') || '—')} → {(d.effects_b.map(props.title).join(', ') || '—')}
+                                <Show when={d.params_changed} fallback={<>{(d.effects_a.map(props.title).join(', ') || '—')} → {(d.effects_b.map(props.title).join(', ') || '—')}</>}>
+                                  {t('Backtests.Compare.ParamsChanged', { effects: d.effects_b.map(props.title).join(', ') })}
+                                </Show>
                               </Show>
                             </td>
                           </tr>
@@ -1005,7 +1073,7 @@ function DialogFrame(props: { id: string; title: string; busy: boolean; onClose:
 }
 
 /** A new dataset with its first import, or an import into an existing one (F9: the import runs in the background). */
-function ImportDialog(props: { automationID: string; dataset?: DatasetView; sources: SourceView[]; onDone: (dataset: string) => void; onClose: () => void }): JSX.Element {
+function ImportDialog(props: { automationID: string; dataset?: DatasetView; sources: SourceView[]; onCreated: () => void; onDone: (dataset: string) => void; onClose: () => void }): JSX.Element {
   const app = useApp()
   const t = app.t
   const creating = !props.dataset
@@ -1029,7 +1097,11 @@ function ImportDialog(props: { automationID: string; dataset?: DatasetView; sour
     setBusy(true)
     setError(undefined)
     try {
-      if (!created) created = (await app.call('automations.dataset_create', { automation_id: props.automationID, name: name().trim() })).id
+      if (!created) {
+        created = (await app.call('automations.dataset_create', { automation_id: props.automationID, name: name().trim() })).id
+        // The dataset exists whatever its import does: the overview shows it now.
+        props.onCreated()
+      }
       const src = source()
       if (src !== 'none') {
         const [kind, ref] = src.split(':') as ['journal' | 'connection' | 'module', string | undefined]
@@ -1191,8 +1263,11 @@ function RunBacktestDialog(props: { datasets: DatasetView[]; dataset?: DatasetVi
       if (mine === seq) setEstimateError(backtestErrorText(t, e, t('Backtests.Actions.Estimate')))
     }
   }))
+  // A paid run starts only once its cost is shown: the estimate of the dataset, version and mode on screen
+  // (one whose dollar cost is unknown still says how many calls it may make).
+  const blocked = () => !dataset() || (decisions() === 'live' && !estimate())
   const submit = async () => {
-    if (busy() || !dataset()) return
+    if (busy() || blocked()) return
     setBusy(true)
     setError(undefined)
     try {
@@ -1208,14 +1283,15 @@ function RunBacktestDialog(props: { datasets: DatasetView[]; dataset?: DatasetVi
   const costText = (est: EstimateResult) => {
     if (est.decision_nodes.length === 0) return t('Backtests.Run.NoDecisions')
     const calls = counted(t, 'Backtests.Run.Calls', est.max_calls, app.lang)
-    if (decisions() === 'cached') return t('Backtests.Run.CachedCost', { calls })
-    return est.cost_usd !== null ? t('Backtests.Run.LiveCost', { calls, cost: usd(est.cost_usd, app.lang) }) : t('Backtests.Run.LiveCostUnknown', { calls })
+    const text = decisions() === 'cached' ? t('Backtests.Run.CachedCost', { calls })
+      : est.cost_usd !== null ? t('Backtests.Run.LiveCost', { calls, cost: usd(est.cost_usd, app.lang) }) : t('Backtests.Run.LiveCostUnknown', { calls })
+    return est.per_item ? `${text} ${t('Backtests.Run.PerItem')}` : text
   }
   return (
     <DialogFrame
       id="backtest-run-title" testid="backtest-run-dialog" busy={busy()} onClose={props.onClose} onSubmit={() => void submit()}
       title={t('Backtests.Run.Title')}
-      footer={<Button type="submit" variant="primary" class="min-h-11 justify-center" loading={busy()} disabled={!dataset()} icon={<Icon name="play" />} data-testid="backtest-run-submit">{busy() ? t('Backtests.Run.Starting') : t('Backtests.Run.Start')}</Button>}
+      footer={<Button type="submit" variant="primary" class="min-h-11 justify-center" loading={busy()} disabled={blocked()} icon={<Icon name="play" />} data-testid="backtest-run-submit">{busy() ? t('Backtests.Run.Starting') : t('Backtests.Run.Start')}</Button>}
     >
       <Show when={runnable().length > 0} fallback={<p class="text-sm text-200">{t('Backtests.Errors.EmptyDataset')}</p>}>
         <Select label={t('Backtests.Run.Dataset')} value={dataset()} onChange={(e) => setDataset(e.currentTarget.value)} data-testid="backtest-run-dataset"

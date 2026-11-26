@@ -23,6 +23,13 @@ describe('classifiers of a graph', () => {
     // The sends have one outcome besides failed: nothing to label.
     expect(cs.map((c) => c.id)).toEqual(['intent'])
   })
+  it('names nodes whose title and subtitle collide by their ids', () => {
+    const twin = { ...graph, nodes: [...graph.nodes, { id: 'to_sales_2', type: 'core.send_email', params: { to: 'sales@acme.test', subject: 'Lead', body: 'x' } }] } as AutomationGraph
+    const titles = nodeTitles(twin, catalog, 'en')
+    const names = ['to_sales', 'to_sales_2'].map((id) => titles.get(id))
+    expect(new Set(names).size).toBe(2)
+    expect(names[1]).toContain('(to_sales_2)')
+  })
   it('tells two nodes of one name apart (C3)', () => {
     const titles = nodeTitles(graph, catalog, 'en')
     expect(titles.get('to_sales')).not.toEqual(titles.get('to_support'))

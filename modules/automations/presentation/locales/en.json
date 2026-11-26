@@ -548,6 +548,8 @@
       "Backtests": {
         "Title": "Backtests",
         "Breadcrumbs": "Path",
+        "LoadFailed": "Could not load the backtests.",
+        "Stale": "Could not refresh: {reason}",
         "Back": "All datasets and backtests",
         "NotFound": "The dataset is not found: it was deleted.",
         "Link": "Backtests",
@@ -581,7 +583,7 @@
           "UnsupportedSource": "This connection cannot give its history.",
           "Finished": "The backtest has already finished.",
           "HumanRequired": "Only a person runs a backtest with live decisions.",
-          "Forbidden": "Backtests need the right «Author automations»."
+          "Forbidden": "Backtests need the right «Edit automations»."
         },
         "Status": {
           "queued": "Queued",
@@ -667,6 +669,7 @@
         "Examples": {
           "Event": "Event",
           "Untitled": "An event without text",
+          "Hidden": "An event you have no right to read",
           "Approximate": "The record as it was at import, not at the event",
           "EmptyTitle": "No events in the dataset",
           "EmptyText": "Import events of the journal or of a connection, or add one by hand."
@@ -708,6 +711,7 @@
           "CachedCost": "At most {calls} to models, only for decisions the cache lacks.",
           "LiveCost": "Up to {calls} to models, about {cost}.",
           "LiveCostUnknown": "Up to {calls} to models; their cost is not known yet.",
+          "PerItem": "The graph has a «For each»: a decision inside it counts up to 20 times per event.",
           "NothingSent": "Nothing is sent: messages and other effects are only recorded in the report.",
           "Queued": "Waiting for the worker…",
           "Progress": "{done} of {total} events",
@@ -777,7 +781,8 @@
           "NoOther": "Run another backtest to compare.",
           "Summary": "{changed} of {common} shared events differ between v{a} and v{b}.",
           "Changes": "v{a} → v{b}",
-          "Became": "became"
+          "Became": "became",
+          "ParamsChanged": "{effects}: the same effect with other content"
         }
       }
     },

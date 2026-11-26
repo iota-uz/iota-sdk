@@ -52,7 +52,8 @@ func (t *tools) backtestTools(add func(mcp.Tool, error)) {
 		Name: ToolBacktestDataset,
 		Description: "Create a dataset of events for backtesting an automation (at most 20 per automation, 5000 events each). " +
 			"journal_days, when set, imports the events of the SDK's journal of the last N days that start the automation's " +
-			"triggers (in the background: read automation_backtests for the import's result). Requires " + engine.PermAuthor + ".",
+			"triggers (in the background: read automation_backtests for the import's result); when the import cannot be queued the " +
+			"dataset is still created and import_error says why. Requires " + engine.PermAuthor + ".",
 		Input: objectSchema(map[string]*jsonschema.Schema{
 			"id":           {Type: "string", Format: "uuid"},
 			"name":         {Type: "string", MinLength: jsonschema.Ptr(1), MaxLength: jsonschema.Ptr(200)},
@@ -64,7 +65,9 @@ func (t *tools) backtestTools(add func(mcp.Tool, error)) {
 	add(newTool(t.o, mcp.Spec{
 		Name: ToolBacktestExamples,
 		Description: "Add synthetic events to a dataset: each {kind, payload, subject?, title?, expected?}; expected maps a node id " +
-			"to the outcome it should take, counted in precision and recall (a person's label overrides it). Requires " + engine.PermAuthor + ".",
+			"to the outcome it should take, counted in precision and recall (a person's label overrides it). Each event is added by " +
+			"itself, in order: when one fails, the result lists the ids of those added before it and failed {index, message}; the " +
+			"events after it are not tried. Requires " + engine.PermAuthor + ".",
 		Input: objectSchema(map[string]*jsonschema.Schema{
 			"dataset_id": {Type: "string", Format: "uuid"},
 			"events": {Type: "array", MinItems: jsonschema.Ptr(1), MaxItems: jsonschema.Ptr(MaxBacktestEvents), Items: &jsonschema.Schema{
@@ -218,7 +221,10 @@ type datasetCreateIn struct {
 type datasetCreateOut struct {
 	DatasetID string  `json:"dataset_id"`
 	ImportID  *string `json:"import_id"`
-	PageURL   string  `json:"page_url"`
+	// ImportError: the dataset is created but its journal import was not queued (start it again on the
+	// page; a retry of this tool creates another dataset).
+	ImportError *string `json:"import_error"`
+	PageURL     string  `json:"page_url"`
 }
 
 func (t *tools) backtestDatasetCreate(ctx context.Context, a engine.Actor, in datasetCreateIn) (datasetCreateOut, error) {
@@ -235,7 +241,10 @@ func (t *tools) backtestDatasetCreate(ctx context.Context, a engine.Actor, in da
 		from := time.Now().Add(-time.Duration(in.JournalDays) * 24 * time.Hour)
 		job, err := t.o.backtests.Import(ctx, a, ds, backtest.ImportSource{Kind: backtest.ImportJournal, Window: backtest.TimeWindow{From: from}})
 		if err != nil {
-			return datasetCreateOut{}, backtestFailure(err)
+			// The dataset exists: its id is returned with why the import was not queued.
+			msg := publicMessage(err, "the import could not be queued")
+			out.ImportError = &msg
+			return out, nil
 		}
 		s := job.String()
 		out.ImportID = &s
@@ -257,7 +266,16 @@ type examplesAddIn struct {
 }
 
 type examplesAddOut struct {
+	// ExampleIDs are the events added, in order; each is committed by itself.
 	ExampleIDs []string `json:"example_ids"`
+	// Failed, when set, is the first event that was not added (by its index) and why: the events after
+	// it were not tried, the ones before it are added.
+	Failed *addFailure `json:"failed"`
+}
+
+type addFailure struct {
+	Index   int    `json:"index"`
+	Message string `json:"message"`
 }
 
 func (t *tools) backtestExamplesAdd(ctx context.Context, a engine.Actor, in examplesAddIn) (examplesAddOut, error) {
@@ -273,12 +291,17 @@ func (t *tools) backtestExamplesAdd(ctx context.Context, a engine.Actor, in exam
 		id, err := t.o.backtests.AddSynthetic(ctx, a, ds, backtest.SyntheticEvent{Kind: ev.Kind, Payload: ev.Payload, Subject: ev.Subject,
 			Title: ev.Title, Expected: ev.Expected})
 		if err != nil {
-			f := backtestFailure(err)
-			var mf *mcp.Failure
-			if errors.As(f, &mf) && len(out.ExampleIDs) > 0 {
-				mf.Message = "events[" + strconv.Itoa(i) + "]: " + mf.Message + " (the events before it were added: " + strconv.Itoa(len(out.ExampleIDs)) + ")"
+			if len(out.ExampleIDs) == 0 {
+				return examplesAddOut{}, backtestFailure(err)
 			}
-			return examplesAddOut{}, f
+			// The events before it are added: their ids come back with the failure.
+			msg := publicMessage(err, "the event was not added")
+			var mf *mcp.Failure
+			if errors.As(backtestFailure(err), &mf) {
+				msg = mf.Message
+			}
+			out.Failed = &addFailure{Index: i, Message: msg}
+			return out, nil
 		}
 		out.ExampleIDs = append(out.ExampleIDs, id.String())
 	}

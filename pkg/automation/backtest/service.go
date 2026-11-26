@@ -138,9 +138,9 @@ func (s *Svc) datasetRow(ctx context.Context, a Actor, id DatasetID) (Dataset, e
 	var origin string
 	err := s.cfg.DB.QueryRow(ctx, `
 		SELECT id, automation_id, name, description, created_by, created_origin, created_at,
-			(SELECT count(*) FROM automation.dataset_examples e WHERE e.tenant_id = d.tenant_id AND e.dataset_id = d.id),
+			(SELECT count(*) FROM automation.dataset_examples e WHERE e.tenant_id = d.tenant_id AND e.dataset_id = d.id AND e.deleted_at IS NULL),
 			(SELECT count(DISTINCT l.example_id) FROM automation.dataset_labels l JOIN automation.dataset_examples e
-				ON e.tenant_id = l.tenant_id AND e.id = l.example_id WHERE e.tenant_id = d.tenant_id AND e.dataset_id = d.id)
+				ON e.tenant_id = l.tenant_id AND e.id = l.example_id WHERE e.tenant_id = d.tenant_id AND e.dataset_id = d.id AND e.deleted_at IS NULL)
 		FROM automation.datasets d WHERE tenant_id = $1 AND id = $2`, a.TenantID, id).
 		Scan(&d.ID, &d.AutomationID, &d.Name, &d.Description, &d.CreatedBy, &origin, &d.CreatedAt, &d.Examples, &d.Labeled)
 	if err != nil {
@@ -200,9 +200,9 @@ func (s *Svc) ListDatasets(ctx context.Context, a Actor, automationID uuid.UUID)
 	}
 	rows, err := s.cfg.DB.Query(ctx, `
 		SELECT id, automation_id, name, description, created_by, created_origin, created_at,
-			(SELECT count(*) FROM automation.dataset_examples e WHERE e.tenant_id = d.tenant_id AND e.dataset_id = d.id),
+			(SELECT count(*) FROM automation.dataset_examples e WHERE e.tenant_id = d.tenant_id AND e.dataset_id = d.id AND e.deleted_at IS NULL),
 			(SELECT count(DISTINCT l.example_id) FROM automation.dataset_labels l JOIN automation.dataset_examples e
-				ON e.tenant_id = l.tenant_id AND e.id = l.example_id WHERE e.tenant_id = d.tenant_id AND e.dataset_id = d.id)
+				ON e.tenant_id = l.tenant_id AND e.id = l.example_id WHERE e.tenant_id = d.tenant_id AND e.dataset_id = d.id AND e.deleted_at IS NULL)
 		FROM automation.datasets d WHERE tenant_id = $1 AND automation_id = $2 ORDER BY created_at DESC, id`, a.TenantID, automationID)
 	if err != nil {
 		return nil, dbErr(err)
@@ -386,8 +386,18 @@ func (s *Svc) Sources(ctx context.Context, a Actor, automationID uuid.UUID) ([]S
 			}
 		}
 	}
+	if len(s.cfg.Sources) == 0 {
+		return out, nil
+	}
+	triggers, err := s.triggerEvents(ctx, a, automationID)
+	if err != nil {
+		return nil, err
+	}
 	for _, hs := range s.cfg.Sources {
 		if hs.Permission != "" && !a.Subject.Has(hs.Permission) {
+			continue
+		}
+		if !offeredFor(hs, triggers) {
 			continue
 		}
 		out = append(out, SourceOption{Kind: ImportModule, Source: hs.Name, Title: hs.Title})
@@ -419,6 +429,22 @@ func (s *Svc) Import(ctx context.Context, a Actor, ds DatasetID, src ImportSourc
 	return id, nil
 }
 
+// offeredFor is whether a module's source is offered for an automation triggered by events: a source
+// that names its events is offered when one of them starts the automation; one that names none always.
+func offeredFor(hs HistorySource, triggers []string) bool {
+	if len(hs.Events) == 0 {
+		return true
+	}
+	for _, e := range hs.Events {
+		for _, t := range triggers {
+			if e == t {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // validKey is a node id or an outcome: what labels name.
 func validKey(s string) bool {
 	return s != "" && len(s) <= 100 && strings.TrimSpace(s) == s
@@ -447,7 +473,8 @@ func (s *Svc) AddSynthetic(ctx context.Context, a Actor, ds DatasetID, ev Synthe
 		// The event's own entity, with no record: the graph runs about such a subject without its state.
 		ev.Subject.Entity = spec.Subject
 	}
-	payload := map[string]any{}
+	// The members are kept as written: a number beyond float64 precision is not rounded.
+	payload := map[string]json.RawMessage{}
 	if len(ev.Payload) > 0 && string(ev.Payload) != "null" {
 		if err := json.Unmarshal(ev.Payload, &payload); err != nil || payload == nil {
 			return uuid.Nil, invalid("the payload of a synthetic event is a JSON object")
@@ -461,11 +488,15 @@ func (s *Svc) AddSynthetic(ctx context.Context, a Actor, ds DatasetID, ev Synthe
 			return uuid.Nil, invalid("an expected outcome names a node and an outcome")
 		}
 	}
-	at := ev.OccurredAt
-	if at.IsZero() {
+	at, dated := ev.OccurredAt, !ev.OccurredAt.IsZero()
+	if !dated {
 		at = s.cfg.Now()
 	}
-	payload["kind"] = kind
+	kindJSON, err := json.Marshal(kind)
+	if err != nil {
+		return uuid.Nil, invalid("the kind does not encode")
+	}
+	payload["kind"] = kindJSON
 	event, err := json.Marshal(payload)
 	if err != nil {
 		return uuid.Nil, invalid("the payload does not encode")
@@ -481,8 +512,9 @@ func (s *Svc) AddSynthetic(ctx context.Context, a Actor, ds DatasetID, ev Synthe
 		if err != nil {
 			return uuid.Nil, err
 		}
-		// A synthetic event happens now: the record read now is its state at the event.
-		approx = approx && at.Before(s.cfg.Now().Add(-time.Minute))
+		// An event the service dates now: the record read now is its state at the event. An event the
+		// author dated keeps the loader's word.
+		approx = approx && dated
 	}
 	if len(event) > MaxEventBytes || len(snap) > MaxEventBytes {
 		return uuid.Nil, fmt.Errorf("%w: an event and its snapshot are at most %d KiB each", engine.ErrLimitExceeded, MaxEventBytes>>10)
@@ -547,7 +579,9 @@ func (s *Svc) snapshot(ctx context.Context, as spi.Subject, tenant uuid.UUID, re
 type exampleRow struct {
 	id          uuid.UUID
 	source      string
+	origin      string // the source within its kind: "connection:<id>", "module:<name>"
 	ref         string
+	importID    uuid.UUID
 	title       string
 	kind        string
 	event       json.RawMessage
@@ -559,27 +593,32 @@ type exampleRow struct {
 
 type insertCounts struct{ added, duplicates, overflow int }
 
-// insertExamples adds examples to a dataset under its row's lock: an example whose source_ref is in
-// the dataset is a duplicate, one past MaxExamples is overflow.
+// insertExamples adds examples to a dataset under its row's lock: an example whose origin and
+// source_ref are in the dataset is a duplicate (unless the same import added it: an import a worker
+// resumes counts it once), one past MaxExamples is overflow.
 func insertExamples(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, ds DatasetID, by int64, rows []exampleRow) (insertCounts, error) {
 	var c insertCounts
 	if _, err := tx.Exec(ctx, `SELECT 1 FROM automation.datasets WHERE tenant_id = $1 AND id = $2 FOR UPDATE`, tenant, ds); err != nil {
 		return c, dbErr(err)
 	}
 	var n int
-	if err := tx.QueryRow(ctx, `SELECT count(*) FROM automation.dataset_examples WHERE tenant_id = $1 AND dataset_id = $2`, tenant, ds).Scan(&n); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM automation.dataset_examples WHERE tenant_id = $1 AND dataset_id = $2 AND deleted_at IS NULL`, tenant, ds).Scan(&n); err != nil {
 		return c, dbErr(err)
 	}
 	for _, r := range rows {
 		if r.ref != "" {
-			var dup bool
-			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM automation.dataset_examples WHERE tenant_id = $1 AND dataset_id = $2 AND source = $3 AND source_ref = $4)`,
-				tenant, ds, r.source, r.ref).Scan(&dup); err != nil {
-				return c, dbErr(err)
-			}
-			if dup {
-				c.duplicates++
+			var by *uuid.UUID
+			err := tx.QueryRow(ctx, `SELECT import_id FROM automation.dataset_examples
+				WHERE tenant_id = $1 AND dataset_id = $2 AND source = $3 AND origin = $4 AND source_ref = $5 AND deleted_at IS NULL`,
+				tenant, ds, r.source, r.origin, r.ref).Scan(&by)
+			switch {
+			case err == nil:
+				if r.importID == uuid.Nil || by == nil || *by != r.importID {
+					c.duplicates++
+				}
 				continue
+			case !errors.Is(err, pgx.ErrNoRows):
+				return c, dbErr(err)
 			}
 		}
 		if n >= MaxExamples {
@@ -590,11 +629,15 @@ func insertExamples(ctx context.Context, tx pgx.Tx, tenant uuid.UUID, ds Dataset
 		if len(r.snapshot) > 0 && string(r.snapshot) != "null" {
 			snap = r.snapshot
 		}
+		var importID *uuid.UUID
+		if r.importID != uuid.Nil {
+			importID = &r.importID
+		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO automation.dataset_examples (tenant_id, dataset_id, id, source, source_ref, title, event_kind, event,
+			INSERT INTO automation.dataset_examples (tenant_id, dataset_id, id, source, origin, source_ref, import_id, title, event_kind, event,
 				subject_entity, subject_key, snapshot, snapshot_approximate, occurred_at, created_by)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-			tenant, ds, r.id, r.source, r.ref, r.title, r.kind, []byte(r.event), r.subject.Entity, r.subject.Key, snap, r.approximate, r.at, by); err != nil {
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+			tenant, ds, r.id, r.source, r.origin, r.ref, importID, r.title, r.kind, []byte(r.event), r.subject.Entity, r.subject.Key, snap, r.approximate, r.at, by); err != nil {
 			return c, dbErr(err)
 		}
 		n++
@@ -642,13 +685,13 @@ func pageLimit(n, def, maxN int) int {
 }
 
 const exampleColumns = `e.id, e.dataset_id, e.source, e.source_ref, e.title, e.event_kind, e.event, e.subject_entity, e.subject_key,
-	e.snapshot, e.snapshot_approximate, e.occurred_at`
+	e.snapshot, e.snapshot_approximate, e.occurred_at, e.origin, e.created_by`
 
 func scanExample(r pgx.Row) (Example, error) {
 	var x Example
 	var event, snap []byte
 	err := r.Scan(&x.ID, &x.DatasetID, &x.Source, &x.SourceRef, &x.Title, &x.EventKind, &event, &x.Subject.Entity, &x.Subject.Key,
-		&snap, &x.SnapshotApproximate, &x.OccurredAt)
+		&snap, &x.SnapshotApproximate, &x.OccurredAt, &x.Origin, &x.CreatedBy)
 	x.Event = event
 	if len(snap) > 0 {
 		x.Snapshot = snap
@@ -737,7 +780,7 @@ func (s *Svc) Examples(ctx context.Context, a Actor, ds DatasetID, f ExampleFilt
 		where += ` AND ` + not + `EXISTS (SELECT 1 FROM automation.dataset_labels l WHERE l.tenant_id = e.tenant_id AND l.example_id = e.id)`
 	}
 	rows, err := s.cfg.DB.Query(ctx, `SELECT `+exampleColumns+` FROM automation.dataset_examples e
-		WHERE e.tenant_id = $1 AND e.dataset_id = $2`+where+` ORDER BY e.occurred_at, e.id LIMIT $3`, args...)
+		WHERE e.tenant_id = $1 AND e.dataset_id = $2 AND e.deleted_at IS NULL`+where+` ORDER BY e.occurred_at, e.id LIMIT $3`, args...)
 	if err != nil {
 		return Page[Example]{}, dbErr(err)
 	}
@@ -745,7 +788,13 @@ func (s *Svc) Examples(ctx context.Context, a Actor, ds DatasetID, f ExampleFilt
 	if err != nil {
 		return Page[Example]{}, dbErr(err)
 	}
+	// The total is the filtered set's.
 	page := Page[Example]{Total: d.Examples}
+	if f.Labeled != nil && *f.Labeled {
+		page.Total = d.Labeled
+	} else if f.Labeled != nil {
+		page.Total = d.Examples - d.Labeled
+	}
 	if len(items) > limit {
 		items = items[:limit]
 		last := items[limit-1]
@@ -759,11 +808,16 @@ func (s *Svc) Examples(ctx context.Context, a Actor, ds DatasetID, f ExampleFilt
 	if err != nil {
 		return Page[Example]{}, err
 	}
+	rd, err := s.readerOf(ctx, a)
+	if err != nil {
+		return Page[Example]{}, err
+	}
 	for i := range items {
 		items[i].Labels = labels[items[i].ID]
 		if items[i].Labels == nil {
 			items[i].Labels = map[string]Label{}
 		}
+		rd.example(ctx, &items[i])
 	}
 	page.Items = items
 	return page, nil
@@ -771,7 +825,8 @@ func (s *Svc) Examples(ctx context.Context, a Actor, ds DatasetID, f ExampleFilt
 
 // exampleOf reads an example and checks the actor sees its dataset.
 func (s *Svc) exampleOf(ctx context.Context, a Actor, ex ExampleID) (Example, error) {
-	x, err := scanExample(s.cfg.DB.QueryRow(ctx, `SELECT `+exampleColumns+` FROM automation.dataset_examples e WHERE e.tenant_id = $1 AND e.id = $2`, a.TenantID, ex))
+	x, err := scanExample(s.cfg.DB.QueryRow(ctx, `SELECT `+exampleColumns+` FROM automation.dataset_examples e
+		WHERE e.tenant_id = $1 AND e.id = $2 AND e.deleted_at IS NULL`, a.TenantID, ex))
 	if err != nil {
 		return Example{}, dbErr(err)
 	}
@@ -788,7 +843,12 @@ func (s *Svc) DeleteExample(ctx context.Context, a Actor, ex ExampleID) error {
 	if _, err := s.exampleOf(ctx, a, ex); err != nil {
 		return err
 	}
-	_, err := s.cfg.DB.Exec(ctx, `DELETE FROM automation.dataset_examples WHERE tenant_id = $1 AND id = $2`, a.TenantID, ex)
+	// An example a backtest's result refers to leaves the dataset but stays for that result: a finished
+	// backtest keeps its total, its results and its report.
+	_, err := s.cfg.DB.Exec(ctx, `
+		WITH used AS (SELECT EXISTS (SELECT 1 FROM automation.backtest_results WHERE tenant_id = $1 AND example_id = $2) AS yes),
+		soft AS (UPDATE automation.dataset_examples SET deleted_at = now() WHERE tenant_id = $1 AND id = $2 AND (SELECT yes FROM used))
+		DELETE FROM automation.dataset_examples WHERE tenant_id = $1 AND id = $2 AND NOT (SELECT yes FROM used)`, a.TenantID, ex)
 	return dbErr(err)
 }
 
@@ -826,6 +886,26 @@ func (s *Svc) versionOf(ctx context.Context, a Actor, automationID uuid.UUID, ve
 		version = am.LatestVersion
 	}
 	return s.cfg.Automations.GetVersion(ctx, a, automationID, version)
+}
+
+// MaxDecisionsPerItem bounds the decisions of one decision node in one example of a graph that has a
+// foreach: a node inside it decides once per item. Estimate counts it and a backtest enforces it.
+const MaxDecisionsPerItem = 20
+
+// callsPerExample bounds the calls to providers of one example: one per decision node, times
+// MaxDecisionsPerItem when the graph has a foreach (its items may each decide).
+func callsPerExample(raw json.RawMessage, decisions int) int {
+	var g struct {
+		Nodes []graph.Node `json:"nodes"`
+	}
+	if json.Unmarshal(raw, &g) == nil {
+		for _, n := range g.Nodes {
+			if n.Type == "foreach" {
+				return decisions * MaxDecisionsPerItem
+			}
+		}
+	}
+	return decisions
 }
 
 // decisionNodes are the nodes of a graph whose type answers with a model's decision.
@@ -871,8 +951,9 @@ func (s *Svc) Estimate(ctx context.Context, a Actor, in RunInput) (Estimate, err
 		return Estimate{}, err
 	}
 	nodes := s.decisionNodes(v.Graph)
-	est := Estimate{Examples: d.Examples, DecisionNodes: sortedKeys(nodes), MaxCalls: d.Examples * len(nodes),
-		AgentCallsBlocked: a.Origin != engine.OriginHuman}
+	perExample := callsPerExample(v.Graph, len(nodes))
+	est := Estimate{Examples: d.Examples, DecisionNodes: sortedKeys(nodes), MaxCalls: d.Examples * perExample,
+		PerItem: perExample > len(nodes), AgentCallsBlocked: a.Origin != engine.OriginHuman}
 	if len(nodes) == 0 || d.Examples == 0 {
 		return est, nil
 	}
@@ -904,7 +985,7 @@ func (s *Svc) Estimate(ctx context.Context, a Actor, in RunInput) (Estimate, err
 	total, known := 0.0, false
 	for n := range nodes {
 		if v, ok := avg[n]; ok {
-			total += v * float64(d.Examples)
+			total += v * float64(d.Examples*perExample/max(len(nodes), 1))
 			known = true
 		}
 	}
@@ -954,10 +1035,20 @@ func (s *Svc) Run(ctx context.Context, a Actor, in RunInput) (BacktestID, error)
 		if active >= MaxActiveBacktests {
 			return fmt.Errorf("%w: at most %d backtests of an automation run at once", engine.ErrLimitExceeded, MaxActiveBacktests)
 		}
-		_, err := tx.Exec(ctx, `
-			INSERT INTO automation.backtests (tenant_id, id, automation_id, dataset_id, version, decisions, status, total, created_by, created_origin)
-			VALUES ($1, $2, $3, $4, $5, $6, 'queued', $7, $8, $9)`, a.TenantID, id, d.AutomationID, d.ID, v.Version, mode, d.Examples, a.UserID, string(a.Origin))
-		return dbErr(err)
+		// The examples of the dataset now are what the backtest runs and what its progress counts.
+		tag, err := tx.Exec(ctx, `
+			INSERT INTO automation.backtests (tenant_id, id, automation_id, dataset_id, version, decisions, status, example_ids, total, created_by, created_origin)
+			SELECT $1, $2, $3, $4, $5, $6, 'queued', ids, cardinality(ids), $7, $8
+			FROM (SELECT coalesce(array_agg(e.id ORDER BY e.occurred_at, e.id), '{}') AS ids FROM automation.dataset_examples e
+				WHERE e.tenant_id = $1 AND e.dataset_id = $4 AND e.deleted_at IS NULL) x
+			WHERE cardinality(ids) > 0`, a.TenantID, id, d.AutomationID, d.ID, v.Version, mode, a.UserID, string(a.Origin))
+		if err != nil {
+			return dbErr(err)
+		}
+		if tag.RowsAffected() == 0 {
+			return invalid("the dataset has no examples")
+		}
+		return nil
 	})
 	if err != nil {
 		return uuid.Nil, err
@@ -985,7 +1076,7 @@ func (s *Svc) Cancel(ctx context.Context, a Actor, id BacktestID) error {
 
 const backtestColumns = `b.id, b.automation_id, b.dataset_id, d.name, b.version, b.decisions, b.status, b.total,
 	(SELECT count(*) FROM automation.backtest_results r WHERE r.tenant_id = b.tenant_id AND r.backtest_id = b.id),
-	b.live_calls, b.error, b.created_by, b.created_origin, b.created_at, b.started_at, b.finished_at`
+	(SELECT coalesce(sum(r.live_calls), 0) FROM automation.backtest_results r WHERE r.tenant_id = b.tenant_id AND r.backtest_id = b.id), b.error, b.created_by, b.created_origin, b.created_at, b.started_at, b.finished_at`
 
 func scanBacktest(r pgx.Row) (Backtest, error) {
 	var b Backtest
@@ -1038,9 +1129,14 @@ func (s *Svc) Count(ctx context.Context, a Actor, automationID uuid.UUID) (int, 
 }
 
 // resultRows reads the results of a backtest with their examples and labels.
-func (s *Svc) resultRows(ctx context.Context, tenant uuid.UUID, id BacktestID) ([]scored, error) {
+func (s *Svc) resultRows(ctx context.Context, a Actor, id BacktestID) ([]scored, error) {
+	tenant := a.TenantID
+	rd, err := s.readerOf(ctx, a)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := s.cfg.DB.Query(ctx, `
-		SELECT r.example_id, e.title, e.occurred_at, r.end_kind, r.outcomes, r.decisions, r.effects
+		SELECT r.example_id, e.title, e.occurred_at, e.origin, r.end_kind, r.triggered, r.outcomes, r.decisions, r.effects
 		FROM automation.backtest_results r
 		JOIN automation.dataset_examples e ON e.tenant_id = r.tenant_id AND e.id = r.example_id
 		WHERE r.tenant_id = $1 AND r.backtest_id = $2 ORDER BY e.occurred_at, e.id`, tenant, id)
@@ -1050,12 +1146,20 @@ func (s *Svc) resultRows(ctx context.Context, tenant uuid.UUID, id BacktestID) (
 	out, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (scored, error) {
 		var x scored
 		var outcomes, decisions, effects []byte
-		if err := r.Scan(&x.example, &x.title, &x.occurredAt, &x.end, &outcomes, &decisions, &effects); err != nil {
+		var origin string
+		if err := r.Scan(&x.example, &x.title, &x.occurredAt, &origin, &x.end, &x.triggered, &outcomes, &decisions, &effects); err != nil {
 			return x, err
 		}
 		_ = json.Unmarshal(outcomes, &x.outcomes)
 		_ = json.Unmarshal(decisions, &x.decisions)
 		_ = json.Unmarshal(effects, &x.effects)
+		if !rd.mayRead(ctx, origin) {
+			// The title and the effects' params come from an event the reader may not read.
+			x.title = ""
+			for i := range x.effects {
+				x.effects[i].Params = json.RawMessage("null")
+			}
+		}
 		return x, nil
 	})
 	if err != nil {
@@ -1081,7 +1185,7 @@ func (s *Svc) reportOf(ctx context.Context, a Actor, b Backtest) (Report, map[uu
 	if err != nil {
 		return Report{}, nil, err
 	}
-	rows, err := s.resultRows(ctx, a.TenantID, b.ID)
+	rows, err := s.resultRows(ctx, a, b.ID)
 	if err != nil {
 		return Report{}, nil, err
 	}
@@ -1158,53 +1262,67 @@ func (s *Svc) Results(ctx context.Context, a Actor, id BacktestID, f ResultFilte
 		FROM automation.backtest_results r
 		JOIN automation.dataset_examples e ON e.tenant_id = r.tenant_id AND e.id = r.example_id
 		WHERE r.tenant_id = $1 AND r.backtest_id = $2 AND cardinality($3::text[]) >= 0` + filter
+	// The total, the page and its labels are read in one snapshot: a label changed meanwhile does not put
+	// a row that no longer mismatches on a page of mismatches.
 	page := Page[Result]{Items: []Result{}}
-	if err := s.cfg.DB.QueryRow(ctx, fmt.Sprintf(from, "count(*)"), args...).Scan(&page.Total); err != nil {
-		return Page[Result]{}, dbErr(err)
-	}
-	where := ""
-	if c != nil {
-		where = ` AND (e.occurred_at, e.id) > (` + arg(c.At) + `, ` + arg(c.ID) + `)`
-	}
-	rows, err := s.cfg.DB.Query(ctx, fmt.Sprintf(from, exampleColumns+`, r.end_kind, r.outcomes, r.decisions, r.effects, r.trace, r.error, r.live_calls`)+
-		where+` ORDER BY e.occurred_at, e.id LIMIT `+arg(limit+1), args...)
-	if err != nil {
-		return Page[Result]{}, dbErr(err)
-	}
-	all, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (Result, error) {
-		var x Result
-		var event, snap, outcomes, decisions, effects, trace []byte
-		err := r.Scan(&x.Example.ID, &x.Example.DatasetID, &x.Example.Source, &x.Example.SourceRef, &x.Example.Title, &x.Example.EventKind, &event,
-			&x.Example.Subject.Entity, &x.Example.Subject.Key, &snap, &x.Example.SnapshotApproximate, &x.Example.OccurredAt,
-			&x.End, &outcomes, &decisions, &effects, &trace, &x.Error, &x.LiveCalls)
+	var all []Result
+	var labels map[uuid.UUID]map[string]Label
+	err = pgx.BeginTxFunc(ctx, s.cfg.DB, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, fmt.Sprintf(from, "count(*)"), args...).Scan(&page.Total); err != nil {
+			return dbErr(err)
+		}
+		where := ""
+		if c != nil {
+			where = ` AND (e.occurred_at, e.id) > (` + arg(c.At) + `, ` + arg(c.ID) + `)`
+		}
+		rows, err := tx.Query(ctx, fmt.Sprintf(from, exampleColumns+`, r.end_kind, r.outcomes, r.decisions, r.effects, r.trace, r.error, r.live_calls`)+
+			where+` ORDER BY e.occurred_at, e.id LIMIT `+arg(limit+1), args...)
 		if err != nil {
-			return x, err
+			return dbErr(err)
 		}
-		x.Example.Event = event
-		if len(snap) > 0 {
-			x.Example.Snapshot = snap
+		all, err = pgx.CollectRows(rows, func(r pgx.CollectableRow) (Result, error) {
+			var x Result
+			var event, snap, outcomes, decisions, effects, trace []byte
+			err := r.Scan(&x.Example.ID, &x.Example.DatasetID, &x.Example.Source, &x.Example.SourceRef, &x.Example.Title, &x.Example.EventKind, &event,
+				&x.Example.Subject.Entity, &x.Example.Subject.Key, &snap, &x.Example.SnapshotApproximate, &x.Example.OccurredAt,
+				&x.Example.Origin, &x.Example.CreatedBy, &x.End, &outcomes, &decisions, &effects, &trace, &x.Error, &x.LiveCalls)
+			if err != nil {
+				return x, err
+			}
+			x.Example.Event = event
+			if len(snap) > 0 {
+				x.Example.Snapshot = snap
+			}
+			_ = json.Unmarshal(outcomes, &x.Outcomes)
+			_ = json.Unmarshal(decisions, &x.Decisions)
+			_ = json.Unmarshal(effects, &x.Effects)
+			var recs []traceRecord
+			_ = json.Unmarshal(trace, &recs)
+			x.Trace = traceSteps(recs)
+			return x, nil
+		})
+		if err != nil {
+			return dbErr(err)
 		}
-		_ = json.Unmarshal(outcomes, &x.Outcomes)
-		_ = json.Unmarshal(decisions, &x.Decisions)
-		_ = json.Unmarshal(effects, &x.Effects)
-		var recs []traceRecord
-		_ = json.Unmarshal(trace, &recs)
-		x.Trace = traceSteps(recs)
-		return x, nil
+		if len(all) > limit {
+			all = all[:limit]
+			last := all[limit-1]
+			page.NextCursor = encodeCursor(last.Example.OccurredAt, last.Example.ID)
+		}
+		ids := make([]uuid.UUID, len(all))
+		for i := range all {
+			ids[i] = all[i].Example.ID
+		}
+		labels, err = labelsOf(ctx, tx, a.TenantID, ids)
+		if err != nil {
+			return err
+		}
+		return nil
 	})
 	if err != nil {
-		return Page[Result]{}, dbErr(err)
+		return Page[Result]{}, err
 	}
-	if len(all) > limit {
-		all = all[:limit]
-		last := all[limit-1]
-		page.NextCursor = encodeCursor(last.Example.OccurredAt, last.Example.ID)
-	}
-	ids := make([]uuid.UUID, len(all))
-	for i := range all {
-		ids[i] = all[i].Example.ID
-	}
-	labels, err := labelsOf(ctx, s.cfg.DB, a.TenantID, ids)
+	rd, err := s.readerOf(ctx, a)
 	if err != nil {
 		return Page[Result]{}, err
 	}
@@ -1214,6 +1332,7 @@ func (s *Svc) Results(ctx context.Context, a Actor, id BacktestID, f ResultFilte
 			x.Example.Labels = map[string]Label{}
 		}
 		x.Mismatches = mismatchesOf(scored{outcomes: x.Outcomes, decisions: x.Decisions, labels: x.Example.Labels}, nodes)
+		rd.result(ctx, &x)
 		page.Items = append(page.Items, x)
 	}
 	return page, nil

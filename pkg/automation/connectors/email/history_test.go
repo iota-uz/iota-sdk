@@ -18,8 +18,9 @@ import (
 // the mailbox is read-only: nothing is marked read.
 func TestImportHistoryReadsTheWindow(t *testing.T) {
 	f := newFx(t, emailtest.ModeTLS)
-	f.srv.Deliver(mailbox, "INBOX", datedMail("<a@x>", "Ann <ann@example.org>", "Order", "I want to buy", "Mon, 05 Jan 2026 10:00:00 +0000"))
+	// Bob's message arrives first but was sent later: the import emits by date.
 	f.srv.Deliver(mailbox, "INBOX", datedMail("<b@x>", "Bob <bob@example.org>", "Broken", "it broke", "Tue, 06 Jan 2026 10:00:00 +0000"))
+	f.srv.Deliver(mailbox, "INBOX", datedMail("<a@x>", "Ann <ann@example.org>", "Order", "I want to buy", "Mon, 05 Jan 2026 10:00:00 +0000"))
 	f.srv.Deliver(mailbox, "INBOX", datedMail("<old@x>", "Old <old@example.org>", "Old", "too old", "Mon, 01 Dec 2025 10:00:00 +0000"))
 	conn, creds := f.connection(KindIMAP), f.imapCreds()
 

@@ -60,9 +60,11 @@ func (c *imapConnector) ImportHistory(ctx context.Context, ref backtest.Connecti
 	if err != nil {
 		return err
 	}
-	// The server compares dates only, by arrival; a message arrives at or after it is sent, so arrival
-	// since the day before the window is a superset, narrowed by each message's own date below.
-	criteria := &imap.SearchCriteria{Since: w.From.Add(-24 * time.Hour)}
+	// The server compares dates only. A message is a candidate when it arrived since the day before the
+	// window (arrival follows sending) or its Date header is since then (an APPEND may set the arrival
+	// apart from the header); each message's own date narrows the candidates below.
+	since := w.From.Add(-24 * time.Hour)
+	criteria := &imap.SearchCriteria{Or: [][2]imap.SearchCriteria{{{Since: since}, {SentSince: since}}}}
 	if v := strings.TrimSpace(f.From); v != "" {
 		criteria.Header = append(criteria.Header, imap.SearchCriteriaHeaderField{Key: "From", Value: v})
 	}
@@ -75,67 +77,74 @@ func (c *imapConnector) ImportHistory(ctx context.Context, ref backtest.Connecti
 	}
 	uids := res.AllUIDs()
 	sort.Slice(uids, func(i, j int) bool { return uids[i] < uids[j] })
+	// The envelopes of all candidates first: the messages in the window are emitted in the order of their
+	// date (UID breaks ties), not of their arrival in the mailbox, so a full dataset keeps the earliest.
+	type candidate struct {
+		uid  imap.UID
+		at   time.Time
+		size int64
+	}
+	var picked []candidate
 	for start := 0; start < len(uids); start += historyEnvelopeBatch {
 		batch := uids[start:min(start+historyEnvelopeBatch, len(uids))]
 		bufs, err := s.c.Fetch(imap.UIDSetNum(batch...), &imap.FetchOptions{UID: true, Envelope: true, RFC822Size: true, InternalDate: true}).Collect()
 		if err != nil {
 			return err
 		}
-		meta := make(map[imap.UID]struct {
-			at   time.Time
-			size int64
-		}, len(bufs))
 		for _, b := range bufs {
 			at := b.InternalDate
 			if b.Envelope != nil && !b.Envelope.Date.IsZero() {
 				at = b.Envelope.Date
 			}
-			meta[b.UID] = struct {
-				at   time.Time
-				size int64
-			}{at, b.RFC822Size}
-		}
-		for _, uid := range batch {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
-			mt, ok := meta[uid]
-			if !ok || (!mt.at.IsZero() && (mt.at.Before(w.From) || !mt.at.Before(w.To))) {
+			if !at.IsZero() && (at.Before(w.From) || !at.Before(w.To)) {
 				continue
 			}
-			var (
-				m       received
-				missing bool
-			)
-			if mt.size > maxRaw {
-				m, missing, err = c.oversized(ctx, s, uid)
-			} else {
-				var body []byte
-				if body, err = s.fetchRaw(uid, false); err == nil && body == nil {
-					missing = true
-				} else if err == nil {
-					if m, err = parseMessage(body); err != nil {
-						err, missing = nil, true
-					}
+			picked = append(picked, candidate{uid: b.UID, at: at, size: b.RFC822Size})
+		}
+	}
+	sort.SliceStable(picked, func(i, j int) bool {
+		if !picked[i].at.Equal(picked[j].at) {
+			return picked[i].at.Before(picked[j].at)
+		}
+		return picked[i].uid < picked[j].uid
+	})
+	for _, mt := range picked {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		uid := mt.uid
+		var (
+			m       received
+			missing bool
+		)
+		if mt.size > maxRaw {
+			m, missing, err = c.oversized(ctx, s, uid)
+		} else {
+			var body []byte
+			if body, err = s.fetchRaw(uid, false); err == nil && body == nil {
+				missing = true
+			} else if err == nil {
+				if m, err = parseMessage(body); err != nil {
+					err, missing = nil, true
 				}
 			}
-			if err != nil {
-				return err
-			}
-			if missing {
-				continue
-			}
-			if m.date.IsZero() {
-				m.date = mt.at
-			}
-			if !m.date.IsZero() && (m.date.Before(w.From) || !m.date.Before(w.To)) {
-				continue
-			}
-			ev := c.event(ctx, conn, a, sel.UIDValidity, uid, m)
-			if err := emit(backtest.Event{Kind: ev.Event, Key: ev.DedupKey, Title: m.subject, Subject: ev.Subject, Payload: ev.Payload,
-				OccurredAt: ev.OccurredAt, BySelf: ev.BySelf}); err != nil {
-				return err
-			}
+		}
+		if err != nil {
+			return err
+		}
+		if missing {
+			continue
+		}
+		if m.date.IsZero() {
+			m.date = mt.at
+		}
+		if !m.date.IsZero() && (m.date.Before(w.From) || !m.date.Before(w.To)) {
+			continue
+		}
+		ev := c.event(ctx, conn, a, sel.UIDValidity, uid, m)
+		if err := emit(backtest.Event{Kind: ev.Event, Key: ev.DedupKey, Title: m.subject, Subject: ev.Subject, Payload: ev.Payload,
+			OccurredAt: ev.OccurredAt, BySelf: ev.BySelf}); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -15,6 +15,7 @@ type scored struct {
 	title      string
 	occurredAt time.Time
 	end        string
+	triggered  bool
 	outcomes   map[string]string
 	decisions  []Decision
 	effects    []Effect
@@ -144,6 +145,9 @@ func buildReport(b Backtest, decisionNodes map[string]bool, rows []scored) Repor
 	var order []string
 	for _, r := range rows {
 		rep.Ends[r.end]++
+		if r.triggered {
+			rep.Triggered++
+		}
 		seen := map[string]bool{}
 		for _, e := range r.effects {
 			s, ok := effects[e.Node]
@@ -193,7 +197,9 @@ func buildReport(b Backtest, decisionNodes map[string]bool, rows []scored) Repor
 
 // analysis is what a result keeps of a dry run's trace.
 type analysis struct {
-	end       string
+	end string
+	// triggered: a trigger fired (the run may still have ended with an error after it).
+	triggered bool
 	outcomes  map[string]string
 	decisions []Decision
 	effects   []Effect
@@ -205,9 +211,14 @@ type analysis struct {
 // decision nodes and the captured effects.
 func analyze(trace []engine.TraceStep, decisionNodes map[string]bool) analysis {
 	a := analysis{end: EndEnded, outcomes: map[string]string{}}
-	waiting := false
+	// waits are the tokens still waiting: a wait that is woken, times out or whose branch goes on is
+	// not; one left at the end of the trace makes the run waiting, whatever other branches ended.
+	waits := map[string]bool{}
 	triggered := false
 	for _, s := range trace {
+		if s.Kind != engine.TraceWait {
+			delete(waits, s.Token)
+		}
 		switch s.Kind {
 		case engine.TraceNotTriggered:
 			if !triggered {
@@ -216,6 +227,7 @@ func analyze(trace []engine.TraceStep, decisionNodes map[string]bool) analysis {
 			continue
 		case engine.TraceTriggered:
 			triggered = true
+			a.triggered = true
 			a.end = EndEnded
 		case engine.TraceError:
 			a.end = EndError
@@ -223,7 +235,7 @@ func analyze(trace []engine.TraceStep, decisionNodes map[string]bool) analysis {
 				a.errText = s.Message
 			}
 		case engine.TraceWait:
-			waiting = true
+			waits[s.Token] = true
 		}
 		if s.Node != "" && s.Outcome != "" && s.Kind != engine.TraceNotTriggered {
 			if _, seen := a.outcomes[s.Node]; !seen {
@@ -251,7 +263,7 @@ func analyze(trace []engine.TraceStep, decisionNodes map[string]bool) analysis {
 			}
 		}
 	}
-	if waiting && a.end == EndEnded && !endedIn(trace) {
+	if len(waits) > 0 && a.end == EndEnded {
 		a.end = EndWaiting
 	}
 	if len(trace) > MaxTraceSteps {
@@ -259,15 +271,6 @@ func analyze(trace []engine.TraceStep, decisionNodes map[string]bool) analysis {
 	}
 	a.trace = trace
 	return a
-}
-
-func endedIn(trace []engine.TraceStep) bool {
-	for _, s := range trace {
-		if s.Kind == engine.TraceEnded {
-			return true
-		}
-	}
-	return false
 }
 
 // usageOf reads the usage a decision node reports in its output: {"usage": {"cost_usd", "input_tokens",
@@ -311,6 +314,30 @@ func effectNodes(effects []Effect) []string {
 	return out
 }
 
+// sameEffects is whether two runs would make the same effects, in order, with the same params (JSON
+// compared by value: the order of an object's keys does not count).
+func sameEffects(a, b []Effect) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Node != b[i].Node || !sameJSON(a[i].Params, b[i].Params) {
+			return false
+		}
+	}
+	return true
+}
+
+func sameJSON(a, b json.RawMessage) bool {
+	var x, y any
+	if json.Unmarshal(a, &x) != nil || json.Unmarshal(b, &y) != nil {
+		return string(a) == string(b)
+	}
+	ca, errA := json.Marshal(x)
+	cb, errB := json.Marshal(y)
+	return errA == nil && errB == nil && string(ca) == string(cb)
+}
+
 func sameStrings(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
@@ -348,9 +375,11 @@ func diffOf(a, b scored) (ExampleDiff, bool) {
 		}
 	}
 	ea, eb := effectNodes(a.effects), effectNodes(b.effects)
-	effectsDiffer := !sameStrings(ea, eb)
+	effectsDiffer := !sameEffects(a.effects, b.effects)
 	if effectsDiffer {
 		d.EffectsA, d.EffectsB = ea, eb
+		// The same effects in the same order whose rendered params differ (a changed message text).
+		d.ParamsChanged = sameStrings(ea, eb)
 	}
 	return d, len(d.Changes) > 0 || effectsDiffer || a.end != b.end
 }
