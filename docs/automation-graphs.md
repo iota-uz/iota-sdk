@@ -605,7 +605,7 @@ anything out and reports what the graph would have done for each of them.
   `engine.Authoring.DryRun` with `RealCalls: decisions`: effects are captured with their params, execute
   calls other than decisions of models are answered from the context. `cached` (default) takes a
   decision from the decision cache and asks the provider once (paid) for one it lacks, so a person's
-  cached backtest also shows its bound in calls and dollars before it runs; an agent's cached
+  cached backtest also shows, before it runs, its bound in calls and their estimated cost; an agent's cached
   backtest reads the cache only (`RealCallsNone`: a missing decision is reported `missing`, never a
   mismatch); `live` asks every decision again and is a person's (`HUMAN_REQUIRED`). `Service.Estimate`
   shows before the run how many calls it may make (a bound) and their estimated cost from earlier backtests
