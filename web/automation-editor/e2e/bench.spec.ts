@@ -106,7 +106,7 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
   // edges follow frame by frame. The layout is computed before, and committed at the start of, the measured
   // interval; the glide (there and back) is held to the drag's limits.
   await page.evaluate(() => window.__fixture.prepareTidy!())
-  const glides: { frames: number[]; longTasks: number[] }[] = []
+  const glides: { frames: number[]; longTasks: number[]; where: string[] }[] = []
   for (let i = 0; i < 2; i += 1) {
     // The commit itself (a new layout: routes and memos, the same with or without a glide) is the start;
     // what is measured is the glide after it.
@@ -117,9 +117,12 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
     glides.push(await page.evaluate(({ start, end }) => {
       const w = window as unknown as { __longTasks: { start: number; duration: number }[]; __frames: number[] }
       const stamps = w.__frames.filter((t) => t >= start && t <= end)
+      const tasks = w.__longTasks.filter((e) => e.start < end && e.start + e.duration > start)
       return {
         frames: stamps.slice(1).map((t, i) => t - stamps[i]!),
-        longTasks: w.__longTasks.filter((e) => e.start < end && e.start + e.duration > start).map((e) => e.duration),
+        longTasks: tasks.map((e) => e.duration),
+        // Where each long task falls in the glide (ms after its start, of its length): for the profile.
+        where: tasks.map((e) => `${Math.round(e.start - start)}+${Math.round(e.duration)}/${Math.round(end - start)}`),
       }
     }, { start, end }))
   }
@@ -142,6 +145,8 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
     tidyFrameP95Ms: Math.round(p95(tidyFrames) * 10) / 10,
     tidyFrames: tidyFrames.length,
     tidyLongTasks,
+    tidyLongTasksAt: glides.flatMap((g) => g.where),
+    tidyFrameMs: glides.map((g) => g.frames.map((f) => Math.round(f))),
     limits: LIMITS,
   }
   const out = path.resolve('e2e/results')
