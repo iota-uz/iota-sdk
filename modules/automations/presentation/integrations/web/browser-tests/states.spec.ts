@@ -16,10 +16,13 @@ const settle = (page: Page) => page.evaluate(() => Promise.all(document.getAnima
 // axe's contrast pass over a whole page under a modal backdrop does not finish).
 interface State { name: string; query: string; scope?: string; open?: (page: Page) => Promise<void>; ready: (page: Page) => Promise<void> }
 
-const loaded = async (page: Page) => { await expect(page.getByTestId('connector-telegram_bot')).toBeVisible() }
+const loaded = async (page: Page) => {
+  await expect(page.getByTestId('connector-telegram_bot')).toBeVisible()
+  await expect(page.getByTestId('secrets-list')).toBeVisible()
+}
 const states: State[] = [
   { name: 'list', query: '', ready: loaded },
-  { name: 'empty', query: 'scenario=empty', ready: async (p) => { await expect(p.getByTestId('integrations-empty')).toBeVisible() } },
+  { name: 'empty', query: 'scenario=empty&secrets=0', ready: async (p) => { await expect(p.getByTestId('integrations-empty')).toBeVisible() } },
   { name: 'error', query: 'scenario=error', ready: async (p) => { await expect(p.getByTestId('integrations-load-error')).toBeVisible() } },
   { name: 'loading', query: 'scenario=loading', ready: async (p) => { await expect(p.getByTestId('integrations-loading')).toBeVisible() } },
   { name: 'unconfigured', query: 'unconfigured', ready: loaded },
@@ -35,6 +38,18 @@ const states: State[] = [
     ready: async (p) => { await expect(p.getByTestId('form-error')).toBeVisible() },
   },
   { name: 'form-edit', query: 'edit=00000000-0000-4000-8000-000000000001', ready: async (p) => { await expect(p.getByTestId('secret-set-bot_token')).toBeVisible() } },
+  {
+    name: 'secret-form', query: '',
+    open: async (p) => {
+      await loaded(p)
+      await p.getByTestId('secret-add').click()
+      const f = p.getByTestId('secret-form')
+      await f.locator('[data-field="name"]').fill('PAYME_KEY')
+      await f.locator('[data-field="description"]').fill('Payme merchant key')
+      await f.locator('[data-field="value"]').fill('sk-live-0000')
+    },
+    ready: async (p) => { await expect(p.getByTestId('secret-save')).toBeVisible() },
+  },
   {
     name: 'usage', query: '',
     open: async (p) => { await loaded(p); await p.getByTestId('connection-sales_bot').getByTestId('used-by').click() },

@@ -69,15 +69,16 @@ func linkURL(channel, action string) string {
 
 func pollID(channel string) string { return "link-poll-" + channel }
 
-// switchState saves a channel switch at once. Changes of one switch are sent one after another, each with the
-// value the switch had when it changed, so the last one is the one stored; a refused save puts the switch back
-// to that save's previous value and says so. A saved change refreshes the accounts block (ChannelsChangedEvent);
+// switchState saves a channel switch at once. Only the save's 204 counts as stored: a redirect (an expired
+// session sent to the login page) or any other answer rolls the switch back. Changes of one switch are sent
+// one after another, each with the value the switch had when it changed, so the last one is the one stored;
+// a refused save puts the switch back to that save's previous value and says so. A saved change refreshes the accounts block (ChannelsChangedEvent);
 // the switches themselves are never re-rendered, so no change is lost to a swap.
 func switchState(url string) string {
 	return "{ failed: false, chain: Promise.resolve(), save(el) { const enabled = el.checked; this.failed = false; " +
-		"this.chain = this.chain.then(() => fetch('" + url + "', { method: 'POST', credentials: 'same-origin', " +
+		"this.chain = this.chain.then(() => fetch('" + url + "', { method: 'POST', credentials: 'same-origin', redirect: 'manual', " +
 		"headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'HX-Request': 'true' }, body: 'enabled=' + enabled })" +
-		".then((r) => { if (!r.ok) throw new Error(String(r.status)); htmx.trigger(document.body, '" + ChannelsChangedEvent + "') })" +
+		".then((r) => { if (r.status !== 204 || r.redirected) throw new Error(String(r.status)); htmx.trigger(document.body, '" + ChannelsChangedEvent + "') })" +
 		".catch(() => { if (el.checked === enabled) el.checked = !enabled; this.failed = true })) } }"
 }
 

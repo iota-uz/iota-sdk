@@ -29,6 +29,7 @@ export interface RPC {
   "automations.run_retry": { params: { "run_id": string; "wait_id": string }; result: { "ok": boolean } }
   "automations.run_restart": { params: { "run_id": string; "version": number }; result: { "run_id": string } }
   "automations.mcp_tools": { params: { "connection": string }; result: { "tools": Array<{ "name": string; "title"?: string; "description"?: string; "input_schema": unknown; "output_schema"?: unknown; "read_only"?: boolean }>; "error"?: string } }
+  "automations.search_options": { params: { "source": string; "query": string; "connection": string }; result: { "options": Array<{ "value": string; "label": string; "group"?: string }> } }
 }
 
 export const rpcContracts = {
@@ -55,6 +56,7 @@ export const rpcContracts = {
   "automations.run_retry": { namespace: "automations", method: "automations.run_retry", kind: "mutation", cacheable: false, maxRetries: 0, invalidates: ["automations.runs", "automations.run"] },
   "automations.run_restart": { namespace: "automations", method: "automations.run_restart", kind: "mutation", cacheable: false, maxRetries: 0, invalidates: ["automations.runs", "automations.list"] },
   "automations.mcp_tools": { namespace: "automations", method: "automations.mcp_tools", kind: "query", cacheable: false, maxRetries: 0, invalidates: [] },
+  "automations.search_options": { namespace: "automations", method: "automations.search_options", kind: "query", cacheable: false, maxRetries: 0, invalidates: [] },
 } as const satisfies Record<keyof RPC, RPCMethodContract>
 
 const checked: Component<SolidRouteProps<Props>> = Screen

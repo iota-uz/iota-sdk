@@ -90,6 +90,9 @@ type Deps struct {
 	Fetcher        sandbox.Fetcher // default sandbox.NewGuardedFetcher(sandbox.WithMaxBody(MaxResponseBytes))
 	Secrets        access.Secrets
 	Connections    access.Connections
+	// ConnectionUse is the permission the run-as subject needs to use the tenant's connections from the
+	// node ("": none).
+	ConnectionUse string
 }
 
 // Node is the http node type.
@@ -420,7 +423,7 @@ func (n *Node) Execute(ctx context.Context, in catalog.CallInput) (catalog.CallR
 // authorize adds the authorization of the secret or the connection; values are what to mask.
 func (n *Node) authorize(ctx context.Context, in catalog.CallInput, a *auth, u *url.URL, header nethttp.Header) ([]string, error) {
 	if a.Connection != "" {
-		conns, err := access.OpenAll(ctx, n.d.Connections, in.TenantID, []string{a.Connection})
+		conns, err := access.OpenFor(ctx, n.d.Connections, in, []string{a.Connection}, n.d.ConnectionUse)
 		if err != nil {
 			return nil, err
 		}

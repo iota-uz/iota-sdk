@@ -9,11 +9,9 @@ import (
 	"github.com/iota-uz/applets"
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules"
-	"github.com/iota-uz/iota-sdk/modules/automations"
 	"github.com/iota-uz/iota-sdk/modules/bichat"
 	"github.com/iota-uz/iota-sdk/modules/testkit"
 	"github.com/iota-uz/iota-sdk/modules/testkit/services"
-	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/telegram"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
@@ -33,24 +31,7 @@ func main() {
 // serverComponents is the component set of the server: the SDK modules, BiChat
 // and the extension runtime, which stays off until EXTRUNTIME_ENABLED is set.
 func serverComponents() []composition.Component {
-	components := append(modules.Components(), bichat.NewComponent(), wiring.NewComponent(wiring.Options{Natives: modules.Natives()}))
-	return withTelegram(components)
-}
-
-// withTelegram registers the Telegram bot connector (and with it the Telegram notification channel) when the
-// environment asks for it: TELEGRAM_CONNECTOR=true, or TELEGRAM_APIURL naming a Bot API to talk to (a local
-// fake in tests). The platform bot is TELEGRAM_PLATFORMTOKEN (none when empty).
-func withTelegram(components []composition.Component) []composition.Component {
-	token, api := os.Getenv("TELEGRAM_PLATFORMTOKEN"), os.Getenv("TELEGRAM_APIURL")
-	if os.Getenv("TELEGRAM_CONNECTOR") != "true" && api == "" {
-		return components
-	}
-	for i, c := range components {
-		if c.Descriptor().Name == "automations" {
-			components[i] = automations.NewComponent(automations.WithTelegram(telegram.Config{PlatformToken: token, APIURL: api}))
-		}
-	}
-	return components
+	return append(modules.Components(), bichat.NewComponent(), wiring.NewComponent(wiring.Options{Natives: modules.Natives()}))
 }
 
 func run() error {

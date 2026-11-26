@@ -50,7 +50,13 @@ func delaySchema() string {
 }
 
 func endSchema() string {
-	return `{"type": "object", "properties": {"reason": {"type": "string", "maxLength": 500}}, "additionalProperties": false}`
+	return `{"type": "object", "properties": {
+		"reason": {"type": "string", "maxLength": 500},
+		"output": {"type": "object", "maxProperties": 50,
+			"propertyNames": {"pattern": "^[a-z_][a-zA-Z0-9_]{0,63}$"},
+			"additionalProperties": {"type": "string", "minLength": 1, "maxLength": 2000, "description": "CEL"},
+			"description": "the run's output: name → CEL; by the graph's output_schema when it has one"}
+	}, "additionalProperties": false}`
 }
 
 func branchNode(subjects []string) NodeSpec {
@@ -96,8 +102,9 @@ func delayNode(subjects []string) NodeSpec {
 func endNode(subjects []string) NodeSpec {
 	return NodeSpec{
 		Type: "end", Title: "End", Behavior: BehaviorEnd,
-		Description: "Ends the run.",
+		Description: "Ends the run; its output, when set, is the run's output (a run_automation reads it).",
 		Params:      MustSchemaParams(endSchema()), Subjects: subjects, DryRun: DryRunExecute,
+		Values: []string{"output.*"},
 	}
 }
 

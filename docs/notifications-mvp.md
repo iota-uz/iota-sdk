@@ -214,12 +214,10 @@ or a missing chat fails the delivery for good and ends the link (the profile
 says the bot is blocked).
 
 The automations module contributes the channel and registers the start handler
-whenever the Telegram connector is in its directory; `automations.WithTelegram`
-builds that connector with the module's engine inbound and connection store:
-
-```go
-automations.NewComponent(automations.WithTelegram(telegram.Config{PlatformToken: token}))
-```
+whenever the Telegram connector is in its directory: the SDK's own connector,
+which the module registers by default (the platform bot is `APP_TELEGRAMBOTTOKEN`),
+or an application's connector of the same kind. `automations.WithoutTelegram()`
+leaves out both the connector and the channel.
 
 ### Personal channel choices
 

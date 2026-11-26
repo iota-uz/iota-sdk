@@ -28,6 +28,8 @@ export interface FakeOptions {
   calls: { method: string; params: unknown }[]
   /** Validation warns about the first node (a pinned tool schema the server changed), with its fix. */
   warn?: boolean
+  /** «Close stale deals» sends a Telegram message whose chat is picked from the connection's known chats. */
+  telegram?: boolean
 }
 
 const now = '2026-11-20T09:30:00Z'
@@ -76,7 +78,32 @@ const welcome: Graph = {
   edges: [{ from: { node: 'created', outcome: 'fired' }, to: 'fin' }, { from: { node: 'by_hand', outcome: 'fired' }, to: 'fin' }],
 }
 
-function seed(): Stored[] {
+// The Telegram node's chat names the connection's known chats as its options source (x-options-source).
+const telegramCatalog = {
+  ...catalog,
+  nodes: catalog.nodes.map((n) => (n.type !== 'telegram.send_message' ? n : {
+    ...n,
+    params: { ...n.params, properties: { ...(n.params.properties as Record<string, unknown>), chat: { oneOf: [{ type: 'integer' }, { type: 'string', minLength: 1 }], title: 'Chat', 'x-options-source': 'telegram.chats' } } },
+  })),
+}
+
+const telegramGraph: Graph = {
+  name: 'Close stale deals', run_as: 'owner',
+  triggers: [{ id: 'by_hand', event: manualEvent }],
+  nodes: [{ id: 'notify', type: 'telegram.send_message', params: { connection: 'c-1', text: 'A deal is stale' } }, { id: 'fin', type: 'end', params: {} }],
+  edges: [{ from: { node: 'by_hand', outcome: 'fired' }, to: 'notify' }, { from: { node: 'notify', outcome: 'ok' }, to: 'fin' }, { from: { node: 'notify', outcome: 'failed' }, to: 'fin' }],
+}
+
+/** The chats a bot knows, by connection: what automations.search_options answers. */
+const knownChats: Record<string, { value: string; label: string; group?: string }[]> = {
+  'c-1': [
+    { value: '501', label: 'Alice Karimova (@alice)', group: 'private' },
+    { value: '502', label: 'Bobur Aliev (@bobur)', group: 'private' },
+    { value: '-1001', label: 'Sales team', group: 'group' },
+  ],
+}
+
+function seed(telegram = false): Stored[] {
   return [
     {
       item: {
@@ -120,8 +147,8 @@ function seed(): Stored[] {
         triggers: [{ kind: 'inbound', title: 'Telegram message received' }],
         last_run: null, attention: 0, updated_at: '2026-11-10T07:00:00Z', updated_by: 'Aziz Rakhimov',
       },
-      versions: [{ version: 2, graph: { ...welcome, name: 'Close stale deals' }, by: 'Aziz Rakhimov', origin: 'human', at: '2026-11-10T07:00:00Z' }],
-      layout: {},
+      versions: [{ version: 2, graph: telegram ? telegramGraph : { ...welcome, name: 'Close stale deals' }, by: 'Aziz Rakhimov', origin: 'human', at: '2026-11-10T07:00:00Z' }],
+      layout: telegram ? { by_hand: { x: 48, y: 96 }, notify: { x: 368, y: 96 }, fin: { x: 688, y: 96 } } : {},
       revision: 0,
       live: { runs: 0, waits: 0 },
       code: [],
@@ -168,7 +195,8 @@ function rpcError(code: string, message: string): never {
 }
 
 export function installFake(rpcPath: string, opts: FakeOptions): void {
-  const store = opts.scenario === 'empty' ? [] : seed()
+  const store = opts.scenario === 'empty' ? [] : seed(opts.telegram)
+  const shown = opts.telegram ? telegramCatalog : catalog
   let changePending = opts.changeOnce
   let layoutConflict = opts.layoutConflict
   let conflictOnce = opts.conflictOnce
@@ -190,7 +218,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       if (p.status === 'attention') items = items.filter((x) => x.attention > 0)
       return { items, next_cursor: null, can: opts.can }
     },
-    'automations.catalog': () => ({ catalog: catalog as never, connections: { telegram: [{ id: 'c-1', name: 'Sales bot' }] }, can: opts.can }),
+    'automations.catalog': () => ({ catalog: shown as never, connections: { telegram: [{ id: 'c-1', name: 'Sales bot' }] }, can: opts.can }),
     'automations.get': (p) => {
       const s = find(p.id)
       const v = s.versions.find((x) => x.version === (p.version || s.item.latest_version)) ?? s.versions[s.versions.length - 1]!
@@ -198,7 +226,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
         automation: { id: s.item.id, name: s.item.name, enabled: s.item.enabled, enabled_version: s.item.enabled_version, latest_version: s.item.latest_version, owner: { user_id: 1, name: 'Dilnoza Karimova' }, layout: s.layout, layout_revision: s.revision },
         graph: v.graph, version: v.version, saved_by: { name: v.by, origin: v.origin },
         versions: [...s.versions].reverse().map((x) => ({ version: x.version, enabled: x.version === s.item.enabled_version, by: x.by, origin: x.origin, at: x.at })),
-        catalog: catalog as never, connections: { telegram: [{ id: 'c-1', name: 'Sales bot' }] },
+        catalog: shown as never, connections: { telegram: [{ id: 'c-1', name: 'Sales bot' }] },
         read_only: !opts.can.author ? { reason: 'You may not change automations', code: 'no_author' } : v.version !== s.item.latest_version ? { reason: 'An old version is open', code: 'old_version' } : null,
         can: opts.can,
         manual_triggers: s.item.enabled_version === null ? [] : (s.versions.find((x) => x.version === s.item.enabled_version) ?? v).graph.triggers
@@ -307,6 +335,9 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       runs.unshift(wireRun(run, s.item.id, s.item.enabled_version ?? 1, 'running', { trigger: p.trigger_id, nodes: ['fin'] }))
       return { ok: true, run_id: run }
     },
+    'automations.search_options': (p) => ({
+      options: (knownChats[p.connection] ?? []).filter((o) => o.label.toLowerCase().includes(p.query.toLowerCase())),
+    }),
     'automations.search_subjects': (p) => [{ subject: { entity: p.entity, key: '42' }, label: `${p.query} (42)` }],
     'automations.runs': (p) => {
       find(p.automation_id)

@@ -140,6 +140,9 @@ type ListResponse struct {
 	Connectors []ConnectorView `json:"connectors"`
 	// CanManage is whether the caller holds Connections.Manage.
 	CanManage bool `json:"can_manage"`
+	// CanManageSecrets is whether the page shows the tenant's secrets: the application manages secrets
+	// and the caller holds Secrets.Manage.
+	CanManageSecrets bool `json:"can_manage_secrets"`
 }
 
 // IDRequest names a connection.
@@ -272,4 +275,53 @@ type OptionView struct {
 // OptionsResponse is the choices.
 type OptionsResponse struct {
 	Options []OptionView `json:"options"`
+}
+
+// SecretView is a tenant's secret without its value: a saved value is never shown again.
+type SecretView struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	// Version is the record's version: an update or a rotation applies to it.
+	Version    int     `json:"version"`
+	CreatedAt  string  `json:"created_at"`
+	UpdatedAt  string  `json:"updated_at"`
+	RotatedAt  string  `json:"rotated_at"`
+	LastUsedAt *string `json:"last_used_at"`
+}
+
+// SecretListResponse is the result of automations.secrets.list.
+type SecretListResponse struct {
+	Secrets []SecretView `json:"secrets"`
+}
+
+// SecretCreateRequest creates a secret; Value is written once and never returned.
+type SecretCreateRequest struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Value       string `json:"value"`
+}
+
+// SecretUpdateRequest renames a secret or changes its description; a field absent is kept.
+type SecretUpdateRequest struct {
+	ID          string  `json:"id"`
+	Version     int     `json:"version"`
+	Name        *string `json:"name,omitempty"`
+	Description *string `json:"description,omitempty"`
+}
+
+// SecretRotateRequest writes a new value of a secret.
+type SecretRotateRequest struct {
+	ID      string `json:"id"`
+	Version int    `json:"version"`
+	Value   string `json:"value"`
+}
+
+// SecretSaveResponse is the result of create, update and rotate: ok with the secret, or the refusal
+// (name_taken, invalid_input with the fields, version_conflict, unavailable).
+type SecretSaveResponse struct {
+	OK     bool              `json:"ok"`
+	Secret *SecretView       `json:"secret,omitempty"`
+	Error  ErrorCode         `json:"error,omitempty"`
+	Fields map[string]string `json:"fields,omitempty"`
 }

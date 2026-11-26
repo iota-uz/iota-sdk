@@ -8,10 +8,13 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/flow"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/email"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine/ownernotice"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
@@ -85,9 +88,22 @@ func WithoutBackground() Option {
 	return func(c *component) { c.noBackground = true }
 }
 
+// unavailableStarter is the RunStarter of a composition whose module has the engine on but no extension
+// core provides what it runs on (the workflow engine, the subject loader, the database): a start from a
+// step is the node's runs_unavailable failure, never a failure of the application.
+type unavailableStarter struct{}
+
+func (unavailableStarter) StartFromStep(context.Context, pgx.Tx, engine.StepContext, engine.StepStart) (engine.RunRef, error) {
+	return engine.RunRef{}, &engine.StepError{Code: flow.CodeUnavailable,
+		Message: "the automation engine does not run in this composition: no workflow engine, subject loader or database"}
+}
+
 // engineHolder is the composition's engine; rt is nil when the composition cannot run one (the module's
 // engine is turned off, or no extension core provides the workflow engine and the subject loader).
-type engineHolder struct{ rt *engine.Runtime }
+type engineHolder struct {
+	rt    *engine.Runtime
+	links engine.Links
+}
 
 // runtime is the composition's engine, nil when it cannot run one.
 func (c *component) runtime(container *composition.Container) (*engine.Runtime, error) {
@@ -102,11 +118,12 @@ func (c *component) runtime(container *composition.Container) (*engine.Runtime, 
 }
 
 // defaultEngineConfig is the engine's configuration before the application's tuning: it records what
-// calls spend (the SMS nodes' units, for one) in automation.connector_usage.
+// calls spend (the SMS nodes' units, for one) in automation.connector_usage, and matches the triggers of
+// the SDK's connectors (the email connector's subject_contains).
 func defaultEngineConfig(db *pgxpool.Pool, wf *workflow.Engine, users host.SubjectLoader, reg catalog.Registry, creds connectors.CredentialSource) engine.Config {
 	return engine.Config{
 		DB: db, Workflows: wf, Users: users, Catalog: reg, Credentials: creds, Logger: slog.Default(),
-		Usage: connectors.NewUsageRecorder(db),
+		Usage: connectors.NewUsageRecorder(db), MatchHooks: email.MatchHooks(),
 	}
 }
 
@@ -145,11 +162,26 @@ func (c *component) buildEngine(b *composition.Builder) {
 		for _, tune := range c.engineTune {
 			tune(&cfg)
 		}
+		// Human nodes open tasks of the workflow engine unless the application gave its own bridge.
+		if cfg.Tasks == nil {
+			cfg.Tasks = engine.NewHumanBridge(cfg.Limits.WaitMax)
+		}
 		rt, err := engine.NewRuntime(cfg)
 		if err != nil {
 			return nil, err
 		}
-		return &engineHolder{rt: rt}, nil
+		return &engineHolder{rt: rt, links: cfg.Links}, nil
+	})
+	// start_automation and run_automation start the runs of other graphs through the engine (builtins.go).
+	composition.Provide[engine.RunStarter](b, func(container *composition.Container) (engine.RunStarter, error) {
+		rt, err := c.runtime(container)
+		if err != nil {
+			return nil, err
+		}
+		if rt == nil {
+			return unavailableStarter{}, nil
+		}
+		return rt, nil
 	})
 	wiring.ContributeNativeWorkflows(b, func(container *composition.Container) (map[string]workflow.NativeContract, error) {
 		rt, err := c.runtime(container)

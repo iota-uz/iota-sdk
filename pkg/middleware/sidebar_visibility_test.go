@@ -73,3 +73,41 @@ func TestNavItemsWithInitialState_FollowsEffectivePermissions(t *testing.T) {
 		})
 	}
 }
+
+// A user without any permission keeps the items marked ForEveryone, also inside a folder that is not
+// marked itself; the folder keeps only those items.
+func TestNavItemsWithInitialState_KeepsFoldersOfForEveryoneItems(t *testing.T) {
+	t.Parallel()
+	app := navApp{items: []types.NavigationItem{
+		{Key: "automations", Children: []types.NavigationItem{
+			{Key: "graphs", Href: "/automations/graphs"},
+			{Key: "tasks", Href: "/automations/tasks", ForEveryone: true},
+		}},
+		{Key: "help", Href: "/help"},
+		{Key: "empty", Children: []types.NavigationItem{{Key: "settings", Href: "/settings"}}},
+	}}
+	got := forEveryone(filterItems(app.items, user.New("Test", "User", internet.MustParseEmail("test@example.com"), user.UILanguageEN)))
+	require.Len(t, got, 1)
+	require.Equal(t, "automations", got[0].Key)
+	require.Len(t, got[0].Children, 1)
+	require.Equal(t, "tasks", got[0].Children[0].Key)
+}
+
+// A marked folder keeps only its marked descendants, also nested under an unmarked folder; a marked
+// folder left with none is dropped.
+func TestForEveryonePrunesTheChildrenOfAMarkedFolder(t *testing.T) {
+	t.Parallel()
+	items := []types.NavigationItem{
+		{Key: "work", Children: []types.NavigationItem{
+			{Key: "inbox", ForEveryone: true, Children: []types.NavigationItem{
+				{Key: "mine", Href: "/inbox/mine", ForEveryone: true},
+				{Key: "admin", Href: "/inbox/admin"},
+			}},
+			{Key: "hollow", ForEveryone: true, Children: []types.NavigationItem{{Key: "settings", Href: "/settings"}}},
+		}},
+	}
+	got := forEveryone(items)
+	require.Len(t, got, 1)
+	require.Equal(t, []string{"inbox"}, keysOf(got[0].Children))
+	require.Equal(t, []string{"mine"}, keysOf(got[0].Children[0].Children))
+}

@@ -1,0 +1,371 @@
+package inbox
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"html/template"
+	"math"
+	"strings"
+	"time"
+
+	"github.com/a-h/templ"
+	"github.com/google/uuid"
+	"github.com/iota-uz/go-i18n/v2/i18n"
+
+	"github.com/iota-uz/iota-sdk/modules/automations/tasks"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
+)
+
+// screenID is the element both screens of the inbox (the list and a task) render in: a decision swaps
+// the next task or the list into it.
+const screenID = "automations-tasks"
+
+// ListProps are the list of a tab.
+type ListProps struct {
+	Tab, Query string
+	Items      []tasks.TaskView
+	NextCursor string
+	Counts     tasks.TaskCounts
+	// Failed: the list could not be read.
+	Failed bool
+	// Done: the list follows a decision that left the tab empty.
+	Done bool
+	base *Controller
+}
+
+// TaskProps are one task.
+type TaskProps struct {
+	Task         tasks.TaskView
+	Tab, Query   string
+	Instructions template.HTML
+	Fields       []Field
+	CustomForm   templ.Component
+	RunURL       string
+	CanReadRun   bool
+	// Comment is the comment entered before a refused decision.
+	Comment string
+	// Error is the reason a decision was refused, shown next to the buttons; ErrorOutcome the button.
+	Error, ErrorOutcome string
+	// Notice "closed": the task closed before the decision.
+	Notice string
+	// Confirm is the danger outcome whose confirmation panel opens with the screen (a danger decision
+	// sent without its confirmation).
+	Confirm string
+
+	DelegateOpen    bool
+	DelegateComment string
+	DelegateError   string
+	base            *Controller
+}
+
+// MissingProps are the screen of a task the user cannot open.
+type MissingProps struct {
+	Tab    string
+	Failed bool
+	Retry  string
+	base   *Controller
+}
+
+// t localizes a key of the module with template data; a count picks the plural form.
+func t(ctx context.Context, key string, data map[string]any, count ...int) string {
+	l, ok := intl.UseLocalizer(ctx)
+	if !ok {
+		return key
+	}
+	cfg := &i18n.LocalizeConfig{MessageID: key, TemplateData: data}
+	if len(count) > 0 {
+		cfg.PluralCount = count[0]
+		if data == nil {
+			cfg.TemplateData = map[string]any{"Count": count[0]}
+		}
+	}
+	s, err := l.Localize(cfg)
+	if err != nil {
+		return key
+	}
+	return s
+}
+
+func tr(ctx context.Context, key string) string { return t(ctx, "Automations.Tasks."+key, nil) }
+
+// trOr is tr with a fallback for a context without a localizer.
+func trOr(ctx context.Context, key, fallback string) string {
+	if s := tr(ctx, key); s != "Automations.Tasks."+key {
+		return s
+	}
+	return fallback
+}
+
+func trf(ctx context.Context, key string, data map[string]any) string {
+	return t(ctx, "Automations.Tasks."+key, data)
+}
+
+func trn(ctx context.Context, key string, n int) string {
+	return t(ctx, "Automations.Tasks."+key, map[string]any{"Count": n}, n)
+}
+
+func location(ctx context.Context) *time.Location {
+	if loc, ok := composables.UseLocation(ctx); ok && loc != nil {
+		return loc
+	}
+	return time.Local
+}
+
+// dateTime is a moment as the reader's locale writes it, in the application's time zone.
+func dateTime(ctx context.Context, at time.Time) string {
+	at = at.In(location(ctx))
+	months := strings.Split(tr(ctx, "Time.Months"), ",")
+	month := at.Format("Jan")
+	if len(months) == 12 {
+		month = strings.TrimSpace(months[at.Month()-1])
+	}
+	day := fmt.Sprintf("%d %s", at.Day(), month)
+	if now := time.Now().In(location(ctx)); now.Year() != at.Year() {
+		day += fmt.Sprintf(" %d", at.Year())
+	}
+	return day + ", " + at.Format("15:04")
+}
+
+// relative is the distance to a moment in words: "in 2 h", "3 days ago".
+func relative(ctx context.Context, at time.Time) string {
+	d := time.Until(at)
+	past := d < 0
+	if past {
+		d = -d
+	}
+	var phrase string
+	switch {
+	case d < time.Minute:
+		return tr(ctx, "Time.Now")
+	case d < time.Hour:
+		phrase = trn(ctx, "Time.Minutes", int(math.Round(d.Minutes())))
+	case d < 48*time.Hour:
+		phrase = trn(ctx, "Time.Hours", int(math.Round(d.Hours())))
+	default:
+		phrase = trn(ctx, "Time.Days", int(math.Round(d.Hours()/24)))
+	}
+	if past {
+		return trf(ctx, "Time.Ago", map[string]any{"Span": phrase})
+	}
+	return trf(ctx, "Time.In", map[string]any{"Span": phrase})
+}
+
+func (p *ListProps) tabURL(tab string) string { return p.base.listURL(tab, p.Query, "") }
+func (p *ListProps) moreURL() string          { return p.base.listURL(p.Tab, p.Query, p.NextCursor) }
+func (p *ListProps) resetURL() string         { return p.base.listURL(p.Tab, "", "") }
+func (p *ListProps) path() string             { return p.base.cfg.Path }
+func (p *ListProps) open(id uuid.UUID) string { return p.base.taskURL(id, p.Tab, p.Query) }
+func (p *TaskProps) backURL() string          { return p.base.listURL(p.Tab, p.Query, "") }
+func (p *MissingProps) backURL() string       { return p.base.listURL(p.Tab, "", "") }
+func (p *TaskProps) delegatesURL() string {
+	return tasks.TaskURL(p.base.cfg.Path, p.Task.ID.String()) + "/delegates"
+}
+
+// jsString is a JavaScript string literal of s for an Alpine expression.
+func jsString(s string) string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return "''"
+	}
+	return string(b)
+}
+
+// jsList is a JavaScript array literal of strings.
+func jsList(list []string) string {
+	b, err := json.Marshal(list)
+	if err != nil {
+		return "[]"
+	}
+	return string(b)
+}
+
+// postURL is the URL a form of the task posts to (the tab and search ride along for the next task).
+func (p *TaskProps) postURL(verb string) string {
+	u := tasks.TaskURL(p.base.cfg.Path, p.Task.ID.String()) + "/" + verb
+	q := p.base.taskURL(p.Task.ID, p.Tab, p.Query)
+	if i := strings.IndexByte(q, '?'); i >= 0 {
+		u += q[i:]
+	}
+	return u
+}
+
+// commentRequiredFor are the labels of the buttons that need a comment.
+func (p *TaskProps) commentRequiredFor() []string {
+	var out []string
+	for _, o := range p.Task.Outcomes {
+		if o.CommentRequired {
+			out = append(out, o.Label)
+		}
+	}
+	return out
+}
+
+func (p *TaskProps) allCommentRequired() bool {
+	if len(p.Task.Outcomes) == 0 {
+		return false
+	}
+	for _, o := range p.Task.Outcomes {
+		if !o.CommentRequired {
+			return false
+		}
+	}
+	return true
+}
+
+// via is where the task came from in words.
+func via(ctx context.Context, v tasks.TaskView) string {
+	switch v.AssignedVia {
+	case tasks.ViaDelegated:
+		if v.DelegatedBy != nil {
+			return trf(ctx, "Via.DelegatedBy", map[string]any{"Name": v.DelegatedBy.Name})
+		}
+		return tr(ctx, "Via.Delegated")
+	case tasks.ViaRole:
+		return tr(ctx, "Via.Role")
+	case tasks.ViaGroup:
+		return tr(ctx, "Via.Group")
+	case tasks.ViaPermission:
+		return tr(ctx, "Via.Permission")
+	}
+	return tr(ctx, "Via.User")
+}
+
+func quorum(ctx context.Context, q tasks.Quorum) string {
+	return trf(ctx, "Quorum", map[string]any{"Decided": q.Decided, "Required": q.Required})
+}
+
+// closedLine is how a closed task ended.
+func closedLine(ctx context.Context, v tasks.TaskView) string {
+	switch v.State {
+	case tasks.StateDecided:
+		data := map[string]any{"Outcome": v.OutcomeLabel(v.Outcome), "Name": "", "At": ""}
+		if v.ClosedBy != nil {
+			data["Name"] = v.ClosedBy.Name
+		}
+		if v.ClosedAt != nil {
+			data["At"] = dateTime(ctx, *v.ClosedAt)
+		}
+		if v.ClosedBy != nil && v.ClosedAt != nil {
+			return trf(ctx, "Closed.DecidedBy", data)
+		}
+		return trf(ctx, "Closed.Decided", data)
+	case tasks.StateExpired:
+		return tr(ctx, "Closed.Expired")
+	case tasks.StateCancelled:
+		return tr(ctx, "Closed.Cancelled")
+	}
+	return ""
+}
+
+func myDecisionLine(ctx context.Context, v tasks.TaskView) string {
+	if v.MyDecision == nil {
+		return ""
+	}
+	return trf(ctx, "MyDecision", map[string]any{"Outcome": v.OutcomeLabel(*v.MyDecision)})
+}
+
+// badgeToken is what the counter shows, as its refresh sends it back: the open count and whether it
+// is red (an overdue task), so a task falling overdue repaints it while the count stays.
+func badgeToken(c tasks.TaskCounts) string {
+	if c.Overdue > 0 {
+		return fmt.Sprintf("%d!", c.Open)
+	}
+	return fmt.Sprint(c.Open)
+}
+
+func badgeText(n int) string {
+	if n > 99 {
+		return "99+"
+	}
+	return fmt.Sprint(n)
+}
+
+func isoTime(at time.Time) string { return at.UTC().Format(time.RFC3339) }
+
+func outcomeClass(style string) string {
+	switch style {
+	case tasks.StylePrimary:
+		return "btn btn-primary btn-normal"
+	case tasks.StyleDanger:
+		return "btn btn-danger btn-normal"
+	}
+	return "btn btn-secondary btn-normal"
+}
+
+// primaryOutcome is the button ⌘/Ctrl+Enter in the comment presses: the one primary outcome, nil
+// when there is none or several.
+func (p *TaskProps) primaryOutcome() *tasks.OutcomeOption {
+	var found *tasks.OutcomeOption
+	for i, o := range p.Task.Outcomes {
+		if o.Style != tasks.StylePrimary {
+			continue
+		}
+		if found != nil {
+			return nil
+		}
+		found = &p.Task.Outcomes[i]
+	}
+	return found
+}
+
+// submitShortcut presses the outcome's button on ⌘/Ctrl+Enter (K7: a long field sends with the
+// modifier, Enter alone breaks the line, never during IME composition; touch keyboards send no
+// modifier).
+func submitShortcut(outcome string) string {
+	return fmt.Sprintf(`if (($event.metaKey || $event.ctrlKey) && !$event.isComposing) { $event.preventDefault(); `+
+		`const b = $el.form.querySelector('button[name=outcome][value=' + JSON.stringify(%s) + ']'); if (b) b.click() }`, jsString(outcome))
+}
+
+// connection is the screen's connection state (S7): a failed send or the browser going offline shows
+// the banner; back online, the list reads itself again (a task keeps what was typed and waits for
+// Retry).
+func connection(rereadOnline bool) templ.Attributes {
+	reread := "false"
+	if rereadOnline {
+		reread = "true"
+	}
+	return templ.Attributes{
+		// A button that can no longer send (the delegation whose colleague was cleared) keeps the banner
+		// and asks for what is missing: its data-retry-hint is shown and data-retry-focus focused.
+		"x-data": `{ offline: !navigator.onLine, lastSubmit: null, lastRead: null, hint: '', rereadOnline: ` + reread + `,
+			action(d) { const verb = d.requestConfig && d.requestConfig.verb; return (!!verb && verb.toLowerCase() !== 'get') || (!!d.elt && d.elt.tagName === 'BUTTON') },
+			retry() { const b = this.lastSubmit || this.lastRead;
+				if (b && b.tagName === 'BUTTON' && b.disabled && document.body.contains(b)) { this.offline = true; this.hint = b.dataset.retryHint || '';
+					const f = b.dataset.retryFocus && document.querySelector(b.dataset.retryFocus); if (f) f.focus(); return }
+				this.hint = ''; this.offline = false; this.lastSubmit = null; this.lastRead = null;
+				if (!b || !document.body.contains(b)) { location.reload() }
+				else if (b.tagName === 'FORM') { b.requestSubmit() }
+				else if (b.tagName === 'BUTTON') { b.click() }
+				else { b.focus(); htmx.trigger(b, 'retry') } },
+			failed(d) { this.offline = true; if (!this.action(d) && d.elt) this.lastRead = d.elt } }`,
+		// The action to repeat: the button that submitted, the form submitted from the keyboard (no
+		// button), or the button that asked (Show more). A read in the background (the colleague search)
+		// neither replaces the failed action nor clears its banner when it succeeds.
+		"@htmx:before-request": `const d = $event.detail, e = d.requestConfig && d.requestConfig.triggeringEvent;
+			if (action(d)) lastSubmit = (e && e.submitter) || d.elt || null`,
+		"@htmx:after-request": `const d = $event.detail; if (d.successful && action(d)) { offline = false; lastSubmit = null; hint = '' }
+			if (d.successful && d.elt === lastRead) { lastRead = null; if (!lastSubmit) offline = false }`,
+		// The screen's banner is the signal: the global error toast (which would cover the decision
+		// buttons on a phone) is not shown for this screen's requests.
+		"data-htmx-error-toast": "banner",
+		// A failed read (the colleague search) is repeated in place by Retry: what was typed stays.
+		"@htmx:send-error": "failed($event.detail)",
+		"@htmx:timeout":    "failed($event.detail)",
+		// The server unavailable (502, 503, 504, any 5xx) is the same banner: what was typed stays.
+		"@htmx:response-error": "if ($event.detail.xhr && $event.detail.xhr.status >= 500) failed($event.detail)",
+		"@offline.window":      "offline = true",
+		// Back online: a failed action keeps the banner until Retry sends it again; otherwise the banner
+		// goes and a list reads itself again.
+		"@online.window": "if (offline && !lastSubmit) { if (lastRead) { retry() } else { offline = false; if (rereadOnline) location.reload() } }",
+	}
+}
+
+// copyID copies the task ID: «Copied» once the clipboard took it, else the ID shows to copy by hand
+// (no clipboard on an insecure page, access denied).
+func copyID(id string) string {
+	return `const done = (ok) => { copied = ok; failed = !ok; clearTimeout(timer); if (ok) timer = setTimeout(() => copied = false, 2000) };
+		try { if (!navigator.clipboard || !navigator.clipboard.writeText) { done(false); return }
+			navigator.clipboard.writeText(` + jsString(id) + `).then(() => done(true), () => done(false)) } catch (e) { done(false) }`
+}

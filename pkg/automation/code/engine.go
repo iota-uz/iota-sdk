@@ -299,15 +299,9 @@ func (e *engine) Run(ctx context.Context, script *Compiled, in RunInput) (*RunRe
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	for name, methods := range in.Connections {
-		if !ConnectionName.MatchString(name) {
-			return nil, serrors.Wrap(op, fmt.Errorf("invalid connection name %q", name))
-		}
-		for _, m := range methods {
-			if !ConnectionMethod.MatchString(m) || m == "then" {
-				return nil, serrors.Wrap(op, fmt.Errorf("connection %s: invalid method name %q", name, m))
-			}
-		}
+	specs, err := effectiveSpecs(in)
+	if err != nil {
+		return nil, serrors.Wrap(op, err)
 	}
 	masked := make(map[string]string, len(in.Secrets)+len(in.Masked))
 	for k, v := range in.Secrets {
@@ -386,7 +380,7 @@ func (e *engine) Run(ctx context.Context, script *Compiled, in RunInput) (*RunRe
 	} else {
 		_, evalErr = inst.Eval(evalCtx, program, kafig.WithAsync())
 	}
-	connsJSON, err := json.Marshal(connectionMethods(in.Connections))
+	connsJSON, err := json.Marshal(driverSpecs(specs))
 	if err != nil {
 		return nil, serrors.Wrap(op, err)
 	}
@@ -473,6 +467,68 @@ func driverLimits(l Limits, secrets map[string]string) []byte {
 	}
 	return fmt.Appendf(nil, `{"maxFetches":%d,"maxLogLines":%d,"maxLogChars":%d,"maxOutputBytes":%d}`,
 		l.MaxFetches, l.MaxLogLines, l.MaxLogLineChars+12*longest+16, l.MaxOutputBytes)
+}
+
+// effectiveSpecs merges RunInput.Connections (methods only) and ConnectionSpecs (which win) and validates
+// every name: a method or an operation must not shadow the connection's own properties or each other.
+func effectiveSpecs(in RunInput) (map[string]ConnectionSpec, error) {
+	specs := make(map[string]ConnectionSpec, len(in.Connections)+len(in.ConnectionSpecs))
+	for name, methods := range in.Connections {
+		specs[name] = ConnectionSpec{Methods: methods}
+	}
+	for name, spec := range in.ConnectionSpecs {
+		specs[name] = spec
+	}
+	for name, spec := range specs {
+		if !ConnectionName.MatchString(name) {
+			return nil, fmt.Errorf("invalid connection name %q", name)
+		}
+		seen := map[string]bool{}
+		for _, m := range spec.Methods {
+			if !ConnectionMethod.MatchString(m) || reservedConnectionNames[m] {
+				return nil, fmt.Errorf("connection %s: invalid method name %q", name, m)
+			}
+			seen[m] = true
+		}
+		for _, o := range spec.Operations {
+			if !ConnectionMethod.MatchString(o.Name) || reservedConnectionNames[o.Name] {
+				return nil, fmt.Errorf("connection %s: invalid operation name %q", name, o.Name)
+			}
+			if seen[o.Name] {
+				return nil, fmt.Errorf("connection %s: %q is both a method and an operation or declared twice", name, o.Name)
+			}
+			seen[o.Name] = true
+		}
+	}
+	return specs, nil
+}
+
+// reservedConnectionNames are the properties of env.connections.<name> that are not a method or an operation.
+var reservedConnectionNames = map[string]bool{"then": true, "fetch": true, "baseUrl": true, "constructor": true}
+
+// driverSpec is what the driver builds env.connections.<name> from.
+type driverSpec struct {
+	BaseURL    string   `json:"baseUrl,omitempty"`
+	Methods    []string `json:"methods"`
+	Fetch      bool     `json:"fetch"`
+	Operations []string `json:"operations"`
+}
+
+func driverSpecs(specs map[string]ConnectionSpec) map[string]driverSpec {
+	out := make(map[string]driverSpec, len(specs))
+	for name, spec := range specs {
+		ops := make([]string, 0, len(spec.Operations))
+		seen := map[string]bool{}
+		for _, o := range spec.Operations {
+			if !seen[o.Name] {
+				seen[o.Name] = true
+				ops = append(ops, o.Name)
+			}
+		}
+		sort.Strings(ops)
+		out[name] = driverSpec{BaseURL: spec.BaseURL, Methods: connectionMethods(map[string][]string{name: spec.Methods})[name], Fetch: spec.Fetch, Operations: ops}
+	}
+	return out
 }
 
 // connectionMethods is the connections of a run with their methods, each once, in order: never null.

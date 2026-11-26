@@ -532,3 +532,13 @@ test('RV8 / F3: a retry after a lost answer sends the same key and the step runs
   expect(keys[0]).toBeTruthy()
   expect(keys[1]).toBe(keys[0])
 })
+
+test('#1439: the chat of a Telegram step is picked from the chats its connection knows', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${STALE}&telegram`)
+  await page.locator('.iota-flow__node[data-id="notify"]').click()
+  await page.getByRole('combobox', { name: 'Chat' }).click()
+  await expect(page.getByRole('option', { name: 'Alice Karimova (@alice)' })).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Sales team' })).toBeVisible()
+  const asked = (await calls(page)).filter((c) => c.method === 'automations.search_options').map((c) => c.params)
+  expect(asked[0]).toEqual({ source: 'telegram.chats', query: '', connection: 'c-1' })
+})

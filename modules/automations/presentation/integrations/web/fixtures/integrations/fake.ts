@@ -1,5 +1,5 @@
 import type { RPC } from '../../Integrations.solid.generated'
-import type { ConnectionView, ConnectorView, UsageView } from '../../model'
+import type { ConnectionView, ConnectorView, SecretView, UsageView } from '../../model'
 
 /**
  * An in-memory stand-in for the Go RPC (modules/automations/presentation/integrations): the same
@@ -25,6 +25,14 @@ export interface FakeOptions {
   /** The first update meets a version conflict (another manager saved the connection meanwhile):
    * as a result ('result') or as an RPC error ('error'); '' for none. */
   conflictOnce: '' | 'result' | 'error'
+  /** false: the caller lacks Secrets.Manage (or the application manages no secrets): no secrets section. */
+  secrets: boolean
+  /** The tenant has no secrets yet. */
+  noSecrets?: boolean
+  /** The first secrets update or rotate meets a version conflict (another administrator changed it). */
+  secretConflictOnce?: boolean
+  /** The sign-in presets the application has OAuth2 clients for (scenario email); default gmail. */
+  presets?: string[]
 
   calls: { method: string; params: unknown }[]
 }
@@ -81,7 +89,7 @@ const mcpSchema = {
   },
 }
 
-function seed(scenario: FakeOptions['scenario']): ConnectorView[] {
+function seed(scenario: FakeOptions['scenario'], presets: string[] = ['gmail']): ConnectorView[] {
   if (scenario === 'empty') return []
   if (scenario === 'mcp') {
     return [{
@@ -110,7 +118,7 @@ function seed(scenario: FakeOptions['scenario']): ConnectorView[] {
     },
     ...(scenario === 'email' ? [{
       kind: 'imap', title: 'Email (IMAP)', icon: '', description: 'Receive email and wait for replies.', category: 'email' as const, auth: 'custom' as const,
-      credential_schema: imapSchema, nodes: ['Wait for a reply'], platform: null, oauth_presets: ['gmail'],
+      credential_schema: imapSchema, nodes: ['Wait for a reply'], platform: null, oauth_presets: presets,
       connections: [conn('imap', 'robot_inbox', 'Robot inbox', { identity: 'robot@acme.uz', status: 'needs_reauth', status_reason: 'reauth', fields: { preset: 'gmail', username: 'robot@acme.uz' } }),
         conn('imap', 'office_inbox', 'Office inbox', { identity: 'office@acme.uz', fields: { preset: 'custom', host: 'imap.acme.uz', port: '993', username: 'office@acme.uz' } })],
     }] : []),
@@ -128,6 +136,20 @@ function seed(scenario: FakeOptions['scenario']): ConnectorView[] {
 }
 
 const usages: Record<string, UsageView[]> = {}
+
+// The tenant's secrets: records only. The fake keeps no value, as the page never gets one back.
+function seedSecrets(): SecretView[] {
+  return [
+    {
+      id: '00000000-0000-4000-9000-000000000001', name: 'CRM_API_KEY', description: 'amoCRM API key for the order sync', version: 3,
+      created_at: '2026-10-02T08:00:00Z', updated_at: '2026-11-12T10:15:00Z', rotated_at: '2026-11-12T10:15:00Z', last_used_at: '2026-11-20T09:12:00Z',
+    },
+    {
+      id: '00000000-0000-4000-9000-000000000002', name: 'WEBHOOK_SIGNING_SECRET', description: '', version: 1,
+      created_at: '2026-11-18T14:40:00Z', updated_at: '2026-11-18T14:40:00Z', rotated_at: '2026-11-18T14:40:00Z', last_used_at: null,
+    },
+  ]
+}
 
 type Handler = (params: never) => unknown
 
@@ -147,9 +169,21 @@ function carried(): { connectors: ConnectorView[]; seq: number } | undefined {
 
 export function installFake(rpcPath: string, opts: FakeOptions): void {
   const kept = carried()
-  const connectors = kept?.connectors ?? seed(opts.scenario)
+  const connectors = kept?.connectors ?? seed(opts.scenario, opts.presets)
   const carry = () => {
     try { window.sessionStorage.setItem(CARRIED, JSON.stringify({ connectors, seq })) } catch { /* a private window: the return reseeds */ }
+  }
+  let secrets: SecretView[] = opts.noSecrets ? [] : seedSecrets()
+  let secretSeq = 100
+  let secretConflicted = false
+  const secretNotFound = () => { throw { code: 'not_found', message: 'secret not found', data: { code: 'not_found' } } }
+  const findSecret = (id: string) => secrets.find((x) => x.id === id) ?? secretNotFound()!
+  const secretConflict = (s: SecretView, version: number) => {
+    if (opts.secretConflictOnce && !secretConflicted) {
+      secretConflicted = true
+      Object.assign(s, { description: 'Changed by another administrator', version: s.version + 1, updated_at: now })
+    }
+    return version !== s.version
   }
   const sales = connectors[0]?.connections[0]
   if (sales) {
@@ -187,7 +221,7 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
   const handlers: Record<keyof RPC, Handler> = {
     'automations.connectors.list': () => {
       if (opts.scenario === 'error' || (opts.refreshFails && listed++ > 0)) throw { code: 'internal', message: 'internal error' }
-      return { connectors, can_manage: opts.manage }
+      return { connectors, can_manage: opts.manage, can_manage_secrets: opts.secrets }
     },
     'automations.connections.usage': (p: { id: string }) => {
       if (!find(p.id)) notFound()
@@ -285,6 +319,38 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
       return { ok: true }
     },
     'automations.connections.options': () => ({ options: [] }),
+    'automations.secrets.list': () => ({ secrets }),
+    'automations.secrets.create': (p: RPC['automations.secrets.create']['params']) => {
+      if (!/^[A-Z][A-Z0-9_]{0,63}$/.test(p.name)) return { ok: false, error: 'invalid_input', fields: { name: 'secret_name' } }
+      if (p.value === '') return { ok: false, error: 'invalid_input', fields: { value: 'required' } }
+      if (secrets.some((x) => x.name === p.name)) return { ok: false, error: 'name_taken', fields: { name: 'taken' } }
+      const created: SecretView = {
+        id: `00000000-0000-4000-9000-${String(++secretSeq).padStart(12, '0')}`, name: p.name, description: p.description, version: 1,
+        created_at: now, updated_at: now, rotated_at: now, last_used_at: null,
+      }
+      secrets = [...secrets, created]
+      return { ok: true, secret: created }
+    },
+    'automations.secrets.update': (p: RPC['automations.secrets.update']['params']) => {
+      const s = findSecret(p.id)
+      if (secretConflict(s, p.version)) return { ok: false, error: 'version_conflict' }
+      if (p.name !== undefined && !/^[A-Z][A-Z0-9_]{0,63}$/.test(p.name)) return { ok: false, error: 'invalid_input', fields: { name: 'secret_name' } }
+      if (p.name !== undefined && secrets.some((x) => x.name === p.name && x.id !== s.id)) return { ok: false, error: 'name_taken', fields: { name: 'taken' } }
+      Object.assign(s, { ...(p.name !== undefined ? { name: p.name } : {}), ...(p.description !== undefined ? { description: p.description } : {}), version: s.version + 1, updated_at: now })
+      return { ok: true, secret: s }
+    },
+    'automations.secrets.rotate': (p: RPC['automations.secrets.rotate']['params']) => {
+      const s = findSecret(p.id)
+      if (secretConflict(s, p.version)) return { ok: false, error: 'version_conflict' }
+      if (p.value === '') return { ok: false, error: 'invalid_input', fields: { value: 'required' } }
+      Object.assign(s, { version: s.version + 1, updated_at: now, rotated_at: now })
+      return { ok: true, secret: s }
+    },
+    'automations.secrets.delete': (p: { id: string }) => {
+      findSecret(p.id)
+      secrets = secrets.filter((x) => x.id !== p.id)
+      return { ok: true }
+    },
     'automations.platform.set_enabled': (p: { kind: string; enabled: boolean }) => {
       if (opts.platformFails) throw { code: 'internal', message: 'internal error' }
       const c = connectors.find((x) => x.kind === p.kind)

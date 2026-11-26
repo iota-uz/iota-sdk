@@ -30,6 +30,10 @@ type Graph struct {
 	Triggers    []Trigger `json:"triggers"`              // 1..40
 	Nodes       []Node    `json:"nodes"`                 // ≤ 200
 	Edges       []Edge    `json:"edges"`                 // ≤ 500
+	// OutputSchema is the JSON Schema (an object) of the run's output: what each end node's output gives,
+	// checked when the graph is saved and when an end node ends the run. A run_automation of the graph
+	// reads it as nodes.<id>.output.output. Empty: the output is untyped.
+	OutputSchema map[string]any `json:"output_schema,omitempty"`
 }
 
 // RunAs is whose rights a run has.
@@ -237,7 +241,8 @@ const graphSchema = `{
         "required": ["from", "to"],
         "additionalProperties": false
       }
-    }
+    },
+    "output_schema": {"type": "object", "description": "JSON Schema (type object) of the run's output, which end nodes give by their output param."}
   },
   "required": ["name", "triggers", "nodes", "edges"],
   "additionalProperties": false,
@@ -288,6 +293,9 @@ func Decode(raw []byte) (Graph, []GraphError) {
 	}
 	if r, ok := o["run_as"].(string); ok {
 		g.RunAs = RunAs(r)
+	}
+	if os, ok := o["output_schema"].(map[string]any); ok && len(os) > 0 {
+		g.OutputSchema = os
 	}
 	for _, t := range o["triggers"].([]any) {
 		tm := t.(map[string]any)

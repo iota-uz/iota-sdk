@@ -78,6 +78,47 @@ func (c *Connector) Verify(r *http.Request, _ []byte, conn connectors.Connection
 	return nil
 }
 
+var _ engine.PlatformStrayReceiver = (*Connector)(nil)
+
+// StrayKey is the stray key of a request on the platform route: the hash of its secret header.
+func (c *Connector) StrayKey(r *http.Request) string {
+	return connectors.StrayKeyOf(r.Header.Get(SecretHeader))
+}
+
+// PlatformStrayKey is the stray key of the platform webhook the credentials' bot is set with.
+func (c *Connector) PlatformStrayKey(creds connectors.Credentials) string {
+	if creds["token"] == "" {
+		return ""
+	}
+	return connectors.StrayKeyOf(WebhookSecret(creds["token"], catalog.PlatformConnectionID(Kind)))
+}
+
+var _ connectors.PlatformStrayKeyer = (*Connector)(nil)
+
+// VerifyStray tells whether a request on the platform route carries the platform webhook secret of the connection's
+// bot: the bot was the platform's, and a platform setWebhook applied late pointed it back there.
+func (c *Connector) VerifyStray(r *http.Request, _ []byte, conn connectors.Connection, creds connectors.Credentials) bool {
+	token, got := creds["token"], r.Header.Get(SecretHeader)
+	if token == "" || got == "" || isPlatform(conn) {
+		return false
+	}
+	return secretEqual(got, WebhookSecret(token, catalog.PlatformConnectionID(Kind)))
+}
+
+// Reclaim reads the secret the connection's Provision made and returns the step that points the bot back to the
+// connection's webhook with it (a Bot API call only).
+func (c *Connector) Reclaim(ctx context.Context, conn connectors.Connection, creds connectors.Credentials) (func(context.Context) error, error) {
+	stored, account, err := c.storedSecret(ctx, conn)
+	if err != nil {
+		return nil, err
+	}
+	if stored == "" || account != c.ExternalID(creds) {
+		return nil, errors.New("telegram: the connection has no webhook secret of its bot")
+	}
+	b, url := c.bot(creds["token"]), c.hookURL(conn)
+	return func(ctx context.Context) error { return b.setWebhook(ctx, url, stored) }, nil
+}
+
 // storedSecret reads the connection's webhook secret, and the bot account it is bound to, from its inbound
 // state.
 func (c *Connector) storedSecret(ctx context.Context, conn connectors.Connection) (string, string, error) {

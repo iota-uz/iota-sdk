@@ -19,10 +19,13 @@ components := slices.DeleteFunc(modules.Components(), func(c composition.Compone
     return c.Descriptor().Name == "automations"
 })
 components = append(components, automations.NewComponent(
-    automations.WithConnectors(telegram.New(), smtp.New()),
+    automations.WithConnectors(myConnector),
     // automations.WithUsageIndex(engine.Usage) — подключает #1339
 ))
 ```
+
+Коннекторы OpenAI, Jev, SMS (Eskiz, Twilio), MCP, Email (smtp, imap) и Telegram bot модуль регистрирует сам, если приложение не
+зарегистрировало свой коннектор того же вида (`WithoutMCP`, `WithoutEmail`, `WithoutTelegram` их убирают).
 
 Без `WithUsageIndex` модуль берёт `connectors.UsageIndex` из контейнера, если его
 кто-то предоставил; иначе «Используется в» пусто, и удаление не блокируется.
@@ -112,6 +115,14 @@ go run ./cmd/iota-solid -module modules/automations/presentation/integrations -c
 (`test_failed`, `name_taken`, `invalid_input`, `version_conflict`, `CONNECTION_IN_USE`).
 Значения полей с `x-secret` не возвращаются ни в одном ответе; сообщение коннектора
 при неудачной проверке маскирует все введённые значения.
+
+Встроенный коннектор «Секрет» — раздел «Секреты» той же страницы: методы
+`automations.secrets.list|create|update|rotate|delete` (`secrets_rpc.go`) поверх
+`secrets.Manager` (`integrations.Config.Secrets`; без него раздела нет, методы отвечают
+`unavailable`). Каждый требует `Secrets.Manage`, а не `Connections.Manage`; страницу
+открывает любое из двух прав, `automations.connectors.list` сообщает `can_manage_secrets`.
+Значение секрета передаётся только в `create` и `rotate` и не возвращается ни в ответе,
+ни в ошибке: экран показывает имя, описание, даты и маску `••••••`.
 
 ## Проверки
 

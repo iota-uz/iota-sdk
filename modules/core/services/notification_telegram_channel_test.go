@@ -345,3 +345,41 @@ func TestNotificationChannels_SetChannelEnabledKeepsOtherChoices(t *testing.T) {
 	assert.Equal(t, []notifications.Channel{notifications.ChannelTelegram}, disabled[tf.userID])
 	require.Error(t, tf.channels.SetChannelEnabled(tf.committed, tf.userID, "whatsapp", true))
 }
+
+// switchingConnections answers the first lookup with the real connection and every later one with another
+// bot: the tenant changes its bot between the completion's check and its transaction.
+type switchingConnections struct {
+	inner notifications.ChannelConnections
+	calls int
+	next  string
+}
+
+func (s *switchingConnections) Connection(ctx context.Context, tenantID uuid.UUID, spec notifications.ChannelSpec) (string, bool, error) {
+	s.calls++
+	if s.calls == 1 {
+		return s.inner.Connection(ctx, tenantID, spec)
+	}
+	return s.next, true, nil
+}
+
+func TestTelegramLink_CompletionRacingABotChangeLinksNothing(t *testing.T) {
+	tf := setupTelegram(t)
+	tf.commit(t)
+	token, connection := tf.start(t, tf.user)
+	require.Equal(t, platformBot, connection)
+
+	racing := &switchingConnections{inner: tf.conns, next: uuid.NewString()}
+	links := services.NewNotificationChannelLinkService(func() notifications.ChannelRegistry { return tf.registry }, racing, tf.linkRepo, persistence.NewNotificationLinkTokenRepository()).
+		WithPool(tf.f.Pool)
+	_, err := links.CompleteLinkUpdate(tf.webhook(), platformBot, token, "777", "@ada", "6:1")
+	require.ErrorIs(t, err, notifications.ErrLinkTokenInvalid)
+	require.Equal(t, 2, racing.calls, "the connection is read again under the lock, inside the transaction")
+
+	status, err := tf.links.StatusOf(tf.committed, tf.user.ID(), notifications.ChannelTelegram)
+	require.NoError(t, err)
+	require.False(t, status.Linked, "no link is saved through a bot that is being replaced")
+	require.True(t, status.Pending, "the token is not spent")
+	var rows int
+	require.NoError(t, tf.f.Pool.QueryRow(tf.committed, `SELECT COUNT(*) FROM core.notification_channel_links WHERE tenant_id=$1`, tf.f.TenantID()).Scan(&rows))
+	require.Zero(t, rows)
+}

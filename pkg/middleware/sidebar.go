@@ -84,12 +84,35 @@ func filterItems(items []types.NavigationItem, user user.User) []types.Navigatio
 				Permissions: item.Permissions,
 				// Preserve Logic so a re-filter of the returned items keeps the
 				// RequireAny (OR) semantics instead of reverting to AND.
-				Logic:  item.Logic,
-				IsBeta: item.IsBeta,
+				Logic:       item.Logic,
+				IsBeta:      item.IsBeta,
+				Badge:       item.Badge,
+				ForEveryone: item.ForEveryone,
 			})
 		}
 	}
 	return filteredItems
+}
+
+// forEveryone keeps the items marked ForEveryone and the folders that contain one, with only those
+// descendants; other leaves are dropped. The mark is not inherited: a marked folder keeps only its
+// marked descendants, and a marked folder left with none is dropped like any empty folder (a marked
+// leaf is kept).
+func forEveryone(items []types.NavigationItem) []types.NavigationItem {
+	out := make([]types.NavigationItem, 0, len(items))
+	for _, item := range items {
+		if len(item.Children) == 0 {
+			if item.ForEveryone {
+				out = append(out, item)
+			}
+			continue
+		}
+		if children := forEveryone(item.Children); len(children) > 0 {
+			item.Children = children
+			out = append(out, item)
+		}
+	}
+	return out
 }
 
 func getEnabledNavItems(items []types.NavigationItem) []types.NavigationItem {
@@ -189,7 +212,8 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 				}
 				filtered := filterItems(items, u)
 				if len(user.EffectivePermissions(u)) == 0 {
-					filtered = []types.NavigationItem{}
+					// Without any permission only the pages about the user's own work stay.
+					filtered = forEveryone(filtered)
 				}
 				pinnedItems, unpinnedItems := splitPinnedItems(filtered)
 				enabledPinnedItems := getEnabledNavItems(pinnedItems)
