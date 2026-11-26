@@ -158,13 +158,15 @@ func TestNotificationDispatch_ConcurrentEnqueueAndProcess(t *testing.T) {
 			}
 		}()
 	}
+	strides := [deliveries]int{1, 5, 7}
 	for d := range deliveries {
 		producers.Add(1)
 		go func() {
 			defer producers.Done()
 			for i := range events {
-				// Each producer walks the events in a different order.
-				if err := enqueue(events[(i*(d+1)+d)%eventCount]); err != nil {
+				// Each producer visits every event, in its own order: a stride
+				// coprime with eventCount is a permutation.
+				if err := enqueue(events[(i*strides[d]+d)%eventCount]); err != nil {
 					fail(fmt.Errorf("enqueue: %w", err))
 				}
 			}
