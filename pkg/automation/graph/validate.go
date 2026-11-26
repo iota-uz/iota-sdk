@@ -16,6 +16,7 @@ func buildView(c Catalog, g Graph, o Options) *GraphView {
 	v := newView(c, g, o.behaviors())
 	v.limits = o.Limits
 	g = v.graph
+	v.output, _ = outputSpec(g.OutputSchema) // a schema that does not compile is Validate's error
 	for _, n := range g.Nodes {
 		spec, ok := v.catalog.Nodes[n.Type]
 		if !ok || spec.Params == nil {
@@ -475,6 +476,10 @@ func Validate(c Catalog, g Graph, o Options) []GraphError {
 				checkIn(n.ID, at+".type", kind, spec.Wait.Filter.Value, expr.TypeBool)
 			}
 		}
+	}
+
+	for _, e := range outputErrors(v, x, each) {
+		errs.push(e)
 	}
 
 	if o.Rules != nil {

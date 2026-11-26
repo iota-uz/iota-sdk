@@ -399,7 +399,15 @@ an application that builds its own registry). Params are in the field language; 
   by its status (`engine.WakeResolver`). Its output comes from the run when the event withheld it (the run
   read sensitive fields) and this run's run-as may read them; otherwise `output: null,
   output_withheld: true`. A run started by `start_automation` lives on its own. The composition provides
-  `engine.RunStarter` (the `*engine.Runtime`); without it the nodes fail with `runs_unavailable`.
+  `engine.RunStarter` (the `*engine.Runtime`; `modules/automations` provides it whenever it runs the
+  engine); without it the nodes fail with `runs_unavailable`.
+- **Run output.** An `end` node's `output: map<name, cel>` is the run's output, which a
+  `run_automation` reads as `nodes.<id>.output.output.<name>`; an `end` without it gives its params
+  (`{reason}`), as before. The graph version may declare `output_schema` (JSON Schema of `type:
+  object`): a save checks every `end` against it (required names present, no name a closed schema
+  does not take, each expression's CEL type one the property's `type` takes; a timestamp is a string,
+  a duration a number), and the run checks the computed values against it when it ends: a mismatch
+  fails the run with `INVALID_OUTPUT`.
 - **Before the call.** A failure to read a secret or open a connection, or of the compiler, is
   `unavailable` (retryable), never `outcome_unknown`: nothing ran.
 - **Actions.** A graph names an action as `{"type": "action", "params": {"action": "core.user.block",

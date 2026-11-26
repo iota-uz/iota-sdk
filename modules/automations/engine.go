@@ -8,8 +8,10 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/builtin/flow"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/email"
@@ -86,6 +88,16 @@ func WithoutBackground() Option {
 	return func(c *component) { c.noBackground = true }
 }
 
+// unavailableStarter is the RunStarter of a composition whose module has the engine on but no extension
+// core provides what it runs on (the workflow engine, the subject loader, the database): a start from a
+// step is the node's runs_unavailable failure, never a failure of the application.
+type unavailableStarter struct{}
+
+func (unavailableStarter) StartFromStep(context.Context, pgx.Tx, engine.StepContext, engine.StepStart) (engine.RunRef, error) {
+	return engine.RunRef{}, &engine.StepError{Code: flow.CodeUnavailable,
+		Message: "the automation engine does not run in this composition: no workflow engine, subject loader or database"}
+}
+
 // engineHolder is the composition's engine; rt is nil when the composition cannot run one (the module's
 // engine is turned off, or no extension core provides the workflow engine and the subject loader).
 type engineHolder struct {
@@ -159,6 +171,17 @@ func (c *component) buildEngine(b *composition.Builder) {
 			return nil, err
 		}
 		return &engineHolder{rt: rt, links: cfg.Links}, nil
+	})
+	// start_automation and run_automation start the runs of other graphs through the engine (builtins.go).
+	composition.Provide[engine.RunStarter](b, func(container *composition.Container) (engine.RunStarter, error) {
+		rt, err := c.runtime(container)
+		if err != nil {
+			return nil, err
+		}
+		if rt == nil {
+			return unavailableStarter{}, nil
+		}
+		return rt, nil
 	})
 	wiring.ContributeNativeWorkflows(b, func(container *composition.Container) (map[string]workflow.NativeContract, error) {
 		rt, err := c.runtime(container)

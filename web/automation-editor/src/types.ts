@@ -11,6 +11,8 @@ export type AutomationGraph = {
   triggers: GraphTrigger[]
   nodes: GraphNode[]
   edges: GraphEdge[]
+  /** JSON Schema (type object) of the run's output, which end nodes give by their `output` param. */
+  output_schema?: JsonSchema
 }
 export type GraphTrigger = { id: string; event: string; filter?: string; params?: Record<string, unknown> }
 export type GraphNode = { id: string; type: string; params: Record<string, unknown> }

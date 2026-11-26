@@ -123,7 +123,12 @@ func (m *mover) enter(ctx context.Context, tok *tokenRow) (string, error) {
 		if reason == "" {
 			reason = "ended at " + node.ID
 		}
-		return behavior, m.finish(ctx, tok, false, nil, reason, st.End)
+		// The end's output is the run's (a run_automation reads it); an end without one gives its params.
+		output := st.End
+		if o, ok := st.End["output"].(map[string]any); ok {
+			output = o
+		}
+		return behavior, m.finish(ctx, tok, false, nil, reason, output)
 	case graph.StepCall:
 		return behavior, m.call(ctx, tok, node, spec, st)
 	case graph.StepWait:
