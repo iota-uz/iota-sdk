@@ -279,10 +279,11 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 		opts.Execute = func(node graph.Node, effects []graph.Effect) graph.ExecAnswer {
 			params := map[string]any{}
 			var stepCtx map[string]any
+			var templated []string
 			if len(effects) > 0 {
-				params, stepCtx = effects[0].Params, effects[0].Context
+				params, stepCtx, templated = effects[0].Params, effects[0].Context, effects[0].Templated
 			}
-			res := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params, context: stepCtx,
+			res := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params, context: stepCtx, templated: templated,
 				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode, budget: budget, realCalls: in.RealCalls})
 			cachedBy[node.ID] = append(cachedBy[node.ID], res.cached)
 			if res.called {
@@ -608,10 +609,11 @@ func (au *authoring) testNode(ctx context.Context, a Actor, in TestNodeInput, ke
 	case graph.StepCall:
 		params := map[string]any{}
 		var stepCtx map[string]any
+		var templated []string
 		if len(st.Effects) > 0 {
-			params, stepCtx = st.Effects[0].Params, st.Effects[0].Context
+			params, stepCtx, templated = st.Effects[0].Params, st.Effects[0].Context, st.Effects[0].Templated
 		}
-		dr := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params, context: stepCtx,
+		dr := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params, context: stepCtx, templated: templated,
 			subject: subject, key: key, decisions: DecisionsLive})
 		res.Outcome, res.Output, res.Error = dr.outcome, dr.output, dr.err
 		if dr.masker != nil {
@@ -785,6 +787,7 @@ type directCall struct {
 	node      graph.Node
 	params    map[string]any
 	context   map[string]any // the step's context (graph.NodeSpec.StepContext)
+	templated []string       // the Mixed params rendered as templates (graph.Effect.Templated)
 	subject   SubjectRef
 	key       string
 	decisions string
@@ -890,7 +893,7 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	}
 	deadline := time.Now().Add(timeout)
 	in := catalog.CallInput{
-		TenantID: c.tenant, NodeID: c.node.ID, Attempt: 1, IdempotencyKey: c.key, Params: c.params, Context: c.context, Subject: c.subject,
+		TenantID: c.tenant, NodeID: c.node.ID, Attempt: 1, IdempotencyKey: c.key, Params: c.params, Templated: c.templated, Context: c.context, Subject: c.subject,
 		RunAs: c.as, Connection: info, Credentials: creds, Deadline: deadline, Usage: r.cfg.Usage,
 	}
 	dn, decides := cn.(DecisionNode)

@@ -683,6 +683,8 @@ type StepContext struct {
 	// Context is the step's expression context for a node type that declares graph.NodeSpec.StepContext
 	// (graph.Effect.Context); a call carries it to its child instance.
 	Context map[string]any
+	// Templated are the Mixed params the step rendered as templates (graph.Effect.Templated).
+	Templated []string
 	// Offline is set for a preview of an agent's dry run (DryRunInput.RealCalls other than RealCallsAll): the
 	// previewer runs no package code and makes no call outside the engine (OfflinePreviewer).
 	Offline bool

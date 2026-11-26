@@ -695,6 +695,7 @@ func callMeta(res host.CallResult) json.RawMessage {
 }
 
 func (e *Engine) record(ctx context.Context, rs *runState, o Occurrence) error {
+	o = o.recordable() // the run goes on with what its journal keeps
 	return e.inFence(ctx, rs, func(tx pgx.Tx) (func(), error) {
 		if err := putOccurrence(ctx, tx, rs, o); err != nil {
 			return nil, err
@@ -711,6 +712,25 @@ func (e *Engine) forget(ctx context.Context, rs *runState, name string, n int) e
 		}
 		return func() { rs.del(name, n) }, nil
 	})
+}
+
+// startedDispatches reports whether resolveStarted leaves a started call occurrence to be dispatched
+// (handled=false): it is not held for an operator and the host recorded no invocation of it.
+func (e *Engine) startedDispatches(ctx context.Context, rs *runState, o Occurrence) (bool, error) {
+	var mark map[string]any
+	if json.Unmarshal(o.Meta, &mark) == nil && mark[awaitingOperator] != nil {
+		return false, nil
+	}
+	if o.InvocationID == "" {
+		return true, nil
+	}
+	var recorded bool
+	err := e.cfg.DB.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM extruntime.invocations WHERE id = $1::uuid AND tenant_id = $2)`,
+		o.InvocationID, rs.inst.TenantID).Scan(&recorded)
+	if err != nil {
+		return false, serrors.FromDB(opCall, err)
+	}
+	return !recorded, nil
 }
 
 // resolveStarted decides what a `started` call occurrence means after a crash

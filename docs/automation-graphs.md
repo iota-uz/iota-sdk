@@ -369,16 +369,19 @@ an application that builds its own registry). Params are in the field language; 
   the headers of a secret's authorization and the idempotency key whatever their names: `Sensitive`).
   With `auth` the URL names its https host before any template (`https://api.example.com/{{ ... }}`). A
   refusal is `network_blocked` with the host only; a DNS or dial failure is `unavailable` (nothing was
-  sent); a body over 10 MiB is `response_too_large`; a 429 with `Retry-After` is repeated by the engine's
+  sent); a body over 10 MiB or a header section over 64 KiB (`code.WithMaxHeaderBytes`) is
+  `response_too_large`; a 429 with `Retry-After` is repeated by the engine's
   rule. Only `GET`/`HEAD` and a request with `idempotency_header` (it carries the call's idempotency key)
   are idempotent (`catalog.IdempotentCall`); the header is one of the request's own (not one the
   transport sets: `Host`, `Content-Length`, `Connection`, `Authorization`, ...), and such a changing
   request is not followed off its origin (`redirect_refused`), where its key would not go. A response the success expression rejects takes
   `failed` with the response in the output and `output.error.code = http_status`. The node type declares
-  `NodeSpec.MaxOutputBytes` above the engine's payload limit (6× the body, the worst JSON escaping), so
-  any body up to 10 MiB comes back. `body.value` is CEL or a `{{ }}` template: the text of a `text` body,
-  the JSON text of an object or array of a `json` body, the encoded form of a `form` body;
-  `body.template` is always a template.
+  `NodeSpec.MaxOutputBytes` above the engine's payload limit (6× the body and the headers, the worst JSON
+  escaping), so any body up to 10 MiB comes back with its headers. `body.value` is CEL or a `{{ }}`
+  template: as a template, the text of a `text` body, the JSON text of an object or array of a `json`
+  body, the encoded form of a `form` body; as CEL, its value, so a CEL string of a `json` body is a JSON
+  string whatever its text (the step passes the mode to the node: `graph.Effect.Templated`,
+  `catalog.CallInput.Templated`). `body.template` is always a template.
 - **Another graph.** The run-as needs `Automations.Operate`, as for a manual start (`forbidden`). Both
   nodes start the target's enabled version in the step's transaction (`engine.RunStarter`,
   `Runtime.StartFromStep`) through `trigger_id`, else its first «Called by an automation» trigger

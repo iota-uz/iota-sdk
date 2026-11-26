@@ -14,6 +14,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/pool"
 	"github.com/iota-uz/iota-sdk/pkg/extruntime/spi"
+	"github.com/iota-uz/iota-sdk/pkg/jsonb"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -398,7 +399,15 @@ func (e *Engine) inFence(ctx context.Context, rs *runState, fn func(tx pgx.Tx) (
 }
 
 // putOccurrence upserts the occurrence row of the run's instance.
+// recordable is the occurrence as its row keeps it: jsonb refuses U+0000, so a NUL byte of an error (a
+// command's message) or of the meta becomes U+FFFD instead of failing the write.
+func (o Occurrence) recordable() Occurrence {
+	o.Error, o.Meta = jsonb.WithoutNUL(o.Error), jsonb.WithoutNUL(o.Meta)
+	return o
+}
+
 func putOccurrence(ctx context.Context, tx queryer, rs *runState, o Occurrence) error {
+	o = o.recordable()
 	_, err := tx.Exec(ctx, `
 		INSERT INTO extruntime.workflow_occurrences
 			(instance_id, tenant_id, name, n, kind, status, input_hash, result, error, attempts, wake_at, invocation_id, contract_hash, meta)
@@ -540,7 +549,7 @@ func (e *Engine) finishCompleted(ctx context.Context, rs *runState, result json.
 }
 
 func (e *Engine) finishFailed(ctx context.Context, rs *runState, we *pool.WireError) error {
-	return e.transition(ctx, rs, StatusFailed, `status = 'failed', error = $4, failures = 0, wake_at = NULL, finished_at = now()`, jsonArg(marshal(we)))
+	return e.transition(ctx, rs, StatusFailed, `status = 'failed', error = $4, failures = 0, wake_at = NULL, finished_at = now()`, jsonArg(jsonb.WithoutNUL(marshal(we))))
 }
 
 func (e *Engine) finishBlocked(ctx context.Context, rs *runState, reason, detail string) error {
@@ -550,6 +559,8 @@ func (e *Engine) finishBlocked(ctx context.Context, rs *runState, reason, detail
 		// run is released instead; the next process decides again.
 		return e.abandon(ctx, rs)
 	}
+	// text refuses U+0000: a detail that quotes a provider's message keeps the rest of its text.
+	reason, detail = jsonb.Text(reason), jsonb.Text(detail)
 	e.cfg.Logger.Warn("extruntime: workflow instance blocked", "instance", rs.inst.ID, "reason", reason, "detail", detail)
 	return e.transition(ctx, rs, StatusBlocked, `status = 'blocked', blocked_reason = $4, blocked_detail = $5, wake_at = NULL`, reason, detail)
 }

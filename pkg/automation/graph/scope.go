@@ -567,14 +567,31 @@ func templatesAndValues(params map[string]any, spec NodeSpec) ([]ParamPath, []Pa
 	templates := expandPaths(params, spec.Templates)
 	values := expandPaths(params, spec.Values)
 	for _, p := range expandPaths(params, spec.Mixed) {
-		raw, _ := valueAt(params, p)
-		if s, ok := raw.(string); ok && strings.Contains(s, "{{") {
+		if mixedTemplate(params, p) {
 			templates = append(templates, p)
 		} else {
 			values = append(values, p)
 		}
 	}
 	return templates, values
+}
+
+// mixedTemplates are the Mixed params of a node that are templates.
+func mixedTemplates(params map[string]any, spec NodeSpec) []ParamPath {
+	var out []ParamPath
+	for _, p := range expandPaths(params, spec.Mixed) {
+		if mixedTemplate(params, p) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// mixedTemplate reports a Mixed param that is a template: a string with {{.
+func mixedTemplate(params map[string]any, p ParamPath) bool {
+	raw, _ := valueAt(params, p)
+	s, ok := raw.(string)
+	return ok && strings.Contains(s, "{{")
 }
 
 // expandPaths is ExpandParam of each declared path, in order.

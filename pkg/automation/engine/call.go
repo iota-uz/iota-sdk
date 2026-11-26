@@ -90,6 +90,7 @@ type CallRequest struct {
 	Connection     string          `json:"connection,omitempty"`    // the connection ref: a UUID or "platform:<kind>"
 	ConnectorKind  string          `json:"connector,omitempty"`     // the connection's kind
 	Input          json.RawMessage `json:"input"`                   // rendered params, no secrets
+	Templated      []string        `json:"templated,omitempty"`     // the Mixed params of Input rendered as templates
 	// Context is the step's context (graph.NodeSpec.StepContext). It is never part of the instance input,
 	// which the workflow API shows without the automation's field rules: Begin keeps it in
 	// automation.call_contexts and the child reads it from there.
@@ -407,7 +408,7 @@ func (c *CallRunner) Begin(ctx context.Context, tx pgx.Tx, run StepContext, node
 	waitID := fmt.Sprintf("%s/%d", run.TokenID, run.Seq)
 	req := CallRequest{
 		TenantID: run.TenantID, AutomationID: run.AutomationID, RunID: run.RunID, TokenID: run.TokenID, Seq: run.Seq,
-		WaitID: waitID, NodeID: node.ID, NodeType: node.Type, Input: input, Subject: run.Subject,
+		WaitID: waitID, NodeID: node.ID, NodeType: node.Type, Input: input, Templated: run.Templated, Subject: run.Subject,
 		IdempotencyKey: fmt.Sprintf("%s:%s:%s:%d", run.RunID, node.ID, run.TokenID, run.Seq),
 		Deadline:       now.Add(timeout), TimeoutMS: timeout.Milliseconds(), FailedConnected: run.FailedConnected, RunAs: run.RunAs,
 	}
@@ -637,12 +638,13 @@ func (x *callExec) failed(nt catalog.NodeType, code, message string, retryable b
 		result = CodeOutcomeUnknown
 	}
 	x.c.r.metrics.call(context.Background(), x.connector(nt), x.req.NodeType, result)
+	// The run's steps and its output keep the error (jsonb, text): a NUL byte of a provider's code or
+	// message becomes U+FFFD.
+	code, message = catalog.TextWithoutNUL(code), catalog.TextWithoutNUL(message)
 	out, err := json.Marshal(graph.FailedOutput(code, message, retryable))
 	if err != nil {
 		out = json.RawMessage(`{}`)
 	}
-	out = withoutNUL(out)
-	message = strings.ReplaceAll(message, "\x00", "\uFFFD")
 	fo := ""
 	if nt != nil {
 		fo = nt.Spec().FailedOutcome
@@ -855,7 +857,7 @@ func (x *callExec) answerOf(ae AnswerEventer) (string, bool) {
 	req := x.req
 	params, _ := decodeMap(req.Input)
 	return ae.AnswerEvent(catalog.CallInput{TenantID: req.TenantID, AutomationID: req.AutomationID, RunID: req.RunID,
-		NodeID: req.NodeID, Params: params, Subject: req.Subject, RunAs: req.RunAs})
+		NodeID: req.NodeID, Params: params, Templated: req.Templated, Subject: req.Subject, RunAs: req.RunAs})
 }
 
 // attempt is the k-th Effect of the call. The credentials are opened outside the Effect, so a failure
@@ -1013,7 +1015,7 @@ func (x *callExec) execute(ctx context.Context, cn catalog.CallNode, prior int, 
 	in := catalog.CallInput{
 		Context:  callContext,
 		TenantID: req.TenantID, AutomationID: req.AutomationID, RunID: req.RunID, NodeID: req.NodeID,
-		Attempt: prior + a.Attempt, IdempotencyKey: req.IdempotencyKey, Params: params, Subject: req.Subject,
+		Attempt: prior + a.Attempt, IdempotencyKey: req.IdempotencyKey, Params: params, Templated: req.Templated, Subject: req.Subject,
 		RunAs: req.RunAs, Connection: conn.info, Credentials: conn.creds, Deadline: req.Deadline, Usage: x.c.r.cfg.Usage,
 	}
 	callCtx, cancel := context.WithDeadline(ctx, req.Deadline)
@@ -1110,6 +1112,7 @@ func InvocationIDOf(idempotencyKey string) string { return catalog.InvocationIDO
 // unknown is a call whose outcome is unknown: the failed outcome when the graph connects it, else the
 // child blocks (ambiguous) until an operator resolves or retries it.
 func (x *callExec) unknown(msg string) (callRecord, error) {
+	msg = catalog.TextWithoutNUL(msg) // the instance's blocked detail and the journal keep it
 	if !x.req.FailedConnected && !x.terminalUnknown {
 		return callRecord{}, workflow.Ambiguous(fmt.Sprintf("the outcome of %s (%s) is unknown: %s", x.req.NodeID, x.req.IdempotencyKey, msg))
 	}
@@ -1186,7 +1189,7 @@ func (x *callExec) command(ctx context.Context, cn catalog.CallNode, cc catalog.
 	}
 	in := catalog.CallInput{
 		TenantID: req.TenantID, AutomationID: req.AutomationID, RunID: req.RunID, NodeID: req.NodeID, Attempt: 1,
-		IdempotencyKey: req.IdempotencyKey, Params: params, Subject: req.Subject, RunAs: req.RunAs,
+		IdempotencyKey: req.IdempotencyKey, Params: params, Templated: req.Templated, Subject: req.Subject, RunAs: req.RunAs,
 		Connection: conn.info, Credentials: conn.creds, Deadline: req.Deadline, Usage: x.c.r.cfg.Usage,
 	}
 	command, input, err := cc.Command(in)
@@ -1197,15 +1200,16 @@ func (x *callExec) command(ctx context.Context, cn catalog.CallNode, cc catalog.
 		}
 		return WaitResult{}, err
 	}
-	// A recorded command is read back as it is. One that never started runs within the call's deadline
-	// and holds one of the tenant's call slots, as every call does; one that started (a crash) is resolved
-	// by the workflow from the host's record of its invocation.
-	_, seen, err := x.nr.Lookup(ctx, "command", 0)
+	// A recorded command is read back as it is, and one that started is resolved by the workflow from the
+	// host's record of its invocation. One the workflow sends to the host (never started, or started by a
+	// process that stopped before the dispatch) runs within the call's deadline and holds one of the
+	// tenant's call slots, as every call does.
+	dispatches, err := x.nr.CallDispatches(ctx, "command", 0)
 	if err != nil {
 		return WaitResult{}, err
 	}
 	callCtx := ctx
-	if !seen {
+	if dispatches {
 		if !time.Now().Before(req.Deadline) {
 			return x.failed(cn, CodeTimeout, req.NodeID+" ran out of time before its command", false), nil
 		}

@@ -158,7 +158,7 @@ func (r *Runtime) startFromStep(ctx context.Context, tx pgx.Tx, run StepContext,
 	if in.Attached && subject.Entity == graph.SubjectConversation && subject == normSubject(run.Subject) && run.RunID != uuid.Nil {
 		// The step's run holds the conversation and waits for this run: the run takes its turn inside
 		// that one's instead of queuing behind it (a detached run queues, and starts when it ends).
-		holders, err := waitingHolders(ctx, tx, run.TenantID, run.RunID, subject)
+		holders, err := waitingHolders(ctx, tx, run.TenantID, run.RunID, subject, r.cfg.Limits.MaxDepth)
 		if err != nil {
 			return RunRef{}, err
 		}
@@ -293,8 +293,9 @@ func payloadIssue(c graph.Catalog, event string, ev graph.Event) string {
 
 // waitingHolders are the run and the ancestors that wait for it on the same conversation: each started
 // as a child instance of the run before it (run_automation) about that conversation. An independent run
-// of the conversation is never one of them.
-func waitingHolders(ctx context.Context, tx pgx.Tx, tenant, run uuid.UUID, s SubjectRef) ([]uuid.UUID, error) {
+// of the conversation is never one of them. A run is at most maxDepth (Limits.MaxDepth) below the run that
+// started its cascade, so the walk reaches every ancestor of a run the limit allows.
+func waitingHolders(ctx context.Context, tx pgx.Tx, tenant, run uuid.UUID, s SubjectRef, maxDepth int) ([]uuid.UUID, error) {
 	rows, err := tx.Query(ctx, `
 		WITH RECURSIVE chain(id, instance_id, depth) AS (
 			SELECT r.id, r.instance_id, 0 FROM automation.runs r WHERE r.tenant_id = $1 AND r.id = $2
@@ -303,9 +304,9 @@ func waitingHolders(ctx context.Context, tx pgx.Tx, tenant, run uuid.UUID, s Sub
 			JOIN extruntime.workflow_instances i ON i.tenant_id = $1 AND i.id = c.instance_id
 			JOIN automation.runs p ON p.tenant_id = $1 AND p.instance_id = i.parent_instance_id
 				AND p.subject_entity = $3 AND p.subject_key = $4
-			WHERE c.depth < 64
+			WHERE c.depth < $5
 		)
-		SELECT id FROM chain`, tenant, run, s.Entity, s.Key)
+		SELECT id FROM chain`, tenant, run, s.Entity, s.Key, maxDepth)
 	if err != nil {
 		return nil, err
 	}
