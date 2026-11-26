@@ -121,8 +121,15 @@ export default function EditorPage(): JSX.Element {
       window.history.go(rest.idx - idx)
       return
     }
-    window.history.replaceState({ idx }, '', rest.href)
-    rest = { idx, href: rest.href }
+    // The entry is gone: its URL is written back, with the step selected in the draft that stays.
+    const url = new URL(rest.href)
+    if (tab() === 'edit') {
+      const node = selected()
+      if (node) url.searchParams.set('node', node)
+      else url.searchParams.delete('node')
+    }
+    window.history.replaceState({ idx }, '', url)
+    rest = { idx, href: url.href }
   }
   const versionURL = (v: number) => (url: URL) => { if (v === 0) url.searchParams.delete('version'); else url.searchParams.set('version', String(v)) }
 
