@@ -3,6 +3,18 @@ module.exports = {
   darkMode: "class",
   theme: {
     extend: {
+      // Motion tokens (#1352): `duration-fast ease-out`, never a literal duration on a screen.
+      transitionDuration: {
+        instant: "var(--motion-instant)",
+        fast: "var(--motion-fast)",
+        base: "var(--motion-base)",
+        slow: "var(--motion-slow)",
+      },
+      transitionTimingFunction: {
+        out: "var(--ease-out)",
+        in: "var(--ease-in)",
+        standard: "var(--ease-standard)",
+      },
       fontFamily: {
         sans: ["Gilroy"]
       },

@@ -271,6 +271,22 @@
     --ease-squish-2: var(--ease-elastic-in-out-2);
     --ease-squish-3: var(--ease-elastic-in-out-3);
 
+    /* Motion (#1352): every screen's durations and curves come from these, never a literal `0.3s ease`.
+       Under prefers-reduced-motion every duration is 0 (see the media query below), except --motion-fade,
+       which keeps an opacity change of at most 80 ms where meaning would be lost without it (a toast). */
+    --motion-instant: 80ms;   /* press response (:active), handle highlight */
+    --motion-fast: 140ms;     /* a layer leaving, a palette or menu closing, a filter change */
+    --motion-base: 200ms;     /* a layer appearing, a panel opening, a list reflowing */
+    --motion-slow: 320ms;     /* Tidy auto-layout, the run overlay transition */
+    --motion-fade: 200ms;     /* opacity only; 80 ms under reduced motion */
+    --motion-flash: 4000ms;   /* a changed row or card stays highlighted, then fades (F5) */
+    --ease-out: cubic-bezier(0.2, 0, 0, 1);       /* appearing */
+    --ease-in: cubic-bezier(0.4, 0, 1, 1);        /* leaving */
+    --ease-standard: cubic-bezier(0.2, 0, 0.2, 1); /* moving */
+    /* One focus ring on every screen (K2): brand outline with an offset, never animated in. */
+    --focus-ring-width: 2px;
+    --focus-ring-offset: 2px;
+
     /* Animation */
     --animation-slide-in-up: slide-in-up 500ms var(--ease-3);
     --animation-slide-in-right: slide-in-right 500ms var(--ease-3);
@@ -1717,3 +1733,123 @@ td:has(.table-cell-link):not(.sticky) {
   outline: none;
 }
 
+
+/*
+ * Motion (#1352). Reduced motion: every duration token is 0, so a transition or animation written with the
+ * tokens has no in-between frame; an opacity change keeps at most 80 ms (--motion-fade). Unlayered so it wins
+ * over the :root values in @layer base.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-instant: 0ms;
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+    --motion-fade: 80ms;
+  }
+}
+
+/*
+ * Shared motion classes for Solid and templ screens. Only transform and opacity move; a class never animates
+ * a layout property. Each has its reduced-motion form through the tokens above.
+ */
+@layer components {
+  /* Press response (T2): a short squeeze while pressed. */
+  .iota-press {
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+  .iota-press:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: scale(0.96);
+  }
+
+  /* A layer or row appearing: fade and a short rise. */
+  .iota-enter {
+    animation: iota-enter var(--motion-base) var(--ease-out) both;
+  }
+  /* Skeleton → content: a crossfade in the same box, no shift (S2). */
+  .iota-fade-in {
+    animation: iota-fade var(--motion-fade) var(--ease-out) both;
+  }
+  /* A layer leaving: the reverse, shorter; the leaving layer is inert (A7). */
+  .iota-exit {
+    animation: iota-exit var(--motion-fast) var(--ease-in) both;
+    pointer-events: none;
+  }
+  /* A row leaving a list (reversible action with Undo, U1) and coming back. */
+  .iota-row-exit {
+    animation: iota-row-exit var(--motion-base) var(--ease-in) both;
+    pointer-events: none;
+  }
+  .iota-row-return {
+    animation: iota-row-return var(--motion-base) var(--ease-out) both;
+  }
+  /* A changed row or card (F5): highlighted about 4 s, then fades. Under reduced motion it holds and goes
+     out in one step, without in-between frames. */
+  .iota-flash {
+    position: relative;
+  }
+  .iota-flash::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: oklch(var(--clr-border-brand) / 10%);
+    box-shadow: inset 0 0 0 1px oklch(var(--clr-border-brand) / 45%);
+    animation: iota-flash var(--motion-flash) var(--ease-standard) both;
+  }
+  /* Inline confirmation above the buttons (U3): opens downward from its top edge. */
+  .iota-reveal {
+    transform-origin: top;
+    animation: iota-reveal var(--motion-base) var(--ease-out) both;
+  }
+  /* A visual "click" in place of a haptic one (touch): a short squeeze and back. */
+  .iota-click {
+    animation: iota-click var(--motion-fast) var(--ease-standard);
+  }
+  /* The shared focus ring (K2). */
+  .iota-focus-ring:focus-visible,
+  .iota-focus-scope :focus-visible {
+    outline: var(--focus-ring-width) solid oklch(var(--clr-border-brand));
+    outline-offset: var(--focus-ring-offset);
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iota-flash::after {
+    animation-timing-function: steps(1, end);
+  }
+}
+
+@keyframes iota-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes iota-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes iota-exit {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(4px); }
+}
+@keyframes iota-row-exit {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateX(-12px); }
+}
+@keyframes iota-row-return {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes iota-flash {
+  0%, 80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes iota-reveal {
+  from { opacity: 0; transform: scaleY(0.92); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes iota-click {
+  50% { transform: scale(0.94); }
+}

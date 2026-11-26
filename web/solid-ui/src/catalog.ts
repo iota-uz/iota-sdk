@@ -64,6 +64,12 @@ export const SPECIMENS = [
     responsiveStates: ['open'],
   },
   {
+    id: 'motion',
+    title: 'Motion',
+    description: 'Motion tokens (durations and curves) and the shared motion states: press, flash after a change, inline reveal, row leaving.',
+    states: ['default', 'reduced'],
+  },
+  {
     id: 'selection',
     title: 'Selection',
     description: 'Comboboxes, async search, countries, and calendar controls in closed and expanded states.',
