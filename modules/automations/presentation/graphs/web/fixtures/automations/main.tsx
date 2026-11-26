@@ -29,6 +29,11 @@ const can = { author: !cannot.has('author'), enable: !cannot.has('enable') && !a
 const fake: FakeOptions = {
   scenario: (params.get('scenario') as FakeOptions['scenario']) ?? 'default',
   delay: Number(params.get('delay') ?? '0'),
+  labelFails: params.get('labelFails') ?? undefined,
+  delayOnly: params.get('delayOnly') ?? undefined,
+  staleReads: params.has('staleReads'),
+  holdOn: params.get('holdOn') ?? undefined,
+  withheld: params.has('withheld'),
   changeOnce: params.has('changeOnce'),
   layoutConflict: params.has('layoutConflict'),
   conflictOnce: params.has('conflictOnce'),
@@ -43,6 +48,8 @@ const fake: FakeOptions = {
   calls: [],
   warn: params.has('warn'),
   telegram: params.has('telegram'),
+  agent,
+  backtests: (params.get('bt') as FakeOptions['backtests']) ?? 'default',
 }
 ;(window as unknown as { __calls: FakeOptions['calls'] }).__calls = fake.calls
 installFake('/automations/rpc', fake)
@@ -50,7 +57,7 @@ installFake('/automations/rpc', fake)
 document.documentElement.dataset.theme = theme
 document.documentElement.lang = lang
 if (theme === 'dark') document.documentElement.classList.add('dark')
-const view = (params.get('view') ?? 'list') as 'list' | 'new' | 'editor'
+const view = (params.get('view') ?? 'list') as 'list' | 'new' | 'editor' | 'backtests'
 const context = {
   bootstrapVersion: '1.0.0',
   protocolVersion: SDK_IDENTITY.protocolVersion,
@@ -64,7 +71,7 @@ const context = {
   initial: {
     basePath: '/automations', integrationsPath: '/settings/integrations', view,
     ...(params.get('id') ? { id: params.get('id')! } : {}), ...(params.get('run') ? { run: params.get('run')! } : {}),
-    can, agent, state: params.get('state') !== 'off',
+    can, agent, state: params.get('state') !== 'off', backtests: !params.has('nobacktests'),
   },
 }
 document.getElementById('iota-client-context')!.textContent = JSON.stringify(context)

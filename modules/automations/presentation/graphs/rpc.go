@@ -68,6 +68,21 @@ func (c *Controller) bindings() []solid.Binding {
 		bind(MethodStateSet, c.stateSet),
 		bind(MethodStateDelete, c.stateDelete),
 		bind(MethodSearchOptions, c.searchOptions),
+		bind(MethodBacktests, c.backtestList),
+		bind(MethodBacktestCount, c.backtestCount),
+		bind(MethodDatasetCreate, c.datasetCreate),
+		bind(MethodDatasetDelete, c.datasetDelete),
+		bind(MethodDatasetImport, c.datasetImport),
+		bind(MethodDatasetExamples, c.datasetExamples),
+		bind(MethodDatasetSynthetic, c.datasetSynthetic),
+		bind(MethodExampleDelete, c.exampleDelete),
+		bind(MethodExampleLabel, c.exampleLabel),
+		bind(MethodBacktestEstimate, c.backtestEstimate),
+		bind(MethodBacktestRun, c.backtestRun),
+		bind(MethodBacktestCancel, c.backtestCancel),
+		bind(MethodBacktestReport, c.backtestReport),
+		bind(MethodBacktestResults, c.backtestResults),
+		bind(MethodBacktestCompare, c.backtestCompare),
 	}
 }
 

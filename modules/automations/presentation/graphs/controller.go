@@ -27,6 +27,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/error_pages"
 	"github.com/iota-uz/iota-sdk/pkg/agentsession"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/automation/backtest"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/mcp"
@@ -53,6 +54,8 @@ const (
 	RouteRun    = "automations.run"
 	// RouteRunLink is a run named by its id alone (a notification, a task, the journal).
 	RouteRunLink = "automations.run_link"
+	// RouteBacktests is the backtests section of a graph (#1389).
+	RouteBacktests = "automations.backtests"
 )
 
 // DefaultPath is where the section is mounted.
@@ -87,6 +90,22 @@ const (
 	MethodStateSet       = "automations.state_set"
 	MethodStateDelete    = "automations.state_delete"
 	MethodSearchOptions  = "automations.search_options"
+	// Backtests (#1389).
+	MethodBacktests        = "automations.backtests"
+	MethodBacktestCount    = "automations.backtest_count"
+	MethodDatasetCreate    = "automations.dataset_create"
+	MethodDatasetDelete    = "automations.dataset_delete"
+	MethodDatasetImport    = "automations.dataset_import"
+	MethodDatasetExamples  = "automations.dataset_examples"
+	MethodDatasetSynthetic = "automations.dataset_synthetic"
+	MethodExampleDelete    = "automations.example_delete"
+	MethodExampleLabel     = "automations.example_label"
+	MethodBacktestEstimate = "automations.backtest_estimate"
+	MethodBacktestRun      = "automations.backtest_run"
+	MethodBacktestCancel   = "automations.backtest_cancel"
+	MethodBacktestReport   = "automations.backtest_report"
+	MethodBacktestResults  = "automations.backtest_results"
+	MethodBacktestCompare  = "automations.backtest_compare"
 )
 
 // screen declares the Solid module. The call keeps string literals so the iota-solid generator can
@@ -119,6 +138,21 @@ var screen = solid.Import[Props]("./web/Automations.tsx", solid.WithRPC(
 	solid.Action[StateSetRequest, StateSetResponse]("automations.state_set", solid.Invalidates("automations.state_list")),
 	solid.Action[StateKeyRequest, OKResponse]("automations.state_delete", solid.Invalidates("automations.state_list")),
 	solid.Query[SearchOptionsRequest, SearchOptionsResponse]("automations.search_options"),
+	solid.Query[AutomationRequest, BacktestsResponse]("automations.backtests"),
+	solid.Query[AutomationRequest, BacktestCountResponse]("automations.backtest_count"),
+	solid.Action[DatasetCreateRequest, IDResponse]("automations.dataset_create", solid.Invalidates("automations.backtests")),
+	solid.Action[DatasetRequest, OKResponse]("automations.dataset_delete", solid.Invalidates("automations.backtests", "automations.backtest_count")),
+	solid.Action[DatasetImportRequest, IDResponse]("automations.dataset_import", solid.Invalidates("automations.backtests")),
+	solid.Query[ExamplesRequest, ExamplesResponse]("automations.dataset_examples"),
+	solid.Action[SyntheticRequest, IDResponse]("automations.dataset_synthetic", solid.Invalidates("automations.backtests", "automations.dataset_examples")),
+	solid.Action[ExampleRequest, OKResponse]("automations.example_delete", solid.Invalidates("automations.backtests", "automations.dataset_examples")),
+	solid.Action[LabelRequest, OKResponse]("automations.example_label", solid.Invalidates("automations.backtests", "automations.dataset_examples", "automations.backtest_report", "automations.backtest_results")),
+	solid.Query[BacktestRunRequest, EstimateResponse]("automations.backtest_estimate"),
+	solid.Action[BacktestRunRequest, IDResponse]("automations.backtest_run", solid.Invalidates("automations.backtests", "automations.backtest_count")),
+	solid.Action[BacktestRequest, OKResponse]("automations.backtest_cancel", solid.Invalidates("automations.backtests", "automations.backtest_report")),
+	solid.Query[BacktestRequest, ReportResponse]("automations.backtest_report"),
+	solid.Query[ResultsRequest, ResultsResponse]("automations.backtest_results"),
+	solid.Query[CompareRequest, CompareResponse]("automations.backtest_compare"),
 ))
 
 // Engine is what the controller calls: the engine's services (engine.Runtime provides all three).
@@ -139,6 +173,9 @@ type UserNames interface {
 // Config configures the controller.
 type Config struct {
 	Engine Engine
+	// Backtests is the backtest service of the section «Backtests» (#1389); nil: the section is not
+	// offered and its methods answer backtests_unavailable.
+	Backtests backtest.Service
 	// Catalog is the catalog registry the editor's catalog is read from (AsAuthor, WithLocale).
 	Catalog catalog.Registry
 	// Behaviors are the graph behaviors of the catalog (default graph.DefaultBehaviors).
@@ -230,6 +267,7 @@ func NewController(cfg Config) (*Controller, error) {
 			{Spec: application.Get(cfg.Path+"/"+id, application.ClientRoute(RouteEditor), read), Feature: screen, Build: c.build(ViewEditor)},
 			{Spec: application.Get(cfg.Path+"/"+id+"/runs/{run:[0-9a-fA-F-]{36}}", application.ClientRoute(RouteRun), read), Feature: screen, Build: c.build(ViewEditor)},
 			{Spec: application.Get(cfg.Path+"/runs/{run:[0-9a-fA-F-]{36}}", application.ClientRoute(RouteRunLink), read), Feature: screen, Build: c.build(ViewRun)},
+			{Spec: application.Get(cfg.Path+"/"+id+"/backtests", application.ClientRoute(RouteBacktests), application.RequireAll(permissions.AutomationsRead, permissions.AutomationsAuthor)), Feature: screen, Build: c.build(ViewBacktests)},
 		}, clienthost.WithShell(shell), clienthost.WithSession(c.session), clienthost.WithServices(clienthost.ServiceEndpoints{RPC: c.rpcPath()}))
 		if err != nil {
 			return nil, serrors.Wrap(op, err)
@@ -306,7 +344,7 @@ func (c *Controller) requirePage(next http.Handler) http.Handler {
 			return
 		}
 		need := []string{permissions.AutomationsRead.Name()}
-		if r.URL.Path == c.cfg.Path+"/new" {
+		if r.URL.Path == c.cfg.Path+"/new" || strings.HasSuffix(r.URL.Path, "/backtests") {
 			need = append(need, permissions.AutomationsAuthor.Name())
 		}
 		for _, p := range need {
@@ -333,6 +371,7 @@ func (c *Controller) build(view View) func(context.Context, *http.Request) (clie
 		}
 		props.Agent = agent
 		props.State = c.cfg.Engine.Memory != nil
+		props.Backtests = c.cfg.Backtests != nil
 		title := intl.TWithDefault(ctx, "Automations.Title", "Automations")
 		return clienthost.RoutePayload{Title: title, Screen: screen.Render(props)}, nil
 	}

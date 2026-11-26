@@ -23,6 +23,10 @@
 // automation_state_list and automation_state_get (Automations.Read) and the changes automation.state.set
 // and automation.state.delete (Automations.Author).
 //
+// With mcpops.WithBacktests(svc) (svc from automations.Backtests) Tools also offers the backtests of
+// #1389: datasets, synthetic examples, labels, a backtest with cached decisions and its report. A URLs
+// that implements BacktestURLs links the page of an automation's backtests.
+//
 // HUMAN_REQUIRED refusals of a plan and every applied change are entries of the MCP engine's audit
 // (mcp.Audit), with the principal and the client. engine.Config.Links.RunURL is the run page the
 // workflow tools point to.
@@ -38,6 +42,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/iota-uz/iota-sdk/pkg/automation/backtest"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/graph"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -92,6 +97,7 @@ type options struct {
 	subjects  SubjectResolver
 	behaviors *graph.Behaviors
 	memory    engine.Memory
+	backtests backtest.Service
 }
 
 // WithSubjects replaces how the acting user's rights are read.

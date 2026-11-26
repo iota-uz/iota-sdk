@@ -12,6 +12,7 @@ import {
   editorLocale, emptyGraph, errorCode, errorText, graphPath, readRunsView, runDataOf, runSummaryOf, writeRunsView,
   type ConnectionOptions, type GetResult, type ManualTrigger,
 } from './model'
+import { BacktestsLink } from './BacktestsLink'
 import { RunDialog } from './RunDialog'
 import { StatePanel } from './StatePanel'
 
@@ -535,6 +536,10 @@ export default function EditorPage(): JSX.Element {
   )
   const actions = () => (
     <>
+      {/* #1389: the section «Backtests» of the graph; the canvas itself does not change. */}
+      <Show when={info() && app.props.backtests && can().author}>
+        <BacktestsLink id={info()!.id} />
+      </Show>
       <Show when={info() && can().operate && info()!.enabled && manual().length > 0}>
         <button type="button" class="ae-btn ae-btn--ghost" onClick={() => setDialog('run')} data-testid="run-manual"><Icon name="play" />{t('Editor.Run')}</button>
       </Show>

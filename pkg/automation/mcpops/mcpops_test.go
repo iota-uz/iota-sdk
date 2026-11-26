@@ -25,6 +25,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	corePerms "github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/pkg/automation/backtest"
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/engine"
 	"github.com/iota-uz/iota-sdk/pkg/automation/expr"
@@ -185,7 +186,9 @@ type env struct {
 	subjects *hosttest.Subjects
 	reg      catalog.Registry
 	decided  *atomic.Int64 // real calls of acme.decide
-	fetched  *atomic.Int64 // real calls of acme.fetch
+	// backtests is the backtest service whose tools are registered (mcpops.WithBacktests).
+	backtests *backtest.Svc
+	fetched   *atomic.Int64 // real calls of acme.fetch
 }
 
 func account(tenant uuid.UUID, id uint, perms ...permission.Permission) user.User {
@@ -209,6 +212,7 @@ func newEnv(t *testing.T) *env {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	all := []string{engine.PermRead, engine.PermAuthor, engine.PermEnable, engine.PermOperate, permClient}
 	e.subjects.Grant(ownerID, all...)
+	e.subjects.Grant(agentID, engine.PermRead, engine.PermAuthor, permClient)
 
 	reg := catalog.NewRegistry(nil)
 	require.NoError(t, reg.RegisterTriggers(engine.Triggers()))
@@ -269,7 +273,9 @@ func newEnv(t *testing.T) *env {
 	})
 	e.authz = authz
 	registry := mcp.NewRegistry()
-	tools, err := mcpops.Tools(rt.Service(), rt.Authoring(), reg, urls{}, mcpops.WithMemory(rt.Memory()))
+	e.backtests, err = backtest.New(backtest.Config{DB: e.db, Automations: rt.Service(), Authoring: rt.Authoring(), Catalog: reg, Users: e.subjects, Logger: logger})
+	require.NoError(t, err)
+	tools, err := mcpops.Tools(rt.Service(), rt.Authoring(), reg, urls{}, mcpops.WithMemory(rt.Memory()), mcpops.WithBacktests(e.backtests))
 	require.NoError(t, err)
 	require.NoError(t, registry.Register(tools...))
 	e.changes, err = changes.NewService(changes.Config{

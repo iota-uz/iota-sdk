@@ -382,6 +382,12 @@ func (p *projector) historicEvent(ctx context.Context, input json.RawMessage, re
 	return json.Marshal(payload)
 }
 
+// KeepDeclared is the part of a decoded payload the schema declares, recursively: what a stored event
+// keeps when it is read again against a schema (a backtest's dataset imports events of the journal with
+// the payload of the importing author's catalog view, so sensitive fields the author may not read are
+// not kept).
+func KeepDeclared(v map[string]any, fs expr.Fields) map[string]any { return keepDeclared(v, fs) }
+
 // keepDeclared is the part of a decoded object the schema declares, recursively; an object keeps no key
 // it does not declare (even an open one: what it would keep is unchecked).
 func keepDeclared(v map[string]any, fs expr.Fields) map[string]any {
