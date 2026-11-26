@@ -35,7 +35,7 @@ export function ContextMenu(props: ContextMenuProps): JSX.Element {
   let root: HTMLDivElement | undefined
   const [active, setActive] = createSignal(0)
   const enabled = () => props.items.filter((i) => !i.disabled)
-  useDismiss(() => root, () => props.onClose())
+  useDismiss(() => root, () => props.onClose(), { leaving: () => props.leaving })
 
   onMount(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null

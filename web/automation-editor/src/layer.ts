@@ -3,15 +3,18 @@
 // on a change of the window width (not height: the on-screen keyboard changes the height).
 import { createEffect, onCleanup, onMount } from 'solid-js'
 
-export function useDismiss(element: () => HTMLElement | undefined, close: () => void, options: { swallow?: boolean } = {}): void {
+export function useDismiss(element: () => HTMLElement | undefined, close: () => void, options: { swallow?: boolean; leaving?: () => boolean | undefined } = {}): void {
   onMount(() => {
     let width = window.innerWidth
     const inside = (target: EventTarget | null) => {
       const el = element()
       return Boolean(el && target instanceof Node && el.contains(target))
     }
+    // A layer that is leaving is closed already: it no longer takes the presses around it (#1352), or the
+    // click on a card right after picking from the palette would be swallowed during the exit.
+    const done = () => Boolean(options.leaving?.())
     const onPointerDown = (event: PointerEvent) => {
-      if (inside(event.target)) return
+      if (done() || inside(event.target)) return
       if (options.swallow !== false) {
         // The press that closed the layer does not act on the element under it.
         const swallow = (e: Event) => {
@@ -24,11 +27,11 @@ export function useDismiss(element: () => HTMLElement | undefined, close: () => 
       close()
     }
     const onWheel = (event: WheelEvent) => {
-      if (!inside(event.target)) close()
+      if (!done() && !inside(event.target)) close()
     }
-    const onBlur = () => close()
+    const onBlur = () => { if (!done()) close() }
     const onResize = () => {
-      if (window.innerWidth !== width) {
+      if (window.innerWidth !== width && !done()) {
         width = window.innerWidth
         close()
       }

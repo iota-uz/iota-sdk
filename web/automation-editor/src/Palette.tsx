@@ -70,7 +70,7 @@ export function Palette(props: PaletteProps): JSX.Element {
   let list: HTMLDivElement | undefined
   const listId = `ae-palette-${Math.random().toString(36).slice(2, 8)}`
 
-  useDismiss(() => root, () => props.onClose())
+  useDismiss(() => root, () => props.onClose(), { leaving: () => props.leaving })
   // On touch the search is not focused: the keyboard would cover the list.
   useFocusTrap(() => root, { autofocus: !coarse, leaving: () => props.leaving })
 

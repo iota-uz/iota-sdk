@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { expectNoA11yViolations } from '@iota-uz/sdk/testing'
-import { card, center, drag, edge, handle, mod, open } from './helpers'
+import { card, center, drag, edge, handle, mod, open, settled } from './helpers'
 
 test.describe('canvas', () => {
   test('connecting an occupied outcome replaces its edge; undo brings the old one back (ED3)', async ({ page }) => {
@@ -516,6 +516,7 @@ test.describe('editor', () => {
     test(`axe: no serious violations (${theme})`, async ({ page }) => {
       await open(page, theme === 'dark' ? 'theme=dark' : '')
       await card(page, 'has_email').click()
+      await settled(page)
       await expectNoA11yViolations(page, { include: ['.ae-editor'] })
     })
   }
@@ -641,6 +642,26 @@ test.describe('motion', () => {
     await page.keyboard.press('Backspace')
     await expect(page.locator('.ae-palette:not(.ae-layer--leaving) input')).toHaveValue('d')
     await expect(card(page, 'delay')).toHaveCount(1)
+  })
+
+  test('a leaving palette or panel does not swallow the next click on the canvas', async ({ page }) => {
+    await open(page)
+    // A long exit, so every click below lands while the palette and the removed step's panel still leave.
+    await page.addStyleTag({ content: ':root { --motion-fast: 1500ms !important; }' })
+    await page.locator('.ae-canvas').click({ position: { x: 700, y: 30 } })
+    await page.keyboard.press(`${mod}+k`)
+    await page.locator('.ae-palette input').fill('delay')
+    await page.keyboard.press('Enter')
+    await expect(card(page, 'delay_2')).toBeVisible()
+    // Inside the exits of the palette and of the removed step's panel.
+    await page.keyboard.press(`${mod}+z`)
+    await card(page, 'send_email').click()
+    await page.keyboard.press('Escape')
+    await card(page, 'send_email').click()
+    await expect(page.locator('.ae-side:not(.ae-layer--leaving) .ae-panel__title')).toHaveText('Send email')
+    await page.locator('.ae-canvas').focus()
+    await page.keyboard.press(`${mod}+d`)
+    await expect(card(page, 'send_email_2')).toBeVisible()
   })
 
   test('the node panel slides out inert and focus goes back to the card', async ({ page }) => {

@@ -1,7 +1,7 @@
 // The Runs tab, the run view, Dry run and Test node (#1347) against the fixture host's fake EditorApi.
 import { expect, test, type Page } from '@playwright/test'
 import { expectNoA11yViolations } from '@iota-uz/sdk/testing'
-import { card, open } from './helpers'
+import { card, open, settled } from './helpers'
 
 const LIVE = '00000000-0000-4000-8000-0000000000r1'
 const FAILED = '00000000-0000-4000-8000-0000000000r2'
@@ -153,6 +153,7 @@ test.describe('runs', () => {
   test('A1: the Runs tab with a run and its drawer has no serious violations', async ({ page }) => {
     await open(page, `tab=runs&run=${FAILED}&node=send_email`, '.ae-runview')
     await expect(page.getByTestId('run-node')).toBeVisible()
+    await settled(page)
     await expectNoA11yViolations(page, { include: ['.ae-runs'] })
   })
 })
@@ -177,6 +178,7 @@ test.describe('dry run and test node', () => {
     await card(page, 'has_email').click()
     await page.locator('.ae-panel [data-param="expression"] textarea').first().fill('true')
     await expect(card(page, 'has_email')).not.toHaveClass(/ae-card--passed/)
+    await settled(page)
     await expectNoA11yViolations(page, { include: ['[data-testid="dry-run"]'] })
   })
 
