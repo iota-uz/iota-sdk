@@ -118,11 +118,13 @@ func (c *component) runtime(container *composition.Container) (*engine.Runtime, 
 }
 
 // defaultEngineConfig is the engine's configuration before the application's tuning: it records what
-// calls spend (the SMS nodes' units, for one) in automation.connector_usage, and matches the triggers of
-// the SDK's connectors (the email connector's subject_contains).
-func defaultEngineConfig(db *pgxpool.Pool, wf *workflow.Engine, users host.SubjectLoader, reg catalog.Registry, creds connectors.CredentialSource) engine.Config {
+// calls spend (the SMS nodes' units, for one) in automation.connector_usage, matches the triggers of
+// the SDK's connectors (the email connector's subject_contains), and knows the connectors' descriptors,
+// so only the secret fields of a connection are masked in a call's output and errors (a server URL or an
+// auth kind a tool echoes stays as the node checked it).
+func defaultEngineConfig(db *pgxpool.Pool, wf *workflow.Engine, users host.SubjectLoader, reg catalog.Registry, creds connectors.CredentialSource, dir connectors.Directory) engine.Config {
 	return engine.Config{
-		DB: db, Workflows: wf, Users: users, Catalog: reg, Credentials: creds, Logger: slog.Default(),
+		DB: db, Workflows: wf, Users: users, Catalog: reg, Credentials: creds, Connectors: dir, Logger: slog.Default(),
 		Usage: connectors.NewUsageRecorder(db), MatchHooks: email.MatchHooks(),
 	}
 }
@@ -155,7 +157,7 @@ func (c *component) buildEngine(b *composition.Builder) {
 			return nil, err
 		}
 		// The store's usage index is the engine's: the credentials are resolved when a call first opens one.
-		cfg := defaultEngineConfig(db, wf, users, reg, lazyCredentials{container: container})
+		cfg := containerEngineConfig(container, db, wf, users, reg)
 		if c.links != nil {
 			cfg.Links = c.links
 		}
@@ -283,6 +285,41 @@ type builtinNode struct{ spec graph.NodeSpec }
 
 func (n builtinNode) Spec() graph.NodeSpec            { return n.spec }
 func (builtinNode) Requires() []catalog.ConnectorKind { return nil }
+
+// containerEngineConfig is the default configuration of the engine the module builds in a container: the
+// connection store and the connector directory are resolved when the engine first needs them.
+func containerEngineConfig(container *composition.Container, db *pgxpool.Pool, wf *workflow.Engine, users host.SubjectLoader, reg catalog.Registry) engine.Config {
+	return defaultEngineConfig(db, wf, users, reg, lazyCredentials{container: container}, lazyDirectory{container: container})
+}
+
+// lazyDirectory resolves the connector directory when the engine first asks it (the directory is built
+// after the engine). A directory that does not resolve knows no connector: every credential value is
+// masked then.
+type lazyDirectory struct{ container *composition.Container }
+
+func (l lazyDirectory) Register(c connectors.Connector) error {
+	dir, err := composition.Resolve[connectors.Directory](l.container)
+	if err != nil {
+		return err
+	}
+	return dir.Register(c)
+}
+
+func (l lazyDirectory) List() []connectors.Connector {
+	dir, err := composition.Resolve[connectors.Directory](l.container)
+	if err != nil {
+		return nil
+	}
+	return dir.List()
+}
+
+func (l lazyDirectory) Get(kind catalog.ConnectorKind) (connectors.Connector, bool) {
+	dir, err := composition.Resolve[connectors.Directory](l.container)
+	if err != nil {
+		return nil, false
+	}
+	return dir.Get(kind)
+}
 
 // lazyCredentials resolves the connection store when a call first opens a connection.
 type lazyCredentials struct{ container *composition.Container }

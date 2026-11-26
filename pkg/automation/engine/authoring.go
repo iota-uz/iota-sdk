@@ -60,7 +60,10 @@ const MaxDryRunEvents = 50
 type DryRunInput struct {
 	Graph   json.RawMessage
 	Subject SubjectRef
-	Context map[string]json.RawMessage // overrides of nodes.<id>.output / subject fields
+	// AutomationID is the saved automation whose memory (state) the dry run reads; the zero value: the
+	// graph is not saved, so no key is there. A dry run never writes the memory.
+	AutomationID uuid.UUID
+	Context      map[string]json.RawMessage // overrides of nodes.<id>.output / subject fields
 	// Events is the sequence fed to triggers and waits (≤ 50): an event {kind, ...payload}, {"timeout":
 	// true} for the earliest timer, or {"events": [...]} for the batch a trigger's collect merges into
 	// the run that starts (events; event is its last entry).
@@ -119,6 +122,8 @@ const (
 type TestNodeInput struct {
 	Graph  json.RawMessage
 	NodeID string
+	// AutomationID is the saved automation whose memory (state) the node reads (see DryRunInput).
+	AutomationID uuid.UUID
 	// Key identifies the test the author confirmed (≤ 100 characters). The first request with a key
 	// claims it in automation.node_tests (every process sees the claim) and runs the test; a repeat — a
 	// retry after a lost answer, on any process — gets the stored answer, or, while the first is running
@@ -257,7 +262,7 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 	}
 	sub := a.Subject
 	sub.TenantID = a.TenantID
-	gctx, err := au.r.BuildRunContext(ctx, RunContextInput{TenantID: a.TenantID, Subject: in.Subject, RunAs: sub, Now: time.Now(), Overrides: overrides})
+	gctx, err := au.r.BuildRunContext(ctx, RunContextInput{TenantID: a.TenantID, AutomationID: in.AutomationID, Subject: in.Subject, RunAs: sub, Now: time.Now(), Overrides: overrides})
 	if err != nil {
 		return DryRunResult{}, &host.InfraError{Err: err}
 	}
@@ -586,7 +591,7 @@ func (au *authoring) testNode(ctx context.Context, a Actor, in TestNodeInput, ke
 	if raw, ok := overrides["event"].(map[string]any); ok {
 		event = raw
 	}
-	gctx, err := au.r.BuildRunContext(ctx, RunContextInput{TenantID: a.TenantID, Subject: subject, RunAs: sub, Event: event, Now: time.Now(), Overrides: overrides})
+	gctx, err := au.r.BuildRunContext(ctx, RunContextInput{TenantID: a.TenantID, AutomationID: in.AutomationID, Subject: subject, RunAs: sub, Event: event, Now: time.Now(), Overrides: overrides})
 	if err != nil {
 		return TestNodeResult{}, &host.InfraError{Err: err}
 	}
@@ -634,7 +639,7 @@ func (au *authoring) testNode(ctx context.Context, a Actor, in TestNodeInput, ke
 			}
 		}
 		if len(st.Effects) > 0 {
-			applied, serr, err := au.r.effectRolledBack(ctx, a.TenantID, sub, subject, authorTrigger(event, a), node, interp.View().Catalog().Nodes[node.Type], st.Effects)
+			applied, serr, err := au.r.effectRolledBack(ctx, a.TenantID, in.AutomationID, sub, subject, authorTrigger(event, a), node, interp.View().Catalog().Nodes[node.Type], st.Effects)
 			if err != nil {
 				return TestNodeResult{}, err
 			}
@@ -728,14 +733,14 @@ func (r *Runtime) previewEffects(ctx context.Context, tenant uuid.UUID, as spi.S
 
 // effectRolledBack applies an effect node's effects in a transaction it rolls back: the node's output
 // is shown, and nothing it wrote (rows, outbox events) stays.
-func (r *Runtime) effectRolledBack(ctx context.Context, tenant uuid.UUID, as spi.Subject, subject SubjectRef, trigger *TriggerEvent, node graph.Node, spec graph.NodeSpec, effects []graph.Effect) (EffectResult, *StepError, error) {
+func (r *Runtime) effectRolledBack(ctx context.Context, tenant, automation uuid.UUID, as spi.Subject, subject SubjectRef, trigger *TriggerEvent, node graph.Node, spec graph.NodeSpec, effects []graph.Effect) (EffectResult, *StepError, error) {
 	nt, _ := r.cfg.Catalog.Node(node.Type)
 	en, ok := nt.(EffectNode)
 	if !ok {
 		// As in a run: an effect node without an executor applies nothing, so its test says so.
 		return EffectResult{}, &StepError{Code: CodeUnsupported, Message: fmt.Sprintf("node type %s has no effect executor", node.Type)}, nil
 	}
-	sc := StepContext{TenantID: tenant, RunAs: as, Subject: subject, NodeID: node.ID, Trigger: trigger}
+	sc := StepContext{TenantID: tenant, AutomationID: automation, RunAs: as, Subject: subject, NodeID: node.ID, Trigger: trigger}
 	if prep, ok := en.(EffectPreparer); ok && len(effects) > 0 {
 		// Prepared before the transaction opens, as a run does.
 		v, err := prep.PrepareEffect(ctx, sc, node, effects[0])

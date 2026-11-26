@@ -542,3 +542,105 @@ test('#1439: the chat of a Telegram step is picked from the chats its connection
   const asked = (await calls(page)).filter((c) => c.method === 'automations.search_options').map((c) => c.params)
   expect(asked[0]).toEqual({ source: 'telegram.chats', query: '', connection: 'c-1' })
 })
+
+// #1390: the memory of a graph between runs sits in its settings: a list of keys with a search, a change
+// of a value and a delete.
+test.describe('state panel', () => {
+  const settings = async (page: Page, query = '') => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`/?view=editor&id=${DIGEST}${query}`)
+    await expect(page.getByTestId('crumb')).toBeVisible()
+    await page.getByRole('button', { name: 'Settings' }).click()
+  }
+  const stateCalls = async (page: Page, method: string) => (await calls(page)).filter((c) => c.method === method)
+
+  test('lists the keys, searches, changes and deletes', async ({ page }) => {
+    await settings(page)
+    const panel = page.getByTestId('state-panel')
+    await expect(panel.getByTestId('state-list').locator('li')).toHaveCount(3)
+    await expect(panel.getByTestId('state-total')).toHaveText('3 of 10000 keys')
+    await expect(panel.locator('[data-key="release:v2.4"]')).toContainText('does not expire')
+    await expect(panel.locator('[data-key="chat:42"]')).toContainText('"task":"T-17"')
+    await expectNoA11yViolations(page, { include: ['[data-testid="state-panel"]'] })
+
+    await panel.getByTestId('state-search').fill('chat')
+    await expect(panel.getByTestId('state-list').locator('li')).toHaveCount(1)
+    await panel.getByTestId('state-search').fill('nothing')
+    await expect(panel.getByTestId('state-empty')).toHaveText('No key matches.')
+    await panel.getByTestId('state-search').fill('')
+    await expect(panel.getByTestId('state-list').locator('li')).toHaveCount(3)
+
+    // A change: the value is JSON; a value that is not is refused before the request.
+    await panel.getByRole('button', { name: 'Edit: rule:daily:count' }).click()
+    const editor = panel.getByTestId('state-editor')
+    await expect(editor.locator('[data-field="state-key"] input, input[data-field="state-key"]').first()).toHaveValue('rule:daily:count')
+    await editor.locator('textarea[data-field="state-value"]').fill('{broken')
+    await editor.getByTestId('state-save').click()
+    await expect(editor.getByTestId('state-error')).toHaveText('The value is not valid JSON.')
+    expect(await stateCalls(page, 'automations.state_set')).toHaveLength(0)
+    await editor.locator('textarea[data-field="state-value"]').fill('4')
+    await editor.locator('input[data-field="state-ttl"]').fill('2h')
+    await editor.getByTestId('state-save').click()
+    await expect(editor).toHaveCount(0)
+    expect((await stateCalls(page, 'automations.state_set')).map((c) => c.params)).toEqual([{ id: DIGEST, key: 'rule:daily:count', value: 4, ttl: '2h' }])
+
+    // A new key; a value over the limit is refused with the engine's words.
+    await panel.getByTestId('state-add').click()
+    await panel.locator('input[data-field="state-key"]').fill('big')
+    await panel.locator('textarea[data-field="state-value"]').fill(JSON.stringify('x'.repeat(20000)))
+    await panel.getByTestId('state-save').click()
+    await expect(panel.getByTestId('state-error')).toContainText('state_value_too_large')
+    await panel.getByRole('button', { name: 'Cancel' }).click()
+
+    // A delete asks once.
+    await panel.getByRole('button', { name: 'Delete: release:v2.4' }).click()
+    expect(await stateCalls(page, 'automations.state_delete')).toHaveLength(0)
+    await panel.getByTestId('state-confirm-delete').click()
+    await expect(panel.locator('[data-key="release:v2.4"]')).toHaveCount(0)
+    expect((await stateCalls(page, 'automations.state_delete')).map((c) => c.params)).toEqual([{ id: DIGEST, key: 'release:v2.4' }])
+    await expect(panel.getByTestId('state-total')).toHaveText('2 of 10000 keys')
+  })
+
+  test('edits made while a save runs stay open', async ({ page }) => {
+    await settings(page, '&delay=1000')
+    const panel = page.getByTestId('state-panel')
+    await panel.getByRole('button', { name: 'Edit: rule:daily:count' }).click()
+    const value = panel.locator('textarea[data-field="state-value"]')
+    await value.fill('4')
+    await panel.getByTestId('state-save').click()
+    await value.fill('5')
+    // The save of 4 is answered; the 5 typed meanwhile is not dropped.
+    await expect(panel.locator('[data-key="rule:daily:count"] code').nth(1)).toHaveText('4')
+    await expect(value).toHaveValue('5')
+  })
+
+  test('no next page is asked for while the first one reloads', async ({ page }) => {
+    await settings(page, '&statePage=1&delay=1000')
+    const panel = page.getByTestId('state-panel')
+    const rows = panel.getByTestId('state-list').locator('li')
+    await expect(rows).toHaveCount(1)
+    await panel.getByRole('button', { name: 'Delete: chat:42' }).click()
+    await panel.getByTestId('state-confirm-delete').click()
+    // The key is deleted and the first page is on its way again: «Show more» waits for it.
+    await expect(panel.getByTestId('state-more')).toBeDisabled()
+    await expect(panel.locator('[data-key="release:v2.4"]')).toBeVisible()
+    await panel.getByTestId('state-more').click()
+    await expect(rows).toHaveCount(2)
+    await expect(panel.locator('[data-key="chat:42"]')).toHaveCount(0)
+  })
+
+  test('without Automations.Author the keys are read only', async ({ page }) => {
+    await settings(page, '&cannot=author')
+    const panel = page.getByTestId('state-panel')
+    await expect(panel.getByTestId('state-list').locator('li')).toHaveCount(3)
+    await expect(panel.getByTestId('state-add')).toHaveCount(0)
+    await expect(panel.getByRole('button', { name: /^Edit/ })).toHaveCount(0)
+    await expect(panel.getByRole('button', { name: /^Delete/ })).toHaveCount(0)
+  })
+
+  test('a screen without the memory has no panel', async ({ page }) => {
+    await settings(page, '&state=off')
+    await expect(page.getByTestId('state-panel')).toHaveCount(0)
+    expect(await stateCalls(page, 'automations.state_list')).toHaveLength(0)
+  })
+})

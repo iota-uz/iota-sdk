@@ -142,3 +142,57 @@ func TestMCPToolSchemaIsPinnedInTheVersion(t *testing.T) {
 	require.Equal(t, catalog.CallUnauthorized, tested.Error.Code)
 	require.Len(t, srv.Calls(), 2, "nothing reached the server")
 }
+
+// The output of an MCP tool is checked against its pinned output schema by the node; the engine masks
+// it with the secret fields of the connection only (the descriptor's), so a tool that echoes the
+// server URL or the auth kind (here as a const of its schema) reaches the graph as it was checked.
+func TestMCPOutputKeepsTheConnectionsPublicValues(t *testing.T) {
+	srv := mcptest.New(t)
+	const token = "tok-secret-0123456789"
+	srv.RequireToken(token)
+	srv.SetTool(mcptest.Tool{Name: "whoami",
+		InputSchema: map[string]any{"type": "object"},
+		OutputSchema: map[string]any{"type": "object", "required": []any{"server", "auth"}, "properties": map[string]any{
+			"server": map[string]any{"const": srv.URL}, "auth": map[string]any{"const": mcp.AuthBearer}}},
+		Handle: func(map[string]any) mcptest.Result {
+			return mcptest.Result{Text: "ok", Structured: map[string]any{"server": srv.URL, "auth": mcp.AuthBearer}}
+		},
+	})
+	_, port := srv.Host()
+	p16, err := strconv.Atoi(port)
+	require.NoError(t, err)
+	conn := mcp.New(mcp.WithTLSConfig(srv.TLS()), mcp.WithAllowedPorts(uint16(p16)),
+		mcp.WithAddressPolicy(func(_, address string) error {
+			if address == srv.Addr {
+				return nil
+			}
+			return mcp.ErrBlocked
+		}))
+	var store connectors.Store
+	keys, err := connectors.NewKeyring("k1", map[string][]byte{"k1": []byte("0123456789abcdef0123456789abcdef")})
+	require.NoError(t, err)
+	e := newEnvWith(t, func(db *pgxpool.Pool) catalog.Availability {
+		store = connectors.NewStore(db, keys, nil, nil, nil)
+		return store
+	})
+	dir := connectors.NewDirectory(e.reg)
+	require.NoError(t, dir.Register(conn))
+	connectors.BindStore(dir, store)
+	ctx := context.Background()
+	_, err = store.Save(ctx, connectors.Connection{TenantID: e.tenant, Kind: mcp.Kind, Name: "tools", Status: connectors.StatusConnected},
+		connectors.Credentials{mcp.KeyServerURL: srv.URL, mcp.KeyAuth: mcp.AuthBearer, mcp.KeyToken: token})
+	require.NoError(t, err)
+	p := e.proc(func(c *engine.Config) { c.Credentials = store; c.Connectors = dir })
+
+	g := graphJSON("Whoami", `{"id": "created", "event": "acme.order.created.v1"}`,
+		`{"id": "call", "type": "mcp_tool", "params": {"tool": "whoami", "arguments": {}}},
+		 {"id": "ok", "type": "acme.note", "params": {"text": "{{ nodes.call.output.structured.server }} {{ nodes.call.output.structured.auth }}"}},
+		 {"id": "fin", "type": "end", "params": {}}`,
+		`{"from": {"node": "created", "outcome": "fired"}, "to": "call"},
+		 {"from": {"node": "call", "outcome": "done"}, "to": "ok"}, {"from": {"node": "call", "outcome": "failed"}, "to": "fin"},
+		 {"from": {"node": "ok", "outcome": "done"}, "to": "fin"}, {"from": {"node": "ok", "outcome": "failed"}, "to": "fin"}`)
+	e.create(p, e.human(), g)
+	e.publish(e.tenant, orderCreated, "o-1", order{Amount: 1}, 0)
+	p.until(func() bool { return e.count(`SELECT count(*) FROM test_effects`) == 1 }, "the run notes the output")
+	require.Equal(t, 1, e.count(`SELECT count(*) FROM test_effects WHERE text = $1`, srv.URL+" "+mcp.AuthBearer))
+}

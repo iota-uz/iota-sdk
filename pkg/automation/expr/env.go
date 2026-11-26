@@ -177,6 +177,7 @@ func NewEnv(s Scope, l Limits) (*Env, error) {
 		ext.Bindings(),
 		joinFunction(),
 	}
+	opts = append(opts, mapLookupFunctions()...)
 	for _, name := range names {
 		f := s.Vars[name]
 		if err := f.Validate(); err != nil {

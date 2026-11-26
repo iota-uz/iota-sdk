@@ -320,7 +320,10 @@
         "LoadReview": "carregar a revisão",
         "LoadRuns": "carregar as execuções",
         "Run": "iniciar a execução",
-        "LoadLive": "contar as execuções pendentes"
+        "LoadLive": "contar as execuções pendentes",
+        "LoadState": "carregar a memória",
+        "SaveState": "salvar a chave",
+        "DeleteState": "excluir a chave"
       },
       "Columns": {
         "Attention": "Requer atenção",
@@ -512,6 +515,33 @@
       "Enable": {
         "NoRight": "Ativar e desativar automações exige a permissão «Ativar automações».",
         "AgentNote": "Um agente não ativa automações: uma pessoa faz isso na própria sessão."
+      },
+      "State": {
+        "Title": "Memória entre execuções",
+        "Hint": "O que a automação lembra para as próximas execuções. O nó «Definir estado» grava; as expressões leem com state.get(chave) e state.has(chave).",
+        "Add": "Adicionar chave",
+        "Key": "Chave",
+        "KeyRequired": "Informe a chave.",
+        "Value": "Valor",
+        "ValueHint": "JSON, no máximo 16 KiB: \"texto\", 42, true, {\"a\": 1}.",
+        "InvalidJSON": "O valor não é um JSON válido.",
+        "Ttl": "Tempo de vida",
+        "TtlHint": "20m, 2h ou 7d, de 1 minuto a 365 dias. Vazio: a chave não expira.",
+        "Save": "Salvar",
+        "Saved": "Chave salva",
+        "Deleted": "Chave excluída",
+        "Edit": "Editar",
+        "Delete": "Excluir",
+        "ConfirmDelete": "Excluir a chave",
+        "Search": "Buscar por chave",
+        "Loading": "Carregando…",
+        "Empty": "Nada foi memorizado ainda.",
+        "NoMatch": "Nenhuma chave corresponde.",
+        "ExpiresAt": "expira {when}",
+        "NoExpiry": "não expira",
+        "UpdatedAt": "alterada {when}",
+        "Total": "{count} de {max} chaves",
+        "More": "Mostrar mais"
       }
     },
     "Title": "Automações",

@@ -20,6 +20,8 @@ export interface FakeOptions {
   liveFailsOnce: boolean
   /** The answer of the first node test is lost after the test ran (the retry must not run it again). */
   testLostOnce: boolean
+  /** The keys of a page of the graph's memory (0: the request's limit). */
+  statePage?: number
   /** The review after a digest refusal fails once (a network error). */
   reviewFailsAfterChange: boolean
   /** Delay of automations.get for an old version (ms): a request still on the way when Back is pressed. */
@@ -203,6 +205,12 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
   let runSeq = 0
   let liveFails = opts.liveFailsOnce
   let reviewFails = false
+  // The graph's memory between runs (#1390): what its Set state nodes keep.
+  const memory = new Map<string, RPC['automations.state_list']['result']['items'][number]>([
+    ['chat:42', { key: 'chat:42', value: { task: 'T-17', opened: '2026-11-19' }, expires_at: '2026-11-27T10:00:00Z', updated_at: '2026-11-20T09:00:00Z', updated_by_run: '00000000-0000-4000-8000-0000000000f1' }],
+    ['release:v2.4', { key: 'release:v2.4', value: true, expires_at: null, updated_at: '2026-11-18T08:30:00Z', updated_by_run: '00000000-0000-4000-8000-0000000000f2' }],
+    ['rule:daily:count', { key: 'rule:daily:count', value: 3, expires_at: '2026-11-21T00:00:00Z', updated_at: '2026-11-20T09:55:00Z', updated_by_run: null }],
+  ])
   const runs: RunData[] = opts.scenario === 'empty' ? [] : seedRuns()
   const tests = new Map<string, RPC['automations.test_node']['result']>()
   let testRuns = 0
@@ -398,6 +406,27 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
         rpcError('internal', 'the connection dropped')
       }
       return res
+    },
+    'automations.state_list': (p) => {
+      find(p.id)
+      const q = (p.search ?? '').toLowerCase()
+      const all = [...memory.values()].filter((e) => e.key.toLowerCase().includes(q)).sort((a, b) => (a.key < b.key ? -1 : 1))
+      const after = p.cursor ? all.filter((e) => e.key > p.cursor!) : all
+      const limit = opts.statePage || (p.limit ?? 100)
+      const items = after.slice(0, limit)
+      return { items, next_cursor: after.length > limit ? items[items.length - 1]!.key : null, total: memory.size }
+    },
+    'automations.state_set': (p) => {
+      find(p.id)
+      if (JSON.stringify(p.value).length > 16384) rpcError('invalid_input', 'state_value_too_large: the value has more than 16384 bytes')
+      const entry = { key: p.key, value: p.value, expires_at: p.ttl ? '2026-11-20T12:00:00Z' : null, updated_at: '2026-11-20T10:00:00Z', updated_by_run: null }
+      memory.set(p.key, entry)
+      return { entry }
+    },
+    'automations.state_delete': (p) => {
+      find(p.id)
+      if (!memory.delete(p.key)) rpcError('not_found', 'the key is not found')
+      return { ok: true }
     },
   }
   const original = window.fetch.bind(window)
