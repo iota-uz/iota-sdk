@@ -2,6 +2,7 @@ import { Match, Show, Switch, createMemo, createSignal, onCleanup, onMount, type
 import {
   Editor, EditorSkeleton,
   type AutomationGraph, type AutomationLayout, type EditorApi, type EditorCatalog, type FieldSlot, type RunsView, type SaveResult, type VersionEntry,
+  dockParam, parseDock, type EditorDock,
 } from '@iota-uz/sdk/automation-editor'
 import { Button, CopyButton, Dialog, Select } from '@iota-uz/sdk/solid-ui'
 import type { RPC } from './Automations.solid.generated'
@@ -50,6 +51,8 @@ export default function EditorPage(): JSX.Element {
   const initialRuns = readRunsView(window.location.pathname, window.location.search)
   const [runsView, setRunsView] = createSignal<RunsView>(app.props.run ? { ...initialRuns, run: app.props.run, node: search.get('node') } : initialRuns)
   const [selected, setSelected] = createSignal<string | null>(tab() === 'runs' ? null : search.get('node'))
+  // The open Dry run or Test node dock lives in the URL too (D1): ?dock=dry or ?dock=test:<step>.
+  const [dock, setDock] = createSignal<EditorDock | null>(tab() === 'runs' ? null : parseDock(search.get('dock')))
   const [remoteLayout, setRemoteLayout] = createSignal<{ positions: AutomationLayout } | null>(null)
   const [dialog, setDialog] = createSignal<'review' | 'disable' | 'delete' | 'run' | null>(null)
   const [phone, setPhone] = createSignal(false)
@@ -230,6 +233,7 @@ export default function EditorPage(): JSX.Element {
       setTab(runs ? 'runs' : 'edit')
       setRunsView(view)
       setSelected(runs ? null : q.get('node'))
+      setDock(runs ? null : parseDock(q.get('dock')))
       if (info()) follow(norm(urlVersion()))
       // Nothing on screen yet: the first snapshot is for the URL left, so the one now named is loaded.
       else if (app.props.id) void load(urlVersion())
@@ -501,6 +505,8 @@ export default function EditorPage(): JSX.Element {
 
   const changeTab = (next: 'edit' | 'runs') => {
     setTab(next)
+    // The docks belong to the Edit tab: the Runs URL does not carry one.
+    if (next === 'runs') setDock(null)
     const i = info()
     if (!i) return
     // Edit drops the run from the path; Runs returns to the run and filters it showed.
@@ -521,6 +527,16 @@ export default function EditorPage(): JSX.Element {
     if (!i) return
     const href = writeRunsView(app.props.basePath, i.id, view, window.location.href)
     goTo(href, push)
+  }
+  // Opening a dock is a new history entry, so Back closes it; closing or switching it replaces the entry.
+  const changeDock = (next: EditorDock | null) => {
+    const opening = next !== null && dock() === null
+    setDock(next)
+    setURL((url) => {
+      const value = dockParam(next)
+      if (value) url.searchParams.set('dock', value)
+      else url.searchParams.delete('dock')
+    }, opening)
   }
   const select = (id: string | null) => {
     setSelected(id)
@@ -634,6 +650,8 @@ export default function EditorPage(): JSX.Element {
                   locale={locale}
                   selected={selected()}
                   onSelect={select}
+                  dock={dock()}
+                  onDock={changeDock}
                 />
                 </div>
               )}

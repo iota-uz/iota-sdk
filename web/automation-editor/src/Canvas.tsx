@@ -184,7 +184,15 @@ export function Canvas(props: CanvasProps): JSX.Element {
   }
   const tween = (from: AutomationLayout, to: AutomationLayout, ms: number) => {
     cancelAnimationFrame(tweenFrame)
-    const moving = Object.keys(to).filter((id) => from[id] && (from[id]!.x !== to[id]!.x || from[id]!.y !== to[id]!.y))
+    // Only cards on screen at the start or the end glide; the others take their place at once (the glide
+    // costs what is seen, as rendering does).
+    const rect = untrack(visibleRect)
+    const geometries = untrack(geometryMap)
+    const seen = (p: XY | undefined, id: string) => {
+      const g = geometries.get(id)
+      return rect === null || !p || !g || rectsOverlap(rect, { x: p.x, y: p.y, width: g.width, height: g.height + 24 })
+    }
+    const moving = Object.keys(to).filter((id) => from[id] && (from[id]!.x !== to[id]!.x || from[id]!.y !== to[id]!.y) && (seen(from[id], id) || seen(to[id], id)))
     if (moving.length === 0) {
       setPositions(reconcile(structuredClone(to)))
       return
@@ -352,12 +360,16 @@ export function Canvas(props: CanvasProps): JSX.Element {
     return { x: a.x - margin, y: a.y - margin, width: width / vp.zoom + margin * 2, height: height / vp.zoom + margin * 2 }
   }, null, { equals: (a, b) => a === b || (a !== null && b !== null && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height) })
   const keep = (id: string) => props.selected === id || multi().has(id)
+  // While cards glide (Tidy, undo) visibility is decided once, from where they land, and kept with what was
+  // on screen: it does not re-run over every card on every frame.
   const visibleIds = createMemo<string[]>((previous) => {
     const rect = visibleRect()
     const geometries = geometryMap()
+    const gliding = tidying()
     const next = rect === null ? ids() : ids().filter((id) => {
       if (keep(id)) return true
-      const p = positions[id]
+      if (gliding && previous?.includes(id)) return true
+      const p = gliding ? committed[id] : positions[id]
       const g = geometries.get(id)
       return p && g ? rectsOverlap(rect, { x: p.x, y: p.y, width: g.width, height: g.height + 24 }) : false
     })
@@ -367,10 +379,13 @@ export function Canvas(props: CanvasProps): JSX.Element {
     const rect = visibleRect()
     routeTick()
     const targets = edgeTargets()
+    const gliding = tidying()
+    const place = gliding ? committed : positions
     const next = rect === null ? edgeList() : edgeList().filter((source) => {
+      if (gliding && previous?.includes(source)) return true
       const node = source.slice(0, source.lastIndexOf('.'))
-      const p = positions[node]
-      const q = positions[targets.get(source) ?? '']
+      const p = place[node]
+      const q = place[targets.get(source) ?? '']
       if (!p || !q) return false
       const x = Math.min(p.x, q.x) - 64
       const y = Math.min(p.y, q.y) - 64
@@ -1253,7 +1268,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
   }
 
   const minimapView = createMemo(() => {
-    const b = bounds()
+    const b = bounds(undefined, tidying())
     if (!b) return null
     const pad = 80
     return { x: Math.round(b.x - pad), y: Math.round(b.y - pad), width: Math.round(b.width + pad * 2), height: Math.round(b.height + pad * 2) }
@@ -1262,10 +1277,12 @@ export function Canvas(props: CanvasProps): JSX.Element {
   // The minimap draws every card as one path (two with the selection): one element to restyle, not 200.
   const minimapPaths = createMemo(() => {
     const geometries = geometryMap()
+    // While cards glide the minimap shows where they land (one path per frame for 200 cards is not free).
+    const place = tidying() ? committed : positions
     let rest = ''
     let selected = ''
     for (const id of ids()) {
-      const p = positions[id]
+      const p = place[id]
       const g = geometries.get(id)
       if (!p || !g) continue
       const rect = `M${p.x} ${p.y}h${g.width}v${g.height}h${-g.width}z`

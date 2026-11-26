@@ -1,5 +1,5 @@
 // Performance regression on every @xyflow/system bump (issue #1331): a 200-step / 500-edge graph with
-// the CPU throttled 4×. Thresholds: mount ≤ 150 ms (best of three reloads), whole-graph replacement
+// the CPU throttled 4×, with the drag and Tidy animations on (#1352). Thresholds: mount ≤ 150 ms (best of three reloads), whole-graph replacement
 // (undo) ≤ 60 ms (median of ten), a drag
 // without long tasks with a p95 frame ≤ 17 ms. The profile is written to e2e/results/bench.json.
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -101,6 +101,30 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
       longTasks: w.__longTasks.filter((e) => e.start < to && e.start + e.duration > from).map((e) => e.duration),
     }
   }, { from, to })
+
+  // Tidy with its glide (#1352): the cards move to the tidied layout in one --motion-slow tween and the
+  // edges follow frame by frame. The layout is computed before, and committed at the start of, the measured
+  // interval; the glide (there and back) is held to the drag's limits.
+  await page.evaluate(() => window.__fixture.prepareTidy!())
+  const glides: { frames: number[]; longTasks: number[] }[] = []
+  for (let i = 0; i < 2; i += 1) {
+    // The commit itself (a new layout: routes and memos, the same with or without a glide) is the start;
+    // what is measured is the glide after it.
+    const start = await page.evaluate(() => { window.__fixture.tidy!(); return performance.now() })
+    await expect(page.locator('.ae-canvas--tidying')).toHaveCount(0)
+    const end = await page.evaluate(() => new Promise<number>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(performance.now())))))
+    await page.waitForTimeout(300)
+    glides.push(await page.evaluate(({ start, end }) => {
+      const w = window as unknown as { __longTasks: { start: number; duration: number }[]; __frames: number[] }
+      const stamps = w.__frames.filter((t) => t >= start && t <= end)
+      return {
+        frames: stamps.slice(1).map((t, i) => t - stamps[i]!),
+        longTasks: w.__longTasks.filter((e) => e.start < end && e.start + e.duration > start).map((e) => e.duration),
+      }
+    }, { start, end }))
+  }
+  const tidyFrames = glides.flatMap((g) => g.frames)
+  const tidyLongTasks = glides.flatMap((g) => g.longTasks)
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 })
 
   const profile = {
@@ -115,6 +139,9 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
     frameP95Ms: Math.round(p95(frames) * 10) / 10,
     frames: frames.length,
     longTasks,
+    tidyFrameP95Ms: Math.round(p95(tidyFrames) * 10) / 10,
+    tidyFrames: tidyFrames.length,
+    tidyLongTasks,
     limits: LIMITS,
   }
   const out = path.resolve('e2e/results')
@@ -125,4 +152,7 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
   expect(profile.replaceMs, 'replace the whole graph').toBeLessThanOrEqual(LIMITS.replaceMs)
   expect(longTasks.length, 'long tasks during a drag').toBe(LIMITS.longTasks)
   expect(profile.frameP95Ms, 'p95 frame during a drag').toBeLessThanOrEqual(LIMITS.frameP95Ms)
+  expect(tidyFrames.length, 'frames recorded during the Tidy glide').toBeGreaterThan(2)
+  expect(tidyLongTasks.length, 'long tasks during the Tidy glide').toBe(LIMITS.longTasks)
+  expect(profile.tidyFrameP95Ms, 'p95 frame during the Tidy glide').toBeLessThanOrEqual(LIMITS.frameP95Ms)
 })

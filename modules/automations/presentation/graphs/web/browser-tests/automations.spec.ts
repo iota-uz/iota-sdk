@@ -312,6 +312,27 @@ test('D1: Back restores the tab the URL names', async ({ page }) => {
   await expect(page.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
 })
 
+test('D1 (AL): the open Dry run or Test node dock is in the URL; reload reopens it, Back closes it', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${WELCOME}`)
+  await expect(page.getByTestId('crumb')).toBeVisible()
+  await page.getByTestId('open-dry-run').click()
+  await expect(page.getByTestId('dry-run')).toBeVisible()
+  await expect(page).toHaveURL(/[?&]dock=dry\b/)
+  await page.reload()
+  await expect(page.getByTestId('dry-run')).toBeVisible()
+  await page.goBack()
+  await expect(page).not.toHaveURL(/dock=/)
+  await expect(page.getByTestId('dry-run')).toHaveCount(0)
+  // Test node of a step: dock=test:<step>, and it opens from a link.
+  const step = page.locator('.iota-flow__node[data-id]').filter({ hasNot: page.locator('.ae-card--trigger') }).last()
+  const id = await step.getAttribute('data-id')
+  await step.click()
+  await page.getByTestId('open-test-node').click()
+  await expect(page).toHaveURL(new RegExp(`[?&]dock=test%3A${id}\\b|[?&]dock=test:${id}\\b`))
+  await page.goto(page.url())
+  await expect(page.getByTestId('test-node')).toBeVisible()
+})
+
 test('layout: a fresher snapshot withdraws the notice of an older conflict', async ({ page }) => {
   await page.goto(`/?view=editor&id=${DIGEST}&layoutConflict`)
   const card = page.locator('.iota-flow__node[data-id="email"]')

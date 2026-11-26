@@ -3,6 +3,7 @@
 export type * from './types'
 export { Canvas, Editor, EditorSkeleton, loadEditor } from './lazy'
 export { Outline } from './Outline'
+export { dockParam, parseDock } from './dock'
 export { GRID, snap, snapXY, cardGeometry, CARD_HEIGHT, type CardGeometry } from './geometry'
 export { tidyLayout, ensureLayout, placeNew } from './layout'
 export { createHistory, record, amend, undo, redo, canUndo, canRedo, type History, type Snapshot } from './history'

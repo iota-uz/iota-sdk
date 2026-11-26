@@ -265,7 +265,14 @@ export interface EditorProps {
   /** The selected step, for a host that keeps it in the URL (D1); omitted → the editor's own state. */
   selected?: string | null
   onSelect?(id: string | null): void
+  /** The open Dry run or Test node dock, for a host that keeps it in the URL (D1); with onDock the host owns it. */
+  dock?: EditorDock | null
+  onDock?(dock: EditorDock | null): void
 }
+
+/** The docked panel under the canvas: Dry run, or Test node of one step. */
+export type EditorDock = { kind: 'dry' } | { kind: 'test'; node: string }
+
 
 export interface CanvasApi {
   center(): XY; fit(): void; zoomIn(): void; zoomOut(): void; zoomReset(): void

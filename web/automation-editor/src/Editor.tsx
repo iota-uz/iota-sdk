@@ -32,7 +32,7 @@ import { isMac } from './locale'
 import { Outline } from './Outline'
 import type { PaletteChoice, PaletteMode } from './Palette'
 import { keyLabel, strings } from './strings'
-import type { AutomationGraph, AutomationLayout, CanvasApi, CanvasMenu, EditorProps, GraphError, Overlay, RunData, XY } from './types'
+import type { AutomationGraph, AutomationLayout, CanvasApi, CanvasMenu, EditorDock, EditorProps, GraphError, Overlay, RunData, XY } from './types'
 import { localErrors } from './validation'
 import { rebaseErrors, type ValidationState } from './validation'
 import { isEditableTarget } from './xy/dom'
@@ -154,7 +154,14 @@ function EditorBody(props: EditorProps): JSX.Element {
   const [areaSize, setAreaSize] = createSignal({ width: 0, height: 0 })
   const [versionsMenu, setVersionsMenu] = createSignal<XY | null>(null)
   // The docked Dry run or Test node panel, and the overlay of its result on the draft.
-  const [dock, setDock] = createSignal<{ kind: 'dry' } | { kind: 'test'; node: string } | null>(null)
+  // The host may keep it (in the URL, D1); otherwise it is the editor's own.
+  const [ownDock, setOwnDock] = createSignal<EditorDock | null>(null)
+  const dock = (): EditorDock | null => (props.onDock ? props.dock ?? null : ownDock())
+  const setDock = (next: EditorDock | null | ((current: EditorDock | null) => EditorDock | null)) => {
+    const value = typeof next === 'function' ? next(dock()) : next
+    if (props.onDock) props.onDock(value)
+    else setOwnDock(value)
+  }
   // Layers leave by their reverse animation (--motion-fast), inert meanwhile (A7, #1352).
   const paletteLayer = createLeaving(palette)
   const menuLayer = createLeaving(menu)

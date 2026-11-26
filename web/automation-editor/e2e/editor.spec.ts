@@ -43,9 +43,16 @@ test.describe('canvas', () => {
   test('releasing an outcome elsewhere changes nothing', async ({ page }) => {
     await open(page, 'graph=connected')
     const from = await center(handle(page, 'yes', 'done'))
+    // The line pulls back into its handle (#1352), then goes. It shows for --motion-fast only: an observer
+    // records it, so a slow poll cannot miss it.
+    await page.evaluate(() => {
+      const w = window as unknown as { __retracted: boolean }
+      w.__retracted = false
+      new MutationObserver(() => { if (document.querySelector('.ae-edge--retract')) w.__retracted = true })
+        .observe(document.body, { subtree: true, childList: true })
+    })
     await drag(page, from, { x: 700, y: 20 })
-    // The line pulls back into its handle (#1352), then goes.
-    await expect(page.locator('.ae-edge--retract')).toHaveCount(1)
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __retracted: boolean }).__retracted)).toBe(true)
     await expect(page.locator('.ae-edge--retract')).toHaveCount(0)
     await expect(page.locator('.ae-palette')).toHaveCount(0)
     await expect(edge(page, 'yes', 'done')).toHaveAttribute('data-to', 'end')
