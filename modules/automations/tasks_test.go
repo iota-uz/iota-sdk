@@ -539,6 +539,13 @@ func TestInboxNotification(t *testing.T) {
 				break
 			}
 		}
+		// The core's own worker runs too and may hold a job this loop skipped
+		// (SKIP LOCKED): wait until it commits.
+		require.Eventually(t, func() bool {
+			stats, err := dispatch.Progress(dctx)
+			require.NoError(t, err)
+			return stats.Pending == 0 && stats.Retrying == 0
+		}, 10*time.Second, 20*time.Millisecond, "the notification jobs complete")
 	}
 	inApp := func(u user.User) []string {
 		rows, err := db.Query(context.Background(), `SELECT title || ' ' || coalesce(action_url, '') FROM core.notifications WHERE tenant_id = $1 AND user_id = $2 AND event_key = $3`,
