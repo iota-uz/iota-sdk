@@ -44,6 +44,8 @@ type NodeView struct {
 	OutputFrom  *ParamRef       `json:"output_from,omitempty"`
 	OutputKeys  *ParamRef       `json:"output_keys,omitempty"`
 	Dispatch    *Dispatch       `json:"dispatch,omitempty"`
+	// Values are CEL params whose value, as JSON, replaces the source in the effect (an action's args).
+	Values []string `json:"values,omitempty"`
 	// Mixed are params that are CEL or, with {{ }}, a template.
 	Mixed    []string `json:"mixed,omitempty"`
 	Requires []string `json:"requires,omitempty"`
@@ -86,7 +88,7 @@ func View(c Catalog, b *Behaviors) CatalogView {
 		nv := NodeView{
 			Type: typ, Title: n.Title, Description: n.Description, Group: n.Group, Behavior: n.Behavior,
 			Subjects: n.Subjects, Expressions: n.Expressions, Templates: n.Templates, OutputFrom: n.OutputFrom,
-			OutputKeys: n.OutputKeys, Dispatch: n.Dispatch, Mixed: n.Mixed, OutcomeRule: OutcomeRule{Fixed: []string{}}, DryRun: n.DryRunOf(),
+			OutputKeys: n.OutputKeys, Dispatch: n.Dispatch, Values: n.Values, Mixed: n.Mixed, OutcomeRule: OutcomeRule{Fixed: []string{}}, DryRun: n.DryRunOf(),
 		}
 		if nv.Title == "" {
 			nv.Title = typ
