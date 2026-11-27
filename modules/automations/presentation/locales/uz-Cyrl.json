@@ -12,11 +12,15 @@
     "Automations.Author": "Автоматлаштиришларни таҳрирлаш",
     "Automations.Enable": "Автоматлаштиришларни ёқиш",
     "Automations.Operate": "Автоматлаштириш ишга туширишларини бошқариш",
-    "Connections.Manage": "Интегратсияларни бошқариш"
+    "Connections.Manage": "Интегратсияларни бошқариш",
+    "Connections.Use": "Автоматлаштиришларда уланишлардан фойдаланиш",
+    "Secrets.Manage": "Махфий қийматларни бошқариш",
+    "Secrets.Use": "Автоматлаштиришларда махфий қийматлардан фойдаланиш"
   },
   "Resources": {
     "automation": "Автоматлаштириш",
-    "connection": "Уланишлар"
+    "connection": "Уланишлар",
+    "secret": "Махфий қийматлар"
   },
   "PermissionSets": {
     "Automations": {

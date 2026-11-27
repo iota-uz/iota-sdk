@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Make the module publishable again: rename pkg/jsonb/nul.go (a reserved Windows file name the Go module proxy refuses) and translate the Connections.Use, Secrets.Manage and Secrets.Use permissions and the secret resource in every locale."}
