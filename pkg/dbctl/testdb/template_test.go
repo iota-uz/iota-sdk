@@ -193,7 +193,11 @@ func TestCloneKeepsDatabaseSettings(t *testing.T) {
 		if _, err := admin.ExecContext(ctx, fmt.Sprintf(`ALTER DATABASE "%s" SET timezone = 'Asia/Tashkent'`, name)); err != nil {
 			return err
 		}
-		_, err := admin.ExecContext(ctx, fmt.Sprintf(`ALTER DATABASE "%s" SET search_path = public, "my schema"`, name))
+		if _, err := admin.ExecContext(ctx, fmt.Sprintf(`ALTER DATABASE "%s" SET search_path = public, "my schema"`, name)); err != nil {
+			return err
+		}
+		// An empty list value has no unquoted form.
+		_, err := admin.ExecContext(ctx, fmt.Sprintf(`ALTER DATABASE "%s" SET temp_tablespaces = ''`, name))
 		return err
 	})
 	require.NoError(t, err)
@@ -209,6 +213,13 @@ func TestCloneKeepsDatabaseSettings(t *testing.T) {
 	require.NoError(t, conn.QueryRowContext(ctx, "SHOW search_path").Scan(&path))
 	require.Equal(t, "Asia/Tashkent", tz)
 	require.Equal(t, `public, "my schema"`, path)
+	var temp string
+	require.NoError(t, conn.QueryRowContext(ctx, "SHOW temp_tablespaces").Scan(&temp))
+	require.Equal(t, `""`, temp, "what a database set directly to an empty list reports")
+	var copied int
+	require.NoError(t, admin.QueryRowContext(ctx, `SELECT count(*) FROM pg_db_role_setting s JOIN pg_database d ON d.oid = s.setdatabase,
+		unnest(s.setconfig) c WHERE d.datname = $1 AND c LIKE 'temp_tablespaces=%'`, clone).Scan(&copied))
+	require.Equal(t, 1, copied, "the empty list is copied, not skipped")
 }
 
 // Falsely green if two roles share one template: a non-superuser cannot clone

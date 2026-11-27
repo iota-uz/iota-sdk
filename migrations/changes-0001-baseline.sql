@@ -6868,251 +6868,260 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA bichat GRANT SELECT ON TABLES TO bichat_agent
 -- +migrate Down
 
 -- Roles are cluster-wide and may be used by other databases; they are left in place.
--- Each object the baseline created is dropped by name (CASCADE removes what depends on
--- it, as the squashed downs did); the schemas go last with RESTRICT, so a table someone
--- else created in one of them stops the rollback instead of being dropped with it.
-DROP VIEW IF EXISTS analytics.action_logs CASCADE;
-DROP VIEW IF EXISTS analytics.ai_chat_configs CASCADE;
-DROP VIEW IF EXISTS analytics.authentication_logs CASCADE;
-DROP VIEW IF EXISTS analytics.billing_transactions CASCADE;
-DROP VIEW IF EXISTS analytics.chat_members CASCADE;
-DROP VIEW IF EXISTS analytics.chats CASCADE;
-DROP VIEW IF EXISTS analytics.clients CASCADE;
-DROP VIEW IF EXISTS analytics.companies CASCADE;
-DROP VIEW IF EXISTS analytics.counterparty CASCADE;
-DROP VIEW IF EXISTS analytics.debts CASCADE;
-DROP VIEW IF EXISTS analytics.employees CASCADE;
-DROP VIEW IF EXISTS analytics.expense_categories CASCADE;
-DROP VIEW IF EXISTS analytics.expenses CASCADE;
-DROP VIEW IF EXISTS analytics.inventory CASCADE;
-DROP VIEW IF EXISTS analytics.inventory_check_results CASCADE;
-DROP VIEW IF EXISTS analytics.inventory_checks CASCADE;
-DROP VIEW IF EXISTS analytics.message_templates CASCADE;
-DROP VIEW IF EXISTS analytics.money_accounts CASCADE;
-DROP VIEW IF EXISTS analytics.passports CASCADE;
-DROP VIEW IF EXISTS analytics.payment_categories CASCADE;
-DROP VIEW IF EXISTS analytics.payments CASCADE;
-DROP VIEW IF EXISTS analytics.positions CASCADE;
-DROP VIEW IF EXISTS analytics.projects CASCADE;
-DROP VIEW IF EXISTS analytics.roles CASCADE;
-DROP VIEW IF EXISTS analytics.sessions CASCADE;
-DROP VIEW IF EXISTS analytics.transactions CASCADE;
-DROP VIEW IF EXISTS analytics.uploads CASCADE;
-DROP VIEW IF EXISTS analytics.user_groups CASCADE;
-DROP VIEW IF EXISTS analytics.users CASCADE;
-DROP VIEW IF EXISTS analytics.warehouse_orders CASCADE;
-DROP VIEW IF EXISTS analytics.warehouse_positions CASCADE;
-DROP VIEW IF EXISTS analytics.warehouse_products CASCADE;
-DROP VIEW IF EXISTS analytics.warehouse_units CASCADE;
-DROP TABLE IF EXISTS public.action_logs CASCADE;
-DROP TABLE IF EXISTS public.ai_chat_configs CASCADE;
-DROP TABLE IF EXISTS public.authentication_logs CASCADE;
-DROP TABLE IF EXISTS public.billing_transactions CASCADE;
-DROP TABLE IF EXISTS public.chat_members CASCADE;
-DROP TABLE IF EXISTS public.chats CASCADE;
-DROP TABLE IF EXISTS public.clients CASCADE;
-DROP TABLE IF EXISTS public.companies CASCADE;
-DROP TABLE IF EXISTS public.counterparty CASCADE;
-DROP TABLE IF EXISTS public.debts CASCADE;
-DROP TABLE IF EXISTS public.employees CASCADE;
-DROP TABLE IF EXISTS public.expense_categories CASCADE;
-DROP TABLE IF EXISTS public.expenses CASCADE;
-DROP TABLE IF EXISTS public.inventory CASCADE;
-DROP TABLE IF EXISTS public.inventory_check_results CASCADE;
-DROP TABLE IF EXISTS public.inventory_checks CASCADE;
-DROP TABLE IF EXISTS public.message_templates CASCADE;
-DROP TABLE IF EXISTS public.money_accounts CASCADE;
-DROP TABLE IF EXISTS public.passports CASCADE;
-DROP TABLE IF EXISTS public.payment_categories CASCADE;
-DROP TABLE IF EXISTS public.payments CASCADE;
-DROP TABLE IF EXISTS public.positions CASCADE;
-DROP TABLE IF EXISTS public.projects CASCADE;
-DROP TABLE IF EXISTS public.roles CASCADE;
-DROP TABLE IF EXISTS public.sessions CASCADE;
-DROP TABLE IF EXISTS public.transactions CASCADE;
-DROP TABLE IF EXISTS public.uploads CASCADE;
-DROP TABLE IF EXISTS public.user_groups CASCADE;
-DROP TABLE IF EXISTS public.users CASCADE;
-DROP TABLE IF EXISTS public.warehouse_orders CASCADE;
-DROP TABLE IF EXISTS public.warehouse_positions CASCADE;
-DROP TABLE IF EXISTS public.warehouse_products CASCADE;
-DROP TABLE IF EXISTS public.warehouse_units CASCADE;
-DROP TABLE IF EXISTS applets.documents CASCADE;
-DROP TABLE IF EXISTS applets.files CASCADE;
-DROP TABLE IF EXISTS applets.jobs CASCADE;
-DROP TABLE IF EXISTS applets.secrets CASCADE;
-DROP TABLE IF EXISTS automation.automations CASCADE;
-DROP TABLE IF EXISTS automation.backtest_results CASCADE;
-DROP TABLE IF EXISTS automation.backtests CASCADE;
-DROP TABLE IF EXISTS automation.call_contexts CASCADE;
-DROP TABLE IF EXISTS automation.call_deadlines CASCADE;
-DROP TABLE IF EXISTS automation.call_slots CASCADE;
-DROP TABLE IF EXISTS automation.connection_checks CASCADE;
-DROP TABLE IF EXISTS automation.connection_requests CASCADE;
-DROP TABLE IF EXISTS automation.connections CASCADE;
-DROP TABLE IF EXISTS automation.connector_usage CASCADE;
-DROP TABLE IF EXISTS automation.correlations CASCADE;
-DROP TABLE IF EXISTS automation.dataset_examples CASCADE;
-DROP TABLE IF EXISTS automation.dataset_imports CASCADE;
-DROP TABLE IF EXISTS automation.dataset_labels CASCADE;
-DROP TABLE IF EXISTS automation.datasets CASCADE;
-DROP TABLE IF EXISTS automation.decision_cache CASCADE;
-DROP TABLE IF EXISTS automation.exclusive_identities CASCADE;
-DROP TABLE IF EXISTS automation.inbound_actions CASCADE;
-DROP TABLE IF EXISTS automation.inbound_collect CASCADE;
-DROP TABLE IF EXISTS automation.inbound_dedup CASCADE;
-DROP TABLE IF EXISTS automation.node_tests CASCADE;
-DROP TABLE IF EXISTS automation.oauth_states CASCADE;
-DROP TABLE IF EXISTS automation.platform_grants CASCADE;
-DROP TABLE IF EXISTS automation.retired_platform_identities CASCADE;
-DROP TABLE IF EXISTS automation.runs CASCADE;
-DROP TABLE IF EXISTS automation.secret_values CASCADE;
-DROP TABLE IF EXISTS automation.secrets CASCADE;
-DROP TABLE IF EXISTS automation.state CASCADE;
-DROP TABLE IF EXISTS automation.steps CASCADE;
-DROP TABLE IF EXISTS automation.subject_queue CASCADE;
-DROP TABLE IF EXISTS automation.tokens CASCADE;
-DROP TABLE IF EXISTS automation.triggers CASCADE;
-DROP TABLE IF EXISTS automation.versions CASCADE;
-DROP TABLE IF EXISTS automation.waits CASCADE;
-DROP TABLE IF EXISTS bichat.artifact_provider_files CASCADE;
-DROP TABLE IF EXISTS bichat.artifacts CASCADE;
-DROP TABLE IF EXISTS bichat.checkpoints CASCADE;
-DROP TABLE IF EXISTS bichat.events CASCADE;
-DROP TABLE IF EXISTS bichat.generations CASCADE;
-DROP TABLE IF EXISTS bichat.learnings CASCADE;
-DROP TABLE IF EXISTS bichat.messages CASCADE;
-DROP TABLE IF EXISTS bichat.session_members CASCADE;
-DROP TABLE IF EXISTS bichat.sessions CASCADE;
-DROP TABLE IF EXISTS bichat.spans CASCADE;
-DROP TABLE IF EXISTS bichat.traces CASCADE;
-DROP TABLE IF EXISTS bichat.validated_queries CASCADE;
-DROP TABLE IF EXISTS core.departments CASCADE;
-DROP TABLE IF EXISTS core.notification_channel_connections CASCADE;
-DROP TABLE IF EXISTS core.notification_channel_link_tokens CASCADE;
-DROP TABLE IF EXISTS core.notification_channel_links CASCADE;
-DROP TABLE IF EXISTS core.notification_channel_preferences CASCADE;
-DROP TABLE IF EXISTS core.notification_deliveries CASCADE;
-DROP TABLE IF EXISTS core.notification_delivery_attempts CASCADE;
-DROP TABLE IF EXISTS core.notification_dispatches CASCADE;
-DROP TABLE IF EXISTS core.notification_notices CASCADE;
-DROP TABLE IF EXISTS core.notification_push_devices CASCADE;
-DROP TABLE IF EXISTS core.notification_rules CASCADE;
-DROP TABLE IF EXISTS core.notifications CASCADE;
-DROP TABLE IF EXISTS core.user_positions CASCADE;
-DROP TABLE IF EXISTS extruntime.activations CASCADE;
-DROP TABLE IF EXISTS extruntime.artifacts CASCADE;
-DROP TABLE IF EXISTS extruntime.audit_log CASCADE;
-DROP TABLE IF EXISTS extruntime.binding_displaced CASCADE;
-DROP TABLE IF EXISTS extruntime.bindings CASCADE;
-DROP TABLE IF EXISTS extruntime.catalog_snapshots CASCADE;
-DROP TABLE IF EXISTS extruntime.entity_schema_versions CASCADE;
-DROP TABLE IF EXISTS extruntime.entity_schemas CASCADE;
-DROP TABLE IF EXISTS extruntime.human_task_assignees CASCADE;
-DROP TABLE IF EXISTS extruntime.human_task_decisions CASCADE;
-DROP TABLE IF EXISTS extruntime.human_task_escalations CASCADE;
-DROP TABLE IF EXISTS extruntime.human_tasks CASCADE;
-DROP TABLE IF EXISTS extruntime.invocations CASCADE;
-DROP TABLE IF EXISTS extruntime.outbox_events CASCADE;
-DROP TABLE IF EXISTS extruntime.package_files CASCADE;
-DROP TABLE IF EXISTS extruntime.packages CASCADE;
-DROP TABLE IF EXISTS extruntime.schedule_accounting CASCADE;
-DROP TABLE IF EXISTS extruntime.schedule_runs CASCADE;
-DROP TABLE IF EXISTS extruntime.schema_migrations_history CASCADE;
-DROP TABLE IF EXISTS extruntime.subscription_receipts CASCADE;
-DROP TABLE IF EXISTS extruntime.subscription_watermarks CASCADE;
-DROP TABLE IF EXISTS extruntime.trigger_owners CASCADE;
-DROP TABLE IF EXISTS extruntime.version_reviews CASCADE;
-DROP TABLE IF EXISTS extruntime.versions CASCADE;
-DROP TABLE IF EXISTS extruntime.workflow_instances CASCADE;
-DROP TABLE IF EXISTS extruntime.workflow_occurrences CASCADE;
-DROP TABLE IF EXISTS extruntime.workflow_signals CASCADE;
-DROP TABLE IF EXISTS mcp.approvals CASCADE;
-DROP TABLE IF EXISTS mcp.operation_audit CASCADE;
-DROP TABLE IF EXISTS mcp.operation_effects CASCADE;
-DROP TABLE IF EXISTS mcp.operations CASCADE;
-DROP TABLE IF EXISTS mcp.plans CASCADE;
-DROP TABLE IF EXISTS oidc.auth_requests CASCADE;
-DROP TABLE IF EXISTS oidc.clients CASCADE;
-DROP TABLE IF EXISTS oidc.refresh_tokens CASCADE;
-DROP TABLE IF EXISTS oidc.revoked_access_tokens CASCADE;
-DROP TABLE IF EXISTS oidc.signing_keys CASCADE;
-DROP TABLE IF EXISTS public.business_event_deliveries CASCADE;
-DROP TABLE IF EXISTS public.client_contacts CASCADE;
-DROP TABLE IF EXISTS public.counterparty_contacts CASCADE;
-DROP TABLE IF EXISTS public.currencies CASCADE;
-DROP TABLE IF EXISTS public.employee_contacts CASCADE;
-DROP TABLE IF EXISTS public.employee_meta CASCADE;
-DROP TABLE IF EXISTS public.employee_positions CASCADE;
-DROP TABLE IF EXISTS public.expense_attachments CASCADE;
-DROP TABLE IF EXISTS public.group_roles CASCADE;
-DROP TABLE IF EXISTS public.group_users CASCADE;
-DROP TABLE IF EXISTS public.message_media CASCADE;
-DROP TABLE IF EXISTS public.messages CASCADE;
-DROP TABLE IF EXISTS public.payment_attachments CASCADE;
-DROP TABLE IF EXISTS public.permissions CASCADE;
-DROP TABLE IF EXISTS public.project_acceptance_documents CASCADE;
-DROP TABLE IF EXISTS public.project_stage_payments CASCADE;
-DROP TABLE IF EXISTS public.project_stages CASCADE;
-DROP TABLE IF EXISTS public.recovery_codes CASCADE;
-DROP TABLE IF EXISTS public.role_permissions CASCADE;
-DROP TABLE IF EXISTS public.subscription_entitlements CASCADE;
-DROP TABLE IF EXISTS public.subscription_entity_counts CASCADE;
-DROP TABLE IF EXISTS public.subscription_plans CASCADE;
-DROP TABLE IF EXISTS public.subscription_webhook_events CASCADE;
-DROP TABLE IF EXISTS public.tenants CASCADE;
-DROP TABLE IF EXISTS public.two_factor_otps CASCADE;
-DROP TABLE IF EXISTS public.uploaded_images CASCADE;
-DROP TABLE IF EXISTS public.user_permissions CASCADE;
-DROP TABLE IF EXISTS public.user_roles CASCADE;
-DROP TABLE IF EXISTS public.warehouse_order_items CASCADE;
-DROP TABLE IF EXISTS public.warehouse_position_images CASCADE;
-DROP SEQUENCE IF EXISTS automation.subject_queue_seq_seq CASCADE;
-DROP SEQUENCE IF EXISTS extruntime.audit_log_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS extruntime.human_task_assignees_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS extruntime.outbox_events_seq_seq CASCADE;
-DROP SEQUENCE IF EXISTS extruntime.schema_migrations_history_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS extruntime.version_reviews_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.action_logs_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.authentication_logs_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.chats_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.client_contacts_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.clients_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.companies_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.counterparty_contacts_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.counterparty_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.employee_contacts_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.employees_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.expense_categories_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.expenses_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.inventory_check_results_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.inventory_checks_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.inventory_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.message_templates_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.messages_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.money_accounts_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.payments_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.positions_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.recovery_codes_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.roles_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.transactions_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.two_factor_otps_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.uploaded_images_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.uploads_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.users_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.warehouse_orders_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.warehouse_positions_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.warehouse_products_id_seq CASCADE;
-DROP SEQUENCE IF EXISTS public.warehouse_units_id_seq CASCADE;
-DROP FUNCTION IF EXISTS automation.keep_live_platform_leases() CASCADE;
-DROP FUNCTION IF EXISTS automation.retire_platform_identity() CASCADE;
-DROP FUNCTION IF EXISTS extruntime.forbid_mutation() CASCADE;
-DROP FUNCTION IF EXISTS public.action_logs_events_append_only() CASCADE;
-DROP SCHEMA IF EXISTS analytics RESTRICT;
-DROP SCHEMA IF EXISTS applets RESTRICT;
-DROP SCHEMA IF EXISTS automation RESTRICT;
-DROP SCHEMA IF EXISTS bichat RESTRICT;
-DROP SCHEMA IF EXISTS core RESTRICT;
-DROP SCHEMA IF EXISTS extruntime RESTRICT;
-DROP SCHEMA IF EXISTS mcp RESTRICT;
-DROP SCHEMA IF EXISTS oidc RESTRICT;
+-- Each kind of object goes in one statement with RESTRICT: dependencies among the
+-- baseline's own objects are dropped together, while anything else that depends on them
+-- (a table inheriting from one, a foreign key, a view, a table in an SDK schema) makes
+-- the rollback fail and roll back instead of being dropped.
+DROP VIEW IF EXISTS
+    "analytics"."action_logs",
+    "analytics"."ai_chat_configs",
+    "analytics"."authentication_logs",
+    "analytics"."billing_transactions",
+    "analytics"."chat_members",
+    "analytics"."chats",
+    "analytics"."clients",
+    "analytics"."companies",
+    "analytics"."counterparty",
+    "analytics"."debts",
+    "analytics"."employees",
+    "analytics"."expense_categories",
+    "analytics"."expenses",
+    "analytics"."inventory",
+    "analytics"."inventory_check_results",
+    "analytics"."inventory_checks",
+    "analytics"."message_templates",
+    "analytics"."money_accounts",
+    "analytics"."passports",
+    "analytics"."payment_categories",
+    "analytics"."payments",
+    "analytics"."positions",
+    "analytics"."projects",
+    "analytics"."roles",
+    "analytics"."sessions",
+    "analytics"."transactions",
+    "analytics"."uploads",
+    "analytics"."user_groups",
+    "analytics"."users",
+    "analytics"."warehouse_orders",
+    "analytics"."warehouse_positions",
+    "analytics"."warehouse_products",
+    "analytics"."warehouse_units"
+    RESTRICT;
+DROP TABLE IF EXISTS
+    "public"."action_logs",
+    "public"."ai_chat_configs",
+    "public"."authentication_logs",
+    "public"."billing_transactions",
+    "public"."chat_members",
+    "public"."chats",
+    "public"."clients",
+    "public"."companies",
+    "public"."counterparty",
+    "public"."debts",
+    "public"."employees",
+    "public"."expense_categories",
+    "public"."expenses",
+    "public"."inventory",
+    "public"."inventory_check_results",
+    "public"."inventory_checks",
+    "public"."message_templates",
+    "public"."money_accounts",
+    "public"."passports",
+    "public"."payment_categories",
+    "public"."payments",
+    "public"."positions",
+    "public"."projects",
+    "public"."roles",
+    "public"."sessions",
+    "public"."transactions",
+    "public"."uploads",
+    "public"."user_groups",
+    "public"."users",
+    "public"."warehouse_orders",
+    "public"."warehouse_positions",
+    "public"."warehouse_products",
+    "public"."warehouse_units",
+    "applets"."documents",
+    "applets"."files",
+    "applets"."jobs",
+    "applets"."secrets",
+    "automation"."automations",
+    "automation"."backtest_results",
+    "automation"."backtests",
+    "automation"."call_contexts",
+    "automation"."call_deadlines",
+    "automation"."call_slots",
+    "automation"."connection_checks",
+    "automation"."connection_requests",
+    "automation"."connections",
+    "automation"."connector_usage",
+    "automation"."correlations",
+    "automation"."dataset_examples",
+    "automation"."dataset_imports",
+    "automation"."dataset_labels",
+    "automation"."datasets",
+    "automation"."decision_cache",
+    "automation"."exclusive_identities",
+    "automation"."inbound_actions",
+    "automation"."inbound_collect",
+    "automation"."inbound_dedup",
+    "automation"."node_tests",
+    "automation"."oauth_states",
+    "automation"."platform_grants",
+    "automation"."retired_platform_identities",
+    "automation"."runs",
+    "automation"."secret_values",
+    "automation"."secrets",
+    "automation"."state",
+    "automation"."steps",
+    "automation"."subject_queue",
+    "automation"."tokens",
+    "automation"."triggers",
+    "automation"."versions",
+    "automation"."waits",
+    "bichat"."artifact_provider_files",
+    "bichat"."artifacts",
+    "bichat"."checkpoints",
+    "bichat"."events",
+    "bichat"."generations",
+    "bichat"."learnings",
+    "bichat"."messages",
+    "bichat"."session_members",
+    "bichat"."sessions",
+    "bichat"."spans",
+    "bichat"."traces",
+    "bichat"."validated_queries",
+    "core"."departments",
+    "core"."notification_channel_connections",
+    "core"."notification_channel_link_tokens",
+    "core"."notification_channel_links",
+    "core"."notification_channel_preferences",
+    "core"."notification_deliveries",
+    "core"."notification_delivery_attempts",
+    "core"."notification_dispatches",
+    "core"."notification_notices",
+    "core"."notification_push_devices",
+    "core"."notification_rules",
+    "core"."notifications",
+    "core"."user_positions",
+    "extruntime"."activations",
+    "extruntime"."artifacts",
+    "extruntime"."audit_log",
+    "extruntime"."binding_displaced",
+    "extruntime"."bindings",
+    "extruntime"."catalog_snapshots",
+    "extruntime"."entity_schema_versions",
+    "extruntime"."entity_schemas",
+    "extruntime"."human_task_assignees",
+    "extruntime"."human_task_decisions",
+    "extruntime"."human_task_escalations",
+    "extruntime"."human_tasks",
+    "extruntime"."invocations",
+    "extruntime"."outbox_events",
+    "extruntime"."package_files",
+    "extruntime"."packages",
+    "extruntime"."schedule_accounting",
+    "extruntime"."schedule_runs",
+    "extruntime"."schema_migrations_history",
+    "extruntime"."subscription_receipts",
+    "extruntime"."subscription_watermarks",
+    "extruntime"."trigger_owners",
+    "extruntime"."version_reviews",
+    "extruntime"."versions",
+    "extruntime"."workflow_instances",
+    "extruntime"."workflow_occurrences",
+    "extruntime"."workflow_signals",
+    "mcp"."approvals",
+    "mcp"."operation_audit",
+    "mcp"."operation_effects",
+    "mcp"."operations",
+    "mcp"."plans",
+    "oidc"."auth_requests",
+    "oidc"."clients",
+    "oidc"."refresh_tokens",
+    "oidc"."revoked_access_tokens",
+    "oidc"."signing_keys",
+    "public"."business_event_deliveries",
+    "public"."client_contacts",
+    "public"."counterparty_contacts",
+    "public"."currencies",
+    "public"."employee_contacts",
+    "public"."employee_meta",
+    "public"."employee_positions",
+    "public"."expense_attachments",
+    "public"."group_roles",
+    "public"."group_users",
+    "public"."message_media",
+    "public"."messages",
+    "public"."payment_attachments",
+    "public"."permissions",
+    "public"."project_acceptance_documents",
+    "public"."project_stage_payments",
+    "public"."project_stages",
+    "public"."recovery_codes",
+    "public"."role_permissions",
+    "public"."subscription_entitlements",
+    "public"."subscription_entity_counts",
+    "public"."subscription_plans",
+    "public"."subscription_webhook_events",
+    "public"."tenants",
+    "public"."two_factor_otps",
+    "public"."uploaded_images",
+    "public"."user_permissions",
+    "public"."user_roles",
+    "public"."warehouse_order_items",
+    "public"."warehouse_position_images"
+    RESTRICT;
+DROP SEQUENCE IF EXISTS
+    "automation"."subject_queue_seq_seq",
+    "extruntime"."audit_log_id_seq",
+    "extruntime"."human_task_assignees_id_seq",
+    "extruntime"."outbox_events_seq_seq",
+    "extruntime"."schema_migrations_history_id_seq",
+    "extruntime"."version_reviews_id_seq",
+    "public"."action_logs_id_seq",
+    "public"."authentication_logs_id_seq",
+    "public"."chats_id_seq",
+    "public"."client_contacts_id_seq",
+    "public"."clients_id_seq",
+    "public"."companies_id_seq",
+    "public"."counterparty_contacts_id_seq",
+    "public"."counterparty_id_seq",
+    "public"."employee_contacts_id_seq",
+    "public"."employees_id_seq",
+    "public"."expense_categories_id_seq",
+    "public"."expenses_id_seq",
+    "public"."inventory_check_results_id_seq",
+    "public"."inventory_checks_id_seq",
+    "public"."inventory_id_seq",
+    "public"."message_templates_id_seq",
+    "public"."messages_id_seq",
+    "public"."money_accounts_id_seq",
+    "public"."payments_id_seq",
+    "public"."positions_id_seq",
+    "public"."recovery_codes_id_seq",
+    "public"."roles_id_seq",
+    "public"."transactions_id_seq",
+    "public"."two_factor_otps_id_seq",
+    "public"."uploaded_images_id_seq",
+    "public"."uploads_id_seq",
+    "public"."users_id_seq",
+    "public"."warehouse_orders_id_seq",
+    "public"."warehouse_positions_id_seq",
+    "public"."warehouse_products_id_seq",
+    "public"."warehouse_units_id_seq"
+    RESTRICT;
+DROP FUNCTION IF EXISTS
+    "automation"."keep_live_platform_leases"(),
+    "automation"."retire_platform_identity"(),
+    "extruntime"."forbid_mutation"(),
+    "public"."action_logs_events_append_only"()
+    RESTRICT;
+DROP SCHEMA IF EXISTS "analytics" RESTRICT;
+DROP SCHEMA IF EXISTS "applets" RESTRICT;
+DROP SCHEMA IF EXISTS "automation" RESTRICT;
+DROP SCHEMA IF EXISTS "bichat" RESTRICT;
+DROP SCHEMA IF EXISTS "core" RESTRICT;
+DROP SCHEMA IF EXISTS "extruntime" RESTRICT;
+DROP SCHEMA IF EXISTS "mcp" RESTRICT;
+DROP SCHEMA IF EXISTS "oidc" RESTRICT;

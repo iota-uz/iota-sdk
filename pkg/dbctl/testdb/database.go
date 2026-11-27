@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"regexp"
@@ -169,7 +170,14 @@ func createDatabase(ctx context.Context, name, template string, db dbconfig.Conf
 				return err
 			}
 			if sanitizedTemplate != "" {
-				return copyDatabaseSettings(ctx, conn, sanitizedTemplate, sanitizedName)
+				if err := copyDatabaseSettings(ctx, conn, sanitizedTemplate, sanitizedName); err != nil {
+					// A clone without its settings is not the database asked
+					// for; do not leave it behind for the next run to find.
+					if _, dropErr := conn.ExecContext(context.WithoutCancel(ctx), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName)); dropErr != nil {
+						return errors.Join(err, fmt.Errorf("drop clone %s: %w", sanitizedName, dropErr))
+					}
+					return err
+				}
 			}
 			return nil
 		})
@@ -434,7 +442,8 @@ func DBOpts(name string, db dbconfig.Config) string {
 
 // listSettings are the settings whose value is a list: ALTER ... SET takes
 // their stored text unquoted, while every other value is written as one
-// string literal.
+// string literal. An empty list has no text to write unquoted, so it is
+// written as the empty literal ”.
 var listSettings = map[string]bool{
 	"search_path": true, "temp_tablespaces": true, "session_preload_libraries": true,
 	"local_preload_libraries": true, "shared_preload_libraries": true,
@@ -457,6 +466,12 @@ func copyDatabaseSettings(ctx context.Context, conn *sql.DB, template, clone str
 		value := "'" + strings.ReplaceAll(st.value, "'", "''") + "'"
 		if listSettings[st.name] {
 			value = st.value
+			// Postgres stores an empty list as "" (an empty quoted
+			// identifier), which is not valid unquoted; '' sets the same
+			// empty list.
+			if value == "" || value == `""` {
+				value = "''"
+			}
 		}
 		target := fmt.Sprintf(`DATABASE "%s"`, clone)
 		if st.role != "" {

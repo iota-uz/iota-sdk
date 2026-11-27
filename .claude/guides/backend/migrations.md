@@ -75,8 +75,10 @@ Their files are kept in `migrations/squashed/history/` only for
   release notes say so).
 - A bounded `Rollback(ctx, n)` / `migrate down` that would reach the baseline is
   refused; only `RollbackAll` / `migrate down --all` runs its Down, which drops
-  each object it created and then its schemas with `RESTRICT` (roles stay: they
-  are cluster-wide). Going down past the baseline is not supported.
+  its objects kind by kind and then its schemas, all with `RESTRICT`: anything
+  else depending on them (inheritance, foreign keys, views, tables in SDK
+  schemas) fails the rollback instead of being dropped (roles stay: they are
+  cluster-wide). Going down past the baseline is not supported.
 - Never edit the baseline.
 
 #### Squashing again
@@ -96,7 +98,8 @@ before this one, so the release notes must say they have to be recreated.
    `pg_dump --no-owner --inserts --exclude-table=public.gorp_migrations DB > dump.sql`.
 3. Generate the new baseline, under a name that sorts before every remaining
    migration (`changes-0002-baseline.sql`):
-   `scripts/migrations-baseline.py dump.sql <archive> > migrations/changes-0002-baseline.sql`.
+   `scripts/migrations-baseline.py dump.sql <archive> migrations/changes-0002-baseline.sql`
+   (the file is replaced only when generation succeeds).
    The script refuses objects its Down cannot drop (extensions and the like).
 4. Point `squashedHistoryDir` and the baseline file name in
    `pkg/application/migrations_baseline_test.go` at the new archive and file.

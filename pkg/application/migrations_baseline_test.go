@@ -44,6 +44,19 @@ func TestSquashedBaselineMatchesHistory(t *testing.T) {
 	assertSameSchema(t, db, old, fresh)
 
 	freshManager := newManager(fresh.pool, sdkMigrationsDir)
+
+	// A consumer's table that depends on an SDK table (here by inheritance,
+	// which DROP ... CASCADE would remove with its rows) stops the reset; the
+	// rollback runs in one transaction, so nothing is dropped.
+	_, err := fresh.pool.Exec(ctx, `CREATE TABLE public.consumer_department_archive (archived_at timestamptz) INHERITS (core.departments)`)
+	require.NoError(t, err)
+	require.Error(t, freshManager.RollbackAll(ctx))
+	require.True(t, relationExists(t, fresh.pool, "public.consumer_department_archive"))
+	require.True(t, relationExists(t, fresh.pool, "core.departments"))
+	require.NotEmpty(t, appliedMigrationIDs(t, fresh.pool))
+	_, err = fresh.pool.Exec(ctx, `DROP TABLE public.consumer_department_archive`)
+	require.NoError(t, err)
+
 	require.NoError(t, freshManager.RollbackAll(ctx))
 	require.Empty(t, appliedMigrationIDs(t, fresh.pool))
 	require.Empty(t, userObjects(t, fresh.pool), "the baseline's down drops everything it created")
