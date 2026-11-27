@@ -109,26 +109,30 @@ type Config struct {
 	// Progressive returns a layout-only document and materialises each panel
 	// independently through Handlers.Panel.
 	Progressive bool
+	// RecomputeCooldown bounds how frequently a single panel may be recomputed.
+	// Zero defaults to 5 seconds; negative disables cooldown rejection.
+	RecomputeCooldown time.Duration
 }
 
 // Handlers serves one dashboard registration.
 type Handlers struct {
-	spec           lens.DashboardSpec
-	plan           lens.ExecutionPlan
-	engine         engine.Executor
-	snapshots      document.SnapshotStore
-	basePath       string
-	inlineDepth    int
-	pageSize       int
-	workTimeout    time.Duration
-	request        RequestResolver
-	documentOpts   DocumentOptionsResolver
-	observer       Observer
-	progressive    bool
-	drawerResolver DrawerResolver
-	exploration    ExplorationExecutor
-	resolveLoader  ExplorationLoaderResolver
-	sessions       *SessionRegistry
+	spec              lens.DashboardSpec
+	plan              lens.ExecutionPlan
+	engine            engine.Executor
+	snapshots         document.SnapshotStore
+	basePath          string
+	inlineDepth       int
+	pageSize          int
+	workTimeout       time.Duration
+	recomputeCooldown time.Duration
+	request           RequestResolver
+	documentOpts      DocumentOptionsResolver
+	observer          Observer
+	progressive       bool
+	drawerResolver    DrawerResolver
+	exploration       ExplorationExecutor
+	resolveLoader     ExplorationLoaderResolver
+	sessions          *SessionRegistry
 }
 
 type noopObserver struct{}
@@ -179,6 +183,10 @@ func New(cfg Config) (*Handlers, error) {
 	if workTimeout <= 0 {
 		workTimeout = defaultWorkTimeout
 	}
+	cooldown := cfg.RecomputeCooldown
+	if cooldown == 0 {
+		cooldown = recomputeCooldown
+	}
 	observer := cfg.Observer
 	if observer == nil {
 		observer = noopObserver{}
@@ -190,7 +198,8 @@ func New(cfg Config) (*Handlers, error) {
 	return &Handlers{
 		spec: cfg.Spec, plan: plan, engine: cfg.Engine, snapshots: cfg.Snapshots,
 		basePath: basePath, inlineDepth: cfg.InlineDepth, pageSize: pageSize, workTimeout: workTimeout,
-		request: cfg.Request, documentOpts: cfg.DocumentOptions, observer: observer, progressive: cfg.Progressive,
+		recomputeCooldown: cooldown,
+		request:           cfg.Request, documentOpts: cfg.DocumentOptions, observer: observer, progressive: cfg.Progressive,
 		drawerResolver: cfg.DrawerResolver, exploration: cfg.Exploration, resolveLoader: cfg.ResolveLoader,
 		sessions: sessions,
 	}, nil

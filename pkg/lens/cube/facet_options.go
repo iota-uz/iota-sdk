@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -37,7 +38,7 @@ func ResolveFacetOptions(
 	}
 	switch spec.DataMode {
 	case DataModeDataset:
-		return resolveDatasetFacetOptions(spec, drillCtx, dim, search, limit), nil
+		return ResolveFacetOptionsFromFrames(spec, spec.Data, drillCtx, dim, search, limit), nil
 	case DataModeSQL:
 		if lookup == nil {
 			return nil, serrors.Wrap(op, fmt.Errorf("sql facet lookup is required"))
@@ -47,6 +48,44 @@ func ResolveFacetOptions(
 		if err != nil {
 			return nil, serrors.Wrap(op, err)
 		}
+		for idx := range options {
+			if strings.TrimSpace(options[idx].Label) == "" || options[idx].Label == options[idx].Value {
+				options[idx].Label = dim.DisplayLabel(options[idx].Value)
+			}
+		}
+		markSelected(options, drillCtx, dim.Name)
+		return options, nil
+	case DataModeNamed:
+		if lookup == nil {
+			return nil, serrors.Wrap(op, fmt.Errorf("named facet lookup is required"))
+		}
+		trimmedSearch := strings.ToLower(strings.TrimSpace(search))
+		lookupLimit := limit
+		if trimmedSearch != "" {
+			lookupLimit = 0
+		}
+		namedParams := mergeParamValues(overrideBaseParams(spec), sqlParams(spec, drillCtx.WithoutDimension(dim.Name)))
+		options, err := lookup(ctx, spec.NamedQuery, namedParams, lookupLimit)
+		if err != nil {
+			return nil, serrors.Wrap(op, err)
+		}
+		for idx := range options {
+			if strings.TrimSpace(options[idx].Label) == "" || options[idx].Label == options[idx].Value {
+				options[idx].Label = dim.DisplayLabel(options[idx].Value)
+			}
+		}
+		if trimmedSearch != "" {
+			filtered := make([]lens.DrillFacetOptionMeta, 0, len(options))
+			for _, opt := range options {
+				if strings.Contains(strings.ToLower(opt.Label), trimmedSearch) || strings.Contains(strings.ToLower(opt.Value), trimmedSearch) {
+					filtered = append(filtered, opt)
+				}
+			}
+			options = filtered
+		}
+		if len(options) > limit {
+			options = options[:limit]
+		}
 		markSelected(options, drillCtx, dim.Name)
 		return options, nil
 	default:
@@ -54,17 +93,26 @@ func ResolveFacetOptions(
 	}
 }
 
-func resolveDatasetFacetOptions(spec CubeSpec, drillCtx DrillContext, dim DimensionSpec, search string, limit int) []lens.DrillFacetOptionMeta {
-	if spec.Data == nil || spec.Data.Primary() == nil {
+// ResolveFacetOptionsFromFrames computes facet options from an in-memory FrameSet
+// for Dataset or Named cube modes.
+func ResolveFacetOptionsFromFrames(
+	spec CubeSpec,
+	data *frame.FrameSet,
+	drillCtx DrillContext,
+	dim DimensionSpec,
+	search string,
+	limit int,
+) []lens.DrillFacetOptionMeta {
+	if limit <= 0 {
+		limit = 50
+	}
+	if data == nil || data.Primary() == nil {
 		return nil
 	}
-	valueField := strings.TrimSpace(dim.Field)
+	valueField := strings.TrimSpace(dim.datasetSourceField())
 	labelField := strings.TrimSpace(dim.LabelField)
 	if labelField == "" {
 		labelField = valueField
-	}
-	if valueField == "" {
-		valueField = labelField
 	}
 	otherFilters := drillCtx.WithoutDimension(dim.Name)
 	search = strings.ToLower(strings.TrimSpace(search))
@@ -74,17 +122,29 @@ func resolveDatasetFacetOptions(spec CubeSpec, drillCtx DrillContext, dim Dimens
 		count int
 	}
 	buckets := map[string]*bucket{}
-	for _, row := range spec.Data.Primary().Rows() {
+	for _, row := range data.Primary().Rows() {
 		if !rowMatchesDrill(row, spec, otherFilters) {
 			continue
 		}
-		value := strings.TrimSpace(fmt.Sprint(row[valueField]))
-		if value == "" {
+		var value string
+		if dim.Type == DimensionTypeTimeBucket {
+			value = coerceRowTimeBucket(row[valueField], dim.TimeGranularity)
+		} else {
+			value = strings.TrimSpace(fmt.Sprint(row[valueField]))
+		}
+		if value == "" || value == "<nil>" {
 			continue
 		}
-		label := strings.TrimSpace(fmt.Sprint(row[labelField]))
-		if label == "" {
+		var label string
+		if len(dim.LabelMap) > 0 {
+			label = dim.DisplayLabel(value)
+		} else if dim.Type == DimensionTypeTimeBucket {
 			label = value
+		} else {
+			label = strings.TrimSpace(fmt.Sprint(row[labelField]))
+			if label == "" || label == "<nil>" {
+				label = value
+			}
 		}
 		if search != "" && !strings.Contains(strings.ToLower(label), search) && !strings.Contains(strings.ToLower(value), search) {
 			continue
@@ -106,6 +166,9 @@ func resolveDatasetFacetOptions(spec CubeSpec, drillCtx DrillContext, dim Dimens
 		})
 	}
 	sort.SliceStable(options, func(i, j int) bool {
+		if dim.Type == DimensionTypeTimeBucket {
+			return options[i].Value < options[j].Value
+		}
 		if options[i].Count != options[j].Count {
 			return options[i].Count > options[j].Count
 		}
@@ -124,15 +187,13 @@ func sqlFacetOptionsQuery(spec CubeSpec, drillCtx DrillContext, dim DimensionSpe
 		return sqlOverrideFacetOptionsQuery(spec, facetCtx, dim, search)
 	}
 	joins := requiredSQLJoins(spec, dim, facetCtx)
-	labelColumn := strings.TrimSpace(dim.LabelColumn)
-	if labelColumn == "" {
-		labelColumn = dim.Column
-	}
-	text := "SELECT\n  " + dim.Column + " AS value,\n  " + labelColumn + " AS label,\n  COUNT(*)::int AS count\nFROM " + spec.FromSQL + sqlJoinSQL(spec, joins)
+	dimCol := dim.sqlColumn()
+	labelColumn := dim.sqlLabelColumn()
+	text := "SELECT\n  " + dimCol + " AS value,\n  " + labelColumn + " AS label,\n  COUNT(*)::int AS count\nFROM " + spec.FromSQL + sqlJoinSQL(spec, joins)
 	where := sqlWhere(spec, facetCtx)
 	search = strings.TrimSpace(search)
 	if search != "" {
-		searchClause := "(" + labelColumn + "::text ILIKE @facet_search OR " + dim.Column + "::text ILIKE @facet_search)"
+		searchClause := "(" + labelColumn + "::text ILIKE @facet_search OR " + dimCol + "::text ILIKE @facet_search)"
 		if where == "" {
 			where = searchClause
 		} else {
@@ -142,7 +203,11 @@ func sqlFacetOptionsQuery(spec CubeSpec, drillCtx DrillContext, dim DimensionSpe
 	if where != "" {
 		text += "\nWHERE " + where
 	}
-	text += "\nGROUP BY 1, 2\nORDER BY count DESC, label ASC"
+	if dim.Type == DimensionTypeTimeBucket {
+		text += "\nGROUP BY 1, 2\nORDER BY value ASC"
+	} else {
+		text += "\nGROUP BY 1, 2\nORDER BY count DESC, label ASC"
+	}
 
 	params := sqlParams(spec, facetCtx)
 	if search != "" {

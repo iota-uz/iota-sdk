@@ -92,6 +92,9 @@ type BucketTimeConfig struct {
 	Field    string
 	As       string
 	Interval string
+	// AsKey formats the bucketed timestamp as a stable string key
+	// ("2026", "2026-Q1", "2026-03", "2026-03-02", "2026-03-15") instead of a time.Time.
+	AsKey bool
 }
 
 type BucketBoundsConfig struct {
@@ -465,22 +468,38 @@ func matches(row map[string]any, predicates []Predicate) bool {
 }
 
 func containsValue(values any, needle any) bool {
-	needleText := fmt.Sprint(needle)
 	switch current := values.(type) {
 	case []string:
+		if needle == nil {
+			return false
+		}
+		needleText := fmt.Sprint(needle)
 		for _, value := range current {
 			if value == needleText {
 				return true
 			}
 		}
 	case []any:
+		needleText := ""
+		if needle != nil {
+			needleText = fmt.Sprint(needle)
+		}
 		for _, value := range current {
-			if fmt.Sprint(value) == needleText {
+			if value == nil {
+				if needle == nil {
+					return true
+				}
+				continue
+			}
+			if needle != nil && fmt.Sprint(value) == needleText {
 				return true
 			}
 		}
 	default:
-		return fmt.Sprint(current) == needleText
+		if current == nil || needle == nil {
+			return current == nil && needle == nil
+		}
+		return fmt.Sprint(current) == fmt.Sprint(needle)
 	}
 	return false
 }
@@ -894,19 +913,100 @@ func bucketTime(primary *frame.FrameSet, cfg *BucketTimeConfig) (*frame.FrameSet
 		return next, nil
 	}
 	values := make([]any, fr.RowCount)
+	interval := strings.ToLower(strings.TrimSpace(cfg.Interval))
 	for row := 0; row < fr.RowCount; row++ {
-		raw, _ := valueAt(fr, cfg.Field, row).(time.Time)
-		switch cfg.Interval {
-		case "year":
-			values[row] = time.Date(raw.Year(), time.January, 1, 0, 0, 0, 0, raw.Location())
-		case "month":
-			values[row] = time.Date(raw.Year(), raw.Month(), 1, 0, 0, 0, 0, raw.Location())
-		default:
-			values[row] = time.Date(raw.Year(), raw.Month(), raw.Day(), 0, 0, 0, 0, raw.Location())
+		raw := coerceBucketTime(valueAt(fr, cfg.Field, row))
+		bucketed := truncateTimeBucket(raw, interval)
+		if cfg.AsKey {
+			values[row] = formatTimeBucketKey(bucketed, interval)
+		} else {
+			values[row] = bucketed
 		}
 	}
-	fr.Fields = append(fr.Fields, frame.Field{Name: cfg.As, Type: frame.FieldTypeTime, Role: frame.RoleTime, Values: values})
+	fieldType := frame.FieldTypeTime
+	fieldRole := frame.RoleTime
+	if cfg.AsKey {
+		fieldType = frame.FieldTypeString
+		fieldRole = frame.RoleDimension
+	}
+	if existingIdx := -1; true {
+		for idx, field := range fr.Fields {
+			if field.Name == cfg.As {
+				existingIdx = idx
+				break
+			}
+		}
+		newField := frame.Field{Name: cfg.As, Type: fieldType, Role: fieldRole, Values: values}
+		if existingIdx >= 0 {
+			fr.Fields[existingIdx] = newField
+		} else {
+			fr.Fields = append(fr.Fields, newField)
+		}
+	}
 	return next, fr.Normalize()
+}
+
+func coerceBucketTime(value any) time.Time {
+	switch typed := value.(type) {
+	case time.Time:
+		return typed
+	case *time.Time:
+		if typed != nil {
+			return *typed
+		}
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05", "2006-01-02", "2006-01"} {
+			if parsed, err := time.Parse(layout, trimmed); err == nil {
+				return parsed
+			}
+		}
+	}
+	return time.Time{}
+}
+
+func truncateTimeBucket(raw time.Time, interval string) time.Time {
+	if raw.IsZero() {
+		return time.Time{}
+	}
+	loc := raw.Location()
+	switch interval {
+	case "year":
+		return time.Date(raw.Year(), time.January, 1, 0, 0, 0, 0, loc)
+	case "quarter":
+		quarterMonth := ((raw.Month()-1)/3)*3 + 1
+		return time.Date(raw.Year(), quarterMonth, 1, 0, 0, 0, 0, loc)
+	case "month":
+		return time.Date(raw.Year(), raw.Month(), 1, 0, 0, 0, 0, loc)
+	case "week":
+		weekday := int(raw.Weekday())
+		if weekday == 0 {
+			weekday = 7
+		}
+		dayStart := time.Date(raw.Year(), raw.Month(), raw.Day(), 0, 0, 0, 0, loc)
+		return dayStart.AddDate(0, 0, -(weekday - 1))
+	default:
+		return time.Date(raw.Year(), raw.Month(), raw.Day(), 0, 0, 0, 0, loc)
+	}
+}
+
+func formatTimeBucketKey(bucketed time.Time, interval string) string {
+	if bucketed.IsZero() {
+		return ""
+	}
+	switch interval {
+	case "year":
+		return bucketed.Format("2006")
+	case "quarter":
+		q := (int(bucketed.Month())-1)/3 + 1
+		return fmt.Sprintf("%04d-Q%d", bucketed.Year(), q)
+	case "month":
+		return bucketed.Format("2006-01")
+	case "week", "day":
+		return bucketed.Format("2006-01-02")
+	default:
+		return bucketed.Format("2006-01-02")
+	}
 }
 
 func applyTopN(primary *frame.FrameSet, deps map[string]*frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error) {

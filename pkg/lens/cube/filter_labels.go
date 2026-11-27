@@ -48,6 +48,12 @@ func resolveFilterDisplay(
 	if !ok {
 		return filter.Value, nil
 	}
+	if mapped := dim.DisplayLabel(filter.Value); mapped != filter.Value {
+		return mapped, nil
+	}
+	if dim.Type == DimensionTypeTimeBucket {
+		return filter.Value, nil
+	}
 	switch spec.DataMode {
 	case DataModeDataset:
 		return datasetFilterDisplay(spec, drillCtx.WithFilter(filter.Dimension, filter.Value), dim), nil
@@ -64,6 +70,8 @@ func resolveFilterDisplay(
 			return filter.Value, nil
 		}
 		return label, nil
+	case DataModeNamed:
+		return filter.Value, nil
 	default:
 		return filter.Value, nil
 	}
@@ -75,7 +83,7 @@ func datasetFilterDisplay(spec CubeSpec, drillCtx DrillContext, dim DimensionSpe
 	}
 	labelField := strings.TrimSpace(dim.LabelField)
 	if labelField == "" {
-		labelField = strings.TrimSpace(dim.Field)
+		labelField = strings.TrimSpace(dim.datasetSourceField())
 	}
 	if labelField == "" {
 		return ""
@@ -99,14 +107,31 @@ func rowMatchesDrill(row map[string]any, spec CubeSpec, drillCtx DrillContext) b
 		if !ok {
 			continue
 		}
-		field := strings.TrimSpace(dim.Field)
-		if field == "" {
-			field = strings.TrimSpace(dim.LabelField)
-		}
+		field := strings.TrimSpace(dim.datasetSourceField())
 		if field == "" {
 			continue
 		}
-		if !containsString(filter.values(), strings.TrimSpace(fmt.Sprint(row[field]))) {
+		rawVal := row[field]
+		isUnknown := rawVal == nil
+		var actual string
+		if !isUnknown {
+			if dim.Type == DimensionTypeTimeBucket {
+				actual = coerceRowTimeBucket(rawVal, dim.TimeGranularity)
+			} else {
+				actual = strings.TrimSpace(fmt.Sprint(rawVal))
+			}
+			if actual == "" || actual == "<nil>" {
+				isUnknown = true
+			}
+		}
+		values := filter.values()
+		if isUnknown {
+			if !containsString(values, UnknownDrillValue) {
+				return false
+			}
+			continue
+		}
+		if !containsString(values, actual) {
 			return false
 		}
 	}
@@ -115,10 +140,7 @@ func rowMatchesDrill(row map[string]any, spec CubeSpec, drillCtx DrillContext) b
 
 func sqlFilterLabelQuery(spec CubeSpec, drillCtx DrillContext, dim DimensionSpec) (string, map[string]any) {
 	joins := requiredSQLJoins(spec, dim, drillCtx)
-	labelColumn := strings.TrimSpace(dim.LabelColumn)
-	if labelColumn == "" {
-		labelColumn = dim.Column
-	}
+	labelColumn := dim.sqlLabelColumn()
 	text := "SELECT " + labelColumn + " AS label\nFROM " + spec.FromSQL + sqlJoinSQL(spec, joins)
 	where := sqlWhere(spec, drillCtx)
 	if where != "" {
