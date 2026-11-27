@@ -1,0 +1,1 @@
+{"bump":"none","summary":"CI only: the full unit and integration run allows 25 minutes per package instead of Go's default 10; no published package changes."}
