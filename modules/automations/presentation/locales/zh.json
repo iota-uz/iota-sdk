@@ -12,11 +12,15 @@
     "Automations.Author": "编辑自动化",
     "Automations.Enable": "启用自动化",
     "Automations.Operate": "管理自动化运行",
-    "Connections.Manage": "管理集成"
+    "Connections.Manage": "管理集成",
+    "Connections.Use": "在自动化中使用连接",
+    "Secrets.Manage": "管理密钥",
+    "Secrets.Use": "在自动化中使用密钥"
   },
   "Resources": {
     "automation": "自动化",
-    "connection": "连接"
+    "connection": "连接",
+    "secret": "密钥"
   },
   "PermissionSets": {
     "Automations": {

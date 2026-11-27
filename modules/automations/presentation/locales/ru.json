@@ -12,11 +12,15 @@
     "Automations.Author": "Редактирование автоматизаций",
     "Automations.Enable": "Включение автоматизаций",
     "Automations.Operate": "Управление запусками автоматизаций",
-    "Connections.Manage": "Управление интеграциями"
+    "Connections.Manage": "Управление интеграциями",
+    "Connections.Use": "Использование подключений в автоматизациях",
+    "Secrets.Manage": "Управление секретами",
+    "Secrets.Use": "Использование секретов в автоматизациях"
   },
   "Resources": {
     "automation": "Автоматизации",
-    "connection": "Подключения"
+    "connection": "Подключения",
+    "secret": "Секреты"
   },
   "PermissionSets": {
     "Automations": {

@@ -12,11 +12,15 @@
     "Automations.Author": "Avtomatlashtirishlarni tahrirlash",
     "Automations.Enable": "Avtomatlashtirishlarni yoqish",
     "Automations.Operate": "Avtomatlashtirish ishga tushirishlarini boshqarish",
-    "Connections.Manage": "Integratsiyalarni boshqarish"
+    "Connections.Manage": "Integratsiyalarni boshqarish",
+    "Connections.Use": "Avtomatlashtirishlarda ulanishlardan foydalanish",
+    "Secrets.Manage": "Maxfiy qiymatlarni boshqarish",
+    "Secrets.Use": "Avtomatlashtirishlarda maxfiy qiymatlardan foydalanish"
   },
   "Resources": {
     "automation": "Avtomatlashtirish",
-    "connection": "Ulanishlar"
+    "connection": "Ulanishlar",
+    "secret": "Maxfiy qiymatlar"
   },
   "PermissionSets": {
     "Automations": {

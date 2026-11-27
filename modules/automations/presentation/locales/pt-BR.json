@@ -12,11 +12,15 @@
     "Automations.Author": "Editar automações",
     "Automations.Enable": "Ativar automações",
     "Automations.Operate": "Operar execuções de automações",
-    "Connections.Manage": "Gerenciar integrações"
+    "Connections.Manage": "Gerenciar integrações",
+    "Connections.Use": "Usar conexões em automações",
+    "Secrets.Manage": "Gerenciar segredos",
+    "Secrets.Use": "Usar segredos em automações"
   },
   "Resources": {
     "automation": "Automações",
-    "connection": "Conexões"
+    "connection": "Conexões",
+    "secret": "Segredos"
   },
   "PermissionSets": {
     "Automations": {
