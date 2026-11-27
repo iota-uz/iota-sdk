@@ -508,7 +508,7 @@
     "version": "0.56.0",
     "source": "09724cd476fa86beb2b94b9b2dafb9dcef9217b3",
     "sha": "daad39c304992e025fcb480f09d514133d159686",
-    "phase": "testing",
+    "phase": "failed",
     "run_id": "46037918523"
   },
   "ready": {
