@@ -24,29 +24,22 @@ const (
 	sdkMigrationsDir = "../../migrations"
 	// squashedHistoryDir holds the migrations changes-0001-baseline.sql
 	// replaces, kept only so this test can replay them.
-	squashedHistoryDir = "../../migrations/squashed/v0.55.1"
+	squashedHistoryDir = "../../migrations/squashed/history"
 )
 
-// The baseline must leave a fresh database exactly where the squashed history
-// left an existing one, and an existing database must move onto the baseline
-// without running it.
-//
-// "old" replays the squashed files, then upgrades to the current migrations
-// directory (adopting the baseline, then applying whatever came after it).
-// "fresh" migrates the current directory from scratch. Both must describe the
-// same schema, and the baseline's down must leave nothing behind.
+// The baseline must leave a fresh database exactly where replaying the
+// squashed history leaves one. "old" replays the squashed files, "fresh" runs
+// the baseline; both must describe the same schema and rows. Migrations added
+// after the baseline are applied to both. The baseline's down must leave
+// nothing behind.
 func TestSquashedBaselineMatchesHistory(t *testing.T) {
 	ctx := context.Background()
 	db := itf.LoadDBConfigFromEnv()
 	old := newScratchDatabase(t, db, "squash_old")
 	fresh := newScratchDatabase(t, db, "squash_fresh")
 
-	require.NoError(t, newManager(old.pool, squashedHistoryDir).Run(ctx))
-	require.NoError(t, newManager(old.pool, sdkMigrationsDir).Run(ctx))
+	require.NoError(t, newManager(old.pool, historyThenLater(t)).Run(ctx))
 	require.NoError(t, newManager(fresh.pool, sdkMigrationsDir).Run(ctx))
-
-	require.Equal(t, appliedMigrationIDs(t, fresh.pool), appliedMigrationIDs(t, old.pool),
-		"the upgraded database records the baseline in place of the squashed ids")
 
 	assertSameSchema(t, db, old, fresh)
 
@@ -57,6 +50,29 @@ func TestSquashedBaselineMatchesHistory(t *testing.T) {
 
 	require.NoError(t, freshManager.Run(ctx))
 	assertSameSchema(t, db, old, fresh)
+}
+
+// historyThenLater is a migrations directory holding the squashed history and
+// every migration that came after the baseline: the full replay the baseline
+// stands in for.
+func historyThenLater(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	copySQL := func(from string, skip func(string) bool) {
+		entries, err := os.ReadDir(from)
+		require.NoError(t, err)
+		for _, entry := range entries {
+			if entry.IsDir() || filepath.Ext(entry.Name()) != ".sql" || skip(entry.Name()) {
+				continue
+			}
+			body, err := os.ReadFile(filepath.Join(from, entry.Name()))
+			require.NoError(t, err)
+			require.NoError(t, os.WriteFile(filepath.Join(dir, entry.Name()), body, 0o600))
+		}
+	}
+	copySQL(squashedHistoryDir, func(string) bool { return false })
+	copySQL(sdkMigrationsDir, func(name string) bool { return name == "changes-0001-baseline.sql" })
+	return dir
 }
 
 type scratchDatabase struct {

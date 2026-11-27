@@ -76,7 +76,7 @@ func TestEnsureMigratedTemplateBuildsOnceAndSeals(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = admin.Close() })
 	fp := templateTestFingerprint()
-	dropTestTemplate(t, admin, MigratedTemplateName(fp))
+	dropTestTemplate(t, admin, MigratedTemplateName(fp, db.User))
 
 	var builds atomic.Int32
 	build := markerBuilder(t, &builds)
@@ -87,7 +87,7 @@ func TestEnsureMigratedTemplateBuildsOnceAndSeals(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			names[i] = MigratedTemplateName(fp)
+			names[i] = MigratedTemplateName(fp, db.User)
 			errs[i] = ensureTemplate(ctx, db, names[i], build)
 		}()
 	}
@@ -139,7 +139,7 @@ func TestEnsureMigratedTemplateRebuildsUnfinishedTemplate(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = admin.Close() })
 	fp := templateTestFingerprint()
-	name := MigratedTemplateName(fp)
+	name := MigratedTemplateName(fp, db.User)
 	dropTestTemplate(t, admin, name)
 	_, err = admin.ExecContext(ctx, fmt.Sprintf(`CREATE DATABASE "%s"`, name))
 	require.NoError(t, err)
@@ -160,7 +160,7 @@ func TestEnsureMigratedTemplateRetriesAfterFailure(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = admin.Close() })
 	fp := templateTestFingerprint()
-	name := MigratedTemplateName(fp)
+	name := MigratedTemplateName(fp, db.User)
 	dropTestTemplate(t, admin, name)
 
 	boom := errors.New("boom")
@@ -174,4 +174,77 @@ func TestEnsureMigratedTemplateRetriesAfterFailure(t *testing.T) {
 	_, err = EnsureMigratedTemplate(ctx, db, fp, markerBuilder(t, &builds))
 	require.NoError(t, err)
 	require.Equal(t, int32(1), builds.Load())
+}
+
+// Falsely green if CREATE DATABASE ... TEMPLATE is trusted to carry settings:
+// it does not copy ALTER DATABASE ... SET values, which a replayed database
+// keeps.
+func TestCloneKeepsDatabaseSettings(t *testing.T) {
+	db := testConfig(t)
+	ctx := context.Background()
+	admin, err := sql.Open("postgres", AdminConnectionString(db))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = admin.Close() })
+	fp := templateTestFingerprint()
+	name := MigratedTemplateName(fp, db.User)
+	dropTestTemplate(t, admin, name)
+
+	_, err = EnsureMigratedTemplate(ctx, db, fp, func(ctx context.Context, name string) error {
+		if _, err := admin.ExecContext(ctx, fmt.Sprintf(`ALTER DATABASE "%s" SET timezone = 'Asia/Tashkent'`, name)); err != nil {
+			return err
+		}
+		_, err := admin.ExecContext(ctx, fmt.Sprintf(`ALTER DATABASE "%s" SET search_path = public, "my schema"`, name))
+		return err
+	})
+	require.NoError(t, err)
+
+	clone := Name("tpl_settings_" + uuid.NewString()[:8])
+	require.NoError(t, createDatabase(ctx, clone, name, db, false, true))
+	t.Cleanup(func() { _ = DropDB(clone, db) })
+	conn, err := sql.Open("postgres", DBOpts(clone, db))
+	require.NoError(t, err)
+	defer func() { _ = conn.Close() }()
+	var tz, path string
+	require.NoError(t, conn.QueryRowContext(ctx, "SHOW timezone").Scan(&tz))
+	require.NoError(t, conn.QueryRowContext(ctx, "SHOW search_path").Scan(&path))
+	require.Equal(t, "Asia/Tashkent", tz)
+	require.Equal(t, `public, "my schema"`, path)
+}
+
+// Falsely green if two roles share one template: a non-superuser cannot clone
+// or seal a database another role owns ("must be owner of database").
+func TestTemplatesAreScopedToRole(t *testing.T) {
+	db := testConfig(t)
+	ctx := context.Background()
+	admin, err := sql.Open("postgres", AdminConnectionString(db))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = admin.Close() })
+	fp := templateTestFingerprint()
+
+	names := map[string]bool{}
+	for range 2 {
+		role := Name("tpl_role_" + uuid.NewString()[:8])
+		_, err := admin.ExecContext(ctx, fmt.Sprintf(`CREATE ROLE "%s" LOGIN CREATEDB PASSWORD 'pw'`, role))
+		require.NoError(t, err)
+		roleDB := db
+		roleDB.User, roleDB.Password = role, "pw"
+		name := MigratedTemplateName(fp, role)
+		t.Cleanup(func() {
+			require.NoError(t, dropTemplate(context.Background(), admin, name))
+			_, err := admin.ExecContext(context.Background(), fmt.Sprintf(`DROP ROLE "%s"`, role))
+			require.NoError(t, err)
+		})
+
+		var builds atomic.Int32
+		got, err := EnsureMigratedTemplate(ctx, roleDB, fp, markerBuilder(t, &builds))
+		require.NoError(t, err)
+		require.Equal(t, name, got)
+		require.Equal(t, int32(1), builds.Load(), "each role builds its own template")
+		names[got] = true
+
+		clone := Name("tpl_rc_" + uuid.NewString()[:8])
+		require.NoError(t, createDatabase(ctx, clone, got, roleDB, false, true), "the role can clone its template")
+		require.NoError(t, DropDB(clone, roleDB))
+	}
+	require.Len(t, names, 2)
 }

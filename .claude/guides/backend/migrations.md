@@ -62,51 +62,44 @@ interrupted or failed run is not rolled back. Before retrying:
 
 ### Squashed baselines
 
-`migrations/changes-0001-baseline.sql` replaces the 71 migrations released up to
-v0.55.1. Their files are kept in `migrations/squashed/v0.55.1/` only for
+`migrations/changes-0001-baseline.sql` replaces all 78 earlier SDK migrations.
+Their files are kept in `migrations/squashed/history/` only for
 `TestSquashedBaselineMatchesHistory`; the migrator never reads subdirectories.
 
-- The baseline names each replaced file in its header with `-- +squashes <id>`
-  (before `-- +migrate Up`; sql-migrate ignores the line).
-- On every run, a database that applied **all** replaced ids gets the baseline
-  recorded as applied without running it, and the replaced ids are removed from
-  `gorp_migrations`, in one transaction.
-- A database that applied **some** of them fails with
-  `PartialSquashedHistoryError`: migrate it up with v0.55.1 first.
-- A fresh database runs the baseline. Its Down drops every schema, table, view,
-  sequence and function it created (roles stay: they are cluster-wide). Going
-  down past the baseline is not supported.
+- The baseline names each replaced file in its header with `-- +squashes <id>`,
+  one id per line (before `-- +migrate Up`; sql-migrate ignores the line).
+- A new database runs the baseline like any other migration.
+- A database whose `gorp_migrations` lists **any** replaced id was built from
+  the old history and is refused with `SquashedHistoryError`, before anything is
+  written. It is not upgraded: recreate it (owner decision for this squash; the
+  release notes say so).
 - A bounded `Rollback(ctx, n)` / `migrate down` that would reach the baseline is
-  refused; only `RollbackAll` / `migrate down --all` runs its Down.
+  refused; only `RollbackAll` / `migrate down --all` runs its Down, which drops
+  each object it created and then its schemas with `RESTRICT` (roles stay: they
+  are cluster-wide). Going down past the baseline is not supported.
 - Never edit the baseline.
 
 #### Squashing again
 
 The next squash **replaces** the current baseline: the new baseline squashes
-`changes-0001-baseline.sql` together with the released migrations after it, so
-there is only ever one baseline. Only squash migrations that are in a release,
-and tell consumers to upgrade to that release first.
+`changes-0001-baseline.sql` together with the migrations after it, so there is
+only ever one baseline. Databases built before it are refused like the ones
+before this one, so the release notes must say they have to be recreated.
 
-1. Move the files being replaced into `migrations/squashed/<release>/`: the old
-   baseline and every migration up to the release. That directory replays on an
-   empty database, because the old baseline sorts first and carries the schema
-   the later files alter.
-2. Migrate a fresh database with `DB_MIGRATIONSDIR=migrations/squashed/<release>`
-   and dump it with a `pg_dump` of the server's major version:
+1. Create a new archive, `migrations/squashed/<name>/`, holding
+   `changes-0001-baseline.sql` and every migration after it, and delete
+   `migrations/squashed/history/` (its content is inside the old baseline). The
+   archive replays on an empty database because the old baseline sorts first
+   and carries the schema the later files alter.
+2. Migrate a fresh database with `DB_MIGRATIONSDIR=<archive>` and dump it with a
+   `pg_dump` of the server's major version:
    `pg_dump --no-owner --inserts --exclude-table=public.gorp_migrations DB > dump.sql`.
 3. Generate the new baseline, under a name that sorts before every remaining
    migration (`changes-0002-baseline.sql`):
-   `scripts/migrations-baseline.py dump.sql migrations/squashed/<release> > migrations/changes-0002-baseline.sql`.
+   `scripts/migrations-baseline.py dump.sql <archive> > migrations/changes-0002-baseline.sql`.
    The script refuses objects its Down cannot drop (extensions and the like).
 4. Point `squashedHistoryDir` and the baseline file name in
-   `pkg/application/migrations_baseline_test.go` at the new directory and file,
-   and delete the previous `migrations/squashed/` directory: its files are now
-   inside the new one through the old baseline.
-
-Databases on the previous baseline have every id the new one replaces and are
-adopted; a database still on the history before the previous baseline lists ids
-neither baseline knows and fails as an unknown migration, so it upgrades through
-the previous squash release first.
+   `pkg/application/migrations_baseline_test.go` at the new archive and file.
 
 ### PL/pgSQL Functions
 

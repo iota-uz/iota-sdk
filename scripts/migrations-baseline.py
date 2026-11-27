@@ -8,9 +8,9 @@ Usage:
 The dump must come from a fresh database migrated with exactly the migrations
 being squashed (no seed, no test data), with a pg_dump whose major version
 matches the server. The second argument is the directory holding the squashed
-migration files; each becomes a "-- +squashes" header line, which is how the
-migrator recognises a database that already has the old history (see
-pkg/application/migrations_squash.go). TestSquashedBaselineMatchesHistory
+migration files; each becomes a "-- +squashes" header line, by which the
+migrator recognises a database built from the old history and refuses it
+(see pkg/application/migrations_squash.go). TestSquashedBaselineMatchesHistory
 compares the result against a replay of those files.
 
 Every statement is emitted on its own; a statement that spans lines is wrapped
@@ -206,8 +206,8 @@ def main():
     out.write("-- them; the originals are kept in %s for the equivalence test.\n" % squashed_dir)
     out.write("-- Do not edit: change the schema with a new migration.\n")
     out.write("--\n")
-    out.write("-- A database that applied every migration below is recorded as having this baseline\n")
-    out.write("-- without running it. Rolling it back drops the whole schema.\n")
+    out.write("-- A database built from the migrations below is refused, not upgraded: recreate it.\n")
+    out.write("-- Only a full rollback (migrate down --all) runs this baseline's Down, which drops the schema.\n")
     for name in squashed:
         out.write("-- +squashes %s\n" % name)
     out.write("\n-- +migrate Up\n\n")

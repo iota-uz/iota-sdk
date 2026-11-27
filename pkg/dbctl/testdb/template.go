@@ -87,12 +87,13 @@ func migrationsFingerprintFS(fsys fs.FS) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-// MigratedTemplateName is the template database name for a fingerprint.
-func MigratedTemplateName(fingerprint string) string {
-	if len(fingerprint) > 16 {
-		fingerprint = fingerprint[:16]
-	}
-	return Name(MigratedTemplatePrefix + fingerprint)
+// MigratedTemplateName is the template database name for a fingerprint built
+// by role. The role is part of the name because a template belongs to the
+// role that created it: another non-superuser role can neither clone, seal nor
+// drop it, so each role on a shared cluster gets its own.
+func MigratedTemplateName(fingerprint, role string) string {
+	sum := sha256.Sum256([]byte(fingerprint + "\x00" + role))
+	return Name(MigratedTemplatePrefix + hex.EncodeToString(sum[:])[:16])
 }
 
 // TemplateBuilder migrates the freshly created, empty database name. It must
@@ -127,8 +128,8 @@ func EnsureMigratedTemplate(ctx context.Context, db dbconfig.Config, fingerprint
 	if fingerprint == "" {
 		return "", serrors.New(serrors.Invalid, "template fingerprint is required").WithOp(opEnsureMigratedTemplate)
 	}
-	name := MigratedTemplateName(fingerprint)
-	key := db.Host + ":" + db.Port + "/" + name
+	name := MigratedTemplateName(fingerprint, db.User)
+	key := db.Host + ":" + db.Port + "/" + db.User + "/" + name
 
 	templatesMu.Lock()
 	entry, ok := templates[key]
@@ -267,7 +268,7 @@ func dropTemplate(ctx context.Context, conn *sql.DB, name string) error {
 func pruneStaleTemplates(ctx context.Context, conn *sql.DB, keep string) {
 	rows, err := conn.QueryContext(ctx, `
 		SELECT datname, COALESCE(shobj_description(oid, 'pg_database'), '')
-		FROM pg_database WHERE datname LIKE $1`, MigratedTemplatePrefix+"%")
+		FROM pg_database WHERE datname LIKE $1 AND datdba = (SELECT oid FROM pg_roles WHERE rolname = current_user)`, MigratedTemplatePrefix+"%")
 	if err != nil {
 		log.Printf("[WARNING] list migrated templates: %v", err)
 		return

@@ -2,15 +2,12 @@ package application
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
-	"github.com/jackc/pgx/v5"
 	migrate "github.com/rubenv/sql-migrate"
 
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -21,14 +18,16 @@ import (
 //
 //	-- +squashes changes-1740741698.sql
 //
-// The lines go before "-- +migrate Up"; sql-migrate itself ignores them. A
-// database that already applied every replaced migration has the baseline's
-// schema, so the migrator records the baseline as applied without running it
-// (see [MigrationManager]). The files of the replaced migrations are removed
-// from the migrations directory.
+// The lines go before "-- +migrate Up"; sql-migrate itself ignores them. The
+// files of the replaced migrations are removed from the migrations directory.
+//
+// A baseline does not upgrade databases built from the history it replaces: a
+// database whose tracking table lists any replaced id is refused with
+// [SquashedHistoryError] and has to be recreated. On a new database the
+// baseline runs like any other migration.
 const SquashDirective = "-- +squashes "
 
-const opMigrationsAdoptBaseline serrors.Op = "application.MigrationManager.adoptBaseline"
+const opMigrationsSquashedHistory serrors.Op = "application.MigrationManager.squashedHistory"
 
 // squashedBaseline is one baseline migration and the ids it replaces.
 type squashedBaseline struct {
@@ -100,133 +99,43 @@ func readSquashDirectives(path string) ([]string, error) {
 	return ids, scanner.Err()
 }
 
-// squashedIDs is the set of every id some baseline replaces. The planner
-// tolerates them in the tracking table: a database adopted by an older
-// migrator, or by hand, may still list them next to the baseline.
-func squashedIDs(baselines []squashedBaseline) map[string]struct{} {
-	ids := map[string]struct{}{}
-	for _, b := range baselines {
-		for _, id := range b.replaces {
-			ids[id] = struct{}{}
-		}
-	}
-	return ids
-}
-
-// PartialSquashedHistoryError is returned when a database applied some, but
-// not all, of the migrations a baseline replaces. Such a database has neither
-// the old schema nor the baseline's, and no migration in the directory can
-// bring it forward. Migrate it with the last release that still ships the
-// replaced migrations first, then upgrade.
-type PartialSquashedHistoryError struct {
+// SquashedHistoryError is returned for a database built from migrations a
+// baseline replaced. The release that squashed them does not upgrade such a
+// database: recreate it (a new database gets the baseline).
+type SquashedHistoryError struct {
 	Baseline string
-	Applied  int
-	Total    int
-	Missing  []string
+	// Found are the replaced ids the database lists, sorted.
+	Found []string
 }
 
-func (e *PartialSquashedHistoryError) Error() string {
-	shown := e.Missing
+func (e *SquashedHistoryError) Error() string {
+	shown := e.Found
 	more := ""
-	if len(shown) > 5 {
-		more = fmt.Sprintf(" and %d more", len(shown)-5)
-		shown = shown[:5]
+	if len(shown) > 3 {
+		more = fmt.Sprintf(" and %d more", len(shown)-3)
+		shown = shown[:3]
 	}
 	return fmt.Sprintf(
-		"database applied %d of the %d migrations squashed into %s (missing %s%s): "+
-			"migrate it up with the last release that still ships those migrations, then upgrade; "+
-			"a database that never applied any of them gets the baseline instead",
-		e.Applied, e.Total, e.Baseline, strings.Join(shown, ", "), more,
+		"database was built from migrations squashed into %s (it lists %s%s); "+
+			"this SDK release does not upgrade such databases: recreate the database",
+		e.Baseline, strings.Join(shown, ", "), more,
 	)
 }
 
-// squashAdoption is what a run writes to the tracking table for the
-// baselines: the baselines to record as applied in place of their replaced
-// ids, and leftover replaced ids to clear next to a baseline already applied.
-type squashAdoption struct {
-	adopt []squashedBaseline
-	stale []string
-}
-
-func (a squashAdoption) empty() bool { return len(a.adopt) == 0 && len(a.stale) == 0 }
-
-// planSquashAdoption decides, without writing anything, how the tracking table
-// moves onto the baselines, and applies that to applied in place:
-//
-//   - every replaced id applied: the baseline is adopted (recorded without
-//     running) and its replaced ids go;
-//   - some applied: PartialSquashedHistoryError, and applied is left untouched;
-//   - none applied: the baseline stays pending and runs like any migration;
-//   - baseline already applied with replaced ids left behind (adopted by hand
-//     or by other tooling): those ids are cleared, since after the baseline is
-//     rolled back they would make the next run adopt it instead of running it.
-//
-// Every baseline is classified before applied changes, so a refusal for one
-// leaves no adoption of another half-planned.
-func planSquashAdoption(baselines []squashedBaseline, applied map[string]struct{}) (squashAdoption, error) {
-	var plan squashAdoption
+// checkSquashedHistory refuses a database whose tracking table lists any id a
+// baseline replaced, before anything is planned or written.
+func checkSquashedHistory(baselines []squashedBaseline, applied map[string]struct{}) error {
 	for _, b := range baselines {
-		var present, missing []string
+		var found []string
 		for _, id := range b.replaces {
 			if _, ok := applied[id]; ok {
-				present = append(present, id)
-			} else {
-				missing = append(missing, id)
+				found = append(found, id)
 			}
 		}
-		if _, ok := applied[b.id]; ok {
-			plan.stale = append(plan.stale, present...)
-			continue
+		if len(found) > 0 {
+			sort.Strings(found)
+			return serrors.Wrap(opMigrationsSquashedHistory, &SquashedHistoryError{Baseline: b.id, Found: found})
 		}
-		switch {
-		case len(present) == 0:
-		case len(missing) > 0:
-			sort.Strings(missing)
-			return squashAdoption{}, serrors.Wrap(opMigrationsAdoptBaseline, &PartialSquashedHistoryError{
-				Baseline: b.id,
-				Applied:  len(present),
-				Total:    len(b.replaces),
-				Missing:  missing,
-			})
-		default:
-			plan.adopt = append(plan.adopt, b)
-		}
-	}
-	for _, id := range plan.stale {
-		delete(applied, id)
-	}
-	for _, b := range plan.adopt {
-		for _, id := range b.replaces {
-			delete(applied, id)
-		}
-		applied[b.id] = struct{}{}
-	}
-	return plan, nil
-}
-
-// writeSquashAdoption applies plan to the tracking table in one transaction.
-func writeSquashAdoption(ctx context.Context, conn *pgx.Conn, plan squashAdoption) error {
-	if plan.empty() {
-		return nil
-	}
-	err := pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
-		if len(plan.stale) > 0 {
-			if _, err := tx.Exec(ctx, `DELETE FROM `+migrationTable+` WHERE id = ANY($1)`, plan.stale); err != nil {
-				return err
-			}
-		}
-		for _, b := range plan.adopt {
-			if _, err := tx.Exec(ctx, `DELETE FROM `+migrationTable+` WHERE id = ANY($1)`, b.replaces); err != nil {
-				return err
-			}
-			if _, err := tx.Exec(ctx, `INSERT INTO `+migrationTable+` (id, applied_at) VALUES ($1, $2)`, b.id, time.Now()); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return serrors.Wrap(opMigrationsAdoptBaseline, fmt.Errorf("record squashed baselines: %w", err))
 	}
 	return nil
 }
