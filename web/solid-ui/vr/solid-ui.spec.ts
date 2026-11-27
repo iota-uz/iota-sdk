@@ -137,7 +137,11 @@ test.describe('interaction and accessibility contracts', () => {
     }
   })
 
-  test('toasts keep a light surface with dark text in both themes', async ({ page }) => {
+  test('toasts follow the theme: light surface with dark text, raised dark surface with light text', async ({ page }) => {
+    const expected = {
+      light: { background: 'oklch(1 0 0)', title: 'oklch(0.1867 0 0)' },
+      dark: { background: 'oklch(0.26 0 0)', title: 'oklch(1 0 0)' },
+    } as const
     for (const theme of ['light', 'dark'] as const) {
       await open(page, galleryCase('toasts', 'open', theme))
       const surfaces = await page.locator('[data-toast]').evaluateAll(nodes => nodes.map(node => {
@@ -147,8 +151,8 @@ test.describe('interaction and accessibility contracts', () => {
       }))
       expect(surfaces).toHaveLength(4)
       for (const surface of surfaces) {
-        expect(surface.background, `${theme} toast surface`).toBe('oklch(1 0 0)')
-        expect(surface.title, `${theme} toast title`).toBe('oklch(0.1867 0 0)')
+        expect(surface.background, `${theme} toast surface`).toBe(expected[theme].background)
+        expect(surface.title, `${theme} toast title`).toBe(expected[theme].title)
       }
     }
   })

@@ -27,7 +27,7 @@ const regionClass = [
   'max-[480px]:pt-3 max-[480px]:pl-[max(0.75rem,env(safe-area-inset-left))] max-[480px]:pr-[max(0.75rem,env(safe-area-inset-right))] max-[480px]:pb-[max(0.75rem,env(safe-area-inset-bottom))]',
 ].join(' ')
 const surfaceClass = 'flex items-start gap-3 w-full p-4 bg-toast text-toast rounded-lg shadow-lg border border-toast'
-const actionClass = 'flex-shrink-0 self-center -my-1 inline-flex items-center min-h-9 [@media(pointer:coarse)]:min-h-11 px-2 rounded-md text-sm font-semibold text-primary-500 hover:bg-primary-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 cursor-pointer'
+const actionClass = 'flex-shrink-0 self-center -my-1 inline-flex items-center min-h-9 [@media(pointer:coarse)]:min-h-11 px-2 rounded-md text-sm font-semibold text-toast-action hover:bg-primary-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 cursor-pointer'
 const closeClass = 'flex-shrink-0 rounded-md text-toast-icon hover:text-toast transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500'
 
 export function ToastRegion(props: JSX.HTMLAttributes<HTMLDivElement>) {
@@ -44,11 +44,11 @@ function Icon(props: { children: JSX.Element }) {
 }
 
 const iconColor: Record<ToastVariant, string> = {
-  success: 'text-green-500',
-  error: 'text-red-500',
-  danger: 'text-red-500',
-  warning: 'text-yellow-500',
-  info: 'text-blue-500',
+  success: 'text-toast-success',
+  error: 'text-toast-error',
+  danger: 'text-toast-error',
+  warning: 'text-toast-warning',
+  info: 'text-toast-info',
 }
 
 function ToastIcon(props: { variant: ToastVariant }) {

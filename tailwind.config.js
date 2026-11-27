@@ -57,6 +57,11 @@ module.exports = {
         toast: "oklch(var(--clr-toast-text))",
         "toast-muted": "oklch(var(--clr-toast-text-muted))",
         "toast-icon": "oklch(var(--clr-toast-icon-muted))",
+        "toast-success": "oklch(var(--clr-toast-success))",
+        "toast-error": "oklch(var(--clr-toast-error))",
+        "toast-warning": "oklch(var(--clr-toast-warning))",
+        "toast-info": "oklch(var(--clr-toast-info))",
+        "toast-action": "oklch(var(--clr-toast-action))",
         // Error text, readable on surfaces in both themes (the danger button's text shade).
         danger: "oklch(var(--clr-danger-btn-text))",
         100: "oklch(var(--clr-text-100))",
