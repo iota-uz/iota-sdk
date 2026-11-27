@@ -3,10 +3,12 @@ package backtest_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -78,7 +80,7 @@ type decide struct {
 
 func (decide) Spec() graph.NodeSpec {
 	return graph.NodeSpec{Type: "acme.decide", Title: "Decide", Behavior: graph.BehaviorCall, DryRun: graph.DryRunExecute,
-		Params: graph.MustSchemaParams(textParams), Templates: []string{"text"}, Outcomes: []string{"ok", "failed"}, FailedOutcome: "failed",
+		Params: graph.MustSchemaParams(decideParams), Templates: []string{"text", "note"}, Outcomes: []string{"ok", "failed"}, FailedOutcome: "failed",
 		Output: expr.Fields{{Name: "label", Field: expr.OptionalOf(expr.StringField)}}}
 }
 func (decide) Requires() []catalog.ConnectorKind { return nil }
@@ -88,10 +90,18 @@ func (d decide) Execute(_ context.Context, in catalog.CallInput) (catalog.CallRe
 	d.p.call(in.IdempotencyKey)
 	return catalog.CallResult{Outcome: "ok", Output: map[string]any{"label": "ok"}}, nil
 }
+
+// DecisionKey is the decision of the text; the note is not part of it (the provider ignores it). A text
+// that says nokey has no stable form.
 func (decide) DecisionKey(in catalog.CallInput) (string, bool) {
 	text, _ := in.Params["text"].(string)
+	if strings.Contains(text, "nokey") {
+		return "", false
+	}
 	return engine.DecisionKey("decide", text, "acme-1", nil)
 }
+
+const decideParams = `{"type":"object","properties":{"text":{"type":"string"},"note":{"type":"string"}},"additionalProperties":false}`
 
 // graphTwoDecisions decides twice in a row on every message.
 const graphTwoDecisions = `{"name": "Twice", "triggers": [{"id": "m", "event": "acme.message.v1"}],
@@ -117,15 +127,24 @@ func newFenceEnv(t *testing.T, p *provider, keyed, strict bool) *env {
 // datasetOfOne is a dataset of graphTwoDecisions with one example.
 func datasetOfOne(t *testing.T, e *env) backtest.DatasetID {
 	t.Helper()
+	_, ds := datasetOf(t, e, graphTwoDecisions, "hello")
+	return ds
+}
+
+// datasetOf is an automation of the graph and a dataset of it with one message.
+func datasetOf(t *testing.T, e *env, g, text string) (uuid.UUID, backtest.DatasetID) {
+	t.Helper()
 	ctx := context.Background()
 	a := e.human()
-	am, _, err := e.rt.Service().Create(ctx, a, engine.CreateInput{Graph: json.RawMessage(graphTwoDecisions)})
+	am, _, err := e.rt.Service().Create(ctx, a, engine.CreateInput{Graph: json.RawMessage(g)})
 	require.NoError(t, err)
 	ds, err := e.svc.CreateDataset(ctx, a, backtest.CreateDatasetInput{AutomationID: am.ID, Name: "d"})
 	require.NoError(t, err)
-	_, err = e.svc.AddSynthetic(ctx, a, ds, backtest.SyntheticEvent{Kind: evMessage, Payload: json.RawMessage(`{"text": "hello"}`)})
+	payload, err := json.Marshal(map[string]string{"text": text})
 	require.NoError(t, err)
-	return ds
+	_, err = e.svc.AddSynthetic(ctx, a, ds, backtest.SyntheticEvent{Kind: evMessage, Payload: payload})
+	require.NoError(t, err)
+	return am.ID, ds
 }
 
 // runLive queues a live backtest of the dataset.
@@ -249,5 +268,72 @@ func TestStrictFencingRefusesUnfencedProviders(t *testing.T) {
 	_, err = e.svc.Run(context.Background(), e.actor(2, engine.OriginAgent), backtest.RunInput{DatasetID: ds, Decisions: backtest.DecisionsCached})
 	require.NoError(t, err)
 	e.drain()
+	assert.Empty(t, p.calls())
+}
+
+// graphWithMemory is graphTwoDecisions whose d1 reads the automation's memory: in its note (which the
+// provider ignores: not part of the decision) or in its text (the prompt itself).
+func graphWithMemory(field string) string {
+	return strings.Replace(graphTwoDecisions, `"params": {"text": "{{ event.text }}"}`,
+		map[string]string{
+			"note": `"params": {"text": "{{ event.text }}", "note": "{{ state.get('tag') }}"}`,
+			"text": `"params": {"text": "{{ event.text }} {{ state.get('tag') }}"}`,
+		}[field], 1)
+}
+
+// takeOverAfterMemoryChange stalls the first worker in d1's call, changes the memory tag, and lets the
+// next worker replay the example; it returns the keys the provider got.
+func takeOverAfterMemoryChange(t *testing.T, field string) (*provider, []string) {
+	t.Helper()
+	p := newProvider(true)
+	e := newFenceEnv(t, p, true, true)
+	ctx := context.Background()
+	am, ds := datasetOf(t, e, graphWithMemory(field), "hello")
+	_, err := e.rt.Memory().Set(ctx, e.human(), am, "tag", json.RawMessage(`"a"`), 0)
+	require.NoError(t, err)
+	id, err := runLive(t, e, ds)
+	require.NoError(t, err)
+	stallMidCall(t, e, p, id, 1)
+	_, err = e.rt.Memory().Set(ctx, e.human(), am, "tag", json.RawMessage(`"b"`), 0)
+	require.NoError(t, err)
+	expire(t, e, id)
+	e.drain()
+	rep, err := e.svc.Report(ctx, e.human(), id)
+	require.NoError(t, err)
+	assert.Equal(t, backtest.StatusDone, rep.Backtest.Status, rep.Backtest.Error)
+	keys := p.calls()
+	require.Len(t, keys, 3)
+	return p, keys
+}
+
+// What changes between two holders but is not part of the request the provider gets (a note the decision
+// ignores) keeps the key: the repeat is paid once.
+func TestFencedRepeatIgnoresWhatTheRequestIgnores(t *testing.T) {
+	p, keys := takeOverAfterMemoryChange(t, "note")
+	assert.Equal(t, keys[0], keys[1])
+	assert.Equal(t, 2, p.charged())
+}
+
+// A request that changed between two holders (the prompt reads the memory) gets another key: the provider
+// answers it, not with the first answer.
+func TestFencedRepeatOfAChangedRequestIsANewCall(t *testing.T) {
+	p, keys := takeOverAfterMemoryChange(t, "text")
+	assert.NotEqual(t, keys[0], keys[1])
+	assert.Equal(t, 3, p.charged(), "two different d1 requests and one d2")
+}
+
+// Strict fencing makes no call whose request has no stable form: a key of its own would not match the
+// next holder's repeat. The backtest fails before the provider is called.
+func TestStrictFencingRefusesARequestWithoutStableForm(t *testing.T) {
+	p := newProvider(true)
+	e := newFenceEnv(t, p, true, true)
+	_, ds := datasetOf(t, e, graphTwoDecisions, "nokey")
+	id, err := runLive(t, e, ds)
+	require.NoError(t, err)
+	e.drain()
+	rep, err := e.svc.Report(context.Background(), e.human(), id)
+	require.NoError(t, err)
+	assert.Equal(t, backtest.StatusFailed, rep.Backtest.Status)
+	assert.Contains(t, rep.Backtest.Error, "stable form")
 	assert.Empty(t, p.calls())
 }

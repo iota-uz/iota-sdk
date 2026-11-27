@@ -619,11 +619,15 @@ anything out and reports what the graph would have done for each of them.
 - **Fencing paid calls (#1464).** A worker that stalls past `LeaseTTL` may still be inside a provider
   call when another worker takes the backtest. Each example's dry run carries an `engine.CallFence`:
   every real call gets the idempotency key `backtest:<backtest>:<example>:<node>:<n>:<digest>` (the n-th
-  call of the node in that example and a digest of the request it renders, params and step context; it
-  never names the lease, so the next worker repeats the same request under the same key, while a request
-  rendered differently, say after the automation's memory changed, gets another key and never the first
-  answer), and the lease is checked right before each call (`CallFence.Hold`), so a superseded worker
-  makes no call after the one in flight and keeps no result. A connector whose provider answers a repeated
+  call of the node in that example and a digest of the request it sends: the node's
+  `catalog.RequestKeyer`, else a decision's cache key `DecisionKey`, else its params and step context; it
+  never names the lease, so the next worker repeats the same request under the same key whatever else of
+  the step changed, while a request that changed, say after the automation's memory changed, gets another
+  key and never the first answer; a request with no stable form gets a key of its own, which strict
+  fencing refuses), and the lease is checked right before each call (`CallFence.Hold`), so a superseded
+  worker makes no call after the one in flight and keeps no result. The check and the call are not
+  atomic: a worker that pauses after its check passed and before the call starts still makes that one
+  call after the lease has passed; it is the call "in flight" of the bound below. A connector whose provider answers a repeated
   key with the first answer and does not charge again declares `catalog.IdempotencyKeyed`
   (`SupportsIdempotencyKey`): its repeats are paid once. **Residual risk:** the next worker replays an
   unfinished example from its trigger, so a provider that cannot deduplicate (today every decision

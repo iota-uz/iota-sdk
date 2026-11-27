@@ -182,6 +182,14 @@ type IdempotencyKeyed interface {
 	SupportsIdempotencyKey() bool
 }
 
+// RequestKeyer is an optional interface of a CallNode: the canonical form of the request a call sends
+// (what the provider receives, nothing of the step it ignores). A caller that keys repeats of a call by
+// their request (a fenced dry run) uses it, so a repeat of the same request carries the same key whatever
+// else of the step changed, and a changed request another key. ok false: the request has no stable form.
+type RequestKeyer interface {
+	RequestKey(in CallInput) (key string, ok bool)
+}
+
 // SupportsIdempotencyKey reports whether the provider of the node deduplicates a call by its
 // IdempotencyKey (IdempotencyKeyed).
 func SupportsIdempotencyKey(n CallNode) bool {

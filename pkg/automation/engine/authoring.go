@@ -98,10 +98,11 @@ type DryRunInput struct {
 // provider can deduplicate it, and bounds it where the provider cannot:
 //
 //   - every real call carries the idempotency key Scope:node:n:digest (the n-th call of the node in the
-//     dry run, and a digest of the request it renders: its params and step context), the same for every
-//     holder that renders the same request, so a provider that deduplicates by key
-//     (catalog.SupportsIdempotencyKey) makes a repeated call once; a repeat that renders a different
-//     request (the automation's memory changed in between) gets another key, never the first answer;
+//     dry run, and a digest of the request it sends: requestDigest), the same for every holder that sends
+//     the same request whatever else of the step changed, so a provider that deduplicates by key
+//     (catalog.SupportsIdempotencyKey) makes a repeated call once; a repeat that sends a different
+//     request (the automation's memory changed in between) gets another key, never the first answer; a
+//     request with no stable form gets a key of its own, and Strict refuses it (ErrUnfenced);
 //   - Hold is asked right before each real call; once it fails the dry run makes no further call and
 //     DryRun returns its error;
 //   - Strict refuses (ErrUnfenced) a real call of a node that cannot deduplicate.
@@ -110,7 +111,9 @@ type DryRunInput struct {
 // provider cannot deduplicate may be paid again for every call the superseded holder made in it (the
 // completed ones and the one in flight or past its Hold when the lease passed): at most the calls of one
 // unit (a dry run's MaxCalls) per unit the superseded holder was running. Hold only keeps the superseded
-// holder from making the calls after those.
+// holder from making the calls after those. A check followed by a call is not atomic: a holder that pauses
+// after its Hold passed and before the call starts still makes that one call once the lease has passed;
+// it counts among the calls above (it is the one "in flight").
 type CallFence interface {
 	// Scope is the stable part of the calls' idempotency keys: what identifies the unit of work (a
 	// backtest and an example), never the holder or its lease.
@@ -121,16 +124,40 @@ type CallFence interface {
 	Strict() bool
 }
 
-// fencedKey is the idempotency key of the n-th call of a node under a fence: the same request (params
-// and step context, as JSON with sorted keys) has the same key whoever renders it, a different one
-// another key. A request with no JSON form gets a key of its own (never deduplicated).
-func fencedKey(scope, node string, n int, params, stepCtx map[string]any) string {
-	digest := uuid.NewString()
-	if b, err := json.Marshal([]any{params, stepCtx}); err == nil {
-		sum := sha256.Sum256(b)
-		digest = hex.EncodeToString(sum[:12])
-	}
+// fencedKey is the idempotency key of the n-th call of a node under a fence, from the digest of the
+// request it sends (requestDigest).
+func fencedKey(scope, node string, n int, digest string) string {
 	return scope + ":" + node + ":" + strconv.Itoa(n) + ":" + digest
+}
+
+// requestDigest is the stable form of the request a call sends: the node's own canonical request
+// (catalog.RequestKeyer), else a decision's cache key (DecisionNode.DecisionKey: what shapes the answer),
+// else the params and the step context as JSON with sorted keys. ok false: the request has no stable form
+// (a value with no JSON encoding, a decision its node cannot key), so no repeat of it can be recognised.
+func requestDigest(cn catalog.CallNode, in catalog.CallInput) (string, bool) {
+	var src string
+	switch n := cn.(type) {
+	case catalog.RequestKeyer:
+		k, ok := n.RequestKey(in)
+		if !ok {
+			return "", false
+		}
+		src = "request:" + k
+	case DecisionNode:
+		k, ok := n.DecisionKey(in)
+		if !ok {
+			return "", false
+		}
+		src = "decision:" + k
+	default:
+		b, err := json.Marshal([]any{in.Params, in.Context})
+		if err != nil {
+			return "", false
+		}
+		src = "params:" + string(b)
+	}
+	sum := sha256.Sum256([]byte(src))
+	return hex.EncodeToString(sum[:12]), true
 }
 
 // DryRunResult is the trace of a dry run.
@@ -358,13 +385,13 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 			if len(effects) > 0 {
 				params, stepCtx, templated = effects[0].Params, effects[0].Context, effects[0].Templated
 			}
-			key := "dry-run:" + uuid.NewString()
+			call := 0
 			if in.Fence != nil {
 				calls[node.ID]++
-				key = fencedKey(in.Fence.Scope(), node.ID, calls[node.ID], params, stepCtx)
+				call = calls[node.ID]
 			}
 			res := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params, context: stepCtx, templated: templated,
-				subject: normSubject(in.Subject), key: key, decisions: mode, budget: budget, realCalls: in.RealCalls, fence: in.Fence})
+				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode, budget: budget, realCalls: in.RealCalls, fence: in.Fence, fenceCall: call})
 			if res.stop != nil {
 				stopped = res.stop
 				return graph.ExecAnswer{Code: CodeCancelled, Message: "the dry run stopped"}
@@ -882,8 +909,10 @@ type directCall struct {
 	budget *callBudget
 	// realCalls narrows the nodes called for real (DryRunInput.RealCalls).
 	realCalls string
-	// fence, when set, is asked before the real call (DryRunInput.Fence).
-	fence CallFence
+	// fence, when set, is asked before the real call (DryRunInput.Fence); fenceCall numbers the node's
+	// calls under it (the n of its key).
+	fence     CallFence
+	fenceCall int
 }
 
 // callBudget is how many real calls a dry run may still make.
@@ -1012,6 +1041,15 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 		if c.fence.Strict() && !catalog.SupportsIdempotencyKey(cn) {
 			return directResult{stop: fmt.Errorf("%w: the provider of %s cannot deduplicate a repeated call, so a strict backtest does not call it", ErrUnfenced, c.node.Type)}
 		}
+		digest, ok := requestDigest(cn, in)
+		if !ok {
+			if c.fence.Strict() {
+				// A key of its own would not match the next holder's repeat: strict makes no such call.
+				return directResult{stop: fmt.Errorf("%w: the request of %s has no stable form to key its repeats by, so a strict backtest does not call it", ErrUnfenced, c.node.ID)}
+			}
+			digest = uuid.NewString() // never deduplicated: the residual risk of CallFence
+		}
+		in.IdempotencyKey = fencedKey(c.fence.Scope(), c.node.ID, c.fenceCall, digest)
 		// The last check before the call: a holder that lost the work makes no further call. The call
 		// itself may still outlive the lease; its key lets the next holder's repeat be made once.
 		if err := c.fence.Hold(ctx); err != nil {
