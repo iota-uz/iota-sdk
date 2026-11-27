@@ -648,11 +648,12 @@ function EditorBody(props: EditorProps): JSX.Element {
       void save()
       return
     }
-    // ⌘K adds a step, also from a field of the panel; read only, it stays the page's (global search).
+    // ⌘K adds a step; read only, it stays the page's (global search). In a field it does nothing (K6), and
+    // over an open layer it opens nothing more: the editor's claim keeps the page's search from opening too.
     if (mod && key === 'k' && !event.shiftKey && !event.altKey) {
       if (readOnly()) return
       event.preventDefault()
-      if (!layerOpen()) setPalette({ kind: 'add' })
+      if (!layerOpen() && !isEditableTarget(event.target)) setPalette({ kind: 'add' })
       return
     }
     if (isEditableTarget(event.target) || layerOpen()) return

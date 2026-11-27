@@ -24,6 +24,24 @@ export function catalogNode(catalog: EditorCatalog, type: string): CatalogNode |
   return catalog.nodes.find((n) => n.type === type)
 }
 
+/** The type a node of a front type names (`action` with `{action: "core.user.block"}` → `action.core.user.block`). */
+export function dispatchedType(spec: CatalogNode | undefined, params: Record<string, unknown>): string | null {
+  const rule = spec?.dispatch
+  if (!rule) return null
+  const key = params[rule.param]
+  return typeof key === 'string' && key.trim() ? rule.prefix + key.trim() : null
+}
+
+/**
+ * The spec a node behaves as: its own, or for a front type the spec of the type it names (outcomes,
+ * output, title, form). A saved node keeps its own type and params; only how it is shown follows.
+ */
+export function nodeSpec(catalog: EditorCatalog, node: Pick<GraphNode, 'type' | 'params'>): CatalogNode | undefined {
+  const own = catalogNode(catalog, node.type)
+  const target = dispatchedType(own, node.params)
+  return (target ? catalogNode(catalog, target) : undefined) ?? own
+}
+
 export function catalogEvent(catalog: EditorCatalog, key: string): CatalogEvent | undefined {
   return catalog.events.find((e) => e.key === key)
 }
@@ -72,7 +90,7 @@ export function itemOutcomes(graph: AutomationGraph, catalog: EditorCatalog, id:
   const ref = findItem(graph, id)
   if (!ref) return []
   if (ref.kind === 'trigger') return [FIRED]
-  const outcomes = nodeOutcomes(ref.item, catalogNode(catalog, ref.item.type))
+  const outcomes = nodeOutcomes(ref.item, nodeSpec(catalog, ref.item))
   for (const edge of graph.edges) {
     if (edge.from.node === id && !outcomes.includes(edge.from.outcome)) outcomes.push(edge.from.outcome)
   }

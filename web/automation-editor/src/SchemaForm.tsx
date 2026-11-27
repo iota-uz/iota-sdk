@@ -478,7 +478,22 @@ function DurationField(props: { ctx: Ctx; id: string; label: JSX.Element; value:
 function EnumField(props: { ctx: Ctx; id: string; label: JSX.Element; schema: JsonSchema; value: unknown; onChange(v: unknown): void; readOnly: boolean }) {
   const values = () => (props.schema.enum as unknown[]).filter((v) => v !== null)
   const names = () => (Array.isArray(props.schema['x-enum-titles']) ? (props.schema['x-enum-titles'] as string[]) : [])
-  const labelOf = (v: unknown, i: number) => names()[i] ?? (v === '' ? '—' : String(v))
+  // `x-ref: "event"`: the values are event keys; they read as the catalog's titles, grouped by module.
+  const events = () => (props.schema['x-ref'] === 'event' ? new Map((props.ctx.props.events ?? []).map((e) => [e.key, e])) : null)
+  const labelOf = (v: unknown, i: number) => names()[i] ?? (typeof v === 'string' ? events()?.get(v)?.title : undefined) ?? (v === '' ? '—' : String(v))
+  const options = () => {
+    const known = events()
+    const plain = values().map((v, i) => ({ value: String(i), label: labelOf(v, i) }))
+    if (!known) return plain
+    const groups = new Map<string, typeof plain>()
+    values().forEach((v, i) => {
+      const group = (typeof v === 'string' && known.get(v)?.group) || ''
+      const list = groups.get(group) ?? []
+      list.push(plain[i]!)
+      groups.set(group, list)
+    })
+    return [...groups].flatMap(([group, list]) => (group ? [{ value: `group:${group}`, label: group, groupHeader: true }, ...list] : list))
+  }
   const index = () => values().findIndex((v) => JSON.stringify(v) === JSON.stringify(props.value))
   return (
     <>
@@ -495,7 +510,7 @@ function EnumField(props: { ctx: Ctx; id: string; label: JSX.Element; schema: Js
         <Combobox
           id={props.id} aria-labelledby={`${props.id}-label`} searchable readOnly={props.readOnly} placeholder={props.ctx.s().choose}
           labels={{ notFound: props.ctx.s().notFound }}
-          options={values().map((v, i) => ({ value: String(i), label: labelOf(v, i) }))}
+          options={options()}
           value={index() >= 0 ? String(index()) : ''}
           onValueChange={(v) => { const i = Number(Array.isArray(v) ? v[0] : v); if (Number.isInteger(i) && values()[i] !== undefined) props.onChange(values()[i]) }}
         />

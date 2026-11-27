@@ -12,7 +12,7 @@ import { EditorSkeleton } from '../src/lazy'
 import { resetMotionCache } from '../src/motion'
 import { ensureLayout, tidyLayout } from '../src/layout'
 import type { AutomationGraph, AutomationLayout, EditorApi, EditorLocale, GraphError, Overlay, RunData, RunsView, RunState, SaveResult } from '../src/types'
-import { catalog as fullCatalog, emptyCatalog, notifyCatalog } from './catalog'
+import { actionsCatalog, catalog as fullCatalog, emptyCatalog, notifyCatalog } from './catalog'
 import { bench, connected, empty, notifyGraph, sample } from './graphs'
 import { foreachJoin, layoutCatalog, multiTrigger } from './layoutGraphs'
 import { approval, approvalWaiting, sampleRuns, sampleV2, toSummary } from './runs'
@@ -28,7 +28,7 @@ if (params.get('theme') === 'dark') document.documentElement.classList.add('dark
 document.documentElement.lang = locale
 
 const layoutGraph = params.get('graph') === 'multi' || params.get('graph') === 'foreach' || params.get('graph') === 'approval'
-const catalog = params.get('catalog') === 'empty' ? emptyCatalog : params.get('catalog') === 'notify' ? notifyCatalog : layoutGraph ? layoutCatalog : fullCatalog
+const catalog = params.get('catalog') === 'empty' ? emptyCatalog : params.get('catalog') === 'notify' ? notifyCatalog : params.get('catalog') === 'actions' ? actionsCatalog : layoutGraph ? layoutCatalog : fullCatalog
 const pick = (): { graph: AutomationGraph; layout: AutomationLayout } => {
   switch (params.get('graph')) {
     case 'bench': return bench()

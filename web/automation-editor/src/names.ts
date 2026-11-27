@@ -1,7 +1,7 @@
 // One function names every item by meaning (C3), shared by the canvas, the outline, the panel and
 // the palette: a trigger is "Every day at 20:00" or the event's title, a step is its catalog title.
 import { describeSchedule, nextRuns } from './cron'
-import { catalogEvent, catalogNode, findItem } from './graph'
+import { catalogEvent, findItem, nodeSpec } from './graph'
 import { intlLocale } from './locale'
 import type { AutomationGraph, EditorCatalog, EditorLocale } from './types'
 
@@ -55,7 +55,7 @@ export function describeItem(graph: AutomationGraph, catalog: EditorCatalog, id:
       group: event?.group,
     }
   }
-  const spec = catalogNode(catalog, ref.item.type)
+  const spec = nodeSpec(catalog, ref.item)
   if (!spec) return { title: ref.item.type, subtitle: ref.item.id, kind: 'node' }
   const summaryParam = spec.expressions[0]?.param ?? spec.templates[0]
   const summary = summaryParam ? ref.item.params[summaryParam] : undefined

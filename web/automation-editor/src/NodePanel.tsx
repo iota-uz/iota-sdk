@@ -3,7 +3,7 @@
 import { Combobox, CopyButton, type ComboboxOption } from '@iota-uz/sdk/solid-ui'
 import { createMemo, createSignal, For, Match, Show, Switch, type JSX } from 'solid-js'
 import { contextPaths, outputPaths, schemaPaths, type CompletionPath } from './completion'
-import { catalogEvent, catalogNode, findItem, updateNode, updateTrigger } from './graph'
+import { catalogEvent, catalogNode, findItem, nodeSpec, updateNode, updateTrigger } from './graph'
 import { Icon } from './icons'
 import { describeItem } from './names'
 import { ScheduleEditor } from './ScheduleEditor'
@@ -66,7 +66,7 @@ export function NodePanel(props: NodePanelProps): JSX.Element {
   const outputList = createMemo<CompletionPath[]>(() => {
     const r = ref()
     if (!r) return []
-    if (r.kind === 'node') return outputPaths(props.id, catalogNode(props.catalog, r.item.type)?.output ?? null)
+    if (r.kind === 'node') return outputPaths(props.id, nodeSpec(props.catalog, r.item)?.output ?? null)
     return schemaPaths('event', catalogEvent(props.catalog, r.item.event)?.payload ?? null, 'trigger')
   })
 
@@ -115,17 +115,81 @@ export function NodePanel(props: NodePanelProps): JSX.Element {
             <Match when={ref()?.kind === 'node' && ref()}>
               {(r) => {
                 const node = () => r().item as AutomationGraph['nodes'][number]
-                const spec = () => catalogNode(props.catalog, node().type)
+                const own = () => catalogNode(props.catalog, node().type)
+                // A front type (the generic "action"): a picker over the types it can name, then the named
+                // type's own form. The node keeps its type and `{action, args}`.
+                const front = () => own()?.dispatch
+                const picked = () => {
+                  const rule = front()
+                  const key = rule ? node().params[rule.param] : undefined
+                  return typeof key === 'string' ? key : ''
+                }
+                const target = () => (front() ? (picked() ? catalogNode(props.catalog, front()!.prefix + picked()) : undefined) : own())
+                const actionOptions = createMemo<ComboboxOption[]>(() => {
+                  const rule = front()
+                  if (!rule) return []
+                  const groups = new Map<string, ComboboxOption[]>()
+                  for (const n of props.catalog.nodes) {
+                    if (n === own() || !n.type.startsWith(rule.prefix)) continue
+                    const key = n.type.slice(rule.prefix.length)
+                    const list = groups.get(n.group) ?? []
+                    list.push({ value: key, label: `${n.title} · ${key}`, disabled: n.connected === false })
+                    groups.set(n.group, list)
+                  }
+                  const out: ComboboxOption[] = []
+                  for (const [group, options] of groups) out.push({ value: `group:${group}`, label: group, groupHeader: true }, ...options)
+                  return out
+                })
+                const pick = (key: string) => {
+                  const rule = front()
+                  if (!rule || !key || key === picked()) return
+                  // Args the new action also takes are kept; the others go.
+                  const next = catalogNode(props.catalog, rule.prefix + key)
+                  const argsSchema = (next?.params.properties as Record<string, JsonSchema> | undefined)?.args
+                  const known = new Set(Object.keys((argsSchema?.properties as Record<string, unknown> | undefined) ?? {}))
+                  const old = (node().params.args ?? {}) as Record<string, unknown>
+                  const args = Object.fromEntries(Object.entries(old).filter(([name]) => known.has(name)))
+                  props.onChange(updateNode(props.graph, props.id, { ...node().params, [rule.param]: key, args }), `${rule.param}:${props.id}`)
+                }
+                const spec = () => target() ?? (front() ? undefined : own())
                 return (
-                  <Show when={spec()} fallback={<p class="ae-panel__note" role="alert">{t().panel.unknownType(node().type)}</p>}>
+                  <div class="ae-panel__stack">
+                  <Show when={front()}>
+                    {(rule) => (
+                      <div class="ae-field" data-param={rule().param}>
+                        <Combobox
+                          label={t().panel.action}
+                          options={actionOptions()}
+                          value={picked() || undefined}
+                          searchable
+                          readOnly={props.readOnly}
+                          placeholder={t().panel.actionPlaceholder}
+                          labels={{ notFound: t().palette.nothing('') }}
+                          onValueChange={(value) => pick(Array.isArray(value) ? value[0] ?? '' : value)}
+                        />
+                        <Show when={picked() && !target()}>
+                          <p class="ae-panel__note" role="alert">{t().panel.actionMissing(picked())}</p>
+                        </Show>
+                        <Show when={!picked()}>
+                          <p class="ae-panel__note">{t().panel.actionPick}</p>
+                        </Show>
+                      </div>
+                    )}
+                  </Show>
+                  <Show when={spec()} fallback={<Show when={!front()}><p class="ae-panel__note" role="alert">{t().panel.unknownType(node().type)}</p></Show>}>
                     {(s) => (
                       <SchemaForm
                         schema={s().params}
                         value={node().params}
-                        onChange={(params) => props.onChange(updateNode(props.graph, props.id, params), `params:${props.id}`)}
+                        onChange={(params) => {
+                          const rule = front()
+                          // The named type's form has no `action` field: the picked key stays on the node.
+                          const next = rule ? { ...params, [rule.param]: picked() } : params
+                          props.onChange(updateNode(props.graph, props.id, next), `params:${props.id}`)
+                        }}
                         readOnly={props.readOnly}
                         locale={props.locale}
-                        nodeType={node().type}
+                        nodeType={s().type}
                         nodeId={props.id}
                         graph={props.graph}
                         events={props.catalog.events}
@@ -139,6 +203,7 @@ export function NodePanel(props: NodePanelProps): JSX.Element {
                       />
                     )}
                   </Show>
+                  </div>
                 )
               }}
             </Match>

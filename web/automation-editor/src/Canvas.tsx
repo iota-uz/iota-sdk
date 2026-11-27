@@ -4,7 +4,7 @@
 import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, untrack, type Accessor, type JSX } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { cardGeometry, GRID, HANDLE_SIZE, normalizeRect, OUTCOME_ROW_Y, rectsOverlap, snap, TARGET_HANDLE, type CardGeometry, type Rect } from './geometry'
-import { connect, disconnect, edgeKey, FIRED, findItem, IGNORE, nodeOutcomes, parentOf, pathOf, removeItems } from './graph'
+import { connect, disconnect, dispatchedType, edgeKey, FIRED, findItem, IGNORE, nodeOutcomes, parentOf, pathOf, removeItems } from './graph'
 import { Icon } from './icons'
 import { backEdges, ensureLayout, unmarked } from './layout'
 import { isMac } from './locale'
@@ -261,7 +261,11 @@ export function Canvas(props: CanvasProps): JSX.Element {
       map.set(id, { id, kind, type, outs, state: states?.get(id), error: errors.get(id), warning: warnings.get(id) })
     }
     for (const trigger of graph.triggers) add(trigger.id, 'trigger', trigger.event, [FIRED])
-    for (const node of graph.nodes) add(node.id, 'node', node.type, nodeOutcomes(node, specs.get(node.type)))
+    for (const node of graph.nodes) {
+      const own = specs.get(node.type)
+      const target = dispatchedType(own, node.params)
+      add(node.id, 'node', node.type, nodeOutcomes(node, (target ? specs.get(target) : undefined) ?? own))
+    }
     return map
   })
 

@@ -401,6 +401,9 @@
 .ae-palette__title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ae-palette__search { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid oklch(var(--clr-border-subtle)); color: oklch(var(--clr-text-300)); }
 .ae-palette__search input { flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: none; color: oklch(var(--clr-text-100)); font: inherit; min-height: 32px; }
+/* The palette is the focused layer: its search field needs no ring of its own (one ring, K2). */
+.ae-editor .ae-palette__search input:focus-visible { outline: none; }
+.ae-palette__search input::-webkit-search-cancel-button { display: none; }
 .ae-palette__count { font-size: 0.75rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ae-palette__list { overflow-y: auto; padding: 0.25rem; overscroll-behavior: contain; }
 .ae-palette__group { padding: 0.625rem 0.5rem 0.25rem; font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: oklch(var(--clr-text-200)); }

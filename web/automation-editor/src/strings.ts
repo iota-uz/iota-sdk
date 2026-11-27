@@ -96,6 +96,10 @@ export type Strings = {
     copied: string
     event: string
     eventPlaceholder: string
+    action: string
+    actionPlaceholder: string
+    actionMissing(key: string): string
+    actionPick: string
     filter: string
     filterHint: string
     params: string
@@ -272,6 +276,10 @@ const en: Strings = {
     copied: 'Copied',
     event: 'Event',
     eventPlaceholder: 'Choose an event',
+    action: 'Action',
+    actionPlaceholder: 'Choose an action',
+    actionMissing: (key) => `The action “${key}” is not available: its module may be off or you lack the permission.`,
+    actionPick: 'Choose the action this step runs; its fields appear here.',
     filter: 'Filter',
     filterHint: 'CEL condition on the event; empty means every event',
     params: 'Parameters',
@@ -469,6 +477,10 @@ const ru: Strings = {
     copied: 'Скопировано',
     event: 'Событие',
     eventPlaceholder: 'Выберите событие',
+    action: 'Действие',
+    actionPlaceholder: 'Выберите действие',
+    actionMissing: (key) => `Действие «${key}» недоступно: возможно, модуль выключен или нет прав.`,
+    actionPick: 'Выберите действие, которое выполняет шаг; его поля появятся здесь.',
     filter: 'Фильтр',
     filterHint: 'Условие CEL на событие; пусто — каждое событие',
     params: 'Параметры',
@@ -666,6 +678,10 @@ const uz: Strings = {
     copied: 'Nusxa olindi',
     event: 'Hodisa',
     eventPlaceholder: 'Hodisani tanlang',
+    action: 'Amal',
+    actionPlaceholder: 'Amalni tanlang',
+    actionMissing: (key) => `«${key}» amali mavjud emas: modul oʻchirilgan yoki ruxsat yoʻq boʻlishi mumkin.`,
+    actionPick: 'Qadam bajaradigan amalni tanlang; uning maydonlari shu yerda chiqadi.',
     filter: 'Filtr',
     filterHint: 'Hodisa uchun CEL sharti; boʻsh — har bir hodisa',
     params: 'Parametrlar',
@@ -863,6 +879,10 @@ const uzCyrl: Strings = {
     copied: 'Нусха олинди',
     event: 'Ҳодиса',
     eventPlaceholder: 'Ҳодисани танланг',
+    action: 'Амал',
+    actionPlaceholder: 'Амални танланг',
+    actionMissing: (key) => `«${key}» амали мавжуд эмас: модул ўчирилган ёки рухсат йўқ бўлиши мумкин.`,
+    actionPick: 'Қадам бажарадиган амални танланг; унинг майдонлари шу ерда чиқади.',
     filter: 'Филтр',
     filterHint: 'Ҳодиса учун CEL шарти; бўш — ҳар бир ҳодиса',
     params: 'Параметрлар',

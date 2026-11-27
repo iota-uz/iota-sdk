@@ -136,3 +136,30 @@ export const notifyCatalog: EditorCatalog = {
   ],
   nodes: [...catalog.nodes, notifyNode],
 }
+
+// Registered actions (?catalog=actions): each is its own node type `action.<key>` grouped by its module,
+// and the generic front type `action` names one by its `action` param.
+const actionNode = (key: string, title: string, group: string, args: Record<string, unknown>, templates: string[], values: string[]): CatalogNode => ({
+  type: `action.${key}`, title, description: `${title} (${key})`, group, behavior: 'call',
+  params: {
+    type: 'object', required: ['args'], additionalProperties: false,
+    properties: { args: { type: 'object', additionalProperties: false, required: Object.keys(args).sort(), properties: args } },
+  },
+  outcomes: ['done', 'failed'], outcome_rule: { fixed: ['done', 'failed'] },
+  expressions: values.map((param) => ({ param, type: 'dyn' as const })), templates,
+  output: { type: 'object', properties: { user_id: { type: 'integer' } } }, connected: true, idempotent: false, dry_run: 'capture',
+})
+const cel = { type: 'string', minLength: 1, maxLength: 8000, description: 'CEL' }
+const tpl = { type: 'string', minLength: 1, maxLength: 8000, description: '{{ }} template' }
+export const actionNodes: CatalogNode[] = [
+  {
+    type: 'action', title: 'Action', description: 'Runs a registered action by its key.', group: 'Other', behavior: 'call',
+    params: { type: 'object', required: ['action'], additionalProperties: false, properties: { action: { type: 'string', pattern: '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$' }, args: { type: 'object' } } },
+    outcomes: ['failed'], outcome_rule: { fixed: ['failed'] }, expressions: [], templates: [], output: null, connected: true,
+    dispatch: { param: 'action', prefix: 'action.' },
+  },
+  actionNode('core.user.block', 'Block user', 'Users and organization', { reason: tpl, user_id: cel }, ['args.reason'], ['args.user_id']),
+  actionNode('core.user.unblock', 'Unblock user', 'Users and organization', { user_id: cel }, [], ['args.user_id']),
+  actionNode('crm.chat.send_message', 'Send chat message', 'CRM', { chat_id: cel, text: tpl }, ['args.text'], ['args.chat_id']),
+]
+export const actionsCatalog: EditorCatalog = { ...catalog, nodes: [...catalog.nodes, ...actionNodes] }
