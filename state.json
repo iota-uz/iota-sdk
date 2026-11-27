@@ -504,10 +504,10 @@
   ],
   "candidate": {
     "version": "0.56.0",
-    "source": "00957dc9d564c54ba04d8e128a410fedf01b891f",
-    "sha": "5c18191038f177cf822dda9a8c2e157929954a4f",
-    "phase": "failed",
-    "run_id": "45809905150"
+    "source": "7fef0b79f8432d5ccc0d762d83d6409bb30b1ede",
+    "sha": "8d5c7ead705427e925264cf749d74581df02d856",
+    "phase": "testing",
+    "run_id": "45955899771"
   },
   "ready": {
     "version": "0.55.1",
