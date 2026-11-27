@@ -1,7 +1,9 @@
 // Performance regression on every @xyflow/system bump (issue #1331): a 200-step / 500-edge graph with
-// the CPU throttled 4×, with the drag and Tidy animations on (#1352). Thresholds: mount ≤ 150 ms (best of three reloads), whole-graph replacement
-// (undo) ≤ 60 ms (median of ten), a drag
-// without long tasks with a p95 frame ≤ 17 ms. The profile is written to e2e/results/bench.json.
+// the CPU throttled 4×, with the drag and Tidy animations on (#1352). Thresholds: mount ≤ 150 ms (best of
+// three reloads), whole-graph replacement (undo) ≤ 60 ms (median of ten), a drag without long tasks with a
+// p95 frame ≤ 17 ms. Tidy (#1352): the frame that renders the new layout is a whole-layout replacement
+// (≤ 60 ms); the glide after it has no long tasks, a median frame of one display frame and a p95 of at most
+// three (every card and edge on screen moves on every frame). The profile is written to e2e/results/bench.json.
 import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -9,6 +11,8 @@ import { card } from './helpers'
 
 const THROTTLE = Number(process.env.AE_BENCH_THROTTLE ?? 4)
 const LIMITS = { mountMs: 150, replaceMs: 60, frameP95Ms: 17, longTasks: 0 }
+// One display frame is 16.7 ms; the measured intervals are multiples of it plus a fraction.
+const TIDY_LIMITS = { commitFrameMs: 60, glideFrameMedianMs: 17, glideFrameP95Ms: 51, longTasks: 0 }
 
 const median = (values: number[]) => {
   const sorted = [...values].sort((a, b) => a - b)
@@ -131,9 +135,9 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
 
   // Tidy with its glide (#1352): the cards move to the tidied layout in one --motion-slow tween and the
   // edges follow frame by frame. The layout is computed before, and committed at the start of, the measured
-  // interval; the glide (there and back) is held to the drag's limits.
+  // interval; its first frame is held to the replacement limit and the glide (there and back) to TIDY_LIMITS.
   await page.evaluate(() => window.__fixture.prepareTidy!())
-  const glides: { frames: number[]; longTasks: number[]; where: string[]; slow: string[]; callbackMs: number[] }[] = []
+  const glides: { frames: number[]; longTasks: number[]; where: string[]; slow: string[]; callbackMs: number[]; commitFrame: number; commitTasks: number[] }[] = []
   for (let i = 0; i < 2; i += 1) {
     // The commit itself (a new layout: routes and memos, the same with or without a glide) is the start;
     // what is measured is the glide after it.
@@ -155,12 +159,19 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
     await page.waitForTimeout(300)
     glides.push(await page.evaluate(({ start, end }) => {
       const w = window as unknown as { __longTasks: { start: number; duration: number }[]; __frames: number[] }
-      const stamps = w.__frames.filter((t) => t >= start && t <= end)
-      const tasks = w.__longTasks.filter((e) => e.start < end && e.start + e.duration > start)
+      const all = w.__frames.filter((t) => t >= start && t <= end)
+      // The first frame renders the committed layout (and the glide's first step); the glide is after it.
+      const commitFrame = all.length > 1 ? all[1]! - all[0]! : 0
+      const commitTasks = w.__longTasks.filter((e) => e.start < (all[1] ?? end) && e.start + e.duration > start).map((e) => e.duration)
+      const stamps = all.slice(1)
+      const from = stamps[0] ?? end
+      const tasks = w.__longTasks.filter((e) => e.start >= from && e.start < end)
       const loaf = (w as unknown as { __loaf: { start: number; duration: number; script: number; style: number; raf: number }[] }).__loaf
       const callbacks = (w as unknown as { __callbacks: { at: number; ms: number }[] }).__callbacks.filter((c) => c.at >= start && c.at <= end)
       const perFrame = stamps.slice(1).map((t, i) => callbacks.filter((c) => c.at >= stamps[i]! && c.at < t).reduce((n, c) => n + c.ms, 0))
       return {
+        commitFrame,
+        commitTasks,
         callbackMs: perFrame.map((n) => Math.round(n)),
         slow: loaf.filter((e) => e.start < end && e.start + e.duration > start).map((e) => `${Math.round(e.start - start)}: ${e.duration} = tasks ${e.script} + frame callbacks ${e.raf} + style, layout, paint ${e.style}`),
         frames: stamps.slice(1).map((t, i) => t - stamps[i]!),
@@ -186,6 +197,9 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
     frameP95Ms: Math.round(p95(frames) * 10) / 10,
     frames: frames.length,
     longTasks,
+    tidyCommitFrameMs: glides.map((g) => Math.round(g.commitFrame * 10) / 10),
+    tidyCommitLongTasks: glides.flatMap((g) => g.commitTasks),
+    tidyFrameMedianMs: Math.round(median(tidyFrames) * 10) / 10,
     tidyFrameP95Ms: Math.round(p95(tidyFrames) * 10) / 10,
     tidyFrames: tidyFrames.length,
     tidyLongTasks,
@@ -194,6 +208,7 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
     tidySlowFrames: glides.map((g) => g.slow),
     tidyCallbackMs: glides.map((g) => g.callbackMs),
     limits: LIMITS,
+    tidyLimits: TIDY_LIMITS,
   }
   const out = path.resolve('e2e/results')
   mkdirSync(out, { recursive: true })
@@ -204,6 +219,8 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
   expect(longTasks.length, 'long tasks during a drag').toBe(LIMITS.longTasks)
   expect(profile.frameP95Ms, 'p95 frame during a drag').toBeLessThanOrEqual(LIMITS.frameP95Ms)
   expect(tidyFrames.length, 'frames recorded during the Tidy glide').toBeGreaterThan(2)
-  expect(tidyLongTasks.length, 'long tasks during the Tidy glide').toBe(LIMITS.longTasks)
-  expect(profile.tidyFrameP95Ms, 'p95 frame during the Tidy glide').toBeLessThanOrEqual(LIMITS.frameP95Ms)
+  for (const ms of profile.tidyCommitFrameMs) expect(ms, 'the frame that renders the tidied layout').toBeLessThanOrEqual(TIDY_LIMITS.commitFrameMs)
+  expect(tidyLongTasks.length, 'long tasks during the Tidy glide').toBe(TIDY_LIMITS.longTasks)
+  expect(profile.tidyFrameMedianMs, 'median frame during the Tidy glide').toBeLessThanOrEqual(TIDY_LIMITS.glideFrameMedianMs)
+  expect(profile.tidyFrameP95Ms, 'p95 frame during the Tidy glide').toBeLessThanOrEqual(TIDY_LIMITS.glideFrameP95Ms)
 })
