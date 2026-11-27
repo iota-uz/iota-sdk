@@ -1,5 +1,5 @@
 {
-  "hash": "ae5b199c04b41c3062fbe8505ed3501789b18e03a005eace8fdf87ccd6885cfa",
+  "hash": "e2e7e44b7bde13e4f4cc50ccd98d57823f6b7e51cda985b35981f53c3a251fd8",
   "source": {
     "kind": "catalog",
     "files": [
@@ -7,25 +7,55 @@
     ]
   },
   "modules": [
+    "@iota-kit/automation",
+    "@iota-kit/billing",
     "@iota-kit/core",
     "@iota-kit/crm",
-    "@iota-kit/hrm"
+    "@iota-kit/finance",
+    "@iota-kit/hrm",
+    "@iota-kit/projects",
+    "@iota-kit/warehouse"
   ],
   "files": {
+    "@iota-kit/automation": {
+      "index.js": "70e2343d0be3dbfd652f6dcfc75c247916bbfbce49bafe86faefaaf9dc3629da",
+      "index.d.ts": "a149cca21725f51de4cb0e03ac86ce7c1d384f1e90e1025727d30b8c334d6021",
+      "package.json": "20e0d85ce1096273c2a787e5d7298e11d73c2254a4f837e13c9bbee32740ff60"
+    },
+    "@iota-kit/billing": {
+      "index.js": "312e64bb43600b8d84b01baad45bb3f51be4163b4f8085e1bba16e0c0e67ae0c",
+      "index.d.ts": "97f7d1b9466eb9857b866a05eea3b90bbc8dc4a1b6794fab7a582a1b00b097ec",
+      "package.json": "7fbdfb7ea1dba1779f028f185cfcc5042a77650a45536a275efb17750576fe9f"
+    },
     "@iota-kit/core": {
-      "index.js": "b8ad1ba835083d3584ea447978c4adca851563190b068c6f3b06f6deb682c491",
-      "index.d.ts": "3bbb96a7422a2e6e6bdc67c82f0581d6d8d558e5b6a9d207f2aeff0b499113df",
-      "package.json": "30602018e496aa23cb27359588d07af765042bc8a8facff24df777306cfdf9e2"
+      "index.js": "576bf33eb82333414ff2e1fac3f282ed4e8e6c141edd476b0de937c6690b0657",
+      "index.d.ts": "8304607fe54cacf9b3d850d07fe67b7f247746f35b80141a6414d794d6d2085a",
+      "package.json": "dbf75360b655dff58e0d772ef65c20383c7e1c5d7b14df6d53b447ff4d7e0d8c"
     },
     "@iota-kit/crm": {
-      "index.js": "7ce39dcebae5a6d4a260a80c6143b3138111aeeafca05a861dbbd37b7be7f4dd",
-      "index.d.ts": "69defbf3d413f5c6eadc42085eb78e50c9c9d4b1a4cd8acb2fc8913abca86247",
-      "package.json": "e3372b1593575f064f735678fe790d493a953223e4a899942c327c49f42d7e19"
+      "index.js": "54a89fe59047c4b2f39d660202f799444b89d884bbba152f5a0e98cea5caea41",
+      "index.d.ts": "5cc892c54714468c90b5f9b485dad035b87c8d194f2a78b7d18e4d06416d02c1",
+      "package.json": "1081180f238a8359345d5cd9737033bb1e6e14a0cb418cbcffb811d9645da12c"
+    },
+    "@iota-kit/finance": {
+      "index.js": "b16c6c618a07725e2c015a5b35f302189073ec6bb0b491267bcb5fc0858c00e1",
+      "index.d.ts": "25ef4c9ae403bf8f95185d8ed06069e77d238715c8e0abceef3ecb6db34e2c31",
+      "package.json": "0b816f69808a893f1c340672323f84d712ef613279eada6956f5139b7db4f4b1"
     },
     "@iota-kit/hrm": {
       "index.js": "c7f78e170faa93516b616f712ccf5bf0a2eb8013e5f8dcf57bb8e283592138f8",
       "index.d.ts": "29a776f53ec5999e0966370475ee8f102dd241d8b2d4e95544819cc0c47a7f61",
-      "package.json": "50f7d6d29eaaa1de041952910f46acc503fa1a152d4ce72e15daf3be2d274340"
+      "package.json": "a18a927577004ff59ad3724daae9e0ac526949fa4f4b772aca76a1e586f365d7"
+    },
+    "@iota-kit/projects": {
+      "index.js": "9a5276e59eb52498a81657595a2fe561d17a4853d828fee8d3bf5696d3ec5aa2",
+      "index.d.ts": "8d23232b1b77373cb0daea6a597c9665c44629944bc0afcae74d46e108d43815",
+      "package.json": "7844ba8bac5455d04be9c0d2c415ba442b62b625e0f690d98048a29bdb49e843"
+    },
+    "@iota-kit/warehouse": {
+      "index.js": "45fc0cfe45f6ebbeb0b81b57bf2f47f8eb81deb20f824c175821a0b0c040fb19",
+      "index.d.ts": "65017aaa76c74970ff91663c24a928a87b075978aebb22fdaba9a1bcc8fe2f04",
+      "package.json": "8799ce5a832d7e46b99123119be956576ca670ef51965885c222410f58f29988"
     }
   }
 }

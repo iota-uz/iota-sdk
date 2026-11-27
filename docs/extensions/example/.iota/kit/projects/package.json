@@ -1,0 +1,20 @@
+{
+  "name": "@iota-kit/projects",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    }
+  },
+  "iota": {
+    "kit": {
+      "namespace": "projects",
+      "hash": "e2e7e44b7bde13e4f4cc50ccd98d57823f6b7e51cda985b35981f53c3a251fd8"
+    }
+  }
+}
