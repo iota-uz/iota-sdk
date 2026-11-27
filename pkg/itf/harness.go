@@ -529,8 +529,6 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 	// that reads its tables at start must find them (see setupApplicationWithSource).
 	migrate := func(ctx context.Context, app application.Application) error {
 		if cfg.Migration.Policy == MigrationApplyOnce && !autoTemplate {
-			// A clone of the auto template already carries every migration, so
-			// the run below plans nothing and needs no cluster-wide lock.
 			// Serialize concurrent migration runs across all parallel harnesses
 			// by holding an advisory lock on the shared "postgres" admin DB for
 			// the whole run; the per-test pool below applies the migrations.
@@ -538,6 +536,8 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 				return runMigrationPolicy(ctx, pool, app, cfg.Migration)
 			})
 		}
+		// A clone of the auto template already carries every migration: the
+		// run plans nothing and needs no cluster-wide lock.
 		return runMigrationPolicy(ctx, pool, app, cfg.Migration)
 	}
 	app, container, err := setupApplicationWithSource(pool, nil, cfg.Components, cfg.Source, migrate, cfg.Capabilities...)
