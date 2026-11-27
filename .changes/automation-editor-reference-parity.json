@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Automation editor reaches the reference editor's quality: edges routed through the middle of row gaps with full rounded corners and outcome colours, centred handles, aligned menus and list rows, registered actions as their own palette nodes with a searchable action picker, a stable Edit/Runs layout, dark-theme toasts and comboboxes, and a shortcut-ownership contract so embedded surfaces can claim ⌘K from global search."
+}
