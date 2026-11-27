@@ -39,7 +39,7 @@ test('business can configure delivery, receive notifications, read them and disa
 	await rule.getByText('How it looks').click();
 	await rule.locator('select[name="level"]').selectOption('warning');
 	await rule.getByRole('button', { name: 'Save', exact: true }).click();
-	await expect(page.getByRole('status')).toContainText('saved');
+	await expect(page.locator('#notification-settings > header').getByRole('status')).toContainText('saved');
 	await page.reload();
 	await expect(rule.locator('input[name="enabled"]')).toBeChecked();
 	await expect(rule.locator('input[name="user_ids"]')).toHaveCount(1);
@@ -54,7 +54,7 @@ test('business can configure delivery, receive notifications, read them and disa
  });
  const before = await inbox.getByTestId('notification').count();
 	await rule.getByRole('button', { name: 'Send test using saved settings', exact: true }).click();
-	await expect(page.getByRole('status')).toContainText('1');
+	await expect(page.locator('#notification-settings > header').getByRole('status')).toContainText('1');
 	// Every connected tab receives realtime invalidation and the SDK severity toast.
 	await expect(inbox.getByTestId('notification')).toHaveCount(before + 1, { timeout: 30000 });
 	await expect(inbox.getByTestId('notification-unread-count')).toBeVisible();
@@ -71,21 +71,21 @@ test('business can configure delivery, receive notifications, read them and disa
  await clearRecipients();
  await addRecipient(`Notification pilot role ${groupID}`);
  await rule.getByRole('button', { name: 'Save', exact: true }).click();
- await expect(page.getByRole('status')).toContainText('saved');
+ await expect(page.locator('#notification-settings > header').getByRole('status')).toContainText('saved');
  await rule.getByRole('button', { name: 'Send test using saved settings', exact: true }).click();
- await expect(page.getByRole('status')).toContainText('1');
+ await expect(page.locator('#notification-settings > header').getByRole('status')).toContainText('1');
  await expect(inbox.getByTestId('notification')).toHaveCount(before + 1, { timeout: 30000 });
  await withDatabase(async (db) => { await db.query('DELETE FROM group_users WHERE group_id=$1', [groupID]); });
  await rule.getByRole('button', { name: 'Send test using saved settings', exact: true }).click();
- await expect(page.getByRole('status')).toContainText('No notifications');
+ await expect(page.locator('#notification-settings > header').getByRole('status')).toContainText('No notifications');
  await inbox.reload();
  const afterRoleDelivery = await inbox.getByTestId('notification').count();
  expect(afterRoleDelivery).toBe(before + 1);
  await rule.locator('input[name="enabled"]').uncheck({ force: true });
 	await rule.getByRole('button', { name: 'Save', exact: true }).click();
-	await expect(page.getByRole('status')).toContainText('saved');
+	await expect(page.locator('#notification-settings > header').getByRole('status')).toContainText('saved');
 	await rule.getByRole('button', { name: 'Send test using saved settings', exact: true }).click();
-	await expect(page.getByRole('status')).toContainText('No notifications');
+	await expect(page.locator('#notification-settings > header').getByRole('status')).toContainText('No notifications');
 	await inbox.reload();
 	await expect(inbox.getByTestId('notification')).toHaveCount(afterRoleDelivery);
  await withDatabase(async (db) => {

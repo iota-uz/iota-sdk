@@ -112,7 +112,15 @@ test.describe('automations: my tasks screen states', () => {
 			{ name: 'task-confirm', open: async (p) => {
 				await p.goto(`/automations/tasks/${invoice}`);
 				await p.getByTestId('automations-task-outcome-reject').click();
-				await expect(p.getByTestId('automations-task-confirm-reject')).toBeVisible();
+				const confirm = p.getByTestId('automations-task-confirm-reject');
+				await expect(confirm).toBeVisible();
+				// The panel opens with an opacity and clip animation (iota-reveal). While it runs, Chromium
+				// paints the panel on its own layer with grayscale text antialiasing, so a screenshot taken
+				// then depends on timing. Wait for the panel at rest and one painted frame after it.
+				await confirm.evaluate(async (el) => {
+					await Promise.all(el.getAnimations().map((a) => a.finished));
+					await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+				});
 			} },
 			{ name: 'task-form-unavailable', open: async (p) => { await p.goto(`/automations/tasks/${act}`); } },
 			{ name: 'task-closed', open: async (p) => { await p.goto(`/automations/tasks/${vacation}`); } },

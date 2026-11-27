@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"expectNoA11yViolations attaches its axe report through the @playwright/test copy the runner already loaded, instead of importing a second copy that Playwright rejects when the SDK is resolved from another directory."}

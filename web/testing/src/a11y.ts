@@ -89,9 +89,29 @@ async function loadAxeBuilder(): Promise<AxeBuilderConstructor> {
   }
 }
 
+type PlaywrightTestModule = { test: { info(): TestInfo } }
+
+// Playwright refuses a second copy of @playwright/test in one process and
+// fails the running test when one loads. A test project that imports this
+// package from another directory (the SDK checkout's e2e suite, a linked SDK)
+// would resolve this file's own copy, so take the copy the runner has
+// already loaded, then the test project's, and only then this file's.
+function loadedPlaywrightTest(): PlaywrightTestModule | undefined {
+  const require = createRequire(path.join(process.cwd(), 'package.json'))
+  const marker = `${path.sep}@playwright${path.sep}test${path.sep}index.js`
+  for (const [file, entry] of Object.entries(require.cache)) {
+    if (file.endsWith(marker) && entry?.loaded) return entry.exports as PlaywrightTestModule
+  }
+  try {
+    return require(require.resolve('@playwright/test')) as PlaywrightTestModule
+  } catch {
+    return undefined
+  }
+}
+
 async function currentTestInfo(): Promise<TestInfo | undefined> {
   try {
-    const playwright = await import('@playwright/test')
+    const playwright = loadedPlaywrightTest() ?? await import('@playwright/test') as PlaywrightTestModule
     return playwright.test.info()
   } catch {
     return undefined

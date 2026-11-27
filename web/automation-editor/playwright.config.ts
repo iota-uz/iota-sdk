@@ -32,6 +32,12 @@ export default defineConfig({
       name: 'vr',
       testMatch: /vr\.spec\.ts/,
       use: { browserName: 'chromium', deviceScaleFactor: 1, launchOptions: { args: ['--disable-gpu', '--force-color-profile=srgb', '--disable-lcd-text'] } },
+      // Even with software raster a few antialiased pixels on a rounded corner (a button's edge, a card's
+      // blurred shadow) come out one or two colour levels off now and then, on shared and dedicated runners
+      // alike (versions · light, dry-run · light and dark). The colour threshold absorbs that difference
+      // (pixelmatch delta under 3.5; these were 0.16 and 0.68) and nothing else: every pixel that changes
+      // shape or colour visibly still fails the shot.
+      expect: { toHaveScreenshot: { animations: 'disabled', caret: 'hide', scale: 'css', threshold: 0.01, maxDiffPixels: 0 } },
     },
   ],
   webServer: {

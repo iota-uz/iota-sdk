@@ -20,6 +20,8 @@ export interface IsolationState {
 	tokenFile: string;
 	artifacts: string;
 	privateDir: string;
+	/** Driver and application binaries compiled once by global setup. */
+	binaries?: { testenv: string; server: string };
 }
 
 export const STATE_ENV = 'E2E_TESTENV_STATE';

@@ -88,7 +88,11 @@ func run() error {
 		if !ready {
 			cleanup, done := context.WithTimeout(context.Background(), 10*time.Second)
 			defer done()
-			_ = testdb.Drop(cleanup, *name, db)
+			// Best effort: the run already failed. A drop that fails too names the
+			// database left behind, so it can be removed by hand.
+			if err := testdb.Drop(cleanup, *name, db); err != nil {
+				fmt.Fprintf(os.Stderr, "testenv-baseline: could not drop unfinished baseline %s: %v\n", *name, err)
+			}
 		}
 	}()
 	pool, err := pgxpool.New(ctx, testdb.ConnectionString(*name, db))
@@ -119,9 +123,14 @@ func run() error {
 	if err := testdb.Seal(ctx, *name, db); err != nil {
 		return err
 	}
-	ready = true
-	return json.NewEncoder(os.Stdout).Encode(struct {
+	// The caller learns the baseline's name only from this result: if it
+	// cannot be written, the deferred drop removes the baseline.
+	if err := json.NewEncoder(os.Stdout).Encode(struct {
 		Database string          `json:"database"`
 		Manifest testdb.Manifest `json:"manifest"`
-	}{*name, manifest})
+	}{*name, manifest}); err != nil {
+		return err
+	}
+	ready = true
+	return nil
 }

@@ -315,8 +315,13 @@ func TestSpawn_RestartRecordIsHostOwned(t *testing.T) {
 	assert.True(t, k.Info().FilesPreserved)
 	require.NoError(t, m.Release(k))
 
-	// A recreated workdir is a reset without preserved files.
-	require.NoError(t, os.RemoveAll(wd))
+	// A recreated workdir is a reset without preserved files. The old directory
+	// is moved aside, not removed: ext4 hands a freed inode to the next
+	// directory, and a directory removed and recreated within one tick of the
+	// file system's coarse clock also has the same birth time, so the test
+	// would depend on timing. A real workdir lives far longer than one tick
+	// (a kernel ran on it); sameBirth covers inode reuse on its own.
+	require.NoError(t, os.Rename(wd, filepath.Join(root, "session.old")))
 	k, err = m.Acquire(context.Background(), testSess("s3", wd))
 	require.NoError(t, err)
 	assert.True(t, k.Info().NamespaceReset)

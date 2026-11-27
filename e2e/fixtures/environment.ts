@@ -31,8 +31,12 @@ export function currentWorkerEnvironment(): WorkerEnvironment | undefined {
 const REQUIRED_CAPABILITIES = ['database.clone', 'process.dedicated'];
 
 function startDriver(state: IsolationState, workerIndex: number) {
+	// Global setup compiles both binaries once; `go run` stays the fallback for
+	// a state file written without them.
+	const driver = state.binaries ? [state.binaries.testenv] : ['go', 'run', './cmd/testenv'];
+	const server = state.binaries ? [state.binaries.server] : ['go', 'run', '-tags', 'dev', './cmd/server'];
 	const args = [
-		'run', './cmd/testenv',
+		...driver.slice(1),
 		'--template', state.database,
 		'--revision', state.manifest.buildRevision,
 		'--schema-fingerprint', state.manifest.schemaFingerprint,
@@ -43,10 +47,10 @@ function startDriver(state: IsolationState, workerIndex: number) {
 		'--sdk-erp',
 		'--control-token-file', state.tokenFile,
 		'--',
-		'go', 'run', '-tags', 'dev', './cmd/server',
+		...server,
 	];
 	return createProcessEnvironmentDriver({
-		command: 'go',
+		command: driver[0],
 		args,
 		cwd: repoRoot,
 		// Every worker runs its own Go server next to a browser. Bound the Go
@@ -54,7 +58,7 @@ function startDriver(state: IsolationState, workerIndex: number) {
 		// (on many-core hosts with a thread cgroup limit that exhausts
 		// pthread_create before the suite finishes).
 		env: { ...process.env, GOMAXPROCS: process.env.E2E_SERVER_GOMAXPROCS ?? process.env.GOMAXPROCS ?? '4' },
-		// A cold `go run` of the server dominates the first startup.
+		// Without prebuilt binaries a cold `go run` dominates the first startup.
 		timeoutMs: 600_000,
 		spec: () => ({
 			runId: state.runId,
