@@ -88,7 +88,7 @@ func publicError(err error) string {
 		// What the source refused in the request (a filter of the import): the author can correct it.
 		return ce.Message
 	case errors.Is(err, engine.ErrForbidden), errors.Is(err, engine.ErrNotFound), errors.Is(err, engine.ErrInvalidInput),
-		errors.Is(err, engine.ErrLimitExceeded), errors.Is(err, engine.ErrHumanRequired), errors.Is(err, ErrUnsupported):
+		errors.Is(err, engine.ErrLimitExceeded), errors.Is(err, engine.ErrHumanRequired), errors.Is(err, ErrUnsupported), errors.Is(err, engine.ErrUnfenced):
 		return strings.TrimPrefix(err.Error(), "automation: ")
 	}
 	return "the job could not be completed"
@@ -594,6 +594,11 @@ func (s *Svc) execute(ctx context.Context, j backtestJob) error {
 	if realCalls != engine.RealCallsNone && len(nodes) > 0 {
 		maxCalls = callsPerExample(v.Graph, len(nodes))
 	}
+	if realCalls != engine.RealCallsNone {
+		if err := s.unfenced(v.Graph); err != nil {
+			return err
+		}
+	}
 	runCtx, cancel := context.WithCancelCause(ctx)
 	defer cancel(nil)
 	// The lease is renewed until the last example in flight ends; a lost lease cancels the rest.
@@ -688,6 +693,7 @@ func (s *Svc) runExample(ctx context.Context, a Actor, rd *reader, j backtestJob
 		// The automation's memory is read as it is now (a backtest never writes it).
 		Graph: g, AutomationID: j.automation, Subject: ex.Subject, Events: []json.RawMessage{ex.Event}, Decisions: j.decisions,
 		RealCalls: realCalls, Vars: vars, Now: ex.OccurredAt, MaxCalls: maxCalls,
+		Fence: s.fenceOf(j, ex.ID, realCalls),
 	})
 	var an analysis
 	switch {
@@ -724,8 +730,6 @@ func (s *Svc) storeResult(ctx context.Context, j backtestJob, ex Example, an ana
 	})
 }
 
-// holds is errCancelled unless the backtest runs under this worker's lease; lock keeps the row (a
-// cancel or a new claim waits for the caller's transaction).
 // selfOnly is whether an event the connector sent itself (by_self) meets only triggers that exclude
 // such messages: the router starts none of them.
 func selfOnly(g json.RawMessage, event json.RawMessage) bool {
@@ -750,6 +754,8 @@ func selfOnly(g json.RawMessage, event json.RawMessage) bool {
 	return true
 }
 
+// holds is errCancelled unless the backtest runs under this worker's lease; lock keeps the row (a
+// cancel or a new claim waits for the caller's transaction).
 func (s *Svc) holds(ctx context.Context, q querier, j backtestJob, lock bool) error {
 	sql := `SELECT EXISTS (SELECT 1 FROM automation.backtests WHERE tenant_id = $1 AND id = $2 AND status = 'running' AND lease = $3)`
 	if lock {
@@ -761,6 +767,60 @@ func (s *Svc) holds(ctx context.Context, q querier, j backtestJob, lock bool) er
 	}
 	if !ok {
 		return errCancelled
+	}
+	return nil
+}
+
+// leaseFence fences the provider calls of one example by the backtest's lease (engine.CallFence): the
+// keys name the backtest and the example, never the lease, so the worker that takes the backtest over
+// repeats a call under the key of the one it superseded.
+type leaseFence struct {
+	s       *Svc
+	j       backtestJob
+	example ExampleID
+}
+
+func (f leaseFence) Scope() string { return "backtest:" + f.j.id.String() + ":" + f.example.String() }
+
+func (f leaseFence) Hold(ctx context.Context) error {
+	// A heartbeat that lost the lease has cancelled the run already.
+	if err := context.Cause(ctx); err != nil {
+		return err
+	}
+	return f.s.holds(ctx, f.s.cfg.DB, f.j, false)
+}
+
+func (f leaseFence) Strict() bool { return f.s.cfg.StrictFencing }
+
+// fenceOf is the fence of an example's calls; nil when the backtest calls no provider.
+func (s *Svc) fenceOf(j backtestJob, example ExampleID, realCalls string) engine.CallFence {
+	if realCalls == engine.RealCallsNone {
+		return nil
+	}
+	return leaseFence{s: s, j: j, example: example}
+}
+
+// unfenced is a strict backtest's refusal of a graph that has a decision node whose provider cannot
+// deduplicate a repeated call (catalog.SupportsIdempotencyKey); nil when none, or fencing is not strict.
+func (s *Svc) unfenced(g json.RawMessage) error {
+	if !s.cfg.StrictFencing {
+		return nil
+	}
+	var gr struct {
+		Nodes []graph.Node `json:"nodes"`
+	}
+	if err := json.Unmarshal(g, &gr); err != nil {
+		// Strict fails closed: a graph whose nodes are not read is not paid for.
+		return invalid("the graph is not JSON")
+	}
+	for _, n := range gr.Nodes {
+		nt, ok := s.cfg.Catalog.Node(n.Type)
+		if !ok {
+			continue
+		}
+		if dn, decides := nt.(engine.DecisionNode); decides && !catalog.SupportsIdempotencyKey(dn) {
+			return fmt.Errorf("%w: the provider of %s (node %s) cannot deduplicate a repeated call, so a strict backtest does not pay its decisions", engine.ErrUnfenced, n.Type, n.ID)
+		}
 	}
 	return nil
 }

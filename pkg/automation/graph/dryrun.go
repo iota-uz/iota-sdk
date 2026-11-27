@@ -28,11 +28,22 @@ type DryRunOptions struct {
 	Modes bool
 	// Execute answers a call of an execute node for real (Modes on); nil: such calls are captured.
 	Execute func(node Node, effects []Effect) ExecAnswer
+	// ExecuteAt, when set, is Execute told where in the graph the call is (CallSite); it is used instead
+	// of Execute.
+	ExecuteAt func(node Node, effects []Effect, site CallSite) ExecAnswer
 	// Preview answers a captured effect node (Modes on) with what the node would do, computed without
 	// doing it: its outcome and output, or its failure. started is the event that started the run (the
 	// first one a trigger took), kept for every later step. ok false: the node has no preview and takes
 	// its done outcome. The step stays captured.
 	Preview func(node Node, effects []Effect, started Event) (answer ExecAnswer, ok bool)
+}
+
+// CallSite is where a dry run's call is in the graph: the token that makes it (TraceStep.Token: "" the
+// main path, "split.legal" a branch, "each[2]" an item) and how many times that token has reached the
+// node (1: the first). The same dry run gives the same call the same site, whatever other tokens did.
+type CallSite struct {
+	Token string
+	Visit int
 }
 
 // ExecAnswer is the answer of a call a dry run executed: its outcome and output, or its failure (Code and
@@ -264,6 +275,18 @@ type dryRun struct {
 	// started is the event that started the run: what a preview of a node reads, whatever event a later
 	// wait takes.
 	started Event
+	// visits counts the executed calls per token and node (CallSite.Visit).
+	visits map[CallSite]int
+}
+
+// site is the CallSite of the token's next call of the node.
+func (d *dryRun) site(t *dryToken, node string) CallSite {
+	if d.visits == nil {
+		d.visits = map[CallSite]int{}
+	}
+	k := CallSite{Token: t.name + "|" + node}
+	d.visits[k]++
+	return CallSite{Token: t.name, Visit: d.visits[k]}
 }
 
 func copyContext(c Context) Context {
@@ -508,7 +531,10 @@ func (d *dryRun) walk(t *dryToken, current string) {
 			}
 			var a ExecAnswer
 			executed := false
-			if mode == DryRunExecute && d.o.Modes && d.o.Execute != nil {
+			if mode == DryRunExecute && d.o.Modes && d.o.ExecuteAt != nil {
+				a = d.o.ExecuteAt(node, step.Effects, d.site(t, node.ID))
+				executed = !a.Script
+			} else if mode == DryRunExecute && d.o.Modes && d.o.Execute != nil {
 				a = d.o.Execute(node, step.Effects)
 				executed = !a.Script
 			}
