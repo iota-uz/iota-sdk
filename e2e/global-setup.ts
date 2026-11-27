@@ -12,6 +12,17 @@ function revision(): string {
 	return dirty ? `${head}-dirty-${randomUUID()}` : head;
 }
 
+function buildBinaries(directory: string): NonNullable<IsolationState['binaries']> {
+	const suffix = process.platform === 'win32' ? '.exe' : '';
+	const binaries = { testenv: path.join(directory, `testenv${suffix}`), server: path.join(directory, `server${suffix}`) };
+	const started = Date.now();
+	const build = (args: string[]) => execFileSync('go', ['build', ...args], { cwd: repoRoot, env: process.env, stdio: ['ignore', 'inherit', 'inherit'] });
+	build(['-o', binaries.testenv, './cmd/testenv']);
+	build(['-tags', 'dev', '-o', binaries.server, './cmd/server']);
+	console.log(`[e2e] testenv driver and server built in ${Date.now() - started}ms`);
+	return binaries;
+}
+
 /**
  * Builds the run's sealed baseline once (migrations + E2E seed, owned by Go)
  * and returns a teardown that drops it after every worker environment stopped.
@@ -39,6 +50,11 @@ export default async function globalSetup(): Promise<(() => Promise<void>) | voi
 	const tokenFile = path.join(privateDir, 'control-token');
 	fs.writeFileSync(tokenFile, randomBytes(32).toString('hex'), { mode: 0o600 });
 
+	// Every worker starts the driver and the application process. Compile both
+	// once here: a cold `go run` of the server in each worker at once outlasts
+	// the driver's start deadline and fails the first test of every worker.
+	const binaries = buildBinaries(path.join(privateDir, 'bin'));
+
 	const state: IsolationState = {
 		runId,
 		database: built.database,
@@ -47,6 +63,7 @@ export default async function globalSetup(): Promise<(() => Promise<void>) | voi
 		tokenFile,
 		artifacts: path.join(__dirname, 'test-results', 'environments', runId),
 		privateDir,
+		binaries,
 	};
 	const stateFile = path.join(privateDir, 'state.json');
 	fs.writeFileSync(stateFile, JSON.stringify(state), { mode: 0o600 });
