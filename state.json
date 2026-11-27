@@ -505,10 +505,10 @@
   ],
   "candidate": {
     "version": "0.56.0",
-    "source": "7fef0b79f8432d5ccc0d762d83d6409bb30b1ede",
-    "sha": "8d5c7ead705427e925264cf749d74581df02d856",
-    "phase": "failed",
-    "run_id": "45955899771"
+    "source": "f57b3f0ee59e36efc40559d17e43a4f4cd6b9b0e",
+    "sha": "8990ea715620d374ebcaecff411de20a571090e9",
+    "phase": "testing",
+    "run_id": "46021283849"
   },
   "ready": {
     "version": "0.55.1",
