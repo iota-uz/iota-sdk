@@ -8,6 +8,7 @@ import { Icon } from './icons'
 import { describeItem } from './names'
 import { ScheduleEditor } from './ScheduleEditor'
 import { SchemaForm } from './SchemaForm'
+import { pick as pickLocale } from './locale'
 import { strings } from './strings'
 import type { AutomationGraph, EditorApi, EditorCatalog, EditorLocale, FieldSlot, GraphError, JsonSchema } from './types'
 import { errorTarget } from './validation'
@@ -25,6 +26,14 @@ export interface NodePanelProps {
   /** `key` groups keystrokes of one field into one history step. */
   onChange(graph: AutomationGraph, key: string): void
   onClose(): void
+}
+
+// The action picker's words: only this lazy panel uses them, so they stay out of the package entry.
+const ACTION_STRINGS: Record<EditorLocale, { action: string; placeholder: string; missing(key: string): string; pick: string }> = {
+  en: { action: 'Action', placeholder: 'Choose an action', missing: (key) => `The action “${key}” is not available: its module may be off or you lack the permission.`, pick: 'Choose the action this step runs; its fields appear here.' },
+  ru: { action: 'Действие', placeholder: 'Выберите действие', missing: (key) => `Действие «${key}» недоступно: возможно, модуль выключен или нет прав.`, pick: 'Выберите действие, которое выполняет шаг; его поля появятся здесь.' },
+  uz: { action: 'Amal', placeholder: 'Amalni tanlang', missing: (key) => `«${key}» amali mavjud emas: modul oʻchirilgan yoki ruxsat yoʻq boʻlishi mumkin.`, pick: 'Qadam bajaradigan amalni tanlang; uning maydonlari shu yerda chiqadi.' },
+  'uz-Cyrl': { action: 'Амал', placeholder: 'Амални танланг', missing: (key) => `«${key}» амали мавжуд эмас: модул ўчирилган ёки рухсат йўқ бўлиши мумкин.`, pick: 'Қадам бажарадиган амални танланг; унинг майдонлари шу ерда чиқади.' },
 }
 
 const FILTER_SCHEMA = (title: string, description: string): JsonSchema => ({
@@ -158,20 +167,20 @@ export function NodePanel(props: NodePanelProps): JSX.Element {
                     {(rule) => (
                       <div class="ae-field" data-param={rule().param}>
                         <Combobox
-                          label={t().panel.action}
+                          label={pickLocale(ACTION_STRINGS, props.locale).action}
                           options={actionOptions()}
                           value={picked() || undefined}
                           searchable
                           readOnly={props.readOnly}
-                          placeholder={t().panel.actionPlaceholder}
+                          placeholder={pickLocale(ACTION_STRINGS, props.locale).placeholder}
                           labels={{ notFound: t().palette.nothing('') }}
                           onValueChange={(value) => pick(Array.isArray(value) ? value[0] ?? '' : value)}
                         />
                         <Show when={picked() && !target()}>
-                          <p class="ae-panel__note" role="alert">{t().panel.actionMissing(picked())}</p>
+                          <p class="ae-panel__note" role="alert">{pickLocale(ACTION_STRINGS, props.locale).missing(picked())}</p>
                         </Show>
                         <Show when={!picked()}>
-                          <p class="ae-panel__note">{t().panel.actionPick}</p>
+                          <p class="ae-panel__note">{pickLocale(ACTION_STRINGS, props.locale).pick}</p>
                         </Show>
                       </div>
                     )}
