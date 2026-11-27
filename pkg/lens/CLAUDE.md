@@ -78,18 +78,58 @@ spec := cube.New("sales", "Sales Overview").
 	ParamLiteral("tenant_id", tenantID).
 	Where("(c.tenant_id = @tenant_id OR c.tenant_id IS NULL)").
 	Dimension("product", "Product").
-	Column("COALESCE(pr.id::text, '')").
-	LabelColumn("COALESCE(pr.name, 'Unknown')").
-	RequiresJoin("product").
+		Column("COALESCE(pr.id::text, '')").
+		LabelColumn("COALESCE(pr.name, 'Unknown')").
+		RequiresJoin("product").
+		AsFacet().
+	Dimension("period", "Period").
+		TimeBucket("c.issue_date", "month").
 	Measure("total_policies", "Policies").
-	Column("DISTINCT pol.id").
-	Count().
-	DefaultDimension("product").
-	Leaf("/insurance/sales-report/drill/contracts").
+		Column("DISTINCT pol.id").
+		Count().
+		Integer().
+	Measure("total_premium", "Premium").
+		Column("c.premium").
+		Sum().
+		Money("UZS").
+	Layout(
+		cube.KPIRow("total_policies", "total_premium"),
+		cube.SplitRow(
+			cube.Chart("by_product", panel.KindDonut).Dimension("product").Measure("total_premium").TopN(6).WithRemainder(),
+			cube.Chart("over_time", panel.KindLine).Dimension("period").Series("product").Measure("total_premium"),
+		),
+	).
+	DrillPath("product", "period").
+	Leaf(cube.LeafSpec{
+		Table: cube.LeafTable("policies_leaf", "Policies").
+			WithColumns(
+				panel.TableColumn{Field: "policy_number", Label: "Policy"},
+				panel.TableColumn{Field: "premium", Label: "Premium"},
+			).
+			WithOrderBy("c.issue_date DESC").
+			WithPageSize(25),
+		ExternalLink: func(ctx context.Context, drill cube.DrillContext, params map[string]any) string {
+			return "/insurance/contracts?" + drill.Encode().Encode()
+		},
+	}).
 	Build()
 
-dashboard, err := cube.Resolve(spec, cube.ParseDrillContext(r.URL.Query()), "/insurance/sales-report")
+dashboard, err := cube.ResolveWithContext(ctx, spec, cube.ParseDrillContextNormalized(r.URL.Query()), "/insurance/sales-report")
 ```
+
+### Declarative Cube Extensions
+
+- **Dimensions**:
+  - `.AsFacet()`: exposes the dimension to `/facet-options` and `/toggle-filter` without duplicating facet logic.
+  - `.LabelMap(map[string]string{...})`: maps raw dimension keys to display labels in charts, breadcrumbs, filter chips, and facet options (both SQL `CASE` and Dataset static lookup).
+  - `.TimeBucket(column, granularity)`: declares a time-bucketed dimension (`"day"`, `"week"`, `"month"`, `"quarter"`, `"year"`) ordered chronologically; clicking a point narrows the slice via `_f=<dim>:<bucket>`.
+  - `.Done()`: returns to the parent `*cube.Builder` (`.Layout`, `.DrillPath`, `.Leaf`, `.LeafURL` can also be chained directly from dimension/measure builders).
+- **Measures**: `.Money(currency)`, `.MoneyExact(currency)`, `.Percent()`, `.Integer()`, `.Done()`.
+- **Data modes**: `.SQL(dataSource, fromSQL)`, `.Dataset(frameSet)`, and `.Named(dataSource, queryName)` (`DataModeNamed`, executing a registered named query on a datasource and applying dataset-mode transforms).
+- **Layout & DrillPath**:
+  - `.Layout(cube.KPIRow(...), cube.SplitRow(cube.Chart(id, kind)...))` declares KPI rows and split chart rows explicitly. `cube.Chart(id, kind)` supports `.Dimension(...)`, `.Series(...)`, `.Measure(...)`, `.TopN(n)`, and `.WithRemainder()`.
+  - `.DrillPath(dims...)` defines the ordered drill progression. Every KPI stat card and chart (`Donut`, `Bar`, `HorizontalBar`, `Line`/`TimeSeries`) emits a valid `action.CubeDrill` action preserving period and active `_f` filters, advancing to the next dimension or `_leaf=1`.
+- **Typed Leaf**: `.Leaf(cube.LeafSpec{URL, Table, ExternalLink})` renders an embedded paginated Lens table at leaf depth and/or resolves a dynamic external link (`LeafLinkResolver`). `.LeafURL(url)` is a shorthand for `Leaf(LeafSpec{URL: url})`.
 
 ## Data Modes
 
@@ -219,17 +259,68 @@ When a drilled page also has external date filters:
 
 Both report controllers in this repo follow that pattern through `persistentDashboardQuery(...)`.
 
-## React document endpoints
+## React document endpoints & `serve.Host`
 
 Mount dashboards with `render/solid.LensDashboard` and serve their data through
-`pkg/lens/serve`. Register the document, query, and export handlers below the
-same authenticated middleware chain and supply a shared, bounded
-`document.SnapshotStore`. The React runtime owns loading, error, retry, drill,
-filter, and export states; hosts do not render parallel HTML fragments.
+`pkg/lens/serve`. Prefer `serve.NewHost(serve.HostConfig{...})` over hand-wiring
+`serve.Handlers` + `serve.ReportCache` + `document.SnapshotStore` + custom export
+and facet handlers:
 
-Use `runtime.PanelScope(panelID)` only inside a generic document/query mechanism
-when one panel can be executed independently. Do not add renderer-specific panel
-URLs or reintroduce `PanelBasePath`.
+```go
+host, err := serve.NewHost(serve.HostConfig{
+	BasePath:         "/analytics/sales/lens",
+	Executor:         engine.New(rt).Executor(),
+	ExecutionTimeout: 60 * time.Second,
+	Progressive:      true,
+	Cache: serve.CacheOptions{
+		TTL:               5 * time.Minute,
+		MaxEntries:        64,
+		Budget:            budget,
+		BuildLimiter:      limiter,
+		RecomputeCooldown: 5 * time.Second,
+	},
+	Export: serve.ExportOptions{
+		VisibleTableColumnsOnly: true,
+		PanelExportFields:       map[string][]string{"summary": {"label", "value"}},
+		OmitLineage:             true,
+		Authorize:               checkExportPermission,
+	},
+	ResolveCube: func(ctx context.Context, r *http.Request, drill cube.DrillContext) (serve.ResolvedCube, error) {
+		return serve.ResolvedCube{
+			Spec:     buildSalesCube(r, drill),
+			PagePath: "/analytics/sales",
+			Request:  buildRuntimeRequest(r),
+		}, nil
+	},
+})
+host.Mount(subRouter) // mounts /document, /query, /panel, /export, /release, /facet-options, /toggle-filter
+```
+
+`serve.Host` supports two mutually exclusive modes:
+
+- **`ResolveCube`**: declarative cube dashboards with automatic `_f=dim:val` drill
+  parsing (including empty-value normalization to `cube.UnknownDrillValue`),
+  parameter-keyed `ReportCache` reuse, `/facet-options`, and `/toggle-filter`.
+- **`ResolveDashboard`**: plain/custom `lens.DashboardSpec` dashboards with optional
+  `Exploration` + `ResolveLoader` and `DrawerResolver` (`/drawer`).
+
+Key `serve.Host` behaviors:
+
+- **Recompute cooldown**: when `/panel` receives `recompute=true` within
+  `RecomputeCooldown` (e.g. a global recompute immediately after initial load),
+  `Host.Panel` waits out the remaining cooldown window instead of failing panels,
+  and sets `Content-Encoding: identity` so streaming NDJSON flushes immediately.
+  Executors can inspect `serve.RecomputeRequested(ctx)` to bypass upstream caches.
+- **Export policy**: `ExportOptions` handles progressive panel materialization,
+  per-export `Authorize`, `VisibleTableColumnsOnly`, `PanelExportFields`,
+  `OmitLineage`, and download-cookie signaling (`lensexport.SetDownloadSignal`).
+- **Low-level handlers**: existing `serve.New(serve.Config{...})` and `serve.ReportCache`
+  remain fully supported and unchanged for specialized hosts.
+
+The React runtime owns loading, error, retry, drill, filter, and export states;
+hosts do not render parallel HTML fragments. Use `runtime.PanelScope(panelID)`
+only inside a generic document/query mechanism when one panel can be executed
+independently. Do not add renderer-specific panel URLs or reintroduce `PanelBasePath`.
 
 ## Document chrome, date ranges and themes
 

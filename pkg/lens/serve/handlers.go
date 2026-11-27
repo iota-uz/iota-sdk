@@ -258,8 +258,8 @@ func (h *Handlers) queuePanelResult(
 	if validationErr != nil {
 		return immediatePanelResult(panelError(document.QueryErrorBadRequest, validationErr.Error()))
 	}
-	if req.Recompute {
-		if calculation, ok := snapshot.Panels[panelSpec.ID]; ok && time.Since(calculation.CalculatedAt) < recomputeCooldown {
+	if req.Recompute && h.recomputeCooldown > 0 {
+		if calculation, ok := snapshot.Panels[panelSpec.ID]; ok && time.Since(calculation.CalculatedAt) < h.recomputeCooldown {
 			return immediatePanelResult(panelError(document.QueryErrorBadRequest, "panel was recomputed recently"))
 		}
 	}

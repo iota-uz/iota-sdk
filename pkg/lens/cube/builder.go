@@ -53,6 +53,13 @@ func (b *Builder) Dataset(data *frame.FrameSet) *Builder {
 	return b
 }
 
+func (b *Builder) Named(dataSource, queryName string) *Builder {
+	b.spec.DataMode = DataModeNamed
+	b.spec.DataSource = dataSource
+	b.spec.NamedQuery = queryName
+	return b
+}
+
 func (b *Builder) Join(name, sql string) *Builder {
 	b.spec.Joins = append(b.spec.Joins, JoinSpec{Name: name, SQL: sql})
 	return b
@@ -106,8 +113,34 @@ func (b *Builder) DefaultDimension(name string) *Builder {
 	return b
 }
 
-func (b *Builder) Leaf(url string) *Builder {
-	b.spec.Leaf = LeafSpec{URL: url}
+func (b *Builder) Layout(items ...LayoutItem) *Builder {
+	for _, item := range items {
+		if item == nil {
+			continue
+		}
+		b.spec.Layout = append(b.spec.Layout, item.layoutRow())
+	}
+	return b
+}
+
+func (b *Builder) DrillPath(dimensions ...string) *Builder {
+	out := make([]string, 0, len(dimensions))
+	for _, dim := range dimensions {
+		if trimmed := strings.TrimSpace(dim); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	b.spec.DrillPath = out
+	return b
+}
+
+func (b *Builder) Leaf(spec LeafSpec) *Builder {
+	b.spec.Leaf = spec
+	return b
+}
+
+func (b *Builder) LeafURL(url string) *Builder {
+	b.spec.Leaf.URL = url
 	return b
 }
 
@@ -219,6 +252,45 @@ func (b *DimensionBuilder) LogarithmicValueAxis(base int) *DimensionBuilder {
 	return b.ValueAxisScale(panel.AxisScaleLogarithmic, base)
 }
 
+// AsFacet exposes this dimension in the top facet filter bar when served by serve.Host.
+func (b *DimensionBuilder) AsFacet() *DimensionBuilder {
+	b.spec.Facet = true
+	return b
+}
+
+// LabelMap maps raw dimension filter values to human-readable display labels.
+func (b *DimensionBuilder) LabelMap(labels map[string]string) *DimensionBuilder {
+	if len(labels) == 0 {
+		b.spec.LabelMap = nil
+		return b
+	}
+	cloned := make(map[string]string, len(labels))
+	for key, value := range labels {
+		cloned[key] = value
+	}
+	b.spec.LabelMap = cloned
+	return b
+}
+
+// TimeBucket configures a time-bucketed dimension (day, week, month, quarter, year).
+// Clicking a point on a time-bucket chart narrows the slice to that bucket.
+func (b *DimensionBuilder) TimeBucket(column, granularity string) *DimensionBuilder {
+	b.spec.Type = DimensionTypeTimeBucket
+	b.spec.TimeColumn = strings.TrimSpace(column)
+	b.spec.TimeGranularity = normalizeTimeGranularity(granularity)
+	if strings.TrimSpace(b.spec.Field) == "" {
+		b.spec.Field = b.spec.TimeColumn
+	}
+	if b.spec.PanelKind == panel.KindBar {
+		b.spec.PanelKind = panel.KindTimeSeries
+	}
+	return b
+}
+
+func (b *DimensionBuilder) Done() *Builder {
+	return b.commit()
+}
+
 func (b *DimensionBuilder) commit() *Builder {
 	b.parent.spec.Dimensions = append(b.parent.spec.Dimensions, b.spec)
 	return b.parent
@@ -236,8 +308,20 @@ func (b *DimensionBuilder) DefaultDimension(name string) *Builder {
 	return b.commit().DefaultDimension(name)
 }
 
-func (b *DimensionBuilder) Leaf(url string) *Builder {
-	return b.commit().Leaf(url)
+func (b *DimensionBuilder) Layout(items ...LayoutItem) *Builder {
+	return b.commit().Layout(items...)
+}
+
+func (b *DimensionBuilder) DrillPath(dimensions ...string) *Builder {
+	return b.commit().DrillPath(dimensions...)
+}
+
+func (b *DimensionBuilder) Leaf(spec LeafSpec) *Builder {
+	return b.commit().Leaf(spec)
+}
+
+func (b *DimensionBuilder) LeafURL(url string) *Builder {
+	return b.commit().LeafURL(url)
 }
 
 func (b *DimensionBuilder) Build() CubeSpec {
@@ -272,6 +356,22 @@ func (b *MeasureBuilder) Avg() *MeasureBuilder {
 func (b *MeasureBuilder) Formatter(spec format.Spec) *MeasureBuilder {
 	b.spec.Formatter = &spec
 	return b
+}
+
+func (b *MeasureBuilder) Money(currency string) *MeasureBuilder {
+	return b.Formatter(format.MoneyCompact(currency))
+}
+
+func (b *MeasureBuilder) MoneyExact(currency string, precision int) *MeasureBuilder {
+	return b.Formatter(format.Money(currency, precision))
+}
+
+func (b *MeasureBuilder) Percent(precision int) *MeasureBuilder {
+	return b.Formatter(format.Percent(precision))
+}
+
+func (b *MeasureBuilder) Integer() *MeasureBuilder {
+	return b.Formatter(format.Count())
 }
 
 func (b *MeasureBuilder) AccentColor(color string) *MeasureBuilder {
@@ -324,6 +424,10 @@ func (b *MeasureBuilder) Override(dataset lens.DatasetSpec) *MeasureBuilder {
 	return b
 }
 
+func (b *MeasureBuilder) Done() *Builder {
+	return b.commit()
+}
+
 func (b *MeasureBuilder) commit() *Builder {
 	b.parent.spec.Measures = append(b.parent.spec.Measures, b.spec)
 	return b.parent
@@ -341,8 +445,20 @@ func (b *MeasureBuilder) DefaultDimension(name string) *Builder {
 	return b.commit().DefaultDimension(name)
 }
 
-func (b *MeasureBuilder) Leaf(url string) *Builder {
-	return b.commit().Leaf(url)
+func (b *MeasureBuilder) Layout(items ...LayoutItem) *Builder {
+	return b.commit().Layout(items...)
+}
+
+func (b *MeasureBuilder) DrillPath(dimensions ...string) *Builder {
+	return b.commit().DrillPath(dimensions...)
+}
+
+func (b *MeasureBuilder) Leaf(spec LeafSpec) *Builder {
+	return b.commit().Leaf(spec)
+}
+
+func (b *MeasureBuilder) LeafURL(url string) *Builder {
+	return b.commit().LeafURL(url)
 }
 
 func (b *MeasureBuilder) Build() CubeSpec {

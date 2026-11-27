@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Add unified lens/serve.Host for parameter-keyed caching, progressive recompute, exports, facets, and cube/dashboard routing, and extend pkg/lens/cube with declarative multi-level drill layouts, TimeBucket, LabelMap, AsFacet, TopN/WithRemainder, DrillPath, and typed LeafSpec."
+}

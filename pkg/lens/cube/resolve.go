@@ -1,6 +1,7 @@
 package cube
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -18,6 +19,8 @@ const (
 	statsDatasetNamePrefix = "cube_stats"
 	statDatasetNamePrefix  = "cube_stat"
 	dimDatasetNamePrefix   = "cube_dim"
+	chartDatasetNamePrefix = "cube_chart"
+	leafDatasetNamePrefix  = "cube_leaf"
 )
 
 type dimensionDatasetResolution struct {
@@ -76,6 +79,10 @@ func resolvedDimensionTransforms(spec CubeSpec, transformsIn []transform.Spec) [
 }
 
 func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpec, error) {
+	return ResolveWithContext(context.Background(), spec, ctx, baseURL)
+}
+
+func ResolveWithContext(goCtx context.Context, spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpec, error) {
 	const op serrors.Op = "cube.Resolve"
 	if err := spec.Validate(); err != nil {
 		return lens.DashboardSpec{}, serrors.Wrap(op, err)
@@ -101,8 +108,9 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 		Variables:   append([]lens.VariableSpec(nil), spec.Variables...),
 		Drill:       drillMeta(spec, ctx, baseURL, remaining),
 	}
-	if spec.DataMode == DataModeDataset {
-		dashboard.Datasets = append(dashboard.Datasets, baseDataset(spec))
+	if spec.DataMode == DataModeDataset || spec.DataMode == DataModeNamed {
+		dashboard.Datasets = append(dashboard.Datasets, baseDataset(spec, ctx))
+		dashboard.Datasets = append(dashboard.Datasets, labelMapDatasets(spec)...)
 	}
 
 	statsResolution, err := resolveStatDatasets(spec, ctx)
@@ -113,8 +121,80 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 		statsResolution = compareStatDatasets(spec, statsResolution, comparison)
 	}
 	dashboard.Datasets = append(dashboard.Datasets, titledDatasets(statsResolution.Datasets, spec.Title)...)
-	if statPanels := buildStatPanelsCompared(spec, statsResolution.DatasetByMeasure, comparison.Enabled); len(statPanels) > 0 {
+
+	showingLeaf := (ctx.IsLeaf(spec) || ctx.Leaf) && spec.Leaf.Table != nil
+
+	if len(spec.Layout) > 0 {
+		leafAppended := false
+		for rowIdx, layoutRow := range spec.Layout {
+			switch layoutRow.Kind {
+			case LayoutRowKPI:
+				measures := selectRowMeasures(spec, layoutRow.Measures)
+				kpiAction := resolveKPIAction(goCtx, spec, ctx, baseURL, showingLeaf)
+				if statPanels := buildStatPanelsForMeasures(spec, measures, statsResolution.DatasetByMeasure, comparison.Enabled, kpiAction); len(statPanels) > 0 {
+					groupID := spec.ID + "-kpi"
+					if rowIdx > 0 {
+						groupID = fmt.Sprintf("%s-kpi-%d", spec.ID, rowIdx)
+					}
+					dashboard.Rows = append(dashboard.Rows, lens.RowSpec{
+						Panels: []panel.Spec{buildStatStripWithID(groupID, statPanels)},
+					})
+				}
+			case LayoutRowCharts:
+				if showingLeaf {
+					if !leafAppended {
+						leafDS, leafPanel := buildLeafTable(goCtx, spec, ctx, baseURL)
+						dashboard.Datasets = append(dashboard.Datasets, titledDatasets([]lens.DatasetSpec{leafDS}, spec.Leaf.Table.Title)...)
+						dashboard.Rows = append(dashboard.Rows, lens.RowSpec{Panels: []panel.Spec{leafPanel}})
+						leafAppended = true
+					}
+					continue
+				}
+				if len(layoutRow.Charts) == 0 {
+					continue
+				}
+				spans := chartRowSpans(layoutRow.Charts)
+				rowPanels := make([]panel.Spec, 0, len(layoutRow.Charts))
+				for idx, chart := range layoutRow.Charts {
+					resolved, err := resolveChartDataset(spec, ctx, chart)
+					if err != nil {
+						return lens.DashboardSpec{}, serrors.Wrap(op, err)
+					}
+					if comparison.Enabled && chart.Series == "" {
+						resolved = compareDimensionDataset(spec, resolved, comparison)
+					}
+					title := strings.TrimSpace(chart.Title)
+					if title == "" {
+						if dim, ok := spec.Dimension(chart.Dimension); ok {
+							title = dim.Label
+						}
+					}
+					dashboard.Datasets = append(dashboard.Datasets, titledDatasets(resolved.Datasets, title)...)
+					rowPanels = append(rowPanels, buildChartPanel(spec, ctx, chart, resolved, baseURL, spans[idx]))
+				}
+				if len(rowPanels) > 0 {
+					dashboard.Rows = append(dashboard.Rows, lens.RowSpec{Panels: rowPanels})
+				}
+			}
+		}
+		if showingLeaf && !leafAppended {
+			leafDS, leafPanel := buildLeafTable(goCtx, spec, ctx, baseURL)
+			dashboard.Datasets = append(dashboard.Datasets, titledDatasets([]lens.DatasetSpec{leafDS}, spec.Leaf.Table.Title)...)
+			dashboard.Rows = append(dashboard.Rows, lens.RowSpec{Panels: []panel.Spec{leafPanel}})
+		}
+		return dashboard, nil
+	}
+
+	kpiAction := resolveKPIAction(goCtx, spec, ctx, baseURL, showingLeaf)
+	if statPanels := buildStatPanelsForMeasures(spec, spec.Measures, statsResolution.DatasetByMeasure, comparison.Enabled, kpiAction); len(statPanels) > 0 {
 		dashboard.Rows = append(dashboard.Rows, lens.RowSpec{Panels: []panel.Spec{buildStatStrip(spec, statPanels)}})
+	}
+
+	if showingLeaf {
+		leafDS, leafPanel := buildLeafTable(goCtx, spec, ctx, baseURL)
+		dashboard.Datasets = append(dashboard.Datasets, titledDatasets([]lens.DatasetSpec{leafDS}, spec.Leaf.Table.Title)...)
+		dashboard.Rows = append(dashboard.Rows, lens.RowSpec{Panels: []panel.Spec{leafPanel}})
+		return dashboard, nil
 	}
 
 	// Render one panel per dimension (the full overview grid). The group-by
@@ -131,7 +211,7 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 			resolved = compareDimensionDataset(spec, resolved, comparison)
 		}
 		dashboard.Datasets = append(dashboard.Datasets, titledDatasets(resolved.Datasets, dim.Label)...)
-		dimensionPanels = append(dimensionPanels, buildDimensionPanel(spec, dim, resolved, baseURL, len(ordered), idx))
+		dimensionPanels = append(dimensionPanels, buildDimensionPanelWithContext(spec, ctx, dim, resolved, baseURL, len(ordered), idx))
 	}
 	if len(dimensionPanels) > 0 {
 		dashboard.Rows = append(dashboard.Rows, buildDimensionRows(dimensionPanels)...)
@@ -186,7 +266,7 @@ func resolveStatsDataset(spec CubeSpec, ctx DrillContext) (lens.DatasetSpec, err
 	switch spec.DataMode {
 	case DataModeSQL:
 		return resolveSQLStatsDataset(spec, ctx, name), nil
-	case DataModeDataset:
+	case DataModeDataset, DataModeNamed:
 		return resolveDatasetStatsDataset(spec, ctx, name), nil
 	default:
 		return lens.DatasetSpec{}, fmt.Errorf("unsupported cube mode %q", spec.DataMode)
@@ -244,7 +324,7 @@ func resolveDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec)
 				},
 			},
 		}, nil
-	case DataModeDataset:
+	case DataModeDataset, DataModeNamed:
 		return dimensionDatasetResolution{
 			Name:          name,
 			Datasets:      []lens.DatasetSpec{resolveDatasetDimensionDataset(spec, ctx, dim, name)},
@@ -255,10 +335,110 @@ func resolveDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec)
 	}
 }
 
+func resolveChartDataset(spec CubeSpec, ctx DrillContext, chart ChartSpec) (dimensionDatasetResolution, error) {
+	dim, ok := spec.Dimension(chart.Dimension)
+	if !ok {
+		return dimensionDatasetResolution{}, fmt.Errorf("unknown dimension %q", chart.Dimension)
+	}
+	var seriesDim *DimensionSpec
+	if chart.Series != "" {
+		resolvedSeries, exists := spec.Dimension(chart.Series)
+		if !exists {
+			return dimensionDatasetResolution{}, fmt.Errorf("unknown series dimension %q", chart.Series)
+		}
+		seriesDim = &resolvedSeries
+	}
+	measure := chartMeasure(spec, chart)
+	name := chartDatasetName(chart.ID)
+
+	extraTransforms := append([]transform.Spec(nil), dim.Transforms...)
+	if chart.TopN > 0 {
+		if chart.WithRemainder {
+			remainder := strings.TrimSpace(chart.RemainderLabel)
+			if remainder == "" {
+				remainder = "Other"
+			}
+			extraTransforms = append(extraTransforms, transform.ExpandableTopN(measure.Name, chart.TopN, remainder))
+		} else {
+			extraTransforms = append(extraTransforms, transform.TopN(measure.Name, chart.TopN, ""))
+		}
+	}
+
+	if dim.Override != nil && seriesDim == nil {
+		overrideDataset := resolveOverrideDataset(spec, ctx, *dim.Override, name)
+		hasColorValue := strings.TrimSpace(dim.ColorField) != ""
+		if len(extraTransforms) == 0 {
+			return dimensionDatasetResolution{
+				Name:          name,
+				Datasets:      []lens.DatasetSpec{overrideDataset},
+				HasColorValue: hasColorValue,
+			}, nil
+		}
+		sourceName := name + "_source"
+		overrideDataset.Name = sourceName
+		return dimensionDatasetResolution{
+			Name:          name,
+			HasColorValue: hasColorValue,
+			Datasets: []lens.DatasetSpec{
+				overrideDataset,
+				{
+					Name:       name,
+					Kind:       lens.DatasetKindTransform,
+					DependsOn:  []string{sourceName},
+					Transforms: resolvedDimensionTransforms(spec, extraTransforms),
+				},
+			},
+		}, nil
+	}
+
+	switch spec.DataMode {
+	case DataModeSQL:
+		if len(extraTransforms) == 0 {
+			return dimensionDatasetResolution{
+				Name:          name,
+				Datasets:      []lens.DatasetSpec{resolveSQLChartDataset(spec, ctx, dim, seriesDim, measure, name)},
+				HasColorValue: strings.TrimSpace(dim.ColorColumn) != "",
+			}, nil
+		}
+		sourceName := name + "_source"
+		return dimensionDatasetResolution{
+			Name:          name,
+			HasColorValue: strings.TrimSpace(dim.ColorColumn) != "",
+			Datasets: []lens.DatasetSpec{
+				resolveSQLChartDataset(spec, ctx, dim, seriesDim, measure, sourceName),
+				{
+					Name:       name,
+					Kind:       lens.DatasetKindTransform,
+					DependsOn:  []string{sourceName},
+					Transforms: resolvedDimensionTransforms(spec, extraTransforms),
+				},
+			},
+		}, nil
+	case DataModeDataset, DataModeNamed:
+		return dimensionDatasetResolution{
+			Name:          name,
+			Datasets:      []lens.DatasetSpec{resolveDatasetChartDataset(spec, ctx, dim, seriesDim, measure, extraTransforms, name)},
+			HasColorValue: datasetDimensionHasColorValue(dim),
+		}, nil
+	default:
+		return dimensionDatasetResolution{}, fmt.Errorf("unsupported cube mode %q", spec.DataMode)
+	}
+}
+
 func buildStatPanelsCompared(spec CubeSpec, datasetByMeasure map[string]string, compared bool) []panel.Spec {
-	panels := make([]panel.Spec, 0, len(spec.Measures))
-	span := statSpan(len(spec.Measures))
-	for _, measure := range spec.Measures {
+	return buildStatPanelsForMeasures(spec, spec.Measures, datasetByMeasure, compared, nil)
+}
+
+func buildStatPanelsForMeasures(
+	spec CubeSpec,
+	measures []MeasureSpec,
+	datasetByMeasure map[string]string,
+	compared bool,
+	defaultAction *action.Spec,
+) []panel.Spec {
+	panels := make([]panel.Spec, 0, len(measures))
+	span := statSpan(len(measures))
+	for _, measure := range measures {
 		dataset := datasetByMeasure[measure.Name]
 		if strings.TrimSpace(dataset) == "" {
 			dataset = statsDatasetNamePrefix
@@ -281,9 +461,12 @@ func buildStatPanelsCompared(spec CubeSpec, datasetByMeasure map[string]string, 
 		if strings.TrimSpace(measure.AccentColor) != "" {
 			builder.AccentColor(measure.AccentColor)
 		}
-		if measure.Action != nil {
+		switch {
+		case measure.Action != nil:
 			builder.Action(*measure.Action)
-		} else {
+		case defaultAction != nil:
+			builder.Action(cloneActionSpec(*defaultAction))
+		default:
 			builder.Terminal()
 		}
 		if compared {
@@ -296,25 +479,316 @@ func buildStatPanelsCompared(spec CubeSpec, datasetByMeasure map[string]string, 
 	return panels
 }
 
-// buildStatStrip gathers a cube's measure cards into one KPI strip. Left as
-// loose panels each measure claims a full card — header chrome, a tall empty
-// body, and the figure adrift in the middle of it — so three numbers occupy a
-// screenful. A StatGroup renders the same measures as one hairline-separated
-// row of compact metrics, which is the shape every hand-built Lens dashboard
-// already uses for its KPI band. The strip stays headerless: a cube's stats are
-// the dashboard's headline, and the page title above them already says so.
+func resolveKPIAction(goCtx context.Context, spec CubeSpec, drillCtx DrillContext, baseURL string, showingLeaf bool) *action.Spec {
+	if len(spec.Layout) == 0 && len(spec.DrillPath) == 0 && !spec.HasLeaf() {
+		return nil
+	}
+	if !showingLeaf && spec.Leaf.Table != nil {
+		leafCtx := drillCtx.clone()
+		leafCtx.Leaf = true
+		act := action.Navigate(mergeURL(baseURL, leafCtx.WithValues(drillCtx.Request))).WithPreservedQuery()
+		return &act
+	}
+	if extURL := spec.ResolveExternalLeafURL(goCtx, drillCtx, literalCubeParams(spec)); extURL != "" {
+		act := action.Navigate(extURL).WithPreservedQuery()
+		return &act
+	}
+	if nextDim := spec.NextDrillDimension(drillCtx); nextDim != "" {
+		nextCtx := drillCtx.clone()
+		nextCtx.GroupBy = nextDim
+		nextCtx.ActiveDimension = nextDim
+		act := action.Navigate(mergeURL(baseURL, nextCtx.WithValues(drillCtx.Request))).WithPreservedQuery()
+		return &act
+	}
+	act := action.Navigate(mergeURL(baseURL, drillCtx.WithValues(drillCtx.Request))).WithPreservedQuery()
+	return &act
+}
+
+func literalCubeParams(spec CubeSpec) map[string]any {
+	if len(spec.Params) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(spec.Params))
+	for key, param := range spec.Params {
+		if param.Literal != nil {
+			out[key] = param.Literal
+		}
+	}
+	return out
+}
+
+func selectRowMeasures(spec CubeSpec, names []string) []MeasureSpec {
+	if len(names) == 0 {
+		return spec.Measures
+	}
+	out := make([]MeasureSpec, 0, len(names))
+	for _, name := range names {
+		if m, ok := spec.Measure(name); ok {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+func chartMeasure(spec CubeSpec, chart ChartSpec) MeasureSpec {
+	if chart.Measure != "" {
+		if m, ok := spec.Measure(chart.Measure); ok {
+			return m
+		}
+	}
+	return spec.Measures[0]
+}
+
+func chartRowSpans(charts []ChartSpec) []int {
+	spans := make([]int, len(charts))
+	if len(charts) == 0 {
+		return spans
+	}
+	explicitTotal := 0
+	autoCount := 0
+	for i, c := range charts {
+		if c.Span > 0 {
+			spans[i] = c.Span
+			explicitTotal += c.Span
+		} else {
+			autoCount++
+		}
+	}
+	if autoCount == 0 {
+		return spans
+	}
+	remaining := 12 - explicitTotal
+	if remaining < autoCount {
+		remaining = 12
+	}
+	base := remaining / autoCount
+	if base < 1 {
+		base = 1
+	}
+	extra := remaining - base*autoCount
+	for i := range charts {
+		if spans[i] > 0 {
+			continue
+		}
+		spans[i] = base
+		if extra > 0 {
+			spans[i]++
+			extra--
+		}
+	}
+	return spans
+}
+
 func buildStatStrip(spec CubeSpec, stats []panel.Spec) panel.Spec {
-	return panel.StatGroup(spec.ID+"-kpi", "", stats...).
+	return buildStatStripWithID(spec.ID+"-kpi", stats)
+}
+
+func buildStatStripWithID(id string, stats []panel.Spec) panel.Spec {
+	return panel.StatGroup(id, "", stats...).
 		Layout(panel.GroupColumns).
 		Span(12).
 		Build()
 }
 
+func buildChartPanel(
+	spec CubeSpec,
+	ctx DrillContext,
+	chart ChartSpec,
+	resolved dimensionDatasetResolution,
+	baseURL string,
+	span int,
+) panel.Spec {
+	dim, _ := spec.Dimension(chart.Dimension)
+	measure := chartMeasure(spec, chart)
+	kind := chart.Kind
+	if kind == "" {
+		kind = dim.PanelKind
+	}
+	if kind == "" {
+		kind = panel.KindBar
+	}
+	title := strings.TrimSpace(chart.Title)
+	if title == "" {
+		title = dim.Label
+	}
+	description := strings.TrimSpace(chart.Description)
+	if description == "" {
+		description = dim.Description
+	}
+	fields := panel.FieldMapping{
+		Label:    panel.Ref("label"),
+		Category: panel.Ref("label"),
+		Value:    panel.Ref(measure.Name),
+		ID:       panel.Ref("filter_value"),
+	}
+	if chart.Series != "" {
+		fields.Series = panel.Ref("series")
+	}
+	if resolved.Compared {
+		fields.Previous = panel.Ref(comparison.PreviousField(measure.Name))
+	}
+
+	drillAction := action.CubeDrill(baseURL, dim.Name).WithPreservedQuery()
+	if nextDim := nextDrillDimensionExcluding(spec, ctx, dim.Name); nextDim != "" {
+		drillAction = drillAction.WithDrillGroupBy(nextDim)
+	}
+
+	builder := panelBuilder(kind, chart.ID, title, resolved.Name, dim.Map).
+		Span(span).
+		Height("360px").
+		Description(description).
+		Fields(fields).
+		Action(drillAction)
+
+	if strings.TrimSpace(chart.Height) != "" {
+		builder.Height(chart.Height)
+	} else if strings.TrimSpace(dim.Height) != "" {
+		builder.Height(dim.Height)
+	}
+	if measure.Formatter != nil {
+		builder.Format(*measure.Formatter)
+	}
+	if dim.ValueAxis.Scale != "" {
+		builder.ValueAxisScale(dim.ValueAxis.Scale, dim.ValueAxis.LogBase)
+	}
+	if !chart.Presentation.IsZero() {
+		builder.Presentation(chart.Presentation)
+	} else if !dim.Presentation.IsZero() {
+		builder.Presentation(dim.Presentation)
+	}
+	if strings.TrimSpace(dim.ColorScale) != "" {
+		colorField := panel.Ref("filter_value")
+		if resolved.HasColorValue {
+			colorField = panel.Ref("color_value")
+		}
+		builder.SemanticColors(dim.ColorScale, colorField)
+	}
+	if len(chart.Colors) > 0 {
+		builder.Colors(chart.Colors...)
+	} else if len(dim.Colors) > 0 {
+		builder.Colors(dim.Colors...)
+	}
+	if (kind == panel.KindBar || kind == panel.KindHorizontalBar) && chart.Series == "" {
+		builder.DistributedColors()
+	}
+	if chart.Series != "" {
+		builder.Legend()
+	}
+	return builder.Build()
+}
+
+func buildLeafTable(goCtx context.Context, spec CubeSpec, ctx DrillContext, baseURL string) (lens.DatasetSpec, panel.Spec) {
+	table := spec.Leaf.Table
+	dsName := leafDatasetName(table.ID)
+	var ds lens.DatasetSpec
+	switch spec.DataMode {
+	case DataModeSQL:
+		ds = resolveSQLLeafDataset(spec, ctx, table, dsName)
+	default:
+		ds = resolveDatasetLeafDataset(spec, ctx, table, dsName)
+	}
+
+	title := strings.TrimSpace(table.Title)
+	if title == "" {
+		title = spec.Title
+	}
+	builder := panel.Table(table.ID, title, dsName).
+		Span(12).
+		Height("420px").
+		IDField(panel.Ref(table.IDField))
+	if strings.TrimSpace(table.Height) != "" {
+		builder.Height(table.Height)
+	}
+	if strings.TrimSpace(table.Description) != "" {
+		builder.Description(table.Description)
+	}
+	if table.Searchable {
+		builder.Searchable()
+	}
+
+	columns := table.Columns
+	if len(columns) == 0 {
+		columns = defaultLeafTableColumns(spec)
+	}
+	if len(columns) > 0 {
+		builder.Columns(columns...)
+	}
+	switch {
+	case table.RowAction != nil:
+		builder.Action(cloneActionSpec(*table.RowAction))
+	default:
+		if extURL := spec.ResolveExternalLeafURL(goCtx, ctx, literalCubeParams(spec)); extURL != "" {
+			builder.Action(action.Navigate(extURL).WithPreservedQuery())
+		} else {
+			builder.Terminal()
+		}
+	}
+	return ds, builder.Build()
+}
+
+func defaultLeafTableColumns(spec CubeSpec) []panel.TableColumn {
+	cols := make([]panel.TableColumn, 0, len(spec.Dimensions)+len(spec.Measures))
+	seen := make(map[string]struct{})
+	addCol := func(col panel.TableColumn) {
+		name := col.Field.Name()
+		if name == "" {
+			return
+		}
+		if _, dup := seen[name]; dup {
+			return
+		}
+		seen[name] = struct{}{}
+		cols = append(cols, col)
+	}
+	switch spec.DataMode {
+	case DataModeSQL:
+		for _, dim := range spec.Dimensions {
+			if dim.sqlColumn() == "" {
+				continue
+			}
+			addCol(panel.TableColumn{Field: panel.Ref(dim.Name), Label: dim.Label})
+		}
+		for _, measure := range spec.Measures {
+			col := strings.TrimSpace(measure.Column)
+			if col == "" || col == "*" || strings.Contains(strings.ToUpper(col), "DISTINCT") {
+				continue
+			}
+			addCol(panel.TableColumn{Field: panel.Ref(measure.Name), Label: measure.Label, Formatter: measure.Formatter, Align: "right"})
+		}
+	default:
+		for _, dim := range spec.Dimensions {
+			fieldName := dim.datasetValueField()
+			if dim.Type != DimensionTypeTimeBucket && strings.TrimSpace(dim.LabelField) != "" {
+				fieldName = strings.TrimSpace(dim.LabelField)
+			}
+			addCol(panel.TableColumn{Field: panel.Ref(fieldName), Label: dim.Label})
+		}
+		for _, measure := range spec.Measures {
+			if strings.TrimSpace(measure.Field) == "" {
+				continue
+			}
+			addCol(panel.TableColumn{Field: panel.Ref(measure.Field), Label: measure.Label, Formatter: measure.Formatter, Align: "right"})
+		}
+	}
+	return cols
+}
+
 func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDatasetResolution, baseURL string, remainingCount, index int) panel.Spec {
+	return buildDimensionPanelWithContext(spec, DrillContext{}, dim, resolved, baseURL, remainingCount, index)
+}
+
+func buildDimensionPanelWithContext(spec CubeSpec, ctx DrillContext, dim DimensionSpec, resolved dimensionDatasetResolution, baseURL string, remainingCount, index int) panel.Spec {
 	// Dimension charts use the first measure as their value axis.
 	// Additional measures appear only in stat panels.
 	measure := spec.Measures[0]
 	actionURL := baseURL
+	panelAction := action.CrossFilter(actionURL, dim.Name)
+	if len(spec.DrillPath) > 0 {
+		panelAction = action.CubeDrill(actionURL, dim.Name).WithPreservedQuery()
+		if nextDim := nextDrillDimensionExcluding(spec, ctx, dim.Name); nextDim != "" {
+			panelAction = panelAction.WithDrillGroupBy(nextDim)
+		}
+	}
 	builder := panelBuilder(dim.PanelKind, "panel_"+dim.Name, dim.Label, resolved.Name, dim.Map).
 		Span(dimensionSpan(remainingCount, index)).
 		Height("360px").
@@ -331,7 +805,7 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 			}(),
 			ID: panel.Ref("filter_value"),
 		}).
-		Action(action.CrossFilter(actionURL, dim.Name))
+		Action(panelAction)
 	if strings.TrimSpace(dim.Height) != "" {
 		builder.Height(dim.Height)
 	}
@@ -361,7 +835,7 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 		builder = panel.Table("panel_"+dim.Name, dim.Label, resolved.Name).
 			Span(dimensionSpan(remainingCount, index)).
 			Height("360px").
-			Action(action.CrossFilter(actionURL, dim.Name)).
+			Action(panelAction).
 			Columns(
 				panel.TableColumn{Field: panel.Ref("label"), Label: dim.Label},
 				panel.TableColumn{Field: panel.Ref(comparison.PreviousField(measure.Name)), Label: "Before", Formatter: measure.Formatter, Align: "right"},
@@ -448,8 +922,9 @@ func panelBuilder(kind panel.Kind, id, title, dataset string, mapSpec *panel.Map
 	switch kind {
 	case panel.KindTable:
 		return panel.Table(id, title, dataset)
+	case panel.KindTimeSeries:
+		return panel.TimeSeries(id, title, dataset)
 	case panel.KindStat,
-		panel.KindTimeSeries,
 		panel.KindBar,
 		panel.KindSegmentBar, panel.KindCascade,
 		panel.KindGauge,
@@ -563,6 +1038,14 @@ func dimensionSpan(remaining, index int) int {
 
 func datasetName(dimension string) string {
 	return dimDatasetNamePrefix + "_" + strings.ReplaceAll(strings.TrimSpace(dimension), " ", "_")
+}
+
+func chartDatasetName(chartID string) string {
+	return chartDatasetNamePrefix + "_" + strings.ReplaceAll(strings.TrimSpace(chartID), " ", "_")
+}
+
+func leafDatasetName(tableID string) string {
+	return leafDatasetNamePrefix + "_" + strings.ReplaceAll(strings.TrimSpace(tableID), " ", "_")
 }
 
 func measureDatasetName(measure string) string {

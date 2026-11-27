@@ -48,6 +48,12 @@ func resolveFilterDisplay(
 	if !ok {
 		return filter.Value, nil
 	}
+	if mapped := dim.DisplayLabel(filter.Value); mapped != filter.Value {
+		return mapped, nil
+	}
+	if dim.Type == DimensionTypeTimeBucket {
+		return filter.Value, nil
+	}
 	switch spec.DataMode {
 	case DataModeDataset:
 		return datasetFilterDisplay(spec, drillCtx.WithFilter(filter.Dimension, filter.Value), dim), nil
@@ -75,7 +81,7 @@ func datasetFilterDisplay(spec CubeSpec, drillCtx DrillContext, dim DimensionSpe
 	}
 	labelField := strings.TrimSpace(dim.LabelField)
 	if labelField == "" {
-		labelField = strings.TrimSpace(dim.Field)
+		labelField = strings.TrimSpace(dim.datasetSourceField())
 	}
 	if labelField == "" {
 		return ""
@@ -99,14 +105,17 @@ func rowMatchesDrill(row map[string]any, spec CubeSpec, drillCtx DrillContext) b
 		if !ok {
 			continue
 		}
-		field := strings.TrimSpace(dim.Field)
-		if field == "" {
-			field = strings.TrimSpace(dim.LabelField)
-		}
+		field := strings.TrimSpace(dim.datasetSourceField())
 		if field == "" {
 			continue
 		}
-		if !containsString(filter.values(), strings.TrimSpace(fmt.Sprint(row[field]))) {
+		var actual string
+		if dim.Type == DimensionTypeTimeBucket {
+			actual = coerceRowTimeBucket(row[field], dim.TimeGranularity)
+		} else {
+			actual = strings.TrimSpace(fmt.Sprint(row[field]))
+		}
+		if !containsString(filter.values(), actual) {
 			return false
 		}
 	}
@@ -115,10 +124,7 @@ func rowMatchesDrill(row map[string]any, spec CubeSpec, drillCtx DrillContext) b
 
 func sqlFilterLabelQuery(spec CubeSpec, drillCtx DrillContext, dim DimensionSpec) (string, map[string]any) {
 	joins := requiredSQLJoins(spec, dim, drillCtx)
-	labelColumn := strings.TrimSpace(dim.LabelColumn)
-	if labelColumn == "" {
-		labelColumn = dim.Column
-	}
+	labelColumn := dim.sqlLabelColumn()
 	text := "SELECT " + labelColumn + " AS label\nFROM " + spec.FromSQL + sqlJoinSQL(spec, joins)
 	where := sqlWhere(spec, drillCtx)
 	if where != "" {

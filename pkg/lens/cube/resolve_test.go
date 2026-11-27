@@ -145,7 +145,7 @@ func TestBuildDimensionPanelUsesBaseURLForFacetToggle(t *testing.T) {
 		Dataset(nil).
 		Dimension("payment_method", "Payment Method").
 		Field("payment_method").
-		Leaf("/crm/reports/sales/drill/policies").
+		Leaf(LeafSpec{URL: "/crm/reports/sales/drill/policies"}).
 		Measure("total_policies", "Total Policies").
 		Count().
 		Build()
