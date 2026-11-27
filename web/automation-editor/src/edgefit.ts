@@ -1,6 +1,6 @@
 // How an edge's routed polyline meets the handles on screen: fitted onto them, and ended short of the input
 // dot for its arrow. Only the canvas (a lazy chunk) uses it, so it stays out of the package entry.
-import { SNAP, type Point } from './route'
+import { simplify, SNAP, type Point } from './route'
 
 const same = (a: number, b: number) => Math.abs(a - b) < 0.5
 
@@ -34,24 +34,10 @@ export function fitRoute(points: readonly Point[] | undefined, source: Point, ta
   return tidy(out)
 }
 
-/** Drops stretches shorter than a pixel (merging their ends) and the middle of three collinear points. */
+/** Drops stretches shorter than a pixel and the middle of three collinear points; the ends stay exact. */
 export function tidy(points: Point[]): Point[] {
-  const out: Point[] = []
-  for (const p of points) {
-    const last = out[out.length - 1]
-    if (last && Math.abs(last.x - p.x) < 1 && Math.abs(last.y - p.y) < 1) {
-      // Keep the ends exact: the first point stays, the last one wins.
-      if (out.length > 1) out[out.length - 1] = p
-      continue
-    }
-    out.push(p)
-  }
-  for (let i = out.length - 2; i > 0; i -= 1) {
-    const a = out[i - 1]!
-    const b = out[i]!
-    const c = out[i + 1]!
-    if ((same(a.x, b.x) && same(b.x, c.x)) || (same(a.y, b.y) && same(b.y, c.y))) out.splice(i, 1)
-  }
+  const out = simplify(points, 1)
+  out[out.length - 1] = points[points.length - 1]!
   return out
 }
 

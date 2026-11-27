@@ -118,12 +118,12 @@ class Obstacles {
 
 const same = (a: number, b: number) => Math.abs(a - b) < 0.5
 
-/** Drops repeated points and the middle point of three collinear ones. */
-export function simplify(points: Point[]): Point[] {
+/** Drops repeated points (closer than `eps` on both axes) and the middle point of three collinear ones. */
+export function simplify(points: Point[], eps = 0.5): Point[] {
   const out: Point[] = []
   for (const p of points) {
     const last = out[out.length - 1]
-    if (last && same(last.x, p.x) && same(last.y, p.y)) continue
+    if (last && Math.abs(last.x - p.x) < eps && Math.abs(last.y - p.y) < eps) continue
     out.push(p)
   }
   for (let i = out.length - 2; i > 0; i -= 1) {
