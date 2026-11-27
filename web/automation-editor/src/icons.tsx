@@ -40,6 +40,13 @@ const paths: Record<string, string> = {
   copy: 'M5 5h8v8H5zM3 11V3h8',
   more: 'M3 8h.01M8 8h.01M13 8h.01',
   dot: 'M8 6a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z',
+  open: 'M9 2.5h4.5V7M13.5 2.5 7.5 8.5M12 9.5v3a1 1 0 0 1-1 1H3.5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3',
+  connect: 'M4 2.5v4a3 3 0 0 0 3 3h6.5m-2.5-2.5 2.5 2.5-2.5 2.5M4 2.5h.01',
+  unignore: 'M3 8h6.5a3 3 0 0 1 0 6H8M5.5 5.5 3 8l2.5 2.5',
+  duplicate: 'M5.5 5.5h8v8h-8zM2.5 10.5v-8h8',
+  trash: 'M2.5 4h11M6 4V2.5h4V4m-6 0 .7 9.5h6.6L12 4M6.75 6.5v4.5m2.5-4.5v4.5',
+  paste: 'M5.5 2.5h5v2h-5zM5.5 3.5H3.5v10h9v-10h-2',
+  grid: 'M2.5 2.5h11v11h-11zM6.17 2.5v11M9.83 2.5v11M2.5 6.17h11M2.5 9.83h11',
 }
 
 export function Icon(props: { name: string; class?: string; size?: number; label?: string }): JSX.Element {

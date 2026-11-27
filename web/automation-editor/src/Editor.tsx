@@ -582,31 +582,32 @@ function EditorBody(props: EditorProps): JSX.Element {
       const id = m.item
       const ids = selection().includes(id) ? selection() : [id]
       const many = ids.length > 1
-      if (!many) items.push({ key: 'open', label: t().menu.open, shortcut: 'Enter', run: () => openPanelFocus(id) })
+      if (!many) items.push({ key: 'open', icon: 'open', label: t().menu.open, shortcut: 'Enter', run: () => openPanelFocus(id) })
       if (editable && !many) {
         for (const outcome of itemOutcomes(draft(), props.catalog, id)) {
-          items.push({ key: `connect:${outcome}`, label: t().menu.connectTo(outcome), run: () => setPalette({ kind: 'connect', from: { node: id, outcome }, anchor: { x: m.x, y: m.y } }) })
+          items.push({ key: `connect:${outcome}`, icon: 'connect', separator: items.length > 0 && outcome === itemOutcomes(draft(), props.catalog, id)[0], label: t().menu.connectTo(outcome), run: () => setPalette({ kind: 'connect', from: { node: id, outcome }, anchor: { x: m.x, y: m.y } }) })
           const ignored = edgeOf(draft(), id, outcome)?.to === IGNORE
           items.push({
             key: `ignore:${outcome}`,
+            icon: ignored ? 'unignore' : 'ignore',
             label: ignored ? t().menu.unignore(outcome) : t().menu.ignore(outcome),
             run: () => commitGraph(setIgnore(draft(), { node: id, outcome }, !ignored)),
           })
         }
       }
-      if (editable) items.push({ key: 'duplicate', label: t().menu.duplicate, shortcut: '⌘D', run: () => duplicate(ids) })
-      items.push({ key: 'copy', label: t().menu.copy, shortcut: '⌘C', run: () => writeClipboard(copy(ids)) })
-      if (editable) items.push({ key: 'delete', label: many ? t().menu.deleteMany(ids.length) : t().menu.delete, shortcut: 'Delete', danger: true, run: () => deleteItems(ids) })
+      if (editable) items.push({ key: 'duplicate', icon: 'duplicate', separator: items.length > 0, label: t().menu.duplicate, shortcut: '⌘D', run: () => duplicate(ids) })
+      items.push({ key: 'copy', icon: 'copy', separator: !editable && items.length > 0, label: t().menu.copy, shortcut: '⌘C', run: () => writeClipboard(copy(ids)) })
+      if (editable) items.push({ key: 'delete', icon: 'trash', separator: true, label: many ? t().menu.deleteMany(ids.length) : t().menu.delete, shortcut: 'Delete', danger: true, run: () => deleteItems(ids) })
       return items
     }
     if (editable) {
-      items.push({ key: 'add', label: t().menu.addHere, run: () => setPalette({ kind: 'add', anchor: { x: m.x, y: m.y }, flow: m.flow }) })
-      items.push({ key: 'paste', label: t().menu.paste, shortcut: '⌘V', run: () => void readClipboard().then((clip) => paste(clip, m.flow)) })
+      items.push({ key: 'add', icon: 'plus', label: t().menu.addHere, run: () => setPalette({ kind: 'add', anchor: { x: m.x, y: m.y }, flow: m.flow }) })
+      items.push({ key: 'paste', icon: 'paste', label: t().menu.paste, shortcut: '⌘V', run: () => void readClipboard().then((clip) => paste(clip, m.flow)) })
     }
-    items.push({ key: 'select-all', label: t().menu.selectAll, shortcut: '⌘A', run: () => canvasApi?.selectAll() })
-    items.push({ key: 'fit', label: t().canvas.fit, shortcut: '⇧1', run: () => canvasApi?.fit() })
-    if (editable) items.push({ key: 'tidy', label: t().canvas.tidy, shortcut: '⇧⌘L', run: tidy })
-    if (editable && coarse()) items.push({ key: 'snap', label: t().menu.snap, checked: snapOn(), run: () => setSnapOn((v) => !v) })
+    items.push({ key: 'select-all', icon: 'select', separator: items.length > 0, label: t().menu.selectAll, shortcut: '⌘A', run: () => canvasApi?.selectAll() })
+    items.push({ key: 'fit', icon: 'fit', label: t().canvas.fit, shortcut: '⇧1', run: () => canvasApi?.fit() })
+    if (editable) items.push({ key: 'tidy', icon: 'broom', label: t().canvas.tidy, shortcut: '⇧⌘L', run: tidy })
+    if (editable && coarse()) items.push({ key: 'snap', icon: 'grid', label: t().menu.snap, checked: snapOn(), run: () => setSnapOn((v) => !v) })
     return items
   })
 
