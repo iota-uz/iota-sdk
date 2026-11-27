@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
@@ -332,4 +333,105 @@ func TestSquashedHistoryIsComplete(t *testing.T) {
 			"every kept file is one the baseline replaces")
 	}
 	require.Equal(t, squashed, strings.Count(string(baseline), "-- +squashes "))
+}
+
+// crossKindDump is a pg_dump-shaped schema whose objects depend on each other
+// across kinds in both directions: a function takes a table's row type (the
+// table cannot go first), a view calls that function (the function cannot go
+// first), and two tables reference each other.
+const crossKindDump = `--
+-- Name: metrics; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.metrics (
+    id integer
+);
+
+--
+-- Name: metric_id(public.metrics); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.metric_id(public.metrics) RETURNS integer
+    LANGUAGE sql
+    AS 'SELECT ($1).id';
+
+--
+-- Name: metric_ids; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.metric_ids AS
+ SELECT public.metric_id(m.*) AS id
+   FROM public.metrics m;
+
+--
+-- Name: ping; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.ping (
+    id integer PRIMARY KEY,
+    pong_id integer
+);
+
+--
+-- Name: pong; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.pong (
+    id integer PRIMARY KEY,
+    ping_id integer
+);
+
+--
+-- Name: ping ping_pong_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.ping
+    ADD CONSTRAINT ping_pong_fkey FOREIGN KEY (pong_id) REFERENCES public.pong(id);
+
+--
+-- Name: pong pong_ping_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pong
+    ADD CONSTRAINT pong_ping_fkey FOREIGN KEY (ping_id) REFERENCES public.ping(id);
+`
+
+// Falsely green if the generated Down drops by a fixed kind order: DROP TABLE
+// metrics RESTRICT fails while metric_id(metrics) exists, and DROP FUNCTION
+// fails while the view calls it.
+func TestBaselineGeneratorDropsInDependencyOrder(t *testing.T) {
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("python3 not installed")
+	}
+	work := t.TempDir()
+	dump := filepath.Join(work, "dump.sql")
+	require.NoError(t, os.WriteFile(dump, []byte(crossKindDump), 0o600))
+	history := filepath.Join(work, "history")
+	require.NoError(t, os.Mkdir(history, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(history, "0001_old.sql"), []byte("-- +migrate Up\n-- +migrate Down\n"), 0o600))
+	dir := filepath.Join(work, "migrations")
+	require.NoError(t, os.Mkdir(dir, 0o700))
+	out, err := exec.Command(python, "../../scripts/migrations-baseline.py", dump, history, filepath.Join(dir, "0000_baseline.sql")).CombinedOutput()
+	require.NoError(t, err, string(out))
+
+	pool := itf.NewDatabaseManager(t).Pool()
+	ctx := context.Background()
+	manager := newManager(pool, dir)
+	require.NoError(t, manager.Run(ctx))
+	require.True(t, relationExists(t, pool, "public.metric_ids"))
+
+	require.NoError(t, manager.RollbackAll(ctx))
+	require.Empty(t, userObjects(t, pool))
+
+	// An outside dependent still stops it, with PostgreSQL's own error.
+	require.NoError(t, manager.Run(ctx))
+	_, err = pool.Exec(ctx, `CREATE VIEW public.consumer_metrics AS SELECT id FROM public.metrics`)
+	require.NoError(t, err)
+	var pgErr *pgconn.PgError
+	require.ErrorAs(t, manager.RollbackAll(ctx), &pgErr)
+	require.Equal(t, "2BP01", pgErr.Code, "dependent_objects_still_exist")
+	require.Contains(t, pgErr.Detail, "consumer_metrics")
+	require.True(t, relationExists(t, pool, "public.metrics"))
+	require.Equal(t, []string{"0000_baseline.sql"}, appliedMigrationIDs(t, pool))
 }

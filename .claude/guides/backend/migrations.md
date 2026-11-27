@@ -75,7 +75,8 @@ Their files are kept in `migrations/squashed/history/` only for
   release notes say so).
 - A bounded `Rollback(ctx, n)` / `migrate down` that would reach the baseline is
   refused; only `RollbackAll` / `migrate down --all` runs its Down, which drops
-  its objects kind by kind and then its schemas, all with `RESTRICT`: anything
+  its objects with `RESTRICT` in a dependency order found at run time, then its
+  schemas with `RESTRICT`: anything
   else depending on them (inheritance, foreign keys, views, tables in SDK
   schemas) fails the rollback instead of being dropped (roles stay: they are
   cluster-wide). Going down past the baseline is not supported.

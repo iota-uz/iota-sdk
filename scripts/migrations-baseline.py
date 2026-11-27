@@ -64,12 +64,11 @@ SKIP_PREFIXES = (
     "SET default_table_access_method",
 )
 
-# Object kinds the generated Down drops, in the order it drops them: views
-# before the tables they read, tables before the sequences, functions, domains
-# and types they use, aggregates before their functions. Within a kind one
-# statement drops them all, so dependencies among objects of one kind need no
-# order. Materialized views are not supported: a view and a materialized view
-# can each read the other, and drops by kind cannot order that.
+# Object kinds the generated Down drops. The order is only a first guess (views
+# before tables, tables before what they use): dependencies cross kinds in both
+# directions (a view calls a function, a function takes a table's row type), so
+# the Down orders the drops at run time, see DROP_IN_DEPENDENCY_ORDER.
+# Materialized views are not accepted.
 DROPPABLE = ("VIEW", "TABLE", "SEQUENCE", "AGGREGATE", "FUNCTION", "PROCEDURE", "DOMAIN", "TYPE")
 
 # Entries that belong to an object above and go with it (an index with its
@@ -264,6 +263,65 @@ $$;
 """
 
 
+# Drops every baseline object with RESTRICT, in an order found at run time.
+# Each pass tries every kind as one statement (which settles dependencies
+# within a kind, cycles of foreign keys included), then, if that is blocked,
+# each object of the kind on its own; passes repeat while anything is dropped.
+# What is still blocked at the end depends on something outside the baseline:
+# the last statement drops it without a handler, so the rollback fails with
+# PostgreSQL's own error naming the dependent object.
+DROP_IN_DEPENDENCY_ORDER = """-- +migrate StatementBegin
+DO $$
+DECLARE
+    kinds text[] := ARRAY[%s];
+    obj_kind text[] := ARRAY[
+        %s];
+    obj_name text[] := ARRAY[
+        %s];
+    done boolean[];
+    progress boolean;
+    k text;
+    names text;
+    i int;
+BEGIN
+    done := array_fill(false, ARRAY[cardinality(obj_name)]);
+    LOOP
+        progress := false;
+        FOREACH k IN ARRAY kinds LOOP
+            SELECT string_agg(obj_name[j], ', ') INTO names
+            FROM generate_subscripts(obj_name, 1) AS j WHERE obj_kind[j] = k AND NOT done[j];
+            CONTINUE WHEN names IS NULL;
+            BEGIN
+                EXECUTE format('DROP %%s IF EXISTS %%s RESTRICT', k, names);
+                FOR i IN 1 .. cardinality(obj_name) LOOP
+                    IF obj_kind[i] = k THEN done[i] := true; END IF;
+                END LOOP;
+                progress := true;
+            EXCEPTION WHEN dependent_objects_still_exist THEN
+                FOR i IN 1 .. cardinality(obj_name) LOOP
+                    CONTINUE WHEN obj_kind[i] <> k OR done[i];
+                    BEGIN
+                        EXECUTE format('DROP %%s IF EXISTS %%s RESTRICT', k, obj_name[i]);
+                        done[i] := true;
+                        progress := true;
+                    EXCEPTION WHEN dependent_objects_still_exist THEN
+                        NULL;
+                    END;
+                END LOOP;
+            END;
+        END LOOP;
+        EXIT WHEN NOT progress;
+    END LOOP;
+    FOR i IN 1 .. cardinality(obj_name) LOOP
+        CONTINUE WHEN done[i];
+        EXECUTE format('DROP %%s IF EXISTS %%s RESTRICT', obj_kind[i], obj_name[i]);
+    END LOOP;
+END
+$$;
+-- +migrate StatementEnd
+"""
+
+
 def sql_literal(text):
     return "'" + text.replace("'", "''") + "'"
 
@@ -355,18 +413,22 @@ def generate(dump, squashed_dir, out):
 
     out.write("-- +migrate Down\n\n")
     out.write("-- Roles are cluster-wide and may be used by other databases; they are left in place.\n")
-    out.write("-- Each kind of object goes in one statement with RESTRICT: dependencies among the\n")
-    out.write("-- baseline's own objects are dropped together, while anything else that depends on them\n")
-    out.write("-- (a table inheriting from one, a foreign key, a view, a table in an SDK schema) makes\n")
-    out.write("-- the rollback fail and roll back instead of being dropped.\n")
+    out.write("-- Every object is dropped with RESTRICT, in dependency order found at run time: the\n")
+    out.write("-- baseline's own dependencies resolve, while anything else that depends on its objects\n")
+    out.write("-- (a table inheriting from one, a foreign key, a view, an owned sequence, a table in an\n")
+    out.write("-- SDK schema) makes the rollback fail and roll back instead of being dropped.\n")
     if drops["TABLE"]:
         out.write(OWNED_SEQUENCE_GUARD % (
             ", ".join(sql_literal(t) for t in drops["TABLE"]),
             ", ".join(sql_literal(q) for q in drops["SEQUENCE"]) or "",
         ))
-    for kind in DROPPABLE:
-        if drops[kind]:
-            out.write("DROP %s IF EXISTS\n    %s\n    RESTRICT;\n" % (kind, ",\n    ".join(drops[kind])))
+    objects = [(kind, name) for kind in DROPPABLE for name in drops[kind]]
+    if objects:
+        out.write(DROP_IN_DEPENDENCY_ORDER % (
+            ", ".join(sql_literal(k) for k in DROPPABLE),
+            ",\n        ".join(sql_literal(k) for k, _ in objects),
+            ",\n        ".join(sql_literal(n) for _, n in objects),
+        ))
     for schema in schemas:
         if schema != "public":
             out.write("DROP SCHEMA IF EXISTS %s RESTRICT;\n" % quote_ident(schema))
