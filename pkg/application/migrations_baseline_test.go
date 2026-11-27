@@ -441,6 +441,17 @@ CREATE TABLE public."cost$$" (
 --
 
 COMMENT ON TABLE public.metrics IS '((x)::text = ANY ((ARRAY[''''::character varying])::text[]))';
+
+--
+-- Name: codes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.codes (
+    x integer,
+    state character varying,
+    CONSTRAINT codes_x_check CHECK (((x)::text = ANY ((ARRAY['01'::character varying])::text[]))),
+    CONSTRAINT codes_state_check CHECK (((state)::text = ANY ((ARRAY['open'::character varying, 'closed'::character varying])::text[])))
+);
 `
 
 // Falsely green if the generated Down drops by a fixed kind order: DROP TABLE
@@ -471,6 +482,30 @@ func TestBaselineGeneratorDropsInDependencyOrder(t *testing.T) {
 	var comment string
 	require.NoError(t, pool.QueryRow(ctx, `SELECT obj_description('public.metrics'::regclass, 'pg_class')`).Scan(&comment))
 	require.Equal(t, `((x)::text = ANY ((ARRAY[''::character varying])::text[]))`, comment, "a literal is never rewritten")
+	// The IN rewrite applies to varchar columns only: on an integer column it
+	// would compare as integers, so x = 1 would pass '01'.
+	var checks []string
+	rows, err := pool.Query(ctx, `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'public.codes'::regclass ORDER BY conname`)
+	require.NoError(t, err)
+	for rows.Next() {
+		var def string
+		require.NoError(t, rows.Scan(&def))
+		checks = append(checks, def)
+	}
+	require.NoError(t, rows.Err())
+	rows.Close()
+	require.Equal(t, []string{
+		`CHECK (((state)::text = ANY ((ARRAY['open'::character varying, 'closed'::character varying])::text[])))`,
+		// Left as a text comparison (Postgres deparses the unrewritten text
+		// this way), not turned into x IN ('01').
+		`CHECK (((x)::text = ANY (ARRAY[('01'::character varying)::text])))`,
+	}, checks)
+	_, err = pool.Exec(ctx, `INSERT INTO public.codes (x) VALUES (1)`)
+	var checkErr *pgconn.PgError
+	require.ErrorAs(t, err, &checkErr)
+	require.Equal(t, "codes_x_check", checkErr.ConstraintName)
+	_, err = pool.Exec(ctx, `INSERT INTO public.codes (state) VALUES ('open')`)
+	require.NoError(t, err)
 
 	require.NoError(t, manager.RollbackAll(ctx))
 	require.Empty(t, userObjects(t, pool))

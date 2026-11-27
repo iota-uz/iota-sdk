@@ -35,6 +35,10 @@ DROP SCHEMA review_settings CASCADE;
 // in review_settings, finds no history and replays every migration
 // ("schema already exists"). The post-clone policy must only verify the clone.
 func TestAutoTemplateCloneIsNotMigratedAgain(t *testing.T) {
+	// Pin the automatic clone path: ITF_AUTO_TEMPLATE=0 would replay
+	// migrations instead, and ITF_TEMPLATE_DB would replace the template.
+	t.Setenv(AutoTemplateEnv, "1")
+	t.Setenv(TemplateDBEnv, "")
 	db := LoadDBConfigFromEnv()
 	dir := t.TempDir()
 	entries, err := os.ReadDir("migrations")

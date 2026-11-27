@@ -196,7 +196,29 @@ VARCHAR_IN_TOKENS = re.compile(
 )
 
 
-def restore_varchar_in(spans):
+# The table a CREATE TABLE or ALTER TABLE statement is about, and the column
+# definitions of a CREATE TABLE ("    name type ..."), as pg_dump prints them.
+TABLE_OF = re.compile(r"^(?:CREATE TABLE|ALTER TABLE(?: ONLY)?)\s+(\S+)")
+COLUMN_DEF = re.compile(r'^    ("(?:[^"]|"")+"|[a-z_][a-z0-9_$]*) (character varying\b)?', re.MULTILINE)
+
+
+def varchar_columns(statements):
+    """Map each table to the names of its character varying columns."""
+    columns = {}
+    for spans in statements:
+        _, rest = take_preamble(spans)
+        body = "".join(t for _, t in rest)
+        m = TABLE_OF.match(body)
+        if not m or not body.startswith("CREATE TABLE"):
+            continue
+        cols = columns.setdefault(m.group(1), set())
+        for col in COLUMN_DEF.finditer(body):
+            if col.group(2):
+                cols.add(col.group(1))
+    return columns
+
+
+def restore_varchar_in(spans, varchar_cols=frozenset()):
     quoted, parts = [], []
     for kind, text in spans:
         if kind == QUOTED:
@@ -209,6 +231,10 @@ def restore_varchar_in(spans):
     code = "".join(parts)
 
     def repl(m):
+        # Only a character varying column: for any other type the IN list
+        # would compare as that type ('01' = 1), not as text.
+        if m.group(1) not in varchar_cols:
+            return m.group(0)
         values = re.findall(r"\x00L\d+\x00(?=::character varying)", m.group(2))
         return "(%s IN (%s))" % (m.group(1), ", ".join(values))
 
@@ -401,7 +427,9 @@ def generate(dump, squashed_dir, out):
     starts_at_one = set(re.findall(r"CREATE SEQUENCE (\S+)\n(?:    .*\n)*?    START WITH 1\n", dump))
 
     statements = []
-    for spans in split_statements(dump):
+    parsed = split_statements(dump)
+    varchar_by_table = varchar_columns(parsed)
+    for spans in parsed:
         toc, spans = take_preamble(spans)
         for name, kind, schema in toc:
             if kind == "SCHEMA":
@@ -415,7 +443,9 @@ def generate(dump, squashed_dir, out):
                 raise SystemExit("the dump creates %s %s, which the generated Down cannot roll back" % (kind, name))
         if not spans:
             continue
-        stmt = restore_varchar_in(spans).strip()
+        head = "".join(t for _, t in spans).lstrip()
+        table = TABLE_OF.match(head)
+        stmt = restore_varchar_in(spans, varchar_by_table.get(table.group(1), frozenset()) if table else frozenset()).strip()
         if not stmt:
             continue
         if "\n" not in stmt and stmt.endswith(";") and any(stmt.startswith(p) for p in SKIP_PREFIXES):
