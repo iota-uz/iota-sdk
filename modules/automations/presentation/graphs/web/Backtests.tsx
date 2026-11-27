@@ -6,7 +6,7 @@ import {
   progress, readBacktestsView, usd, writeBacktestsView,
   type BacktestView, type BacktestsResult, type BacktestsView, type Classifier, type CompareResult, type DatasetView, type EstimateResult,
   type ExampleView, type ExamplesResult, type ReportResult, type ResultsResult, type SourceView,
-} from './backtests'
+} from './backtestsModel'
 import { useApp } from './context'
 import { Icon } from './Icon'
 import { absoluteTime, counted, errorCode, graphPath, inputFields, inputValue, relativeTime, type GetResult } from './model'
