@@ -1047,6 +1047,11 @@ func TestHost_FacetOptionsResolvesDateRangeUntilAndNamedDrillParams(t *testing.T
 	namedHost.Handler().ServeHTTP(recNamed, httptest.NewRequest(http.MethodGet, "/named-range/lens/facet-options?_facet=product&_f=region:tashkent&_f=product:osago&range-start=2026-03-01&range-end=2026-03-31", nil))
 	require.Equal(t, http.StatusOK, recNamed.Code, recNamed.Body.String())
 	require.Equal(t, time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC), namedCaptured.Params["until"])
+	require.NotEmpty(t, namedCaptured.TimeRange.Mode, "Named facet query must receive resolved TimeRange")
+	require.NotNil(t, namedCaptured.TimeRange.Start)
+	require.Equal(t, time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC), *namedCaptured.TimeRange.Start)
+	require.NotNil(t, namedCaptured.TimeRange.End)
+	require.Equal(t, time.Date(2026, 3, 31, 23, 59, 59, int(time.Second-time.Nanosecond), time.UTC), *namedCaptured.TimeRange.End)
 	require.Equal(t, []string{"tashkent"}, namedCaptured.Params["f_region"], "active cross-dimension drill filter must be bound for Named query")
 	_, hasOwnDimKey := namedCaptured.Params["f_product"]
 	require.True(t, hasOwnDimKey, "facet dimension param key should be explicitly bound")

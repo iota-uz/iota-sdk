@@ -104,10 +104,11 @@ spec := cube.New("sales", "Sales Overview").
 	LeafSpec(cube.LeafSpec{
 		Table: cube.LeafTable("policies_leaf", "Policies").
 			WithColumns(
-				panel.TableColumn{Field: "policy_number", Label: "Policy"},
-				panel.TableColumn{Field: "premium", Label: "Premium"},
+				panel.TableColumn{Field: "product", Label: "Product"},
+				panel.TableColumn{Field: "period", Label: "Period"},
+				panel.TableColumn{Field: "total_premium", Label: "Premium"},
 			).
-			WithOrderBy("c.issue_date DESC").
+			WithOrderBy("total_premium DESC").
 			WithPageSize(25),
 		ExternalLink: func(ctx context.Context, drill cube.DrillContext, params map[string]any) string {
 			return "/insurance/contracts?" + drill.Encode().Encode()

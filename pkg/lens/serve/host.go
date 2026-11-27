@@ -911,17 +911,18 @@ func (h *Host) resolveCubeFacetOptions(
 		}
 		return cube.ResolveFacetOptions(ctx, resolved.Spec, drillCtx, dim.Name, search, h.facetLimit,
 			func(ctx context.Context, queryName string, params map[string]lens.ParamValue, _ int) ([]lens.DrillFacetOptionMeta, error) {
-				boundParams, paramErr := resolveFacetParams(resolved.Spec.Variables, params, runtimeReq)
+				boundParams, facetTimeRange, paramErr := resolveFacetQueryInputs(resolved.Spec.Variables, params, runtimeReq)
 				if paramErr != nil {
 					return nil, paramErr
 				}
 				frames, err := ds.Run(ctx, datasource.QueryRequest{
-					Source:   resolved.Spec.DataSource,
-					Text:     queryName,
-					Params:   boundParams,
-					Timezone: runtimeReq.Timezone,
-					Locale:   runtimeReq.Locale,
-					Kind:     datasource.QueryKindNamed,
+					Source:    resolved.Spec.DataSource,
+					Text:      queryName,
+					Params:    boundParams,
+					TimeRange: facetTimeRange,
+					Timezone:  runtimeReq.Timezone,
+					Locale:    runtimeReq.Locale,
+					Kind:      datasource.QueryKindNamed,
 				})
 				if err != nil {
 					return nil, err
@@ -1236,16 +1237,22 @@ func canonicalQueryKey(values url.Values) string {
 }
 
 func resolveFacetParams(variables []lens.VariableSpec, params map[string]lens.ParamValue, req lensruntime.Request) (map[string]any, error) {
-	if len(params) == 0 {
-		return map[string]any{}, nil
-	}
+	bound, _, err := resolveFacetQueryInputs(variables, params, req)
+	return bound, err
+}
+
+func resolveFacetQueryInputs(variables []lens.VariableSpec, params map[string]lens.ParamValue, req lensruntime.Request) (map[string]any, datasource.TimeRange, error) {
 	var resolvedVars map[string]any
 	if len(variables) > 0 {
 		var err error
 		resolvedVars, err = lensruntime.ResolveVariables(variables, req)
 		if err != nil {
-			return nil, err
+			return nil, datasource.TimeRange{}, err
 		}
+	}
+	timeRange := resolveFacetTimeRange(variables, resolvedVars)
+	if len(params) == 0 {
+		return map[string]any{}, timeRange, nil
 	}
 	out := make(map[string]any, len(params))
 	for key, param := range params {
@@ -1281,7 +1288,20 @@ func resolveFacetParams(variables []lens.VariableSpec, params map[string]lens.Pa
 		}
 		out[key] = nil
 	}
-	return out, nil
+	return out, timeRange, nil
+}
+
+func resolveFacetTimeRange(specs []lens.VariableSpec, variables map[string]any) datasource.TimeRange {
+	for _, spec := range specs {
+		value, ok := variables[spec.Name]
+		if !ok {
+			continue
+		}
+		if timeRange := lens.ResolveTimeRange(value); timeRange.Mode != "" {
+			return timeRange
+		}
+	}
+	return datasource.TimeRange{}
 }
 
 func resolveBoundVariableParam(val any, part lens.RangePart) any {
