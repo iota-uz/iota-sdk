@@ -630,6 +630,11 @@ function EditorBody(props: EditorProps): JSX.Element {
     if (target === document.body || target === document.documentElement || target === null) return true
     return target instanceof Node && root.contains(target)
   }
+  const claimedShortcuts = () => {
+    if (mobile() || tab() === 'runs') return undefined
+    const keys = ['mod+s', 'mod+z', 'mod+shift+z', 'mod+shift+l', 'mod+enter', 'mod+d', 'mod+a']
+    return (readOnly() ? keys : ['mod+k', ...keys]).join(' ')
+  }
   const layerOpen = () => palette() !== null || menu() !== null || versionsMenu() !== null || settingsOpen() || keymapOpen() || confirmReload()
 
   const onKeyDown = (event: KeyboardEvent) => {
@@ -643,11 +648,15 @@ function EditorBody(props: EditorProps): JSX.Element {
       void save()
       return
     }
-    if (isEditableTarget(event.target) || layerOpen()) return
-    if (mod && key === 'k') {
+    // ⌘K adds a step, also from a field of the panel; read only, it stays the page's (global search).
+    if (mod && key === 'k' && !event.shiftKey && !event.altKey) {
+      if (readOnly()) return
       event.preventDefault()
-      if (!readOnly()) setPalette({ kind: 'add' })
-    } else if (mod && event.shiftKey && key === 'l') {
+      if (!layerOpen()) setPalette({ kind: 'add' })
+      return
+    }
+    if (isEditableTarget(event.target) || layerOpen()) return
+    if (mod && event.shiftKey && key === 'l') {
       event.preventDefault()
       tidy()
     } else if (mod && key === 'z') {
@@ -887,7 +896,15 @@ function EditorBody(props: EditorProps): JSX.Element {
   )
 
   return (
-    <div ref={root} class="ae-editor" classList={{ 'ae-editor--mobile': mobile(), 'ae-editor--coarse': coarse() }} lang={props.locale}>
+    <div
+      ref={root}
+      class="ae-editor"
+      classList={{ 'ae-editor--mobile': mobile(), 'ae-editor--coarse': coarse() }}
+      lang={props.locale}
+      // The shortcuts the editor owns while it edits (see solid-ui isShortcutClaimed): page-wide listeners
+      // such as the shell's global search leave them alone. Read only or on the Runs tab ⌘K stays the page's.
+      data-claim-shortcuts={claimedShortcuts()}
+    >
       {toolbar()}
       {banners()}
       <Show when={mobile() && !(tab() === 'runs' && !props.runsBody && runsAvailable())}>

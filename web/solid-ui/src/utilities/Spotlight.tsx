@@ -1,6 +1,7 @@
 import { createMemo, createSignal, createUniqueId, For, onCleanup, onMount, Show, splitProps, type JSX } from 'solid-js'
 import { Spinner } from '../display/Spinner'
 import { classes } from '../internal/classes'
+import { isShortcutClaimed } from '../internal/shortcuts'
 
 export type SpotlightMode = 'search' | 'ai'
 export type SpotlightBadgeTone = 'exact' | 'match' | 'navigation' | 'directory' | 'conversation' | 'entity' | string
@@ -127,6 +128,8 @@ interface SpotlightRegistration {
 const spotlightRegistrations: SpotlightRegistration[] = []
 const globalSpotlightKeydown = (event: KeyboardEvent) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+    // An embedded surface that claims ⌘K (the automation editor's add step) keeps it.
+    if (isShortcutClaimed(event, 'mod+k')) return
     const owner = [...spotlightRegistrations].reverse().find((item) => item.shortcut())
     if (owner) { event.preventDefault(); owner.open() }
     return

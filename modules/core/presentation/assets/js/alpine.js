@@ -5,6 +5,20 @@ import "./lib/alpine-mask.min.js";
 import "./lib/alpine-collapse.min.js";
 import Sortable from "./lib/alpine-sort.js";
 
+// Shortcut ownership: an embedded surface (the automation editor) claims shortcuts with
+// data-claim-shortcuts="mod+k ..." on its root. A claim holds for events inside it, and for events with
+// no focused target while it is on the page; an event a handler already took is skipped too. The same
+// rule is solid-ui's isShortcutClaimed (web/solid-ui/src/internal/shortcuts.ts).
+function shortcutClaimed(event, combo) {
+  if (event.defaultPrevented) return true;
+  const selector = `[data-claim-shortcuts~="${combo}"]`;
+  const target = event.target;
+  if (!target || target === document || target === document.body || target === document.documentElement) {
+    return document.querySelector(selector) !== null;
+  }
+  return typeof target.closest === 'function' && target.closest(selector) !== null;
+}
+
 let dateTimeFormat = () => ({
   format(dateStr = new Date().toISOString(), locale = document.documentElement.lang || "ru") {
     const date = new Date(dateStr);
@@ -677,6 +691,8 @@ let spotlight = () => ({
 
   handleShortcut(event) {
     if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
+      // An embedded surface that claims ⌘K keeps it (same rule as solid-ui's isShortcutClaimed).
+      if (shortcutClaimed(event, 'mod+k')) return;
       event.preventDefault();
       this.open();
     }
