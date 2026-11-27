@@ -60,6 +60,27 @@ interrupted or failed run is not rolled back. Before retrying:
   `INSERT INTO gorp_migrations (id, applied_at) VALUES ('<file>.sql', now());` and rerun `migrate up`.
 - Prefer re-runnable statements, e.g. `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, so a retry does not fail.
 
+### Squashed baselines
+
+`migrations/changes-0001-baseline.sql` replaces the 71 migrations released up to
+v0.55.1. Their files are kept in `migrations/squashed/v0.55.1/` only for
+`TestSquashedBaselineMatchesHistory`; the migrator never reads subdirectories.
+
+- The baseline names each replaced file in its header with `-- +squashes <id>`
+  (before `-- +migrate Up`; sql-migrate ignores the line).
+- On every run, a database that applied **all** replaced ids gets the baseline
+  recorded as applied without running it, and the replaced ids are removed from
+  `gorp_migrations`, in one transaction.
+- A database that applied **some** of them fails with
+  `PartialSquashedHistoryError`: migrate it up with v0.55.1 first.
+- A fresh database runs the baseline. Its Down drops every schema, table, view,
+  sequence and function it created (roles stay: they are cluster-wide). Going
+  down past the baseline is not supported.
+- Never edit the baseline. To squash again, migrate a fresh database with only
+  the files being squashed, dump it with a pg_dump matching the server, and run
+  `scripts/migrations-baseline.py dump.sql migrations/squashed/<release>`; then
+  point the equivalence test at the new directory.
+
 ### PL/pgSQL Functions
 
 Use `StatementBegin/End` for functions containing semicolons:

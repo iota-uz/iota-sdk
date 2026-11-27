@@ -8,10 +8,27 @@ title: Development Changelog
 
 | Change | Type | Date |
 |------------------|------|------|
+| **Breaking (upgrade path):** the 71 SDK migrations released up to v0.55.1 are squashed into `migrations/changes-0001-baseline.sql`. Databases with that history adopt the baseline on the next `migrate up` without running it; a database with only part of it fails with a clear error. Upgrade to v0.55.1 first. ITF test databases are now cloned from a migrated template. See [Migration baseline](#migration-baseline-and-test-database-templates) | Breaking | 2026-11-27 |
 | Graceful shutdown: `HTTPServer.Run` handles SIGTERM/SIGINT, drains in-flight requests, then runs stop hooks in reverse order and closes the realtime bus and DB pool. Default HTTP server timeouts. See [Runtime lifecycle](#runtime-lifecycle-and-graceful-shutdown) | Feature | 2026-11-18 |
 | `appconfig.Environment` enum (`development`, `test`, `staging`, `production`) with `Config.Env()`, `IsDevelopment()`, `IsTest()`, `IsStaging()`; `IsDev()` is deprecated because it is also true on staging, preprod and test. `APP_ENVIRONMENT` is now matched case-insensitively, `preprod`/`stage` count as staging, and GraphQL accepts localhost origins only in development and test, no longer on staging | Feature | 2026-11-18 |
 | CRUD: `crud.TenantScoped()` schema option scopes reads, writes and deletes by the context tenant; `CrudController` no longer accepts `Hidden` field values from forms | Security | 2026-11-18 |
 | **Breaking:** `MigrationManager.Rollback(ctx, steps)` rolls back `steps` migrations (`migrate down` defaults to one); rolling back everything now needs `RollbackAll` / `migrate down --all`. `Run` takes a `ctx`. Migrations run under a Postgres advisory lock with a default `lock_timeout` of 30s, and `notransaction` migrations run outside a transaction | Bug Fix | 2026-11-18 |
+
+### Migration baseline and test database templates
+
+**What changes for consumers**
+
+- `migrations/` now starts with `changes-0001-baseline.sql`: the schema and rows of the 71 migrations from `changes-1740741698.sql` to `changes-1795700000.sql`, all released in **v0.55.1**. Their files moved to `migrations/squashed/v0.55.1/` (kept for the equivalence test; the migrator does not read subdirectories). Migrations added after v0.55.1 stay separate files.
+- **Upgrade to v0.55.1 first.** A database migrated by v0.55.1 (or later) has every replaced migration in `gorp_migrations`. On the next `migrate up` (or any `Run`, `Rollback`, `RollbackAll`) the migrator records `changes-0001-baseline.sql` as applied without running it and removes the 71 old ids, in one transaction. `migrate status` shows the baseline as applied even before that.
+- A database that applied only **some** of the 71 (a version older than v0.55.1) is refused with `application.PartialSquashedHistoryError`, which names the missing ids. Migrate it up with v0.55.1, then upgrade. A database with none of them (a new one) runs the baseline.
+- Rolling back the baseline drops the whole SDK schema (roles stay, they are cluster-wide). Going down past the baseline is not supported.
+- An adopted database no longer lists the old ids, so an older SDK binary refuses it with `unknown migration changes-0001-baseline.sql`. Roll back the application, not the database.
+- Consumers that copy SDK migration files into their own `migrations/`: keep the copies you already have and **do not copy `changes-0001-baseline.sql`** if your directory already holds the migrations it replaces. A consumer that wants the baseline instead removes those copies and copies the baseline; the adoption above then applies to its databases too.
+- Any migration directory can squash the same way: a migration whose header lists `-- +squashes <id>` lines (before `-- +migrate Up`) is a baseline for those ids. `scripts/migrations-baseline.py` builds one from a `pg_dump`.
+
+**Tests**
+
+- `itf` harnesses (default `MigrationApplyOnce`, no `ITF_TEMPLATE_DB`) now migrate one template database per migration set, `itf_auto_tpl_<hash>`, shared by every test binary on the cluster and kept between runs, and clone each test database from it. A test database no longer replays migrations, and package runs no longer queue behind each other on the migration lock. Tenant isolation per test is unchanged: each harness still gets its own database and tenant. `ITF_AUTO_TEMPLATE=0` restores the replay.
 
 ### Runtime lifecycle and graceful shutdown
 

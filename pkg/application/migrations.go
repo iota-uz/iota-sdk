@@ -229,13 +229,15 @@ func appliedMigrationIDs(ctx context.Context, conn *pgx.Conn) (map[string]struct
 // Up applies every pending migration in order, including older ones added
 // after newer ones were applied. Down only ever touches applied migrations,
 // newest first; limit 0 means all, otherwise exactly limit are required.
-func planMigrations(source []*migrate.Migration, applied map[string]struct{}, dir migrationDirection, limit int) ([]plannedMigration, error) {
+func planMigrations(source []*migrate.Migration, applied map[string]struct{}, squashed map[string]struct{}, dir migrationDirection, limit int) ([]plannedMigration, error) {
 	known := make(map[string]struct{}, len(source))
 	for _, mig := range source {
 		known[mig.Id] = struct{}{}
 	}
 	for id := range applied {
-		if _, ok := known[id]; !ok {
+		_, isKnown := known[id]
+		_, isSquashed := squashed[id]
+		if !isKnown && !isSquashed {
 			return nil, fmt.Errorf("unknown migration %s in database", id)
 		}
 	}
@@ -324,6 +326,10 @@ func (m *migrationManager) migrate(ctx context.Context, dir migrationDirection, 
 	if err != nil {
 		return 0, fmt.Errorf("failed to find migrations: %w", err)
 	}
+	baselines, err := readSquashedBaselines(m.migrationsDir, source)
+	if err != nil {
+		return 0, err
+	}
 
 	conn, err := m.connect(ctx)
 	if err != nil {
@@ -340,7 +346,14 @@ func (m *migrationManager) migrate(ctx context.Context, dir migrationDirection, 
 	if err != nil {
 		return 0, err
 	}
-	plan, err := planMigrations(source, applied, dir, limit)
+	adopted, err := adoptSquashedBaselines(ctx, conn, baselines, applied)
+	for _, id := range adopted {
+		m.logger.Infof("Recorded baseline %s as applied: the database already has every migration it replaces", id)
+	}
+	if err != nil {
+		return 0, err
+	}
+	plan, err := planMigrations(source, applied, squashedIDs(baselines), dir, limit)
 	if err != nil {
 		return 0, err
 	}
@@ -407,6 +420,33 @@ func (m *migrationManager) Status(ctx context.Context) ([]MigrationStatus, error
 	appliedMap := make(map[string]time.Time)
 	for _, record := range records {
 		appliedMap[record.Id] = record.AppliedAt
+	}
+
+	// A database that has not been adopted yet (no Run since the upgrade)
+	// still lists the replaced migrations; its baseline is applied in effect.
+	baselines, err := readSquashedBaselines(m.migrationsDir, migrations)
+	if err != nil {
+		return nil, err
+	}
+	for _, b := range baselines {
+		if _, ok := appliedMap[b.id]; ok {
+			continue
+		}
+		var latest time.Time
+		complete := true
+		for _, id := range b.replaces {
+			appliedAt, ok := appliedMap[id]
+			if !ok {
+				complete = false
+				break
+			}
+			if appliedAt.After(latest) {
+				latest = appliedAt
+			}
+		}
+		if complete {
+			appliedMap[b.id] = latest
+		}
 	}
 
 	// Build status list

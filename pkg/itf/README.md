@@ -101,10 +101,28 @@ Automatic database name handling for long test names.
 
 ### Template Database Cloning
 
-Every harness provisions its own database. By default that database starts empty
-and the migration set is replayed into it — roughly a second per harness, taken
-under a cluster-wide advisory lock so that parallel harnesses do not race on the
-cluster-global objects migrations create.
+Every harness provisions its own database. With the default
+`MigrationApplyOnce` policy and no explicit template, the harness clones it
+from an **automatic migrated template**:
+
+- The first harness on the cluster that needs it creates
+  `itf_auto_tpl_<hash>`, where `<hash>` is the SHA-256 of the top-level `*.sql`
+  files in the migrations directory (names and contents), migrates it, seals it
+  (`ALLOW_CONNECTIONS false`) and marks it ready in its database comment.
+- Every other harness, in this and every parallel test binary, waits on a
+  cluster-wide advisory lock while it is built, then clones it with
+  `CREATE DATABASE ... TEMPLATE` — a catalog copy, no migration replay.
+- Changing, adding or removing a migration changes the hash, so the next run
+  builds a new template. A template left half-built by a killed process has no
+  ready marker and is rebuilt. Templates unused for a week are dropped the next
+  time any template is built.
+- The migrator still runs over each clone and plans zero migrations; that run
+  skips the cluster-wide migration lock.
+- `ITF_AUTO_TEMPLATE=0` turns it off: every harness replays the migrations into
+  an empty database under the migration lock, as before.
+
+Tests that build their own database with `itf.NewDatabaseManager` still get an
+empty one.
 
 Point `ITF_TEMPLATE_DB` at a pre-migrated database and the harness clones it
 instead, at catalog speed:
@@ -124,8 +142,8 @@ Measured on `modules/{core,finance,warehouse}` (5 packages, `-p 8`):
 
 Notes:
 
-- **Unset is the default.** A clean checkout still runs `go test ./...` with no
-  extra preparation.
+- **`ITF_TEMPLATE_DB` is optional.** Without it the automatic template above
+  is used; set it only to reuse a template you build yourself.
 - **Cloning is orthogonal to the migration policy.** With the default
   `MigrationApplyOnce` the migrator still runs over the clone, plans zero
   migrations, and therefore costs almost nothing — while bringing *that clone*
