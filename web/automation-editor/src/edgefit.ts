@@ -1,6 +1,6 @@
 // How an edge's routed polyline meets the handles on screen: fitted onto them, and ended short of the input
 // dot for its arrow. Only the canvas (a lazy chunk) uses it, so it stays out of the package entry.
-import type { Point } from './route'
+import { SNAP, type Point } from './route'
 
 const same = (a: number, b: number) => Math.abs(a - b) < 0.5
 
@@ -15,8 +15,11 @@ export function fitRoute(points: readonly Point[] | undefined, source: Point, ta
   const first = points[0]!
   const last = points[points.length - 1]!
   if (Math.abs(first.x - source.x) > slack || Math.abs(first.y - source.y) > slack || Math.abs(last.x - target.x) > slack || Math.abs(last.y - target.y) > slack) return null
+  const straight = points.every((p) => Math.abs(p.x - first.x) < SNAP)
+  // Handles less than SNAP apart across: one straight line from the source, never a jog of a pixel.
+  if (straight && Math.abs(source.x - target.x) < SNAP) return [{ x: source.x, y: source.y }, { x: source.x, y: target.y }]
   // A straight route whose handles ended a few px apart steps over in the middle, never a slanted line.
-  const out = points.length === 2 && same(first.x, last.x) && !same(source.x, target.x)
+  const out = straight
     ? [{ ...first }, { x: first.x, y: (first.y + last.y) / 2 }, { x: last.x, y: (first.y + last.y) / 2 }, { ...last }]
     : points.map((p) => ({ x: p.x, y: p.y }))
   const n = out.length
@@ -28,6 +31,27 @@ export function fitRoute(points: readonly Point[] | undefined, source: Point, ta
   }
   out[0] = { x: source.x, y: source.y }
   out[n - 1] = { x: target.x, y: target.y }
+  return tidy(out)
+}
+
+/** Drops stretches shorter than a pixel (merging their ends) and the middle of three collinear points. */
+export function tidy(points: Point[]): Point[] {
+  const out: Point[] = []
+  for (const p of points) {
+    const last = out[out.length - 1]
+    if (last && Math.abs(last.x - p.x) < 1 && Math.abs(last.y - p.y) < 1) {
+      // Keep the ends exact: the first point stays, the last one wins.
+      if (out.length > 1) out[out.length - 1] = p
+      continue
+    }
+    out.push(p)
+  }
+  for (let i = out.length - 2; i > 0; i -= 1) {
+    const a = out[i - 1]!
+    const b = out[i]!
+    const c = out[i + 1]!
+    if ((same(a.x, b.x) && same(b.x, c.x)) || (same(a.y, b.y) && same(b.y, c.y))) out.splice(i, 1)
+  }
   return out
 }
 
