@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { expectNoA11yViolations } from '@iota-uz/sdk/testing'
 import { card, center, drag, edge, handle, mod, open, settled } from './helpers'
 
@@ -806,5 +806,48 @@ test.describe('motion', () => {
     const start = await center(card(page, 'delay').locator('.ae-card__title'))
     await drag(page, start, { x: start.x + 60, y: start.y + 40 })
     expect(await moving()).toEqual([])
+  })
+})
+
+test.describe('list item rows', () => {
+  /** For each item row: the vertical centre of its first control and of its first button, and their heights. */
+  const rows = (page: Page) => page.$$eval('.ae-side .ae-form-list-item:not(.ae-form-list-item--block)', (items) => items.map((li) => {
+    const control = li.querySelector('.ae-form-list-body :is(input:not([type=hidden]), textarea, [role=combobox], .ae-form-segmented)')!.getBoundingClientRect()
+    const button = li.querySelector('.ae-form-list-actions .ae-form-icon')!.getBoundingClientRect()
+    return { control: [control.top + control.height / 2, control.height], button: [button.top + button.height / 2, button.height, button.width] }
+  }))
+
+  for (const theme of ['light', 'dark']) {
+    test(`a one-value item's buttons are square, as high as its control and level with it, also under an error (${theme})`, async ({ page }) => {
+      await open(page, `graph=notify&catalog=notify${theme === 'dark' ? '&theme=dark' : ''}`)
+      await card(page, 'ping').click()
+      const roles = page.locator('.ae-side [data-param="recipients.roles"]')
+      await roles.getByRole('button', { name: 'Add' }).click()
+      await expect(page.locator('.ae-side .ae-form-list-item')).toHaveCount(2)
+      const check = async () => {
+        const found = await rows(page)
+        expect(found.length).toBeGreaterThan(0)
+        for (const r of found) {
+          expect(Math.abs(r.control[0]! - r.button[0]!), JSON.stringify(r)).toBeLessThanOrEqual(1)
+          expect(Math.abs(r.control[1]! - r.button[1]!), JSON.stringify(r)).toBeLessThanOrEqual(1)
+          expect(r.button[1]).toBe(r.button[2])
+        }
+      }
+      await check()
+      // A message under the control grows the row downwards; the buttons stay with the control.
+      await page.locator('.ae-side .ae-form-list-item .ae-form-field').first().evaluate((field) => {
+        const p = document.createElement('p'); p.className = 'ae-form-error'; p.textContent = 'This value is required and must be a role of this tenant.'; field.append(p)
+      })
+      await check()
+    })
+  }
+
+  test('an item of several fields keeps its buttons on its legend line', async ({ page }) => {
+    await open(page, 'graph=bench')
+    await card(page, 'n0').click()
+    const item = page.locator('.ae-side .ae-form-list-item--block').first()
+    await expect(item).toBeVisible()
+    const [legend, button] = await item.evaluate((li) => [li.querySelector('legend')!.getBoundingClientRect(), li.querySelector('.ae-form-icon')!.getBoundingClientRect()].map((r) => r.top + r.height / 2))
+    expect(Math.abs(legend! - button!)).toBeLessThanOrEqual(1)
   })
 })

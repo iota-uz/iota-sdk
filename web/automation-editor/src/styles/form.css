@@ -30,9 +30,28 @@
 }
 .ae-form-legend { padding: 0 0.25rem; }
 .ae-form-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
-.ae-form-list-item { display: flex; gap: 0.5rem; align-items: flex-start; }
+/* One row per item: the control and its square buttons share one height and one top, so the buttons stay
+   level with the control (an error or a note under the control grows the row downwards only). */
+.ae-form-list-item { --ae-ctl: 2.5rem; display: flex; gap: 0.5rem; align-items: flex-start; }
 .ae-form-list-body { flex: 1; min-width: 0; }
-.ae-form-list-actions { display: flex; gap: 0.25rem; }
+.ae-form-list-actions { display: flex; gap: 0.25rem; flex: none; }
+.ae-form-list-item .ae-form-icon {
+  width: var(--ae-ctl); height: var(--ae-ctl); min-width: 0; min-height: 0; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+}
+.ae-form-field--inline > :is(.ae-form-label-line, .ae-form-label-row) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ae-form-field--inline { position: relative; }
+.ae-form-field--inline :is(input.form-control-input, select.form-control-input, [role="combobox"]) { height: var(--ae-ctl); min-height: var(--ae-ctl); }
+.ae-form-field--inline textarea.form-control-input { min-height: var(--ae-ctl); height: var(--ae-ctl); resize: vertical; }
+.ae-form-field--inline .ae-form-segment { min-height: var(--ae-ctl); }
+@media (pointer: coarse) { .ae-form-list-item { --ae-ctl: 2.75rem; } }
+/* An item of several fields: its buttons sit on its legend line, centred on the frame, the fields below. */
+.ae-form-list-item--block { --ae-ctl: 1.75rem; position: relative; display: block; }
+.ae-form-list-item--block > .ae-form-list-actions {
+  position: absolute; top: calc(0.625rem - var(--ae-ctl) / 2); right: 0.625rem;
+  padding: 0 0.25rem; background: oklch(var(--clr-surface-300));
+}
+@media (pointer: coarse) { .ae-form-list-item--block { --ae-ctl: 2.75rem; } }
 .ae-form-icon {
   min-width: 36px; min-height: 36px; border-radius: var(--radius, 0.5rem); cursor: pointer;
   border: 1px solid oklch(var(--clr-border-default)); background: oklch(var(--clr-surface-300)); color: oklch(var(--clr-text-100));

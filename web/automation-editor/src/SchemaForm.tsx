@@ -243,7 +243,14 @@ function Description(props: { schema: JsonSchema; id: string }) {
   return <Show when={typeof props.schema.description === 'string' && props.schema.description}><p class="ae-form-description" id={props.id}>{props.schema.description as string}</p></Show>
 }
 
-type FieldViewProps = { ctx: Ctx; name: string; path: string; schema: JsonSchema; required: boolean; value: unknown; onChange(v: unknown): void }
+type FieldViewProps = {
+  ctx: Ctx; name: string; path: string; schema: JsonSchema; required: boolean; value: unknown; onChange(v: unknown): void
+  /** A list item of one value: one control row (its label for assistive technology only) beside the item's buttons. */
+  inline?: boolean
+}
+
+/** Kinds a list item shows as one control row. */
+const INLINE_KINDS = new Set<FieldKind>(['string', 'number', 'enum', 'source', 'duration', 'cel', 'template'])
 
 function FieldView(props: FieldViewProps) {
   const kind = createMemo(() => fieldKind(props.schema, props.path, {
@@ -257,7 +264,7 @@ function FieldView(props: FieldViewProps) {
   const clearedValue = () => (isNullable(props.schema) ? null : props.required ? '' : undefined)
   const label = (forId?: string) => <FieldLabel name={props.name} schema={props.schema} for={forId} required={props.required} id={`${id}-label`} />
   return (
-    <div class="ae-form-field" data-param={props.path} data-kind={kind()}>
+    <div class="ae-form-field" classList={{ 'ae-form-field--inline': props.inline === true && INLINE_KINDS.has(kind()) }} data-param={props.path} data-kind={kind()}>
       <Choose>
         <Match when={kind() === 'connection'}>
           {label()}
@@ -270,7 +277,7 @@ function FieldView(props: FieldViewProps) {
         <Match when={kind() === 'cel' || kind() === 'template'}>
           <CodeField
             ctx={props.ctx} id={id} label={label(id)} title={(typeof props.schema.title === 'string' && props.schema.title) || humanize(props.name)}
-            mode={kind() === 'cel' ? 'cel' : 'template'} value={typeof props.value === 'string' ? props.value : ''}
+            mode={kind() === 'cel' ? 'cel' : 'template'} value={typeof props.value === 'string' ? props.value : ''} inline={props.inline === true}
             onChange={(v) => props.onChange(v === '' ? clearedValue() : v)} readOnly={readOnly()} describedBy={descId}
           />
         </Match>
@@ -303,7 +310,7 @@ function FieldView(props: FieldViewProps) {
           />
         </Match>
         <Match when={kind() === 'string'}>
-          <StringField ctx={props.ctx} id={id} label={label(id)} title={(typeof props.schema.title === 'string' && props.schema.title) || humanize(props.name)} schema={props.schema} value={props.value} onChange={(v) => props.onChange(v === '' ? clearedValue() : v)} readOnly={readOnly()} describedBy={descId} />
+          <StringField ctx={props.ctx} id={id} inline={props.inline === true} label={label(id)} title={(typeof props.schema.title === 'string' && props.schema.title) || humanize(props.name)} schema={props.schema} value={props.value} onChange={(v) => props.onChange(v === '' ? clearedValue() : v)} readOnly={readOnly()} describedBy={descId} />
         </Match>
         <Match when={kind() === 'list'}>
           <ListField ctx={props.ctx} label={label()} schema={props.schema} path={props.path} value={props.value} onChange={props.onChange} readOnly={readOnly()} />
@@ -321,8 +328,9 @@ function FieldView(props: FieldViewProps) {
   )
 }
 
-function StringField(props: { ctx: Ctx; id: string; label: JSX.Element; title: string; schema: JsonSchema; value: unknown; onChange(v: string): void; readOnly: boolean; describedBy: string }) {
-  const long = () => (typeof props.schema.maxLength === 'number' ? props.schema.maxLength > 200 : true) && props.schema.format !== 'date-time' && !props.schema.pattern
+function StringField(props: { ctx: Ctx; id: string; inline?: boolean; label: JSX.Element; title: string; schema: JsonSchema; value: unknown; onChange(v: string): void; readOnly: boolean; describedBy: string }) {
+  // A list item is one line: a long text of an item opens nowhere else.
+  const long = () => !props.inline && (typeof props.schema.maxLength === 'number' ? props.schema.maxLength > 200 : true) && props.schema.format !== 'date-time' && !props.schema.pattern
   const [drawer, setDrawer] = createSignal(false)
   const text = () => (typeof props.value === 'string' ? props.value : '')
   return (
@@ -353,7 +361,7 @@ function StringField(props: { ctx: Ctx; id: string; label: JSX.Element; title: s
 /** A monospace editor for CEL or `{{ }}` templates with a completion listbox. */
 export function CodeField(props: {
   ctx: Ctx; id: string; label: JSX.Element; title: string; mode: 'cel' | 'template'; value: string
-  onChange(v: string): void; readOnly: boolean; describedBy?: string
+  onChange(v: string): void; readOnly: boolean; describedBy?: string; inline?: boolean
 }) {
   const [drawer, setDrawer] = createSignal(false)
   return (
@@ -363,7 +371,7 @@ export function CodeField(props: {
         <span class="ae-form-badge">{props.mode === 'cel' ? 'CEL' : '{{ }}'}</span>
         <button type="button" class="ae-form-link" onClick={() => setDrawer(true)}>{props.ctx.s().openInPanel}</button>
       </div>
-      <CodeArea ctx={props.ctx} id={props.id} mode={props.mode} value={props.value} onChange={props.onChange} readOnly={props.readOnly} describedBy={props.describedBy} label={props.title} rows={props.mode === 'cel' ? 2 : 3} />
+      <CodeArea ctx={props.ctx} id={props.id} mode={props.mode} value={props.value} onChange={props.onChange} readOnly={props.readOnly} describedBy={props.describedBy} label={props.title} rows={props.inline ? 1 : props.mode === 'cel' ? 2 : 3} />
       <ViewDrawer open={drawer()} onOpenChange={setDrawer} title={props.title} closeLabel={props.ctx.s().done}>
         <p class="ae-form-description">{props.mode === 'cel' ? props.ctx.s().cel : props.ctx.s().template}</p>
         <CodeArea ctx={props.ctx} id={`${props.id}-drawer`} mode={props.mode} value={props.value} onChange={props.onChange} readOnly={props.readOnly} label={props.title} rows={16} />
@@ -523,6 +531,12 @@ function ListField(props: { ctx: Ctx; label: JSX.Element; schema: JsonSchema; pa
   const items = () => (Array.isArray(props.value) ? props.value : [])
   const itemSchema = () => (isRecord(props.schema.items) ? (props.schema.items as JsonSchema) : {})
   const set = (next: unknown[]) => props.onChange(next)
+  // An item of one value is one row beside its buttons; an item of several fields is a block with its
+  // buttons on its legend line.
+  const inlineItems = createMemo(() => INLINE_KINDS.has(fieldKind(itemSchema(), joinPath(props.path, 0), {
+    expressions: props.ctx.props.expressions.map((e) => e.param),
+    templates: props.ctx.props.templates,
+  })))
   const move = (i: number, d: number) => {
     const next = [...items()]
     const j = i + d
@@ -536,9 +550,9 @@ function ListField(props: { ctx: Ctx; label: JSX.Element; schema: JsonSchema; pa
       <Show when={items().length > 0} fallback={<p class="ae-form-note">{props.ctx.s().empty}</p>}>
         <ol class="ae-form-list">
           <Index each={items()}>{(item, i) => (
-            <li class="ae-form-list-item">
+            <li class="ae-form-list-item" classList={{ 'ae-form-list-item--block': !inlineItems() }}>
               <div class="ae-form-list-body">
-                <FieldView ctx={props.ctx} name={props.ctx.s().item(i + 1)} path={joinPath(props.path, i)} schema={itemSchema()} required
+                <FieldView ctx={props.ctx} name={props.ctx.s().item(i + 1)} path={joinPath(props.path, i)} schema={itemSchema()} required inline
                   value={item()} onChange={(v) => { const next = [...items()]; next[i] = v === undefined ? emptyValue(itemSchema()) : v; set(next) }} />
               </div>
               <Show when={!props.readOnly}>
