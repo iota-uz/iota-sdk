@@ -97,7 +97,8 @@ func TestEnsureMigratedTemplateBuildsOnceAndSeals(t *testing.T) {
 	}
 	require.Equal(t, int32(1), builds.Load(), "one builder; the others find the ready template")
 
-	// The cached entry point reuses the ready template without rebuilding it.
+	// The first call through the entry point finds the ready template and
+	// reuses it without rebuilding (and fills the in-process cache).
 	name, err := EnsureMigratedTemplate(ctx, db, fp, build)
 	require.NoError(t, err)
 	require.Equal(t, names[0], name)
@@ -117,6 +118,17 @@ func TestEnsureMigratedTemplateBuildsOnceAndSeals(t *testing.T) {
 	var marker int
 	require.NoError(t, conn.QueryRowContext(ctx, "SELECT id FROM template_marker").Scan(&marker))
 	require.Equal(t, 7, marker)
+
+	// A later call in the same process is a cache hit: it never reaches the
+	// cluster. With the template gone, anything but a hit would rebuild it.
+	require.NoError(t, dropTemplate(ctx, admin, names[0]))
+	name, err = EnsureMigratedTemplate(ctx, db, fp, build)
+	require.NoError(t, err)
+	require.Equal(t, names[0], name)
+	require.Equal(t, int32(1), builds.Load())
+	_, exists, err = templateState(ctx, admin, names[0])
+	require.NoError(t, err)
+	require.False(t, exists, "the cached call did not touch the cluster")
 }
 
 // Falsely green if a database left behind by a killed builder is reused.
