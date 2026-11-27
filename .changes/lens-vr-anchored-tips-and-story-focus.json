@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Lens formula variable tips, ƒ previews and info tips re-measure their anchor on font loads, scrolls and resizes instead of keeping a stale position; the investigation stories click only after the dialog's initial focus so visual regression captures are deterministic."}
