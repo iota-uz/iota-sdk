@@ -487,7 +487,10 @@ export function installFake(rpcPath: string, opts: FakeOptions): void {
     'automations.search_options': (p) => ({
       options: (knownChats[p.connection] ?? []).filter((o) => o.label.toLowerCase().includes(p.query.toLowerCase())),
     }),
-    'automations.search_subjects': (p) => [{ subject: { entity: p.entity, key: '42' }, label: `${p.query} (42)` }],
+    // «many» finds six subjects: more than five choices are a searchable Combobox in the run dialog (K5).
+    'automations.search_subjects': (p) => p.query === 'many'
+      ? Array.from({ length: 6 }, (_, i) => ({ subject: { entity: p.entity, key: String(40 + i) }, label: `Subject ${i + 1}` }))
+      : [{ subject: { entity: p.entity, key: '42' }, label: `${p.query} (42)` }],
     'automations.runs': (p) => {
       find(p.automation_id)
       const q = (p.subject ?? '').toLowerCase()

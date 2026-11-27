@@ -24,6 +24,8 @@ declare global {
       recover(kind: string): void
       setGraph?(graph: AutomationGraph): void
       replace?(): number
+      prepareTidy?(): void
+      tidy?(): void
     }
   }
 }

@@ -7,7 +7,7 @@ import { Icon } from '../icons'
 import { describeItem } from '../names'
 import { strings } from '../strings'
 import type { AutomationGraph, EditorCatalog, EditorLocale, ItemState, RunData, RunStep } from '../types'
-import { CopyText, Value } from './Data'
+import { CopyText, Swap, Value } from './Data'
 import { hasData, stepsOf } from './model'
 import { runStrings } from './strings'
 import { absoluteTime, duration, jsonText, shortTime } from './util'
@@ -50,18 +50,23 @@ export function NodeDrawer(props: NodeDrawerProps): JSX.Element {
     return parts.join(' · ') || shortTime(s.started_at, props.locale)
   }
   const icon = () => name().icon ?? (findItem(props.graph, props.node)?.kind === 'trigger' ? 'event' : catalogNode(props.catalog, (findItem(props.graph, props.node)?.item as { type?: string } | undefined)?.type ?? '')?.behavior ?? 'node')
-  const titleId = `ae-run-node-${props.node}`
+  // Follows the node shown: a drawer kept through its exit and reopened on another node labels that one.
+  const titleId = () => `ae-run-node-${props.node}`
 
   return (
-    <section class="ae-panel ae-run-node" classList={{ 'ae-run-node--sheet': props.sheet }} aria-labelledby={titleId} data-testid="run-node">
+    <section class="ae-panel ae-run-node" classList={{ 'ae-run-node--sheet': props.sheet }} aria-labelledby={titleId()} data-testid="run-node">
       <header class="ae-panel__head">
         <span class="ae-panel__icon"><Icon name={icon()} /></span>
         <div class="ae-panel__titles">
-          <h2 class="ae-panel__title" id={titleId} title={name().title} tabindex="-1">{name().title}</h2>
+          <h2 class="ae-panel__title" id={titleId()} title={name().title} tabindex="-1">{name().title}</h2>
           <Show when={name().subtitle}><p class="ae-panel__sub">{name().subtitle}</p></Show>
         </div>
         <Show when={props.state}>
-          {(s) => <span class={`ae-state ae-state--${s()}`}><Icon name={s()} size={12} /><span class="ae-state__text">{base().canvas.states[s()]}</span></span>}
+          {(s) => (
+            <Swap key={s()}>
+              {(state) => <span class={`ae-state ae-state--${state}`}><Icon name={state} size={12} /><span class="ae-state__text">{base().canvas.states[state as ItemState]}</span></span>}
+            </Swap>
+          )}
         </Show>
         <button type="button" class="ae-iconbtn" aria-label={t().node.close} title={t().node.close} onClick={() => props.onClose()}><Icon name="close" /></button>
       </header>
@@ -81,7 +86,7 @@ export function NodeDrawer(props: NodeDrawerProps): JSX.Element {
               <div class="ae-chips" role="tablist" aria-label={t().node.steps(steps().length)}>
                 <For each={steps()}>
                   {(s, i) => (
-                    <button type="button" role="tab" class="ae-chip" aria-selected={step() === s} onClick={() => setPicked(i())}
+                    <button type="button" role="tab" class="ae-chip iota-press" aria-selected={step() === s} onClick={() => setPicked(i())}
                       classList={{ 'ae-chip--danger': Boolean(s.error) }}>
                       {stepLabel(s)}
                     </button>

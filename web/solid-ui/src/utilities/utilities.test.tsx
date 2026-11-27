@@ -205,3 +205,39 @@ describe('Spotlight', () => {
     expect(option.querySelector('[data-spotlight-key="second"]')).not.toBeNull()
   })
 })
+
+describe('createFlash (#1352)', () => {
+  it('restarts the highlight when the same key flashes again', async () => {
+    const { createFlash } = await import('./Motion')
+    const { createRoot } = await import('solid-js')
+    await createRoot(async (done) => {
+      const f = createFlash()
+      f.flash('row')
+      expect(f.flashing('row')).toBe(true)
+      // Flashed again while it shows: off for a rendered frame, then on again with a new animation.
+      f.flash('row')
+      expect(f.flashing('row')).toBe(false)
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      expect(f.flashing('row')).toBe(true)
+      done()
+    })
+  })
+
+  it('keeps only the newest of quick repeated flashes, and it still expires', async () => {
+    vi.useFakeTimers()
+    const { createFlash } = await import('./Motion')
+    const { createRoot } = await import('solid-js')
+    createRoot((done) => {
+      const f = createFlash()
+      f.flash('row')
+      f.flash('row')
+      f.flash('row')
+      // The third call mounts at once; the second's deferred mount must not overwrite it later.
+      vi.advanceTimersByTime(100)
+      expect(f.flashing('row')).toBe(true)
+      vi.advanceTimersByTime(4100)
+      expect(f.flashing('row')).toBe(false)
+      done()
+    })
+  })
+})

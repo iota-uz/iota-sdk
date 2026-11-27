@@ -9,7 +9,8 @@ import { render } from 'solid-js/web'
 import { Canvas } from '../src/Canvas'
 import { Editor } from '../src/Editor'
 import { EditorSkeleton } from '../src/lazy'
-import { ensureLayout } from '../src/layout'
+import { resetMotionCache } from '../src/motion'
+import { ensureLayout, tidyLayout } from '../src/layout'
 import type { AutomationGraph, AutomationLayout, EditorApi, EditorLocale, GraphError, Overlay, RunData, RunsView, RunState, SaveResult } from '../src/types'
 import { catalog as fullCatalog, emptyCatalog, notifyCatalog } from './catalog'
 import { bench, connected, empty, notifyGraph, sample } from './graphs'
@@ -80,6 +81,8 @@ type Log = {
   layout: AutomationLayout
 }
 const log: Log = { saves: [], saveLayouts: [], saveLayoutCalls: 0, openedVersions: [], initialLayout: ensureLayout(initial.graph, catalog, initial.layout), validates: 0, moves: [], changes: [], reloads: 0, runCalls: 0, runsCalls: [], ops: [], dryRuns: [], tests: [], graph: initial.graph, layout: initial.layout }
+// Scenarios that change the motion tokens at run time re-read them (the editor caches the values).
+;(window as unknown as { __resetMotion: () => void }).__resetMotion = resetMotionCache
 window.__fixture = Object.assign(log, {
   failNext: (kind: string) => fail.add(kind),
   recover: (kind: string) => fail.delete(kind),
@@ -239,9 +242,28 @@ function App() {
       void document.body.offsetHeight
       return performance.now() - started
     }
+    // Benchmark hooks: prepareTidy computes the tidied layout (the layout algorithm, outside what is
+    // measured); tidy applies it the way Tidy does, so every card glides (--motion-slow) with its edges
+    // following; called again it glides back to the layout before.
+    const [transition, setTransition] = createSignal(0)
+    let tidyTarget: AutomationLayout | null = null
+    let before: AutomationLayout | null = null
+    window.__fixture.prepareTidy = () => {
+      before = layout()
+      tidyTarget = tidyLayout(graph(), catalog)
+    }
+    window.__fixture.tidy = () => {
+      if (!tidyTarget || !before) return
+      const next = layout() === tidyTarget ? before : tidyTarget
+      batch(() => {
+        setTransition((n) => n + 1)
+        setLayout(next)
+      })
+    }
     return (
       <div style={{ position: 'relative', height: '100%' }}>
         <Canvas
+          layoutTransition={transition()}
           graph={graph()}
           catalog={catalog}
           layout={layout()}

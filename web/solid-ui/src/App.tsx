@@ -39,6 +39,7 @@ import { CopyButton, CopyableText } from './utilities/CopyButton'
 import { ExportDropdown } from './utilities/ExportDropdown'
 import { HelpContext } from './utilities/Help'
 import { LanguageSelect } from './utilities/LanguageSelect'
+import { createFlash, motionMs, type MotionToken } from './utilities/Motion'
 import { ActionMenu, Actions } from './scaffold/Actions'
 import { FilterDropdown, FiltersBar, SideFilter } from './scaffold/Filters'
 import { SPECIMENS, stateFor, type SpecimenID, type SpecimenState, type Theme } from './catalog'
@@ -473,6 +474,45 @@ function ScaffoldSpecimen(props: SpecimenProps) {
   )
 }
 
+const MOTION_TOKENS: { token: MotionToken; use: string }[] = [
+  { token: 'instant', use: 'press (:active), handle highlight' },
+  { token: 'fast', use: 'a layer leaving, a palette or menu closing, a filter change' },
+  { token: 'base', use: 'a layer appearing, a panel opening, a list reflowing' },
+  { token: 'slow', use: 'Tidy auto-layout, the run overlay transition' },
+  { token: 'fade', use: 'opacity only; 80 ms under reduced motion' },
+  { token: 'flash', use: 'a changed row or card stays highlighted' },
+]
+
+function MotionSpecimen(props: SpecimenProps) {
+  // The gallery shows the values the page computes: under `reduced` it emulates the reduced-motion tokens.
+  const reduced = () => props.state === 'reduced'
+  const value = (token: MotionToken) => reduced() ? (token === 'fade' ? 80 : token === 'flash' ? 4000 : 0) : motionMs(token)
+  // The changed card flashes on mount; «Flash again» restarts its highlight (createFlash).
+  const flash = createFlash()
+  flash.flash('card')
+  return (
+    <section class="specimen specimen-stack" aria-label="Motion specimens" data-testid="specimen-motion">
+      <Table>
+        <Caption>{reduced() ? 'Motion tokens under prefers-reduced-motion: reduce' : 'Motion tokens'}</Caption>
+        <Header><Row><Head>Token</Head><Head>Duration</Head><Head>Used for</Head></Row></Header>
+        <Body>
+          <For each={MOTION_TOKENS}>{(row) => <Row><Cell><code>--motion-{row.token}</code></Cell><Cell class="tabular-nums">{value(row.token)} ms</Cell><Cell>{row.use}</Cell></Row>}</For>
+          <Row><Cell><code>--ease-out</code></Cell><Cell>cubic-bezier(0.2, 0, 0, 1)</Cell><Cell>appearing</Cell></Row>
+          <Row><Cell><code>--ease-in</code></Cell><Cell>cubic-bezier(0.4, 0, 1, 1)</Cell><Cell>leaving</Cell></Row>
+          <Row><Cell><code>--ease-standard</code></Cell><Cell>cubic-bezier(0.2, 0, 0.2, 1)</Cell><Cell>moving</Cell></Row>
+        </Body>
+      </Table>
+      <div class="specimen-row specimen-row--wrap">
+        <Button class="iota-press">Press</Button>
+        <Button variant="secondary" class="iota-press iota-focus-ring" data-vr-target="motion-focus">Focus ring</Button>
+      </div>
+      <Card class={flash.flashing('card') ? 'iota-flash' : undefined} data-vr-target="motion-flash" data-testid="motion-flash" header={<CardHeader>Changed a moment ago</CardHeader>}>Highlighted about 4 s after a change, then fades.</Card>
+      <div class="specimen-row"><Button variant="secondary" data-testid="motion-flash-again" onClick={() => flash.flash('card')}>Flash again</Button></div>
+      <div class="iota-reveal rounded-lg border border-default p-3" data-vr-target="motion-reveal">Inline confirmation opens from its top edge above the buttons.</div>
+    </section>
+  )
+}
+
 const SPECIMEN_RENDERERS: Record<SpecimenID, Component<SpecimenProps>> = {
   'gallery-shell': GalleryShell,
   buttons: ButtonsSpecimen,
@@ -484,6 +524,7 @@ const SPECIMEN_RENDERERS: Record<SpecimenID, Component<SpecimenProps>> = {
   dialog: DialogSpecimen,
   drawer: DrawerSpecimen,
   toasts: ToastsSpecimen,
+  motion: MotionSpecimen,
   selection: SelectionSpecimen,
   data: DataSpecimen,
   utilities: UtilitiesSpecimen,

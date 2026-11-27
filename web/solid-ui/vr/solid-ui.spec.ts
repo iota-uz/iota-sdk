@@ -56,6 +56,27 @@ test.describe('templ geometry contracts', () => {
 })
 
 test.describe('interaction and accessibility contracts', () => {
+  // createFlash (#1352): flashing again restarts the highlight animation itself, also for a burst of calls
+  // made before the browser renders the first removal.
+  for (const calls of [1, 2, 3]) {
+    test(`a repeated flash restarts the highlight animation (${calls} call${calls > 1 ? 's' : ''} at once)`, async ({ page }) => {
+      await open(page, galleryCase('motion', 'default', 'light'))
+      const elapsed = () => page.getByTestId('motion-flash').evaluate((card) => {
+        const animation = document.getAnimations().find((a) => {
+          const effect = a.effect as KeyframeEffect | null
+          return effect?.target === card && effect.pseudoElement === '::after'
+        })
+        return animation ? Number(animation.currentTime ?? -1) : -1
+      })
+      await expect.poll(elapsed).toBeGreaterThan(1000)
+      await page.getByTestId('motion-flash-again').evaluate((button, n) => {
+        for (let i = 0; i < n; i++) (button as HTMLButtonElement).click()
+      }, calls)
+      await expect.poll(elapsed).toBeGreaterThanOrEqual(0)
+      expect(await elapsed()).toBeLessThan(600)
+    })
+  }
+
   test('open controls expose canonical roles and state', async ({ page }) => {
     await open(page, galleryCase('navigation', 'open', 'light'))
     await expect(page.locator('summary[aria-label="Product actions"]')).toHaveAttribute('aria-expanded', 'true')

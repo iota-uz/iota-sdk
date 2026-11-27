@@ -1,7 +1,7 @@
 // The canvas: a controlled Solid wrapper over @xyflow/system (through ./xy/adapter). It never mutates
 // `graph` or `layout`; it emits intents (onChange, onMove, onDrop, onMenu, onSelect). One edge per
 // (node, outcome): a new connection replaces the old one. The DOM is read only after mount.
-import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, type Accessor, type JSX } from 'solid-js'
+import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, untrack, type Accessor, type JSX } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { cardGeometry, GRID, HANDLE_SIZE, normalizeRect, OUTCOME_ROW_Y, rectsOverlap, snap, TARGET_HANDLE, type CardGeometry, type Rect } from './geometry'
 import { connect, edgeKey, FIRED, findItem, IGNORE, nodeOutcomes, parentOf, pathOf, removeItems } from './graph'
@@ -10,6 +10,7 @@ import { backEdges, ensureLayout, unmarked } from './layout'
 import { isMac } from './locale'
 import { describeAll, type ItemName } from './names'
 import { createRouter, directPath, routePath, type RouteLink, type Router } from './route'
+import { motionMs } from './motion'
 import { keyLabel, strings } from './strings'
 import type { AutomationLayout, CanvasApi, CanvasItem, CanvasProps, ItemState, XY } from './types'
 import { connectionLost, errorsByItem } from './validation'
@@ -54,6 +55,8 @@ const STATE_ICON: Record<ItemState, string> = {
   passed: 'passed', running: 'running', waiting: 'waiting', failed: 'failed', skipped: 'skipped', cancelled: 'cancelled',
 }
 
+const coarsePointer = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
+
 export function Canvas(props: CanvasProps): JSX.Element {
   const flowId = `ae${++flowCounter}`
   const t = () => strings(props.locale)
@@ -79,6 +82,32 @@ export function Canvas(props: CanvasProps): JSX.Element {
   const [press, setPress] = createSignal<XY | null>(null)
   const [altSnapOff, setAltSnapOff] = createSignal(false)
   const [tidying, setTidying] = createSignal(false)
+  // Motion (#1352): an edge just connected (it flashes) and a draft line pulling back into its handle. The
+  // lift, landing and click of a card are classes set on its element directly, not state every card reads:
+  // a drop on a 200-card canvas must not recompute every card (#1331 benchmark).
+  const [flashEdge, setFlashEdge] = createSignal<string | null>(null)
+  let lifted: string[] = []
+  const mark = (ids: Iterable<string>, name: string, on: boolean) => {
+    for (const id of ids) nodeElements.get(id)?.classList.toggle(name, on)
+  }
+  const [retract, setRetract] = createSignal<{ d: string; x: number; y: number } | null>(null)
+  const motionTimers = new Set<ReturnType<typeof setTimeout>>()
+  const later = (ms: number, run: () => void) => {
+    const timer = setTimeout(() => {
+      motionTimers.delete(timer)
+      run()
+    }, ms)
+    motionTimers.add(timer)
+  }
+  onCleanup(() => motionTimers.forEach((timer) => clearTimeout(timer)))
+  const click = (id: string) => {
+    const element = nodeElements.get(id)
+    if (!element) return
+    element.classList.remove('ae-card--click')
+    // A rendered frame without the class, so the animation starts over.
+    requestAnimationFrame(() => element.classList.add('ae-card--click'))
+    later(motionMs('fast') + 32, () => element.classList.remove('ae-card--click'))
+  }
 
   // ——— derived graph view ———
 
@@ -122,22 +151,84 @@ export function Canvas(props: CanvasProps): JSX.Element {
         })
       }
     }
-    setPositions(reconcile(structuredClone(next)))
+    // A layout change that should animate (Tidy, and undo or redo of one) glides the cards to their new
+    // places in one --motion-slow tween, and the edges follow them frame by frame (they read `positions`).
+    const token = untrack(() => props.layoutTransition)
+    const animate = token !== undefined && token !== appliedTransition && measured()
+    appliedTransition = token
+    const from: AutomationLayout | null = animate ? untrack(() => Object.fromEntries(Object.entries(positions).map(([id, p]) => [id, { x: p.x, y: p.y }]))) : null
     setCommitted(reconcile(structuredClone(next)))
+    // The token is read only for a change that animates: reading it costs a style recalculation.
+    const ms = from ? motionMs('slow') : 0
+    if (!from || ms <= 0) {
+      cancelAnimationFrame(tweenFrame)
+      setTidying(false)
+      setPositions(reconcile(structuredClone(next)))
+      return
+    }
+    tween(from, next, ms)
   }))
 
-  // A Tidy moves the cards with a 200 ms transition (CSS; none under prefers-reduced-motion) while the
-  // edges fade back in once the cards have landed.
-  const TIDY_MS = 200
-  let tidyTimer: ReturnType<typeof setTimeout> | undefined
-  createEffect(on(() => props.layoutTransition, (token, previous) => {
-    if (token === undefined || token === previous) return
-    if (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  let appliedTransition = props.layoutTransition
+  let tweenFrame = 0
+  // --ease-standard, cubic-bezier(0.2, 0, 0.2, 1), sampled for the tween.
+  const easeStandard = (t: number) => {
+    let lo = 0, hi = 1, u = t
+    for (let i = 0; i < 12; i++) {
+      u = (lo + hi) / 2
+      const x = 3 * (1 - u) * (1 - u) * u * 0.2 + 3 * (1 - u) * u * u * 0.2 + u * u * u
+      if (x < t) lo = u
+      else hi = u
+    }
+    return 3 * (1 - u) * u * u + u * u * u
+  }
+  const tween = (from: AutomationLayout, to: AutomationLayout, ms: number) => {
+    cancelAnimationFrame(tweenFrame)
+    // Only cards on screen at the start or the end glide; the others take their place at once (the glide
+    // costs what is seen, as rendering does).
+    const rect = untrack(visibleRect)
+    const geometries = untrack(geometryMap)
+    const seen = (p: XY | undefined, id: string) => {
+      const g = geometries.get(id)
+      return rect === null || !p || !g || rectsOverlap(rect, { x: p.x, y: p.y, width: g.width, height: g.height + 24 })
+    }
+    const moving = Object.keys(to).filter((id) => from[id] && (from[id]!.x !== to[id]!.x || from[id]!.y !== to[id]!.y) && (seen(from[id], id) || seen(to[id], id)))
+    if (moving.length === 0) {
+      setPositions(reconcile(structuredClone(to)))
+      return
+    }
+    // Cards that do not move (and new ones) take their place at once.
+    setPositions(reconcile(Object.fromEntries(Object.entries(to).map(([id, p]) => [id, moving.includes(id) ? { ...from[id]! } : { ...p }]))))
     setTidying(true)
-    clearTimeout(tidyTimer)
-    tidyTimer = setTimeout(() => setTidying(false), TIDY_MS + 40)
-  }, { defer: true }))
-  onCleanup(() => clearTimeout(tidyTimer))
+    const start = performance.now()
+    // The frame's own clock, not the rAF timestamp: some hosts start that one elsewhere.
+    const frame = () => {
+      const k = Math.min(1, (performance.now() - start) / ms)
+      const e = easeStandard(k)
+      batch(() => {
+        for (const id of moving) {
+          const a = from[id]!
+          const b = to[id]!
+          setPositions(id, { x: Math.round(a.x + (b.x - a.x) * e), y: Math.round(a.y + (b.y - a.y) * e) })
+        }
+      })
+      if (k < 1) tweenFrame = requestAnimationFrame(frame)
+      else {
+        setTidying(false)
+        setPositions(reconcile(structuredClone(to)))
+      }
+    }
+    tweenFrame = requestAnimationFrame(frame)
+  }
+  onCleanup(() => cancelAnimationFrame(tweenFrame))
+  // A drag or a keyboard move takes the positions over: a glide in flight lands at once, so its next frame
+  // cannot overwrite the move.
+  const stopTween = () => {
+    if (!untrack(tidying)) return
+    cancelAnimationFrame(tweenFrame)
+    setTidying(false)
+    setPositions(reconcile(structuredClone(untrack(() => shown()))))
+  }
 
   const errorMap = createMemo(() => errorsByItem(props.graph, props.errors))
   const lost = createMemo(() => connectionLost(props.graph, props.errors))
@@ -269,12 +360,16 @@ export function Canvas(props: CanvasProps): JSX.Element {
     return { x: a.x - margin, y: a.y - margin, width: width / vp.zoom + margin * 2, height: height / vp.zoom + margin * 2 }
   }, null, { equals: (a, b) => a === b || (a !== null && b !== null && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height) })
   const keep = (id: string) => props.selected === id || multi().has(id)
+  // While cards glide (Tidy, undo) visibility is decided once, from where they land, and kept with what was
+  // on screen: it does not re-run over every card on every frame.
   const visibleIds = createMemo<string[]>((previous) => {
     const rect = visibleRect()
     const geometries = geometryMap()
+    const gliding = tidying()
     const next = rect === null ? ids() : ids().filter((id) => {
       if (keep(id)) return true
-      const p = positions[id]
+      if (gliding && previous?.includes(id)) return true
+      const p = gliding ? committed[id] : positions[id]
       const g = geometries.get(id)
       return p && g ? rectsOverlap(rect, { x: p.x, y: p.y, width: g.width, height: g.height + 24 }) : false
     })
@@ -284,10 +379,13 @@ export function Canvas(props: CanvasProps): JSX.Element {
     const rect = visibleRect()
     routeTick()
     const targets = edgeTargets()
+    const gliding = tidying()
+    const place = gliding ? committed : positions
     const next = rect === null ? edgeList() : edgeList().filter((source) => {
+      if (gliding && previous?.includes(source)) return true
       const node = source.slice(0, source.lastIndexOf('.'))
-      const p = positions[node]
-      const q = positions[targets.get(source) ?? '']
+      const p = place[node]
+      const q = place[targets.get(source) ?? '']
       if (!p || !q) return false
       const x = Math.min(p.x, q.x) - 64
       const y = Math.min(p.y, q.y) - 64
@@ -314,8 +412,11 @@ export function Canvas(props: CanvasProps): JSX.Element {
       routeBoxes.delete(key)
       setRouted(key, undefined as never)
     }
-    const wanted = visibleEdges().filter((key) => routeOwner.get(key) !== current).sort((a, b) => Number(stale.has(b)) - Number(stale.has(a)))
     clearTimeout(routeTimer)
+    // While cards glide their edges take direct paths: routing the layout they land in waits for the landing,
+    // so its slices do not take frames from the glide.
+    if (tidying()) return
+    const wanted = visibleEdges().filter((key) => routeOwner.get(key) !== current).sort((a, b) => Number(stale.has(b)) - Number(stale.has(a)))
     if (wanted.length === 0) return
     let todo: string[] | null = null
     const run = () => {
@@ -415,11 +516,22 @@ export function Canvas(props: CanvasProps): JSX.Element {
     onStart: () => setDragging(true),
     onMove: (moved) => {
       batch(() => {
+        if (lifted.length === 0) {
+          lifted = [...moved.keys()]
+          mark(lifted, 'ae-card--lifted', true)
+          if (coarsePointer()) for (const id of lifted) click(id)
+        }
         for (const [id, p] of moved) setPositions(id, { x: p.x, y: p.y })
       })
     },
     onEnd: (moved) => {
       setDragging(false)
+      // The cards land on the grid with a short glide instead of a jump.
+      const landed = [...moved.keys()]
+      mark(lifted, 'ae-card--lifted', false)
+      lifted = []
+      mark(landed, 'ae-card--landing', true)
+      later(motionMs('fast'), () => mark(landed, 'ae-card--landing', false))
       const out: AutomationLayout = {}
       let changed = false
       for (const [id, p] of moved) {
@@ -450,13 +562,15 @@ export function Canvas(props: CanvasProps): JSX.Element {
     }
   }
 
-  const bounds = (only?: string[]) => {
+  // `settledOnly` reads the committed layout: Fit right after Tidy frames where the cards land, not where
+  // the glide starts.
+  const bounds = (only?: string[], settledOnly = false) => {
     const geometries = geometryMap()
     const list = only ?? ids()
     if (list.length === 0) return null
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
     for (const id of list) {
-      const p = positions[id]
+      const p = settledOnly ? committed[id] ?? positions[id] : positions[id]
       const g = geometries.get(id)
       if (!p || !g) continue
       minX = Math.min(minX, p.x)
@@ -468,7 +582,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
   }
 
   const fit = () => {
-    const b = bounds()
+    const b = bounds(undefined, true)
     const { width, height } = size()
     if (!b || !panZoom || width === 0) return
     panZoom.set(viewportForBounds(b, width, height, 0.12), 0)
@@ -521,7 +635,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
     const topLeft = toBox(p, vp)
     const bottomRight = toBox({ x: p.x + g.width, y: p.y + g.height }, vp)
     if (topLeft.x < 0 || topLeft.y < 0 || bottomRight.x > width || bottomRight.y > height) {
-      panZoom.set({ x: width / 2 - (p.x + g.width / 2) * vp.zoom, y: height / 2 - (p.y + g.height / 2) * vp.zoom, zoom: vp.zoom }, 150)
+      panZoom.set({ x: width / 2 - (p.x + g.width / 2) * vp.zoom, y: height / 2 - (p.y + g.height / 2) * vp.zoom, zoom: vp.zoom }, motionMs('fast'))
     }
   }
 
@@ -555,6 +669,10 @@ export function Canvas(props: CanvasProps): JSX.Element {
     setSize({ width: container.clientWidth, height: container.clientHeight })
     initialView()
     setMeasured(true)
+    // The motion tokens are read here, once per page, while the first paint needs a style pass anyway: read
+    // later, at the end of a drag, the read forces a style recalculation over every card (a long task in the
+    // #1331 benchmark).
+    for (const token of ['instant', 'fast', 'base', 'slow'] as const) motionMs(token)
     const onKey = (event: KeyboardEvent) => setAltSnapOff(event.altKey)
     const onPointer = (event: MouseEvent) => setAltSnapOff(event.altKey)
     window.addEventListener('keydown', onKey, true)
@@ -619,6 +737,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
   const onPointerDown = (event: PointerEvent) => {
     activePointers.add(event.pointerId)
     downAt = { x: event.clientX, y: event.clientY }
+    stopTween()
     syncLookup()
     if (activePointers.size > 1) {
       cancelLongPress()
@@ -764,6 +883,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
     const key = event.key
     if (key.startsWith('Arrow') && event.altKey && movable()) {
       event.preventDefault()
+      stopTween()
       const delta = { ArrowLeft: { x: -GRID, y: 0 }, ArrowRight: { x: GRID, y: 0 }, ArrowUp: { x: 0, y: -GRID }, ArrowDown: { x: 0, y: GRID } }[key]!
       const moving = selection().includes(id) ? selection() : [id]
       keyMove = new Set([...(keyMove ?? []), ...moving])
@@ -850,6 +970,22 @@ export function Canvas(props: CanvasProps): JSX.Element {
     event.stopPropagation()
     syncLookup()
     const from = { node: id, outcome }
+    let last: ConnectionState | null = null
+    const key = edgeKey(id, outcome)
+    // Released on a target: the new edge flashes and the target answers with a click.
+    const connected = (target: string) => {
+      props.onChange?.(connect(props.graph, from, target))
+      setFlashEdge(key)
+      click(target)
+      later(motionMs('slow'), () => setFlashEdge((current) => (current === key ? null : current)))
+    }
+    // Released off a target: the line pulls back into its handle.
+    const missed = () => {
+      const state = last
+      if (!state || motionMs('fast') <= 0) return
+      setRetract({ d: edgePath(state.from, state.to), x: state.from.x, y: state.from.y })
+      later(motionMs('fast'), () => setRetract(null))
+    }
     startConnection(event, {
       container,
       lookup,
@@ -860,19 +996,25 @@ export function Canvas(props: CanvasProps): JSX.Element {
       viewport: () => viewport(),
       panBy,
       isValid: (target) => findItem(props.graph, target)?.kind === 'node',
-      onUpdate: setConnection,
-      onConnect: (target) => props.onChange?.(connect(props.graph, from, target)),
+      onUpdate: (state) => {
+        if (state) last = state
+        setConnection(state)
+      },
+      onConnect: (target) => connected(target),
       onRelease: (point, flow) => {
         const root = container!.getRootNode() as Document | ShadowRoot
         const target = nodeIdAt(root, point.clientX, point.clientY)
         if (target) {
-          if (findItem(props.graph, target)?.kind === 'node') props.onChange?.(connect(props.graph, from, target))
+          if (findItem(props.graph, target)?.kind === 'node') connected(target)
+          else missed()
           return
         }
         if (isPaneAt(root, container!, point.clientX, point.clientY)) {
           const rect = container!.getBoundingClientRect()
           props.onDrop?.({ from, x: point.clientX - rect.left, y: point.clientY - rect.top, flow })
+          return
         }
+        missed()
       },
     })
   }
@@ -894,8 +1036,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
   const hint = () => {
     if (connectionHint()) return connectionHint()
     if (!editable()) return t().canvas.hintReadOnly
-    const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
-    return coarse ? t().canvas.hintTouch : t().canvas.hintMouse
+    return coarsePointer() ? t().canvas.hintTouch : t().canvas.hintMouse
   }
 
   const edgeView = (source: string) => {
@@ -924,14 +1065,27 @@ export function Canvas(props: CanvasProps): JSX.Element {
     const className = createMemo(() => {
       let c = 'ae-edge'
       const taken = props.overlay?.taken.has(source) ?? false
-      if (connectingKey() === source) c += ' ae-edge--hidden'
+      if (connectingKey() === source) c += ' ae-edge--rewiring'
+      if (flashEdge() === source) c += ' ae-edge--flash'
       if (taken) c += ' ae-edge--taken'
+      if (taken && props.overlay?.states.get(to()) === 'waiting') c += ' ae-edge--waiting'
       if (loop()) c += ' ae-edge--loop'
       const h = highlight()
       if (props.overlay ? !taken : h ? !h.edges.has(source) : false) c += ' ae-dim'
       return c
     })
-    return <path class={className()} d={path()} data-edge={source} data-to={to()} />
+    // The run's path lights up edge by edge in the order of its steps.
+    const step = () => {
+      const taken = props.overlay?.taken
+      if (!taken?.has(source)) return undefined
+      let i = 0
+      for (const k of taken) {
+        if (k === source) return `--ae-step:${i}`
+        i++
+      }
+      return undefined
+    }
+    return <path class={className()} d={path()} style={step()} data-edge={source} data-to={to()} />
   }
 
   const NodeCard = (cardProps: { id: string }) => {
@@ -948,6 +1102,8 @@ export function Canvas(props: CanvasProps): JSX.Element {
       if (selected()) c += ' ae-card--selected'
       if (it?.error || unavailable()) c += ' ae-card--error'
       if (it?.state) c += ` ae-card--${it.state}`
+      const over = connection()
+      if (over && over.overTarget === id && over.valid) c += ' ae-card--drop'
       const h = highlight()
       if (props.overlay ? !props.overlay.states.has(id) : h ? !h.items.has(id) : false) c += ' ae-dim'
       return c
@@ -981,7 +1137,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
       <div
         ref={element}
         class={className()}
-        style={`transform:translate(${positions[id]?.x ?? 0}px,${positions[id]?.y ?? 0}px);width:${geometry().width}px;height:${geometry().height}px`}
+        style={{ transform: `translate(${positions[id]?.x ?? 0}px,${positions[id]?.y ?? 0}px)`, width: `${geometry().width}px`, height: `${geometry().height}px` }}
         data-id={id}
         role="group"
         tabindex="0"
@@ -1115,7 +1271,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
   }
 
   const minimapView = createMemo(() => {
-    const b = bounds()
+    const b = bounds(undefined, tidying())
     if (!b) return null
     const pad = 80
     return { x: Math.round(b.x - pad), y: Math.round(b.y - pad), width: Math.round(b.width + pad * 2), height: Math.round(b.height + pad * 2) }
@@ -1124,10 +1280,12 @@ export function Canvas(props: CanvasProps): JSX.Element {
   // The minimap draws every card as one path (two with the selection): one element to restyle, not 200.
   const minimapPaths = createMemo(() => {
     const geometries = geometryMap()
+    // While cards glide the minimap shows where they land (one path per frame for 200 cards is not free).
+    const place = tidying() ? committed : positions
     let rest = ''
     let selected = ''
     for (const id of ids()) {
-      const p = positions[id]
+      const p = place[id]
       const g = geometries.get(id)
       if (!p || !g) continue
       const rect = `M${p.x} ${p.y}h${g.width}v${g.height}h${-g.width}z`
@@ -1173,6 +1331,9 @@ export function Canvas(props: CanvasProps): JSX.Element {
           <Show when={connection()}>
             <path class="ae-edge ae-edge--draft" classList={{ 'ae-edge--valid': connection()?.valid === true }} d={connectionPath()} />
           </Show>
+          <Show when={retract()}>
+            {(r) => <path class="ae-edge ae-edge--draft ae-edge--retract" d={r().d} style={`transform-origin:${r().x}px ${r().y}px`} />}
+          </Show>
         </svg>
         <For each={visibleIds()}>{(id) => <NodeCard id={id} />}</For>
       </div>
@@ -1180,7 +1341,13 @@ export function Canvas(props: CanvasProps): JSX.Element {
         {(rect) => <div class="ae-box" style={{ left: `${rect().x}px`, top: `${rect().y}px`, width: `${rect().width}px`, height: `${rect().height}px` }} />}
       </Show>
       <Show when={press()}>
-        {(p) => <div class="ae-press" style={{ left: `${p().x}px`, top: `${p().y}px` }} aria-hidden="true" />}
+        {(p) => (
+          // The ring fills over the long-press time; a full static ring under reduced motion.
+          <svg class="ae-press" viewBox="0 0 56 56" style={{ left: `${p().x}px`, top: `${p().y}px`, '--ae-long-press': `${LONG_PRESS_MS}ms` }} aria-hidden="true">
+            <circle class="ae-press__track" cx="28" cy="28" r="25" />
+            <circle class="ae-press__fill" cx="28" cy="28" r="25" pathLength="100" />
+          </svg>
+        )}
       </Show>
       <div class={`ae-hint ${NOPAN}`} classList={{ 'ae-hint--active': connection() !== null }} role="status" aria-live="polite">
         {hint()}

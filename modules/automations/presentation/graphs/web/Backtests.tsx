@@ -1,6 +1,6 @@
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, on, onCleanup, onMount, type JSX } from 'solid-js'
 import type { AutomationGraph, EditorCatalog } from '@iota-uz/sdk/automation-editor'
-import { Button, Dialog, DialogBusyStatus, EmptyState, Input, Select, Skeleton, Switch as Toggle, Textarea } from '@iota-uz/sdk/solid-ui'
+import { Button, Dialog, DialogBusyStatus, EmptyState, Input, Select, Skeleton, Switch as Toggle, Textarea, createFlash } from '@iota-uz/sdk/solid-ui'
 import {
   active, backtestErrorText, backtestFailureText, classifiersOf, eventSummary, importErrorText, integer, nodeTitle, nodeTitles, percent,
   progress, readBacktestsView, usd, writeBacktestsView,
@@ -38,13 +38,13 @@ export default function BacktestsPage(): JSX.Element {
   const [loadedAt, setLoadedAt] = createSignal<Date>()
   const [error, setError] = createSignal<string>()
   const [dialog, setDialog] = createSignal<{ kind: 'create' } | { kind: 'import'; dataset: DatasetView } | { kind: 'synthetic'; dataset: DatasetView } | { kind: 'run'; dataset?: DatasetView } | { kind: 'delete'; dataset: DatasetView } | null>(null)
-  const [highlighted, setHighlighted] = createSignal<string>()
+  // A changed dataset or backtest is highlighted about 4 s and fades (F5).
+  const highlight = createFlash()
   let seq = 0
   let timer: ReturnType<typeof setTimeout> | undefined
-  let highlightTimer: ReturnType<typeof setTimeout> | undefined
   // After the page goes, an answer on the way neither updates it nor schedules another poll.
   let disposed = false
-  onCleanup(() => { disposed = true; seq++; clearTimeout(timer); clearTimeout(highlightTimer) })
+  onCleanup(() => { disposed = true; seq++; clearTimeout(timer) })
 
   const load = async () => {
     if (disposed) return
@@ -85,9 +85,7 @@ export default function BacktestsPage(): JSX.Element {
   }
   const home = () => go({ dataset: null, backtest: null, compare: null, node: null, mismatch: false })
   const changed = (rowID: string) => {
-    setHighlighted(rowID)
-    clearTimeout(highlightTimer)
-    highlightTimer = setTimeout(() => setHighlighted(undefined), 4000)
+    highlight.flash(rowID)
     void load()
   }
   const classifiers = createMemo(() => {
@@ -170,7 +168,7 @@ export default function BacktestsPage(): JSX.Element {
         </Match>
         <Match when={data()}>
           <Overview
-            data={data()!} highlighted={highlighted()}
+            data={data()!} flashing={highlight.flashing}
             onDataset={(ds) => go({ dataset: ds, backtest: null })} onBacktest={(b) => go({ backtest: b, dataset: null })}
             onRun={(d) => setDialog({ kind: 'run', dataset: d })}
           />
@@ -229,7 +227,7 @@ function exampleText(t: ReturnType<typeof useApp>['t'], ex: ExampleView): string
 function BackLink(props: { onBack: () => void }): JSX.Element {
   const t = useApp().t
   return (
-    <button type="button" class="inline-flex min-h-9 [@media(pointer:coarse)]:min-h-11 items-center gap-1 self-start text-sm text-200 hover:underline focus-visible:outline-2 focus-visible:outline-primary-500" onClick={props.onBack} data-testid="backtests-back">
+    <button type="button" class="inline-flex min-h-9 [@media(pointer:coarse)]:min-h-11 items-center gap-1 self-start text-sm text-200 hover:underline" onClick={props.onBack} data-testid="backtests-back">
       <Icon name="arrow" class="rotate-180" />{t('Backtests.Back')}
     </button>
   )
@@ -239,7 +237,7 @@ function BackLink(props: { onBack: () => void }): JSX.Element {
 function StatusLine(props: { status: BacktestView['status']; text?: string }): JSX.Element {
   const t = useApp().t
   const icon = () => (props.status === 'done' ? 'check' : props.status === 'failed' ? 'alert' : props.status === 'cancelled' ? 'x' : 'clock')
-  const tone = () => (props.status === 'done' ? 'text-green' : props.status === 'failed' ? 'text-red-600' : props.status === 'cancelled' ? 'text-300' : 'text-yellow')
+  const tone = () => (props.status === 'done' ? 'text-green' : props.status === 'failed' ? 'text-danger' : props.status === 'cancelled' ? 'text-300' : 'text-yellow')
   return (
     <span class="inline-flex items-center gap-1.5 whitespace-nowrap" data-testid="job-status">
       <Icon name={icon()} class={tone()} />{props.text ?? t(`Backtests.Status.${props.status}`)}
@@ -262,7 +260,8 @@ function ProgressBar(props: { value: number; label: string }): JSX.Element {
   const pct = () => Math.round(props.value * 100)
   return (
     <div class="h-2 w-full overflow-hidden rounded-full bg-surface-400" role="progressbar" aria-label={props.label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct()}>
-      <div class="h-full rounded-full bg-brand motion-safe:transition-[width] motion-safe:duration-200" style={{ width: `${pct()}%` }} />
+      {/* Only transform moves (#1352): the bar is scaled, never resized. */}
+      <div class="h-full w-full origin-left rounded-full bg-brand transition-transform duration-base ease-standard" style={{ transform: `scaleX(${pct() / 100})` }} />
     </div>
   )
 }
@@ -272,20 +271,20 @@ function backtestProgressText(t: ReturnType<typeof useApp>['t'], b: BacktestView
   return t('Backtests.Run.Progress', { done: integer(b.done, lang), total: integer(b.total, lang) })
 }
 
-function Overview(props: { data: BacktestsResult; highlighted?: string; onDataset: (id: string) => void; onBacktest: (id: string) => void; onRun: (d: DatasetView) => void }): JSX.Element {
+function Overview(props: { data: BacktestsResult; flashing: (id: string) => boolean; onDataset: (id: string) => void; onBacktest: (id: string) => void; onRun: (d: DatasetView) => void }): JSX.Element {
   const app = useApp()
   const t = app.t
   const lastImport = (d: DatasetView) => d.imports[0]
   return (
-    <div class="flex flex-col gap-6">
+    <div class="iota-fade-in flex flex-col gap-6">
       <section aria-labelledby="datasets-title" class="flex flex-col gap-3">
         <h2 id="datasets-title" class="text-base font-medium">{t('Backtests.Datasets.Title')}</h2>
         <ul class="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="datasets">
           <For each={props.data.datasets}>
             {(d) => (
-              <li class="flex flex-col gap-3 rounded-lg border border-subtle bg-surface-600 p-4 min-w-0 transition-colors" classList={{ 'bg-brand/5': props.highlighted === d.id }} data-testid={`dataset-${d.id}`}>
+              <li class="flex flex-col gap-3 rounded-lg border border-subtle bg-surface-600 p-4 min-w-0" classList={{ 'iota-flash': props.flashing(d.id) }} data-testid={`dataset-${d.id}`}>
                 <div class="flex min-w-0 flex-col gap-1">
-                  <button type="button" class="self-start text-left font-medium text-100 hover:underline break-words focus-visible:outline-2 focus-visible:outline-primary-500" onClick={() => props.onDataset(d.id)} data-testid="dataset-open">{d.name}</button>
+                  <button type="button" class="self-start text-left font-medium text-100 hover:underline break-words" onClick={() => props.onDataset(d.id)} data-testid="dataset-open">{d.name}</button>
                   <p class="text-sm text-200 tabular-nums">
                     {counted(t, 'Backtests.Datasets.Examples', d.examples, app.lang)} · {t('Backtests.Datasets.Labeled', { count: integer(d.labeled, app.lang) })}
                   </p>
@@ -310,9 +309,9 @@ function Overview(props: { data: BacktestsResult; highlighted?: string; onDatase
           <ul class="flex flex-col divide-y divide-subtle rounded-lg border border-subtle bg-surface-600" data-testid="backtests">
             <For each={props.data.backtests}>
               {(b) => (
-                <li class="flex flex-col gap-2 p-4 md:flex-row md:items-center md:gap-4 min-w-0" classList={{ 'bg-brand/5': props.highlighted === b.id }} data-testid={`backtest-${b.id}`}>
+                <li class="flex flex-col gap-2 p-4 md:flex-row md:items-center md:gap-4 min-w-0" classList={{ 'iota-flash': props.flashing(b.id) }} data-testid={`backtest-${b.id}`}>
                   <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <button type="button" class="self-start text-left font-medium hover:underline break-words focus-visible:outline-2 focus-visible:outline-primary-500" onClick={() => props.onBacktest(b.id)} data-testid="backtest-open">
+                    <button type="button" class="self-start text-left font-medium hover:underline break-words" onClick={() => props.onBacktest(b.id)} data-testid="backtest-open">
                       {t('Backtests.Runs.Name', { version: b.version, dataset: b.dataset_name })}
                     </button>
                     <span class="flex flex-wrap items-center gap-x-2 text-xs text-300">
@@ -873,7 +872,7 @@ function Cases(props: {
     const decision = () => r.decisions.find((d) => d.node === node)
     return (
       <div class="flex flex-col gap-0.5">
-        <span class="inline-flex items-center gap-1 font-mono text-xs" classList={{ 'text-red-600': miss() }}>
+        <span class="inline-flex items-center gap-1 font-mono text-xs" classList={{ 'text-danger': miss() }}>
           <Show when={miss()}><Icon name="alert" size={12} label={t('Backtests.Cases.Mismatch')} /></Show>
           {decision()?.status === 'missing' ? t('Backtests.Cases.Missing') : r.outcomes[node] ?? t('Backtests.Cases.NotReached')}
         </span>
@@ -941,7 +940,7 @@ function Cases(props: {
                     <>
                       <tr class="border-t border-subtle align-top" data-testid={`case-${r.example.id}`}>
                         <td class="px-4 py-3 max-w-sm">
-                          <button type="button" class="text-left break-words hover:underline focus-visible:outline-2 focus-visible:outline-primary-500" aria-expanded={open() === r.example.id}
+                          <button type="button" class="text-left break-words hover:underline" aria-expanded={open() === r.example.id}
                             onClick={() => setOpen(open() === r.example.id ? undefined : r.example.id)} data-testid="case-toggle">
                             {exampleText(t, r.example)}
                           </button>
@@ -955,7 +954,7 @@ function Cases(props: {
                         <tr class="border-t border-subtle bg-surface-500/40" data-testid="case-detail">
                           <td class="px-4 py-3" colSpan={3 + shown().length}>
                             <div class="flex flex-col gap-2 text-sm">
-                              <Show when={r.error}><p class="flex items-center gap-1"><Icon name="alert" class="text-red-600" />{t('Backtests.Cases.Error')}</p></Show>
+                              <Show when={r.error}><p class="flex items-center gap-1"><Icon name="alert" class="text-danger" />{t('Backtests.Cases.Error')}</p></Show>
                               <Show when={r.snapshot_withheld}><p class="flex items-center gap-1" data-testid="case-snapshot-withheld"><Icon name="alert" class="text-yellow" />{t('Backtests.Cases.SnapshotWithheld')}</p></Show>
                               <Show when={r.effects.length > 0} fallback={<p class="text-200">{t('Backtests.Cases.NoEffects')}</p>}>
                                 <p class="font-medium">{t('Backtests.Cases.WouldDo')}</p>
@@ -1114,10 +1113,13 @@ function Compare(props: { backtestID: string; compare: string | null; others: Ba
   )
 }
 
-function DialogFrame(props: { id: string; title: string; busy: boolean; onClose: () => void; testid: string; children: JSX.Element; footer: JSX.Element; onSubmit: () => void; wide?: boolean }): JSX.Element {
+function DialogFrame(props: { id: string; title: string; busy: boolean; onClose: () => void; testid: string; children: JSX.Element; footer: JSX.Element; onSubmit: () => void; wide?: boolean; focusCancel?: boolean }): JSX.Element {
   const t = useApp().t
+  // An irreversible action opens with the focus on «Cancel» (U1).
+  let cancel: HTMLButtonElement | undefined
   return (
-    <Dialog open busy={props.busy} onOpenChange={(open) => { if (!open) props.onClose() }} class={props.wide ? 'md:w-full md:max-w-2xl' : 'md:w-full md:max-w-lg'} aria-labelledby={props.id} data-testid={props.testid}>
+    <Dialog open busy={props.busy} onOpenChange={(open) => { if (!open) props.onClose() }} {...(props.focusCancel ? { initialFocus: () => cancel } : {})}
+      class={props.wide ? 'md:w-full md:max-w-2xl' : 'md:w-full md:max-w-lg'} aria-labelledby={props.id} data-testid={props.testid}>
       <form onSubmit={(e) => { e.preventDefault(); props.onSubmit() }}>
         <header class="flex items-center justify-between gap-3 border-b border-subtle py-1 pl-4 pr-2">
           <h3 id={props.id} class="font-medium truncate" data-dialog-title tabindex="-1">{props.title}</h3>
@@ -1127,7 +1129,7 @@ function DialogFrame(props: { id: string; title: string; busy: boolean; onClose:
         <footer class="border-t border-subtle px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <DialogBusyStatus class="mb-2" />
           <menu class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <Button type="button" variant="secondary" class="min-h-11 justify-center" data-dialog-close onClick={props.onClose} aria-disabled={props.busy || undefined}>{t('Common.Cancel')}</Button>
+            <Button ref={(el: HTMLButtonElement) => { cancel = el }} type="button" variant="secondary" class="min-h-11 justify-center" data-dialog-close onClick={props.onClose} aria-disabled={props.busy || undefined}>{t('Common.Cancel')}</Button>
             {props.footer}
           </menu>
         </footer>
@@ -1197,7 +1199,7 @@ function ImportDialog(props: { automationID: string; dataset?: DatasetView; sour
           options={[7, 30, 90].map((d) => ({ value: String(d), label: counted(t, 'Backtests.Import.Days', d, app.lang) }))} />
         <p class="text-sm text-200">{source() === 'journal' ? t('Backtests.Import.JournalHint') : t('Backtests.Import.HistoryHint')}</p>
       </Show>
-      <Show when={error()}><p role="alert" class="text-sm text-red-600" data-testid="import-error">{error()}</p></Show>
+      <Show when={error()}><p role="alert" class="text-sm text-danger" data-testid="import-error">{error()}</p></Show>
     </DialogFrame>
   )
 }
@@ -1294,7 +1296,7 @@ function SyntheticDialog(props: { dataset: DatasetView; graph?: Graph; classifie
           </fieldset>
         </Show>
       </Show>
-      <Show when={error()}><p role="alert" class="text-sm text-red-600" data-testid="synthetic-error">{error()}</p></Show>
+      <Show when={error()}><p role="alert" class="text-sm text-danger" data-testid="synthetic-error">{error()}</p></Show>
     </DialogFrame>
   )
 }
@@ -1394,7 +1396,7 @@ function RunBacktestDialog(props: { datasets: DatasetView[]; dataset?: DatasetVi
         </div>
         <p class="flex items-start gap-2 text-sm text-200"><Icon name="lock" class="mt-0.5" />{t('Backtests.Run.NothingSent')}</p>
       </Show>
-      <Show when={error()}><p role="alert" class="text-sm text-red-600" data-testid="backtest-run-error">{error()}</p></Show>
+      <Show when={error()}><p role="alert" class="text-sm text-danger" data-testid="backtest-run-error">{error()}</p></Show>
     </DialogFrame>
   )
 }
@@ -1420,12 +1422,12 @@ function DeleteDatasetDialog(props: { dataset: DatasetView; onDone: () => void; 
   }
   return (
     <DialogFrame
-      id="dataset-delete-title" testid="dataset-delete-dialog" busy={busy()} onClose={props.onClose} onSubmit={() => void submit()}
+      id="dataset-delete-title" testid="dataset-delete-dialog" focusCancel busy={busy()} onClose={props.onClose} onSubmit={() => void submit()}
       title={t('Backtests.Datasets.DeleteTitle', { name: props.dataset.name })}
       footer={<Button type="submit" variant="danger" class="min-h-11 justify-center" loading={busy()} data-testid="dataset-delete-confirm">{busy() ? t('Backtests.Datasets.Deleting') : t('Backtests.Datasets.DeleteConfirm')}</Button>}
     >
       <p class="text-sm">{t('Backtests.Datasets.DeleteText', { examples: counted(t, 'Backtests.Datasets.Examples', props.dataset.examples, app.lang) })}</p>
-      <Show when={error()}><p role="alert" class="text-sm text-red-600">{error()}</p></Show>
+      <Show when={error()}><p role="alert" class="text-sm text-danger">{error()}</p></Show>
     </DialogFrame>
   )
 }

@@ -252,7 +252,7 @@ func Content(props *Props) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
 		lang := pageCtx.GetLocale().String()
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<main id=\"notification-settings\" class=\"p-6 md:p-8 max-w-4xl mx-auto\"><header class=\"mb-2\"><h1 class=\"text-2xl font-semibold\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<main id=\"notification-settings\" class=\"iota-focus-scope p-6 md:p-8 max-w-4xl mx-auto\"><header class=\"mb-2\"><h1 class=\"text-2xl font-semibold\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -447,7 +447,7 @@ func Content(props *Props) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\" @change=\"dirty = true\" class=\"rounded-lg border border-secondary bg-surface-300 mb-3\" data-testid=\"notification-rule\" data-event-key=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\" @change=\"dirty = true\" class=\"rounded-lg border border-subtle bg-surface-300 mb-3\" data-testid=\"notification-rule\" data-event-key=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -499,7 +499,7 @@ func Content(props *Props) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</p></div><label class=\"relative inline-flex shrink-0 cursor-pointer items-center\"><input type=\"checkbox\" name=\"enabled\" value=\"true\" class=\"peer sr-only\" aria-label=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</p></div><label class=\"iota-press relative inline-flex shrink-0 cursor-pointer items-center\"><input type=\"checkbox\" name=\"enabled\" value=\"true\" class=\"peer sr-only\" aria-label=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -528,7 +528,7 @@ func Content(props *Props) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "> <span class=\"relative h-5 w-9 rounded-full bg-gray-300 transition-colors peer-checked:bg-primary peer-disabled:opacity-50 peer-focus-visible:ring-2 peer-focus-visible:ring-primary after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:shadow after:transition-transform after:content-[&#39;&#39;] peer-checked:after:translate-x-4\"></span></label></div><div class=\"mx-5 space-y-6 border-t border-secondary py-5\"><div><label class=\"font-medium text-sm\" for=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "> <span class=\"relative h-5 w-9 rounded-full bg-track peer-checked:bg-primary peer-disabled:opacity-50 peer-focus-visible:outline-(length:--focus-ring-width) peer-focus-visible:outline-offset-(--focus-ring-offset) peer-focus-visible:outline-[oklch(var(--clr-border-brand))] after:absolute after:left-0.5 after:top-0.5 after:size-4 after:rounded-full after:bg-white after:shadow after:transition-transform after:duration-fast after:ease-standard after:content-[&#39;&#39;] peer-checked:after:translate-x-4\"></span></label></div><div class=\"mx-5 space-y-6 border-t border-subtle py-5\"><div><label class=\"font-medium text-sm\" for=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -554,7 +554,7 @@ func Content(props *Props) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</label><div class=\"relative mt-2\" @click.outside=\"open = false\"><div class=\"flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border border-secondary bg-surface-100 px-2 py-1.5 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20\"><template x-for=\"(item, i) in items\" :key=\"item.kind + item.id\"><span class=\"inline-flex h-7 items-center gap-1.5 rounded-md pl-2.5 pr-1 text-sm\" :class=\"item.gone ? &#39;border border-dashed border-gray-300 text-200 line-through&#39; : &#39;bg-surface-400&#39;\"><span x-text=\"item.name\"></span> <span class=\"text-xs text-200 no-underline\" x-show=\"item.kind !== &#39;user&#39; &amp;&amp; !item.gone\" x-text=\"label(item.kind)\"></span> <button type=\"button\" x-show=\"manage\" @click=\"remove(i)\" class=\"flex size-5 items-center justify-center rounded text-200 hover:bg-surface-500 hover:text-100\" :aria-label=\"removeLabel(item)\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</label><div class=\"relative mt-2\" @click.outside=\"open = false\"><div class=\"flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border border-subtle bg-surface-100 px-2 py-1.5 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand-500/20\"><template x-for=\"(item, i) in items\" :key=\"item.kind + item.id\"><span class=\"inline-flex h-7 items-center gap-1.5 rounded-md pl-2.5 pr-1 text-sm\" :class=\"item.gone ? &#39;border border-dashed border-default text-200 line-through&#39; : &#39;bg-surface-400&#39;\"><span x-text=\"item.name\"></span> <span class=\"text-xs text-200 no-underline\" x-show=\"item.kind !== &#39;user&#39; &amp;&amp; !item.gone\" x-text=\"label(item.kind)\"></span> <button type=\"button\" x-show=\"manage\" @click=\"remove(i)\" class=\"flex size-5 items-center justify-center rounded text-200 hover:bg-surface-500 hover:text-100\" :aria-label=\"removeLabel(item)\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -598,7 +598,7 @@ func Content(props *Props) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</div><div x-show=\"open &amp;&amp; (results.length || (peopleHasMore &amp;&amp; peopleQuery === q.trim()))\" x-cloak class=\"absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-secondary bg-surface-300 py-1 shadow-lg\" role=\"listbox\"><template x-for=\"(o, i) in results\" :key=\"o.kind + o.id\"><div><div x-show=\"i === 0 || (results[i - 1].kind === &#39;user&#39;) !== (o.kind === &#39;user&#39;)\" class=\"px-3 pb-1 pt-2 text-xs font-medium text-200\" x-text=\"label(o.kind === &#39;user&#39; ? &#39;people&#39; : &#39;groups&#39;)\"></div><button type=\"button\" role=\"option\" @mousedown.prevent @click=\"add(o)\" @mousemove=\"hi = i\" class=\"flex w-full flex-col px-3 py-1.5 text-left text-sm\" :class=\"i === hi &amp;&amp; &#39;bg-surface-400&#39;\"><span x-text=\"o.name\"></span> <span class=\"text-xs text-200\" x-show=\"o.hint\" x-text=\"o.hint\"></span></button> <button type=\"button\" x-show=\"peopleHasMore &amp;&amp; o.kind === &#39;user&#39; &amp;&amp; (i === results.length - 1 || results[i + 1].kind !== &#39;user&#39;)\" @mousedown.prevent @click=\"loadMorePeople()\" class=\"w-full px-3 py-1.5 text-left text-sm text-primary hover:underline\" data-testid=\"notification-recipients-more\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</div><div x-show=\"open &amp;&amp; (results.length || (peopleHasMore &amp;&amp; peopleQuery === q.trim()))\" x-cloak x-transition:enter=\"transition-opacity duration-base ease-out\" x-transition:enter-start=\"opacity-0\" x-transition:enter-end=\"opacity-100\" x-transition:leave=\"transition-opacity duration-fast ease-in\" x-transition:leave-start=\"opacity-100\" x-transition:leave-end=\"opacity-0\" class=\"absolute inset-x-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-lg border border-subtle bg-surface-300 py-1 shadow-lg\" role=\"listbox\"><template x-for=\"(o, i) in results\" :key=\"o.kind + o.id\"><div><div x-show=\"i === 0 || (results[i - 1].kind === &#39;user&#39;) !== (o.kind === &#39;user&#39;)\" class=\"px-3 pb-1 pt-2 text-xs font-medium text-200\" x-text=\"label(o.kind === &#39;user&#39; ? &#39;people&#39; : &#39;groups&#39;)\"></div><button type=\"button\" role=\"option\" @mousedown.prevent @click=\"add(o)\" @mousemove=\"hi = i\" class=\"flex w-full flex-col px-3 py-1.5 text-left text-sm\" :class=\"i === hi &amp;&amp; &#39;bg-surface-400&#39;\"><span x-text=\"o.name\"></span> <span class=\"text-xs text-200\" x-show=\"o.hint\" x-text=\"o.hint\"></span></button> <button type=\"button\" x-show=\"peopleHasMore &amp;&amp; o.kind === &#39;user&#39; &amp;&amp; (i === results.length - 1 || results[i + 1].kind !== &#39;user&#39;)\" @mousedown.prevent @click=\"loadMorePeople()\" class=\"w-full px-3 py-1.5 text-left text-sm text-primary hover:underline\" data-testid=\"notification-recipients-more\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -624,27 +624,27 @@ func Content(props *Props) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</button></div><p x-show=\"open &amp;&amp; q &amp;&amp; !results.length &amp;&amp; !peopleLoading &amp;&amp; !peopleFailed &amp;&amp; !peopleHasMore\" x-cloak class=\"absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-secondary bg-surface-300 px-3 py-3 text-sm text-200 shadow-lg\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</button></div><p x-show=\"open &amp;&amp; q &amp;&amp; !results.length &amp;&amp; !peopleLoading &amp;&amp; !peopleFailed &amp;&amp; !peopleHasMore\" x-cloak x-transition:enter=\"transition-opacity duration-base ease-out\" x-transition:enter-start=\"opacity-0\" x-transition:enter-end=\"opacity-100\" x-transition:leave=\"transition-opacity duration-fast ease-in\" x-transition:leave-start=\"opacity-100\" x-transition:leave-end=\"opacity-0\" class=\"absolute inset-x-0 top-full z-20 mt-1 rounded-lg border border-subtle bg-surface-300 px-3 py-3 text-sm text-200 shadow-lg\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NotificationSettings.NothingFound"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/notification_settings/index.templ`, Line: 330, Col: 290}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/notification_settings/index.templ`, Line: 330, Col: 560}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</p><p x-show=\"open &amp;&amp; peopleFailed\" x-cloak role=\"alert\" class=\"mt-2 text-sm text-red-600\" data-testid=\"notification-recipients-failed\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</p><p x-show=\"open &amp;&amp; peopleFailed\" x-cloak role=\"alert\" class=\"mt-2 text-sm text-danger\" data-testid=\"notification-recipients-failed\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NotificationSettings.RecipientsLoadFailed"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/notification_settings/index.templ`, Line: 331, Col: 196}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/notification_settings/index.templ`, Line: 331, Col: 195}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
@@ -668,7 +668,7 @@ func Content(props *Props) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if event.MissingRecipients > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<p class=\"mt-2 flex flex-wrap items-center gap-2 text-sm text-red-600\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<p class=\"mt-2 flex flex-wrap items-center gap-2 text-sm text-danger\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -755,7 +755,7 @@ func Content(props *Props) templ.Component {
 				for _, key := range event.MissingKeys {
 					templ_7745c5c3_Err = input.Checkbox(&input.CheckboxProps{
 						Label:   pageCtx.T("NotificationSettings.Unavailable") + ": " + key,
-						Class:   templ.Classes("text-sm font-normal text-red-600"),
+						Class:   templ.Classes("text-sm font-normal text-danger"),
 						Checked: true,
 						Attrs:   templ.Attributes{"name": "recipient_keys", "value": key},
 					}).Render(ctx, templ_7745c5c3_Buffer)
@@ -768,7 +768,7 @@ func Content(props *Props) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "<details class=\"group text-sm\"><summary class=\"flex cursor-pointer list-none items-center gap-1.5 text-200 hover:text-100\"><svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"transition-transform group-open:rotate-90\" aria-hidden=\"true\"><path d=\"m9 18 6-6-6-6\"></path></svg> ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "<details class=\"group text-sm\"><summary class=\"flex cursor-pointer list-none items-center gap-1.5 text-200 hover:text-100\"><svg viewBox=\"0 0 24 24\" width=\"14\" height=\"14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"transition-transform duration-base ease-standard group-open:rotate-90\" aria-hidden=\"true\"><path d=\"m9 18 6-6-6-6\"></path></svg> ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -804,7 +804,7 @@ func Content(props *Props) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, " class=\"mt-1 block rounded-lg border border-secondary bg-surface-300 px-3 py-2 font-normal\"><option value=\"\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 55, " class=\"mt-1 block rounded-lg border border-subtle bg-surface-300 px-3 py-2 font-normal\"><option value=\"\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -929,7 +929,7 @@ func Content(props *Props) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if props.CanManage {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "<div class=\"flex flex-wrap items-center gap-3 border-t border-secondary px-5 py-3\"><span x-show=\"dirty\" x-cloak class=\"mr-auto text-sm text-200\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 70, "<div class=\"flex flex-wrap items-center gap-3 border-t border-subtle px-5 py-3\"><span x-show=\"dirty\" x-cloak class=\"mr-auto text-sm text-200\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1133,7 +1133,7 @@ func Queue(stats notifications.DispatchStats, jobs []notifications.DispatchSumma
 			return templ_7745c5c3_Err
 		}
 		if stats.Retrying > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "<span class=\"size-1.5 rounded-full bg-amber-500\"></span> <span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 80, "<span class=\"size-1.5 rounded-full bg-warning\"></span> <span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1196,7 +1196,7 @@ func Queue(stats notifications.DispatchStats, jobs []notifications.DispatchSumma
 				}
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "<span class=\"size-1.5 rounded-full bg-emerald-500\"></span> <span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "<span class=\"size-1.5 rounded-full bg-success\"></span> <span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1329,7 +1329,7 @@ func ChannelConnectionForm(conn ChannelConnection, canManage bool) templ.Compone
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 93, "\" class=\"mt-4 rounded-xl border border-secondary bg-surface-300 px-5 py-4\" data-testid=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 93, "\" class=\"mt-4 rounded-xl border border-subtle bg-surface-300 px-5 py-4\" data-testid=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1452,7 +1452,7 @@ func ChannelConnectionForm(conn ChannelConnection, canManage bool) templ.Compone
 			}
 		}
 		if len(conn.Options) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 104, "<p class=\"mt-3 text-sm text-100\" role=\"status\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 104, "<p class=\"mt-3 text-sm text-100\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1484,14 +1484,14 @@ func ChannelConnectionForm(conn ChannelConnection, canManage bool) templ.Compone
 			}
 		} else {
 			if conn.Current == "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 107, "<p class=\"mt-3 text-sm text-amber-700\" role=\"status\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 107, "<p class=\"mt-3 text-sm text-yellow\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var66 string
 				templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NotificationSettings.Connection.Unavailable", args))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/notification_settings/index.templ`, Line: 560, Col: 121}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/notification_settings/index.templ`, Line: 560, Col: 104}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var66))
 				if templ_7745c5c3_Err != nil {

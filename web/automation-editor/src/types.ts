@@ -265,7 +265,14 @@ export interface EditorProps {
   /** The selected step, for a host that keeps it in the URL (D1); omitted → the editor's own state. */
   selected?: string | null
   onSelect?(id: string | null): void
+  /** The open Dry run or Test node dock, for a host that keeps it in the URL (D1); with onDock the host owns it. */
+  dock?: EditorDock | null
+  onDock?(dock: EditorDock | null): void
 }
+
+/** The docked panel under the canvas: Dry run, or Test node of one step. */
+export type EditorDock = { kind: 'dry' } | { kind: 'test'; node: string }
+
 
 export interface CanvasApi {
   center(): XY; fit(): void; zoomIn(): void; zoomOut(): void; zoomReset(): void
@@ -296,7 +303,7 @@ export interface CanvasProps {
   selecting?: boolean; snap?: boolean; minimap?: boolean
   /** Shows the Tidy button next to Fit; absent → no button. */
   onTidy?(): void
-  /** Bump it just before a layout change that should animate (Tidy): the cards glide for 200 ms. */
+  /** Bump it just before a layout change that should animate (Tidy, undo, redo): the cards glide for --motion-slow and the edges follow. */
   layoutTransition?: number
   renderNode?(item: Accessor<CanvasItem>): JSX.Element
   label?: string

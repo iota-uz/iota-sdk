@@ -22,6 +22,8 @@ export interface DryRunPanelProps {
   onOverlay(overlay: Overlay | null): void
   onPick(id: string): void
   onClose(): void
+  /** The dock is leaving (the host's createPresence, #1352): it plays its exit and is inert meanwhile. */
+  leaving?: boolean
 }
 
 const MODES: DecisionMode[] = ['cached', 'live', 'scripted']
@@ -101,7 +103,7 @@ export function DryRunPanel(props: DryRunPanelProps): JSX.Element {
   const icon = (s: TraceStep) => (s.kind === 'error' ? 'failed' : s.kind === 'not_triggered' ? 'skipped' : s.kind === 'wait' ? 'waiting' : s.kind === 'cancelled' ? 'cancelled' : 'passed')
 
   return (
-    <section class="ae-dock ae-dryrun" aria-labelledby="ae-dryrun-title" data-testid="dry-run">
+    <section class="ae-dock ae-dock--enter ae-dryrun" classList={{ 'ae-layer--leaving': Boolean(props.leaving) }} inert={props.leaving || undefined} aria-labelledby="ae-dryrun-title" data-testid="dry-run">
       <header class="ae-validation__head">
         <h2 class="ae-validation__title" id="ae-dryrun-title">{t().title}</h2>
         <span class="ae-validation__summary"><Icon name="check" size={14} /> {t().note}</span>
@@ -138,7 +140,7 @@ export function DryRunPanel(props: DryRunPanelProps): JSX.Element {
             </label>
           </Show>
           <div class="ae-dock__actions">
-            <button type="submit" class="btn btn-primary btn-normal" aria-busy={action.busy()} data-testid="dry-run-start">
+            <button type="submit" class="btn btn-primary btn-normal iota-press" aria-busy={action.busy()} data-testid="dry-run-start">
               <Show when={action.busy()}><span class="ae-spinner" aria-hidden="true" /></Show>
               {action.busy() ? t().running : action.state().status === 'failed' ? strings(props.locale).common.retry : t().run}
             </button>

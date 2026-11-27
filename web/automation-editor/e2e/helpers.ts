@@ -27,3 +27,13 @@ export async function open(page: Page, query = '', ready = '.ae-canvas') {
 
 
 export const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
+
+/**
+ * Waits until every finite animation on the page has finished (#1352: layers and content fade in). Contrast
+ * and layout checks read the settled screen, not a frame of a 200 ms fade; indefinite animations are skipped.
+ */
+export async function settled(page: Page) {
+  await page.evaluate(() => Promise.all(document.getAnimations()
+    .filter((animation) => Number.isFinite(Number(animation.effect?.getComputedTiming().endTime)))
+    .map((animation) => animation.finished.catch(() => undefined))))
+}

@@ -1,7 +1,7 @@
 // The Runs tab, the run view, Dry run and Test node (#1347) against the fixture host's fake EditorApi.
 import { expect, test, type Page } from '@playwright/test'
 import { expectNoA11yViolations } from '@iota-uz/sdk/testing'
-import { card, open } from './helpers'
+import { card, open, settled } from './helpers'
 
 const LIVE = '00000000-0000-4000-8000-0000000000r1'
 const FAILED = '00000000-0000-4000-8000-0000000000r2'
@@ -16,6 +16,9 @@ test.describe('runs', () => {
     await expect(page.getByTestId('run-conn')).toHaveText('Live')
     await expect(runCard(page, 'send_email')).toHaveClass(/ae-card--running/)
     const before = await runCard(page, 'has_email').elementHandle()
+    // The strip and the run's row are updated in place by a poll, never rebuilt (P4, #1352).
+    const strip = await page.getByTestId('run-strip').elementHandle()
+    const row = await page.locator(`[data-run="${LIVE}"]`).elementHandle()
     // After two polls the fake moves the run on: the email is sent and the run waits on the delay.
     await expect(runCard(page, 'delay')).toHaveClass(/ae-card--waiting/, { timeout: 8000 })
     await expect(runCard(page, 'send_email')).toHaveClass(/ae-card--passed/)
@@ -24,6 +27,8 @@ test.describe('runs', () => {
     await expect(page.getByTestId('run-state')).toHaveText('Waiting')
     // The row of the list follows the run.
     await expect(page.getByTestId('run-row').first()).toContainText('Waiting')
+    expect(await strip!.evaluate((el) => el.isConnected)).toBe(true)
+    expect(await row!.evaluate((el) => el.isConnected)).toBe(true)
   })
 
   test('acceptance: polling stops when the run is final and does not resume on a tab switch', async ({ page }) => {
@@ -72,8 +77,10 @@ test.describe('runs', () => {
     await expect(drawer.getByTestId('run-node-empty')).toHaveText('The run did not reach this step.')
     await expect(page).toHaveURL(/node=end/)
     await page.keyboard.press('Escape')
+    // It leaves through its exit animation, inert (A7), and the focus is back on the step's card.
     await expect(page.getByTestId('run-node')).toHaveCount(0)
     await expect(page).not.toHaveURL(/node=/)
+    await expect(runCard(page, 'end')).toBeFocused()
   })
 
   test('RV9: no runs → «No runs yet» and «Run» for a manual graph; a filter without match → its reset', async ({ page }) => {
@@ -146,6 +153,7 @@ test.describe('runs', () => {
   test('A1: the Runs tab with a run and its drawer has no serious violations', async ({ page }) => {
     await open(page, `tab=runs&run=${FAILED}&node=send_email`, '.ae-runview')
     await expect(page.getByTestId('run-node')).toBeVisible()
+    await settled(page)
     await expectNoA11yViolations(page, { include: ['.ae-runs'] })
   })
 })
@@ -170,6 +178,7 @@ test.describe('dry run and test node', () => {
     await card(page, 'has_email').click()
     await page.locator('.ae-panel [data-param="expression"] textarea').first().fill('true')
     await expect(card(page, 'has_email')).not.toHaveClass(/ae-card--passed/)
+    await settled(page)
     await expectNoA11yViolations(page, { include: ['[data-testid="dry-run"]'] })
   })
 

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { expectNoA11yViolations } from '@iota-uz/sdk/testing'
-import { card, center, drag, edge, handle, mod, open } from './helpers'
+import { card, center, drag, edge, handle, mod, open, settled } from './helpers'
 
 test.describe('canvas', () => {
   test('connecting an occupied outcome replaces its edge; undo brings the old one back (ED3)', async ({ page }) => {
@@ -11,8 +11,9 @@ test.describe('canvas', () => {
     await page.mouse.move(from.x, from.y)
     await page.mouse.down()
     await page.mouse.move(to.x, to.y, { steps: 10 })
-    // While rewiring the old edge is hidden and the hint names the old target.
-    await expect(edge(page, 'check', 'true')).toBeHidden()
+    // While rewiring the old edge fades to 0.3 (#1352) and the hint names the old target.
+    await expect(edge(page, 'check', 'true')).toHaveClass(/ae-edge--rewiring/)
+    await expect.poll(() => edge(page, 'check', 'true').evaluate((el) => getComputedStyle(el).opacity)).toBe('0.3')
     await expect(page.locator('.ae-hint')).toContainText('was →')
     await page.mouse.up()
     await expect(edge(page, 'check', 'true')).toHaveCount(1)
@@ -42,7 +43,17 @@ test.describe('canvas', () => {
   test('releasing an outcome elsewhere changes nothing', async ({ page }) => {
     await open(page, 'graph=connected')
     const from = await center(handle(page, 'yes', 'done'))
+    // The line pulls back into its handle (#1352), then goes. It shows for --motion-fast only: an observer
+    // records it, so a slow poll cannot miss it.
+    await page.evaluate(() => {
+      const w = window as unknown as { __retracted: boolean }
+      w.__retracted = false
+      new MutationObserver(() => { if (document.querySelector('.ae-edge--retract')) w.__retracted = true })
+        .observe(document.body, { subtree: true, childList: true })
+    })
     await drag(page, from, { x: 700, y: 20 })
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __retracted: boolean }).__retracted)).toBe(true)
+    await expect(page.locator('.ae-edge--retract')).toHaveCount(0)
     await expect(page.locator('.ae-palette')).toHaveCount(0)
     await expect(edge(page, 'yes', 'done')).toHaveAttribute('data-to', 'end')
   })
@@ -128,30 +139,41 @@ test.describe('tidy', () => {
     await expect(buttons.nth(3)).toBeFocused()
   })
 
-  test('one Tidy is one undo step; the moved card glides back with a 200 ms transform transition', async ({ page }) => {
+  // Samples, every frame, where a card is and the path of an edge leaving it: a glide shows in-between places.
+  const sample = (page: import('@playwright/test').Page, id: string) => page.evaluate((id) => {
+    const seen: { place: string; edge: string }[] = []
+    ;(window as unknown as { __samples: typeof seen }).__samples = seen
+    const tick = () => {
+      const el = document.querySelector<HTMLElement>(`.iota-flow__node[data-id="${id}"]`)
+      const path = document.querySelector(`path.ae-edge[data-edge^="${id}."]`)
+      seen.push({ place: el?.style.transform ?? '', edge: path?.getAttribute('d') ?? '' })
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }, id)
+  const samples = (page: import('@playwright/test').Page) => page.evaluate(() => (window as unknown as { __samples: { place: string; edge: string }[] }).__samples)
+
+  test('one Tidy is one undo step; the cards glide over --motion-slow and their edges follow, undo glides back', async ({ page }) => {
     await open(page, 'graph=multi')
     const tidy = await place(page, 'a_check')
     await moveByHand(page, 'a_check')
     const moved = await place(page, 'a_check')
     expect(moved).not.toBe(tidy)
-    // Record the transitions the browser starts: a declared duration alone would not show a card gliding.
-    await page.evaluate(() => {
-      const seen: { id: string | undefined; property: string; duration: string }[] = []
-      ;(window as unknown as { __glides: typeof seen }).__glides = seen
-      document.querySelector('.ae-canvas')!.addEventListener('transitionrun', (event) => {
-        const e = event as TransitionEvent
-        const el = e.target as HTMLElement
-        seen.push({ id: el.dataset.id, property: e.propertyName, duration: getComputedStyle(el).transitionDuration })
-      }, true)
-    })
+    await sample(page, 'a_check')
     await page.locator('.ae-controls .ae-tidy').click()
     await expect.poll(() => place(page, 'a_check')).toBe(tidy)
-    // The browser starts the transition on the next style recalculation, a frame after the style changed.
-    await expect.poll(() => page.evaluate(() => (window as unknown as { __glides: { id: string; property: string; duration: string }[] }).__glides
-      .find((g) => g.id === 'a_check' && g.property === 'transform')?.duration)).toBe('0.2s')
     await expect(page.locator('.ae-canvas--tidying')).toHaveCount(0)
+    const glide = await samples(page)
+    const places = new Set(glide.map((s) => s.place))
+    // In-between places, not a jump from where it was to where it lands.
+    expect([...places].filter((p) => p !== moved && p !== tidy).length).toBeGreaterThan(2)
+    // The edge is redrawn on the way, frame by frame, not faded out and back.
+    expect(new Set(glide.map((s) => s.edge)).size).toBeGreaterThan(3)
+    await sample(page, 'a_check')
     await page.getByLabel('Undo').click()
-    expect(await place(page, 'a_check')).toBe(moved)
+    await expect.poll(() => place(page, 'a_check')).toBe(moved)
+    const back = await samples(page)
+    expect([...new Set(back.map((s) => s.place))].filter((p) => p !== moved && p !== tidy).length).toBeGreaterThan(2)
   })
 
   test('⇧⌘L tidies, and prefers-reduced-motion skips the glide', async ({ page }) => {
@@ -159,11 +181,15 @@ test.describe('tidy', () => {
     await open(page, 'graph=multi')
     const tidy = await place(page, 'a_check')
     await moveByHand(page, 'a_check')
-    expect(await place(page, 'a_check')).not.toBe(tidy)
+    const moved = await place(page, 'a_check')
+    expect(moved).not.toBe(tidy)
+    await sample(page, 'a_check')
     await page.keyboard.press(`${mod}+Shift+L`)
     await expect.poll(() => place(page, 'a_check')).toBe(tidy)
     await expect(page.locator('.ae-canvas--tidying')).toHaveCount(0)
-    expect(await card(page, 'a_check').evaluate((el) => getComputedStyle(el).transitionDuration)).toBe('0s')
+    // No in-between frame: only where it was and where it landed.
+    for (const s of await samples(page)) expect([moved, tidy]).toContain(s.place)
+    expect((await card(page, 'a_check').evaluate((el) => getComputedStyle(el).transitionDuration)).split(', ').every((d) => d === '0s')).toBe(true)
   })
 
   test('the canvas menu has Tidy too', async ({ page }) => {
@@ -497,7 +523,215 @@ test.describe('editor', () => {
     test(`axe: no serious violations (${theme})`, async ({ page }) => {
       await open(page, theme === 'dark' ? 'theme=dark' : '')
       await card(page, 'has_email').click()
+      await settled(page)
       await expectNoA11yViolations(page, { include: ['.ae-editor'] })
     })
   }
+})
+
+// Motion (#1352): microinteractions answer each action, layers leave by their reverse animation, and under
+// prefers-reduced-motion nothing has an in-between frame.
+test.describe('motion', () => {
+  test('rewiring dims the old edge to 0.3, lights the target under the pointer, and the new edge flashes', async ({ page }) => {
+    await open(page)
+    const from = await center(handle(page, 'has_email', 'true'))
+    const to = await center(card(page, 'end').locator('.ae-card__title'))
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    await page.mouse.move(from.x + 4, from.y + 4, { steps: 2 })
+    await page.mouse.move(to.x, to.y, { steps: 10 })
+    await expect(edge(page, 'has_email', 'true')).toHaveClass(/ae-edge--rewiring/)
+    await expect.poll(() => edge(page, 'has_email', 'true').evaluate((el) => getComputedStyle(el).opacity)).toBe('0.3')
+    await expect.poll(() => card(page, 'end').evaluate((el) => getComputedStyle(el).borderColor)).not.toBe(
+      await card(page, 'delay').evaluate((el) => getComputedStyle(el).borderColor))
+    await page.mouse.up()
+    await expect(edge(page, 'has_email', 'true')).toHaveAttribute('data-to', 'end')
+    await expect(edge(page, 'has_email', 'true')).toHaveClass(/ae-edge--flash/)
+    await expect(edge(page, 'has_email', 'true')).not.toHaveClass(/ae-edge--flash/)
+  })
+
+  test('Esc while rewiring brings the old edge back', async ({ page }) => {
+    await open(page)
+    const from = await center(handle(page, 'has_email', 'true'))
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    await page.mouse.move(from.x + 40, from.y + 80, { steps: 6 })
+    await expect(edge(page, 'has_email', 'true')).toHaveClass(/ae-edge--rewiring/)
+    await page.keyboard.press('Escape')
+    await page.mouse.up()
+    await expect(edge(page, 'has_email', 'true')).not.toHaveClass(/ae-edge--rewiring/)
+    await expect(edge(page, 'has_email', 'true')).toHaveAttribute('data-to', 'send_email')
+  })
+
+  test('a dragged card lifts, then lands on the grid', async ({ page }) => {
+    await open(page)
+    const start = await center(card(page, 'delay').locator('.ae-card__title'))
+    await page.mouse.move(start.x, start.y)
+    await page.mouse.down()
+    await page.mouse.move(start.x + 30, start.y + 21, { steps: 6 })
+    await expect(card(page, 'delay')).toHaveClass(/ae-card--lifted/)
+    await expect.poll(() => card(page, 'delay').evaluate((el) => getComputedStyle(el).scale)).toBe('1.02')
+    await page.mouse.up()
+    await expect(card(page, 'delay')).not.toHaveClass(/ae-card--lifted/)
+    await expect(card(page, 'delay')).toHaveClass(/ae-card--landing/)
+    await expect(card(page, 'delay')).not.toHaveClass(/ae-card--landing/)
+  })
+
+  test('filtering the palette keeps the rows that stay; it leaves by its reverse animation', async ({ page }) => {
+    await open(page)
+    await page.locator('.ae-canvas').click({ position: { x: 700, y: 30 } })
+    await page.keyboard.press(`${mod}+k`)
+    const palette = page.locator('.ae-palette')
+    await expect(palette).toBeVisible()
+    await palette.locator('[data-choice="n:delay"]').evaluate((el) => { (el as HTMLElement & { __kept?: boolean }).__kept = true })
+    await palette.locator('input').fill('del')
+    await expect(palette.locator('.ae-palette__count')).toHaveText(/\d+ of \d+/)
+    expect(await palette.locator('[data-choice="n:delay"]').evaluate((el) => (el as HTMLElement & { __kept?: boolean }).__kept === true)).toBe(true)
+    await page.keyboard.press('Escape')
+    await expect(palette).toHaveClass(/ae-layer--leaving/)
+    await expect(palette).toHaveAttribute('inert', '')
+    await expect(palette).toHaveCount(0)
+  })
+
+  test('a closing menu keeps its items through its exit', async ({ page }) => {
+    await open(page)
+    await page.locator('.ae-pane').click({ button: 'right', position: { x: 900, y: 700 } })
+    const menu = page.locator('.ae-menu')
+    await expect(menu.locator('.ae-menu__item').first()).toBeVisible()
+    const count = await menu.locator('.ae-menu__item').count()
+    await page.keyboard.press('Escape')
+    await expect(menu).toHaveClass(/ae-layer--leaving/)
+    expect(await menu.locator('.ae-menu__item').count()).toBe(count)
+    await expect(menu).toHaveCount(0)
+  })
+
+  test('Tidy fits where the cards land; a keyboard move during the glide is kept', async ({ page }) => {
+    await open(page, 'graph=multi')
+    const start = await center(card(page, 'a_check').locator('.ae-card__title'))
+    // Far away, so the old and the new layout differ a lot.
+    await drag(page, start, { x: start.x + 400, y: start.y + 300 })
+    await page.waitForTimeout(100)
+    const dragged = (await card(page, 'a_check').evaluate((el) => (el as HTMLElement).style.transform)).match(/translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/)!.slice(1).map(Number)
+    await page.locator('.ae-controls .ae-tidy').click()
+    await expect(page.locator('.ae-canvas--tidying')).toHaveCount(0)
+    const area = (await page.locator('.ae-canvas').boundingBox())!
+    for (const box of await page.locator('.iota-flow__node').evaluateAll((els) => els.map((el) => el.getBoundingClientRect().toJSON() as DOMRect))) {
+      expect(box.x).toBeGreaterThanOrEqual(area.x - 1)
+      expect(box.y).toBeGreaterThanOrEqual(area.y - 1)
+      expect(box.x + box.width).toBeLessThanOrEqual(area.x + area.width + 1)
+      expect(box.y + box.height).toBeLessThanOrEqual(area.y + area.height + 1)
+    }
+    // A glide in flight lands at once when Alt+arrow moves a card: the move starts from where the undo
+    // lands and no later frame overwrites it.
+    const xy = (t: string) => t.match(/translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/)!.slice(1).map(Number)
+    await page.getByLabel('Undo').click()
+    await card(page, 'a_check').focus()
+    await page.keyboard.down('Alt')
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.up('Alt')
+    await expect(page.locator('.ae-canvas--tidying')).toHaveCount(0)
+    await page.waitForTimeout(500)
+    const [x, y] = xy(await card(page, 'a_check').evaluate((el) => (el as HTMLElement).style.transform))
+    expect([x, y]).toEqual([dragged[0], dragged[1]! + 16])
+  })
+
+  test('a closing palette stays the same element with its search through its exit', async ({ page }) => {
+    await open(page)
+    await page.addStyleTag({ content: ':root { --motion-fast: 1500ms !important; }' })
+    await page.evaluate(() => (window as unknown as { __resetMotion: () => void }).__resetMotion())
+    await page.locator('.ae-canvas').click({ position: { x: 700, y: 30 } })
+    await page.keyboard.press(`${mod}+k`)
+    const palette = page.locator('.ae-palette')
+    await palette.locator('input').fill('del')
+    await palette.evaluate((el) => { (el as HTMLElement & { __same?: boolean }).__same = true })
+    await page.keyboard.press('Escape')
+    await expect(palette).toHaveClass(/ae-layer--leaving/)
+    expect(await palette.evaluate((el) => (el as HTMLElement & { __same?: boolean }).__same === true)).toBe(true)
+    await expect(palette.locator('input')).toHaveValue('del')
+    await expect(palette).toHaveCount(0)
+  })
+
+  test('a palette reopened while the last one leaves takes the focus; Backspace edits the search', async ({ page }) => {
+    await open(page)
+    await card(page, 'delay').click()
+    await card(page, 'delay').focus()
+    await page.keyboard.press(`${mod}+k`)
+    await expect(page.locator('.ae-palette input')).toBeFocused()
+    // Close and reopen at once, inside the exit.
+    await page.keyboard.press('Escape')
+    await page.keyboard.press(`${mod}+k`)
+    await expect(page.locator('.ae-palette:not(.ae-layer--leaving) input')).toBeFocused()
+    await page.keyboard.type('de')
+    await page.keyboard.press('Backspace')
+    await expect(page.locator('.ae-palette:not(.ae-layer--leaving) input')).toHaveValue('d')
+    await expect(card(page, 'delay')).toHaveCount(1)
+  })
+
+  test('a leaving palette or panel does not swallow the next click on the canvas', async ({ page }) => {
+    await open(page)
+    // A long exit, so every click below lands while the palette and the removed step's panel still leave.
+    await page.addStyleTag({ content: ':root { --motion-fast: 1500ms !important; }' })
+    await page.evaluate(() => (window as unknown as { __resetMotion: () => void }).__resetMotion())
+    await page.locator('.ae-canvas').click({ position: { x: 700, y: 30 } })
+    await page.keyboard.press(`${mod}+k`)
+    await page.locator('.ae-palette input').fill('delay')
+    await page.keyboard.press('Enter')
+    await expect(card(page, 'delay_2')).toBeVisible()
+    // Inside the exits of the palette and of the removed step's panel.
+    await page.keyboard.press(`${mod}+z`)
+    await card(page, 'send_email').click()
+    await page.keyboard.press('Escape')
+    await card(page, 'send_email').click()
+    await expect(page.locator('.ae-side:not(.ae-layer--leaving) .ae-panel__title')).toHaveText('Send email')
+    await page.locator('.ae-canvas').focus()
+    await page.keyboard.press(`${mod}+d`)
+    await expect(card(page, 'send_email_2')).toBeVisible()
+  })
+
+  test('the node panel slides out inert and focus goes back to the card', async ({ page }) => {
+    await open(page)
+    await card(page, 'send_email').click()
+    const side = page.locator('.ae-side')
+    await expect(side).toBeVisible()
+    await side.getByRole('button', { name: /close/i }).first().click()
+    await expect(side).toHaveCount(0)
+    await expect(card(page, 'send_email')).toBeFocused()
+  })
+
+  test('the Dry run dock leaves inert and gives the focus back to its button', async ({ page }) => {
+    await open(page)
+    await page.getByTestId('open-dry-run').click()
+    const dock = page.getByTestId('dry-run')
+    await expect(dock).toBeVisible()
+    await dock.locator('.ae-iconbtn').first().click()
+    await expect(dock).toHaveClass(/ae-layer--leaving/)
+    await expect(dock).toHaveCount(0)
+    await expect(page.getByTestId('open-dry-run')).toBeFocused()
+  })
+
+  test('prefers-reduced-motion: no animation has an in-between frame on any layer', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await open(page, 'overlay=1')
+    // Every animation the page runs must be instant; an opacity change may keep at most 80 ms.
+    const moving = () => page.evaluate(() => document.getAnimations()
+      .map((a) => ({ name: (a as CSSAnimation).animationName ?? (a as CSSTransition).transitionProperty ?? '', timing: a.effect?.getComputedTiming() }))
+      .filter((a) => a.timing && (a.timing.iterations === Infinity || Number(a.timing.duration) > 80))
+      .map((a) => `${a.name} ${a.timing!.duration}ms ×${a.timing!.iterations}`))
+    expect(await moving()).toEqual([])
+    await open(page)
+    await card(page, 'send_email').click()
+    await expect(page.locator('.ae-side')).toBeVisible()
+    expect(await moving()).toEqual([])
+    await page.locator('.ae-canvas').click({ position: { x: 700, y: 30 } })
+    await page.keyboard.press(`${mod}+k`)
+    await expect(page.locator('.ae-palette')).toBeVisible()
+    expect(await moving()).toEqual([])
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.ae-palette')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Validate' }).click()
+    expect(await moving()).toEqual([])
+    const start = await center(card(page, 'delay').locator('.ae-card__title'))
+    await drag(page, start, { x: start.x + 60, y: start.y + 40 })
+    expect(await moving()).toEqual([])
+  })
 })

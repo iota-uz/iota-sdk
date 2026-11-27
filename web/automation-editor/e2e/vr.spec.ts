@@ -1,7 +1,7 @@
 // Visual regression (Q1): every state of the screen at 1440 and 390 (1200 for the toolbar breakpoint),
 // light and dark. Linux baselines are canonical; scripts/vr.mjs bootstraps missing ones as candidates.
 import { expect, test, type Page } from '@playwright/test'
-import { card, open } from './helpers'
+import { card, open, settled } from './helpers'
 
 type Shot = { name: string; query: string; width: number; height: number; ready?: string; prepare?: (page: Page) => Promise<void> }
 
@@ -119,6 +119,9 @@ for (const theme of ['light', 'dark'] as const) {
       // Let the debounced check and the layout save finish so no status is caught mid-way.
       await page.waitForTimeout(1200)
       await expect(page.locator('.ae-spinner')).toHaveCount(0)
+      // Entrances (#1352: the run path lights up step by step, badges and layers fade in) finish on their own
+      // before the shot: a frame taken while one still runs composites, and so rasterises text, differently.
+      await settled(page)
       await expect(page).toHaveScreenshot(`${shot.name}-${theme}.png`)
     })
   }

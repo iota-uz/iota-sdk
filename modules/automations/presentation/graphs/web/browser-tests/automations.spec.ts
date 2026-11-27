@@ -185,6 +185,25 @@ test('AL9: a required field is explained next to it', async ({ page }) => {
   expect((await calls(page)).some((c) => c.method === 'automations.run_manual')).toBe(false)
 })
 
+test('AL9 / K5: Escape on an option of the run dialog closes only its list; the next Escape closes the dialog', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${WELCOME}`)
+  await page.getByTestId('run-manual').click()
+  const dialog = page.getByTestId('run-dialog')
+  await dialog.getByLabel('Kind of object').selectOption('core.user')
+  await dialog.getByPlaceholder('Find an object').fill('many')
+  const pick = dialog.getByRole('combobox', { name: 'Choose the object' })
+  await pick.click()
+  await expect(pick).toHaveAttribute('aria-expanded', 'true')
+  const option = dialog.getByRole('option', { name: 'Subject 2' })
+  await option.focus()
+  await page.keyboard.press('Escape')
+  await expect(pick).toHaveAttribute('aria-expanded', 'false')
+  await expect(pick).toBeFocused()
+  await expect(dialog).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+})
+
 test('AL10: 390 px has no horizontal scroll and keeps the header on one line', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/')
@@ -291,6 +310,27 @@ test('D1: Back restores the tab the URL names', async ({ page }) => {
   await expect(page.getByRole('tab', { name: 'Edit' })).toHaveAttribute('aria-selected', 'true')
   await page.goForward()
   await expect(page.getByRole('tab', { name: 'Runs' })).toHaveAttribute('aria-selected', 'true')
+})
+
+test('D1 (AL): the open Dry run or Test node dock is in the URL; reload reopens it, Back closes it', async ({ page }) => {
+  await page.goto(`/?view=editor&id=${WELCOME}`)
+  await expect(page.getByTestId('crumb')).toBeVisible()
+  await page.getByTestId('open-dry-run').click()
+  await expect(page.getByTestId('dry-run')).toBeVisible()
+  await expect(page).toHaveURL(/[?&]dock=dry\b/)
+  await page.reload()
+  await expect(page.getByTestId('dry-run')).toBeVisible()
+  await page.goBack()
+  await expect(page).not.toHaveURL(/dock=/)
+  await expect(page.getByTestId('dry-run')).toHaveCount(0)
+  // Test node of a step: dock=test:<step>, and it opens from a link.
+  const step = page.locator('.iota-flow__node[data-id]').filter({ hasNot: page.locator('.ae-card--trigger') }).last()
+  const id = await step.getAttribute('data-id')
+  await step.click()
+  await page.getByTestId('open-test-node').click()
+  await expect(page).toHaveURL(new RegExp(`[?&]dock=test%3A${id}\\b|[?&]dock=test:${id}\\b`))
+  await page.goto(page.url())
+  await expect(page.getByTestId('test-node')).toBeVisible()
 })
 
 test('layout: a fresher snapshot withdraws the notice of an older conflict', async ({ page }) => {

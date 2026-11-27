@@ -271,15 +271,35 @@
     --ease-squish-2: var(--ease-elastic-in-out-2);
     --ease-squish-3: var(--ease-elastic-in-out-3);
 
-    /* Animation */
-    --animation-slide-in-up: slide-in-up 500ms var(--ease-3);
-    --animation-slide-in-right: slide-in-right 500ms var(--ease-3);
-    --animation-slide-in-left: slide-in-left 500ms var(--ease-3);
-    --animation-slide-in-down: slide-in-down 500ms var(--ease-3);
-    --animation-scale-down: scale-down 500ms var(--ease-3);
-    --animation-slide-out-down: slide-out-down 500ms var(--ease-3);
-    --animation-slide-out-right: slide-out-right 500ms var(--ease-3);
-    --animation-slide-out-left: slide-out-left 500ms var(--ease-3);
+    /* Motion (#1352): every screen's durations and curves come from these, never a literal `0.3s ease`.
+       Under prefers-reduced-motion every duration is 0 (see the media query below), except --motion-fade,
+       which keeps an opacity change of at most 80 ms where meaning would be lost without it (a toast). */
+    --motion-instant: 80ms;   /* press response (:active), handle highlight */
+    --motion-fast: 140ms;     /* a layer leaving, a palette or menu closing, a filter change */
+    --motion-base: 200ms;     /* a layer appearing, a panel opening, a list reflowing */
+    --motion-slow: 320ms;     /* Tidy auto-layout, the run overlay transition */
+    --motion-fade: 200ms;     /* opacity only; 80 ms under reduced motion */
+    --motion-flash: 4000ms;   /* a changed row or card stays highlighted, then fades (F5) */
+    --ease-out: cubic-bezier(0.2, 0, 0, 1);       /* appearing */
+    --ease-in: cubic-bezier(0.4, 0, 1, 1);        /* leaving */
+    --ease-standard: cubic-bezier(0.2, 0, 0.2, 1); /* moving */
+    /* Bare Tailwind `transition`, `transition-colors`, … take the tokens too (else 150 ms on their own curve). */
+    --default-transition-duration: var(--motion-fast);
+    --default-transition-timing-function: var(--ease-standard);
+    /* One focus ring on every screen (K2): brand outline with an offset, never animated in. */
+    --focus-ring-width: 2px;
+    --focus-ring-offset: 2px;
+
+    /* Animation: layers open in --motion-base and leave in --motion-fast (A7), nothing under reduced motion. */
+    --animation-slide-in-up: slide-in-up var(--motion-base) var(--ease-out);
+    --animation-slide-in-right: slide-in-right var(--motion-base) var(--ease-out);
+    --animation-slide-in-left: slide-in-left var(--motion-base) var(--ease-out);
+    --animation-slide-in-down: slide-in-down var(--motion-base) var(--ease-out);
+    --animation-scale-down: scale-down var(--motion-base) var(--ease-out);
+    --animation-slide-out-down: slide-out-down var(--motion-fast) var(--ease-in);
+    --animation-slide-out-right: slide-out-right var(--motion-fast) var(--ease-in);
+    --animation-slide-out-left: slide-out-left var(--motion-fast) var(--ease-in);
+    --animation-slide-out-up: slide-out-up var(--motion-fast) var(--ease-in);
   }
 
   *,
@@ -450,7 +470,8 @@
     border-radius: var(--radius);
     opacity: var(--opacity);
     border: var(--border-size) solid oklch(var(--border-color));
-    transition-duration: 200ms;
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--ease-standard);
     font-weight: 500;
   }
 
@@ -509,7 +530,8 @@
     border-radius: var(--radius);
     opacity: var(--opacity);
     border: var(--border-size) solid oklch(var(--border-color));
-    transition-duration: 200ms;
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--ease-standard);
     font-weight: 500;
     position: relative;
     display: inline-flex;
@@ -641,7 +663,7 @@
     border-radius: var(--radius);
     background-color: oklch(var(--color));
     color: oklch(var(--color));
-    animation: dot-flashing 1s infinite linear alternate;
+    animation: dot-flashing 1s infinite linear alternate; /* motion-allow: indefinite loading dots, none under reduced motion */
     animation-delay: 0.5s;
     display: var(--display);
     position: absolute;
@@ -665,7 +687,7 @@
     border-radius: var(--radius);
     background-color: oklch(var(--color));
     color: oklch(var(--color));
-    animation: dot-flashing 1s infinite linear alternate;
+    animation: dot-flashing 1s infinite linear alternate; /* motion-allow: indefinite loading dots, none under reduced motion */
     animation-delay: 0s;
   }
 
@@ -676,7 +698,7 @@
     border-radius: var(--radius);
     background-color: oklch(var(--color));
     color: oklch(var(--color));
-    animation: dot-flashing 1s infinite linear alternate;
+    animation: dot-flashing 1s infinite linear alternate; /* motion-allow: indefinite loading dots, none under reduced motion */
     animation-delay: 1s;
   }
 
@@ -698,7 +720,7 @@
   .htmx-request .hide-on-load {
     opacity: 0.5;
     pointer-events: none;
-    transition: opacity 0.15s ease;
+    transition: opacity var(--motion-fast) var(--ease-standard);
   }
 
   /* Fully self-contained styling (no utility classes) so the overlay renders
@@ -780,12 +802,12 @@
     inset: 0;
     overflow: clip;
     /* `display`/`overlay` are transitioned with allow-discrete so the closed
-       `display: none` (below) is deferred for the 500ms slide-out animation
-       instead of collapsing the box mid-exit. */
+       `display: none` (below) is deferred for the slide-out animation
+       (--motion-fast) instead of collapsing the box mid-exit. */
     transition:
-      opacity 500ms var(--ease-3),
-      display 500ms allow-discrete,
-      overlay 500ms allow-discrete;
+      opacity var(--motion-base) var(--ease-out),
+      display var(--motion-base) allow-discrete,
+      overlay var(--motion-base) allow-discrete;
   }
 
   /* Start the open transition from the closed (opacity 0) state so the dialog
@@ -802,22 +824,18 @@
 
   .dialog-btt {
     animation: var(--animation-slide-out-down) forwards;
-    animation-timing-function: var(--ease-squish-2);
   }
 
   .dialog-rtl {
     animation: var(--animation-slide-out-right) forwards;
-    animation-timing-function: var(--ease-squish-2);
   }
 
   .dialog-ltr {
     animation: var(--animation-slide-out-left) forwards;
-    animation-timing-function: var(--ease-squish-2);
   }
 
   .dialog-ttb {
     animation: var(--animation-slide-out-up) forwards;
-    animation-timing-function: var(--ease-squish-2);
   }
 
   .dialog:not([open]) {
@@ -847,7 +865,7 @@
 
   .dialog::backdrop {
     backdrop-filter: blur(8px);
-    transition: backdrop-filter 500ms ease;
+    transition: backdrop-filter var(--motion-base) var(--ease-out);
   }
 
   .tab-slider {
@@ -981,7 +999,7 @@
   /* Prevent sidebar flicker during initial load */
   .sidebar-container:not([data-alpine-loaded]) {
     opacity: 0;
-    transition: opacity 0.1s ease-in;
+    transition: opacity var(--motion-instant) var(--ease-in);
   }
 
   .sidebar-container[data-alpine-loaded] {
@@ -1019,7 +1037,7 @@
     height: 3rem;
     border-radius: 0.375rem;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color var(--motion-fast) var(--ease-standard);
     color: oklch(var(--gray-100));
   }
 
@@ -1415,7 +1433,7 @@
 }
 
 .lazy-load * {
-  transition: opacity 300ms ease-in;
+  transition: opacity var(--motion-fade) var(--ease-out);
 }
 
 /* Spotlight AI progress shimmer */
@@ -1438,7 +1456,7 @@
   );
   -webkit-mask-size: 300% 100%;
   mask-size: 300% 100%;
-  animation: spotlight-shimmer 4.5s linear infinite;
+  animation: spotlight-shimmer 4.5s linear infinite; /* motion-allow: indefinite shimmer, none under reduced motion */
 }
 
 .dark .spotlight-shimmer {
@@ -1522,7 +1540,7 @@
   content: "";
   inset: 3px;
   position: absolute;
-  transition: background-color 300ms;
+  transition: background-color var(--motion-base) var(--ease-standard);
 }
 
 .peer:checked + .iota-radio-indicator::after {
@@ -1539,7 +1557,7 @@
  */
 .iota-theme-icon {
   scale: 0;
-  transition: scale 0.2s ease;
+  transition: scale var(--motion-base) var(--ease-out);
 }
 
 .peer\/system:checked + label .iota-theme-icon,
@@ -1717,3 +1735,131 @@ td:has(.table-cell-link):not(.sticky) {
   outline: none;
 }
 
+
+/*
+ * Motion (#1352). Reduced motion: every duration token is 0, so a transition or animation written with the
+ * tokens has no in-between frame; an opacity change keeps at most 80 ms (--motion-fade). Unlayered so it wins
+ * over the :root values in @layer base.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-instant: 0ms;
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+    --motion-slow: 0ms;
+    --motion-fade: 80ms;
+  }
+}
+
+/*
+ * Shared motion classes for Solid and templ screens. Only transform and opacity move; a class never animates
+ * a layout property. Each has its reduced-motion form through the tokens above.
+ */
+@layer components {
+  /* Press response (T2): a short squeeze while pressed. */
+  .iota-press {
+    transition: transform var(--motion-instant) var(--ease-standard);
+  }
+  .iota-press:active:not(:disabled):not([aria-disabled="true"]) {
+    transform: scale(0.96);
+  }
+
+  /* Entrances fill backwards only: their end state is the resting state, and a finished animation kept in
+     effect (fill forwards) keeps the element on its own compositing layer. Exits fill both: they hold the
+     end state until the element is removed. */
+  /* A layer or row appearing: fade and a short rise. */
+  .iota-enter {
+    animation: iota-enter var(--motion-base) var(--ease-out) backwards;
+  }
+  /* Skeleton → content: a crossfade in the same box, no shift (S2). */
+  .iota-fade-in {
+    animation: iota-fade var(--motion-fade) var(--ease-out) backwards;
+  }
+  /* A layer leaving: the reverse, shorter; the leaving layer is inert (A7). */
+  .iota-exit {
+    animation: iota-exit var(--motion-fast) var(--ease-in) both;
+    pointer-events: none;
+  }
+  /* A row leaving a list (reversible action with Undo, U1) and coming back. */
+  .iota-row-exit {
+    animation: iota-row-exit var(--motion-base) var(--ease-in) both;
+    pointer-events: none;
+  }
+  .iota-row-return {
+    animation: iota-row-return var(--motion-base) var(--ease-out) backwards;
+  }
+  /* A changed row or card (F5): highlighted about 4 s, then fades. Under reduced motion it holds and goes
+     out in one step, without in-between frames. */
+  .iota-flash {
+    position: relative;
+  }
+  .iota-flash::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: oklch(var(--clr-border-brand) / 10%);
+    box-shadow: inset 0 0 0 1px oklch(var(--clr-border-brand) / 45%);
+    animation: iota-flash var(--motion-flash) var(--ease-standard) both;
+  }
+  /* Inline confirmation above the buttons (U3): opens downward from its top edge. A clip, not a scale: focus
+     moves into it while it opens, and its box must already be where it lands, or the page scrolls short. */
+  .iota-reveal {
+    animation: iota-reveal var(--motion-base) var(--ease-out) backwards;
+  }
+  /* A visual "click" in place of a haptic one (touch): a short squeeze and back. */
+  .iota-click {
+    animation: iota-click var(--motion-fast) var(--ease-standard);
+  }
+  /* The shared focus ring (K2). */
+  .iota-focus-ring:focus-visible,
+  .iota-focus-scope :focus-visible {
+    outline: var(--focus-ring-width) solid oklch(var(--clr-border-brand));
+    outline-offset: var(--focus-ring-offset);
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-loading-indicator,
+  .btn-loading-indicator::before,
+  .btn-loading-indicator::after {
+    animation: none;
+  }
+  .iota-flash::after {
+    animation-timing-function: steps(1, end);
+  }
+}
+
+@keyframes iota-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes iota-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes iota-exit {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(4px); }
+}
+@keyframes iota-row-exit {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateX(-12px); }
+}
+@keyframes iota-row-return {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes iota-flash {
+  0%, 80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes iota-reveal {
+  from { opacity: 0; clip-path: inset(0 0 100% 0); }
+  to { opacity: 1; clip-path: inset(0); }
+}
+@keyframes iota-click {
+  50% { transform: scale(0.94); }
+}

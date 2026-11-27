@@ -1,7 +1,7 @@
 import { ErrorBoundary, Match, Switch, createSignal, lazy, onCleanup, onMount, Suspense, type Component, type JSX } from 'solid-js'
 import { FetchRPCTransport, RPCClient, useClientHost, type SolidRouteProps } from '@iota-uz/sdk/solid'
 import { EditorSkeleton } from '@iota-uz/sdk/automation-editor'
-import { Button, ToastProvider, useToast } from '@iota-uz/sdk/solid-ui'
+import { Button, Skeleton, ToastProvider, useToast } from '@iota-uz/sdk/solid-ui'
 import '@iota-uz/sdk/automation-editor/styles.css'
 import { rpcContracts, type Props } from './Automations.solid.generated'
 import { AppContext, useApp, type Call, type Ctx } from './context'
@@ -47,7 +47,8 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
   }
   return (
     <AppContext.Provider value={ctx}>
-      <div lang={lang} class="min-w-0">
+      {/* K2: one focus ring on the whole screen, its dialogs included (a native dialog stays in this subtree). */}
+      <div lang={lang} class="iota-focus-scope min-w-0">
         <Switch>
           <Match when={init.view === 'list'}><List /></Match>
           <Match when={init.view === 'run'}><RunLink /></Match>
@@ -62,7 +63,13 @@ const Screen: Component<SolidRouteProps<Props>> = (props) => {
                 </div>
               )
             }}>
-              <Suspense fallback={<div class="h-[calc(100vh-4rem)]" role="status" aria-busy="true" aria-label={ctx.t('Common.Loading')} />}>
+              {/* S2: the chunk's wait draws the page's shape, not an empty box. */}
+              <Suspense fallback={
+                <div class="flex flex-col gap-4 p-4 md:p-6" role="status" aria-busy="true" aria-label={ctx.t('Common.Loading')} data-testid="backtests-chunk-loading">
+                  <Skeleton variant="table" lines={4} />
+                  <Skeleton variant="table" lines={3} />
+                </div>
+              }>
                 <BacktestsPage />
               </Suspense>
             </ErrorBoundary>

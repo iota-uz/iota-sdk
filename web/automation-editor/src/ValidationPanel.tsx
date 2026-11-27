@@ -1,6 +1,7 @@
 // The docked Validation panel: errors and warnings with their item and field; a click selects the item
 // and focuses the field. A network failure keeps the draft and offers a retry.
 import { For, Show, type JSX } from 'solid-js'
+import { useLeaving } from './layer'
 import { Icon } from './icons'
 import { describeItem } from './names'
 import { strings } from './strings'
@@ -9,6 +10,8 @@ import { applyFix, removablePath } from './fix'
 import { errorTarget, issuesOf, type ValidationState } from './validation'
 
 export interface ValidationPanelProps {
+  /** Closing: it plays its leaving animation, inert (#1352). */
+  leaving?: boolean
   state: ValidationState
   graph: AutomationGraph
   catalog: EditorCatalog
@@ -23,6 +26,8 @@ export interface ValidationPanelProps {
 export function ValidationPanel(props: ValidationPanelProps): JSX.Element {
   const t = () => strings(props.locale)
   const issues = () => issuesOf(props.state)
+  let root: HTMLElement | undefined
+  useLeaving(() => root, () => props.leaving, () => {})
   const row = (error: GraphError, kind: 'error' | 'warning') => {
     const target = errorTarget(props.graph, error.path)
     const where = target.id ? describeItem(props.graph, props.catalog, target.id, props.locale).title : t().validation.graph
@@ -40,7 +45,7 @@ export function ValidationPanel(props: ValidationPanelProps): JSX.Element {
     )
   }
   return (
-    <section class="ae-validation" aria-label={t().validation.title}>
+    <section ref={root} class="ae-validation" aria-label={t().validation.title}>
       <header class="ae-validation__head">
         <h2 class="ae-validation__title">{t().validation.title}</h2>
         <span class="ae-validation__summary" role="status" aria-live="polite">

@@ -24,6 +24,7 @@ import {
   removeItems,
   setIgnore,
 } from './graph'
+import { createLeaving } from './motion'
 import { amend, canRedo, canUndo, createHistory, record, redo, undo, type History, type Snapshot } from './history'
 import { Icon } from './icons'
 import { ensureLayout, placeNew, tidied, tidyLayout } from './layout'
@@ -31,7 +32,7 @@ import { isMac } from './locale'
 import { Outline } from './Outline'
 import type { PaletteChoice, PaletteMode } from './Palette'
 import { keyLabel, strings } from './strings'
-import type { AutomationGraph, AutomationLayout, CanvasApi, CanvasMenu, EditorProps, GraphError, Overlay, RunData, XY } from './types'
+import type { AutomationGraph, AutomationLayout, CanvasApi, CanvasMenu, EditorDock, EditorProps, GraphError, Overlay, RunData, XY } from './types'
 import { localErrors } from './validation'
 import { rebaseErrors, type ValidationState } from './validation'
 import { isEditableTarget } from './xy/dom'
@@ -153,7 +154,29 @@ function EditorBody(props: EditorProps): JSX.Element {
   const [areaSize, setAreaSize] = createSignal({ width: 0, height: 0 })
   const [versionsMenu, setVersionsMenu] = createSignal<XY | null>(null)
   // The docked Dry run or Test node panel, and the overlay of its result on the draft.
-  const [dock, setDock] = createSignal<{ kind: 'dry' } | { kind: 'test'; node: string } | null>(null)
+  // The host may keep it (in the URL, D1); otherwise it is the editor's own.
+  const [ownDock, setOwnDock] = createSignal<EditorDock | null>(null)
+  const dock = (): EditorDock | null => (props.onDock ? props.dock ?? null : ownDock())
+  const setDock = (next: EditorDock | null | ((current: EditorDock | null) => EditorDock | null)) => {
+    const value = typeof next === 'function' ? next(dock()) : next
+    if (props.onDock) props.onDock(value)
+    else setOwnDock(value)
+  }
+  // Layers leave by their reverse animation (--motion-fast), inert meanwhile (A7, #1352).
+  const paletteLayer = createLeaving(palette)
+  const menuLayer = createLeaving(menu)
+  const validationLayer = createLeaving(() => validationOpen())
+  const sideLayer = createLeaving(selected)
+  const dockLayer = createLeaving(dock)
+  // A dock that closes gives the focus back to the button that opened it (K3), unless it already moved on.
+  createEffect(on(dock, (next, previous) => {
+    if (next || !previous) return
+    const active = document.activeElement
+    if (active && active !== document.body && !active.closest('.ae-dock')) return
+    const opener = root?.querySelector<HTMLElement>(previous.kind === 'dry' ? '[data-testid="open-dry-run"]' : '[data-testid="open-test-node"]')
+    if (opener) opener.focus({ preventScroll: true })
+    else if (previous.kind === 'test') canvasApi?.focus(previous.node)
+  }, { defer: true }))
   const [localOverlay, setLocalOverlay] = createSignal<{ overlay: Overlay; graph: AutomationGraph } | null>(null)
   let canvasApi: CanvasApi | null = null
   let area: HTMLDivElement | undefined
@@ -516,7 +539,7 @@ function EditorBody(props: EditorProps): JSX.Element {
     setSelected(result.ids[0] ?? null)
   }
 
-  // Tidy is one history step: the whole layout is replaced at once, and the cards glide there (200 ms).
+  // Tidy is one history step: the whole layout is replaced at once, and the cards glide there (--motion-slow).
   const [layoutTransition, setLayoutTransition] = createSignal(0)
   const tidy = () => {
     if (readOnly() || mobile()) return
@@ -529,8 +552,9 @@ function EditorBody(props: EditorProps): JSX.Element {
 
   // A read-only editor (an old version, a switch the host is opening) keeps its draft as it is:
   // undo and redo are edits too.
-  const doUndo = () => { if (!editingBlocked()) setHistory((h) => undo(h)) }
-  const doRedo = () => { if (!editingBlocked()) setHistory((h) => redo(h)) }
+  // Undo and redo move the cards back the same way a Tidy moved them (#1352): one glide, edges following.
+  const doUndo = () => { if (!editingBlocked()) batch(() => { setLayoutTransition((n) => n + 1); setHistory((h) => undo(h)) }) }
+  const doRedo = () => { if (!editingBlocked()) batch(() => { setLayoutTransition((n) => n + 1); setHistory((h) => redo(h)) }) }
 
   const openPanelFocus = (id: string) => {
     setSelected(id)
@@ -548,8 +572,9 @@ function EditorBody(props: EditorProps): JSX.Element {
   }
 
   // ——— menus ———
+  // From the menu as shown: a closing menu keeps its items through its exit animation.
   const menuItems = createMemo<MenuItem[]>(() => {
-    const m = menu()
+    const m = menuLayer.value()
     if (!m) return []
     const items: MenuItem[] = []
     const editable = !readOnly()
@@ -950,16 +975,19 @@ function EditorBody(props: EditorProps): JSX.Element {
                   </Show>
                 </div>
               </Show>
-              <Show when={palette()}>
-                {(mode) => <Suspense><Palette mode={mode()} catalog={props.catalog} graph={draft()} locale={props.locale} bounds={areaSize()} onPick={addFromPalette} onClose={() => setPalette(null)} /></Suspense>}
+              {/* Keyed: a palette or menu opened again while the last one leaves is a new instance, so it takes the
+                  focus (search, first item) instead of leaving it on the card the exit gave it back to. */}
+              <Show when={paletteLayer.value()} keyed>
+                {(mode) => <Suspense><Palette leaving={paletteLayer.leaving()} mode={mode} catalog={props.catalog} graph={draft()} locale={props.locale} bounds={areaSize()} onPick={addFromPalette} onClose={() => setPalette(null)} /></Suspense>}
               </Show>
-              <Show when={menu()}>
-                {(m) => <Suspense><ContextMenu x={m().x} y={m().y} bounds={areaSize()} items={menuItems()} locale={props.locale} onClose={() => setMenu(null)} /></Suspense>}
+              <Show when={menuLayer.value()} keyed>
+                {(m) => <Suspense><ContextMenu leaving={menuLayer.leaving()} x={m.x} y={m.y} bounds={areaSize()} items={menuItems()} locale={props.locale} onClose={() => setMenu(null)} /></Suspense>}
               </Show>
             </div>
-            <Show when={validationOpen()}>
+            <Show when={validationLayer.value()}>
               <Suspense>
               <ValidationPanel
+                leaving={validationLayer.leaving()}
                 state={validationView()}
                 graph={draft()}
                 catalog={props.catalog}
@@ -972,11 +1000,12 @@ function EditorBody(props: EditorProps): JSX.Element {
               />
               </Suspense>
             </Show>
-            <Show when={dock()} keyed>
+            <Show when={dockLayer.value()} keyed>
               {(dockValue) => { const d = () => dockValue; return (
                 <Suspense fallback={<div class="ae-dock ae-panel--loading" role="status" aria-busy="true" aria-label={t().states.loading} />}>
                   <Show when={d().kind === 'dry'} fallback={
                     <TestPanel
+                      leaving={dockLayer.leaving()}
                       graph={draft()}
                       catalog={props.catalog}
                       api={props.api}
@@ -990,6 +1019,7 @@ function EditorBody(props: EditorProps): JSX.Element {
                     />
                   }>
                     <DryRunPanel
+                      leaving={dockLayer.leaving()}
                       graph={draft()}
                       catalog={props.catalog}
                       api={props.api}
@@ -1004,11 +1034,13 @@ function EditorBody(props: EditorProps): JSX.Element {
             </Show>
             {props.panels}
           </div>
-          <Show when={selected()}>
+          <Show when={sideLayer.value()}>
             {(id) => (
               <div
                 ref={panelRef}
                 class="ae-side"
+                classList={{ 'ae-layer--leaving': sideLayer.leaving() }}
+                inert={sideLayer.leaving()}
                 onKeyDown={(event) => {
                   if (event.key === 'Escape' && !event.defaultPrevented && !(event.target as HTMLElement).closest('[role="listbox"], [aria-expanded="true"]')) {
                     event.preventDefault()
