@@ -56,6 +56,34 @@ test.describe('templ geometry contracts', () => {
 })
 
 test.describe('interaction and accessibility contracts', () => {
+  for (const [specimen, selector] of [
+    ['form-controls', '#gallery-enabled'],
+    ['advanced-forms', '[data-vr-target="advanced-switch"]'],
+  ] as const) {
+    test(`${specimen} keeps the native toggle inside its scrolled label`, async ({ page }) => {
+      await open(page, galleryCase(specimen, 'default', 'light'))
+      const input = page.locator(selector)
+      const label = input.locator('..')
+      await label.evaluate(element => {
+        const outlet = document.createElement('div')
+        outlet.style.cssText = 'height: 180px; overflow: auto'
+        const content = document.createElement('div')
+        content.style.padding = '500px 0'
+        document.body.replaceChildren(outlet)
+        outlet.append(content)
+        content.append(element)
+        element.scrollIntoView({ block: 'center' })
+      })
+      const box = await label.boundingBox()
+      const control = await input.boundingBox()
+      expect(control!.y).toBeGreaterThanOrEqual(box!.y)
+      expect(control!.y).toBeLessThanOrEqual(box!.y + box!.height)
+      await label.click()
+      await expect(input).toBeChecked()
+      expect((await label.boundingBox())!.y).toBe(box!.y)
+    })
+  }
+
   // createFlash (#1352): flashing again restarts the highlight animation itself, also for a burst of calls
   // made before the browser renders the first removal.
   for (const calls of [1, 2, 3]) {

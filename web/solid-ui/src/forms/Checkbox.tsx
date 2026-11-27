@@ -23,7 +23,7 @@ export function Checkbox(props: CheckboxProps) {
   }
   return (
     <div class={local.wrapperClass}>
-      <label for={id()} class={classes('form-control-label flex items-center cursor-pointer gap-3', local.class)}>
+      <label for={id()} class={classes('form-control-label relative flex items-center cursor-pointer gap-3', local.class)}>
         <input
           {...native}
           ref={setRef}

@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Keep native Checkbox and Switch inputs with their labels when a Solid UI form scrolls inside a shell outlet."
+}

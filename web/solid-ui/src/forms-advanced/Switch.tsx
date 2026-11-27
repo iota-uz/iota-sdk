@@ -32,7 +32,7 @@ export function Switch(props: SwitchProps) {
   }
   return (
     <div>
-      <label {...local.labelProps} for={id()} class={classes('form-control-label inline-flex items-center cursor-pointer gap-3', local.labelClass, local.labelProps?.class)}>
+      <label {...local.labelProps} for={id()} class={classes('form-control-label relative inline-flex items-center cursor-pointer gap-3', local.labelClass, local.labelProps?.class)}>
         <input {...native} id={id()} type="checkbox" class={classes('appearance-none h-0 absolute peer', local.class)} checked={checked()} onChange={onChange} role="switch" aria-invalid={local.error ? true : native['aria-invalid']} aria-describedby={[local['aria-describedby'], local.error ? errorID() : undefined].filter(Boolean).join(' ') || undefined} />
         <div class={classes(
           'relative bg-gray-200 rounded-full',
