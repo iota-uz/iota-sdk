@@ -48,12 +48,18 @@ func TestSquashedBaselineMatchesHistory(t *testing.T) {
 	// A consumer's table that depends on an SDK table (here by inheritance,
 	// which DROP ... CASCADE would remove with its rows) stops the reset; the
 	// rollback runs in one transaction, so nothing is dropped.
+	appliedBefore := appliedMigrationIDs(t, fresh.pool)
 	_, err := fresh.pool.Exec(ctx, `CREATE TABLE public.consumer_department_archive (archived_at timestamptz) INHERITS (core.departments)`)
 	require.NoError(t, err)
+	_, err = fresh.pool.Exec(ctx, `INSERT INTO public.consumer_department_archive (tenant_id, code, name, archived_at)
+		VALUES (gen_random_uuid(), 'kept', '{}', now())`)
+	require.NoError(t, err)
 	require.Error(t, freshManager.RollbackAll(ctx))
-	require.True(t, relationExists(t, fresh.pool, "public.consumer_department_archive"))
+	var kept int
+	require.NoError(t, fresh.pool.QueryRow(ctx, `SELECT count(*) FROM ONLY public.consumer_department_archive WHERE code = 'kept'`).Scan(&kept))
+	require.Equal(t, 1, kept, "the consumer's row survives the refused rollback")
 	require.True(t, relationExists(t, fresh.pool, "core.departments"))
-	require.NotEmpty(t, appliedMigrationIDs(t, fresh.pool))
+	require.Equal(t, appliedBefore, appliedMigrationIDs(t, fresh.pool), "the baseline stays applied")
 	_, err = fresh.pool.Exec(ctx, `DROP TABLE public.consumer_department_archive`)
 	require.NoError(t, err)
 
@@ -64,6 +70,7 @@ func TestSquashedBaselineMatchesHistory(t *testing.T) {
 	require.ErrorContains(t, freshManager.RollbackAll(ctx), "consumer_department_seq")
 	require.True(t, relationExists(t, fresh.pool, "core.consumer_department_seq"))
 	require.True(t, relationExists(t, fresh.pool, "core.departments"))
+	require.Equal(t, appliedBefore, appliedMigrationIDs(t, fresh.pool))
 	_, err = fresh.pool.Exec(ctx, `DROP SEQUENCE core.consumer_department_seq`)
 	require.NoError(t, err)
 
