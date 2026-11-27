@@ -222,7 +222,7 @@ export function Combobox(props: ComboboxProps) {
           </button>
         </div>
         <Show when={open() && !inactive()}>
-          <ul ref={list} id={listID()} role="listbox" aria-multiselectable={local.multiple || undefined} class={classes('combobox-dropdown absolute z-10 m-0 flex max-h-[min(20rem,calc(100vh-1rem))] w-full max-w-[calc(100vw-1rem)] flex-col gap-0.5 overflow-x-hidden overflow-y-auto rounded-md border border-secondary bg-white p-1.5 drop-shadow-sm', ...floatingPlacementClasses(floating.placement(), 'mt-1'), local.listClass)}>
+          <ul ref={list} id={listID()} role="listbox" aria-multiselectable={local.multiple || undefined} class={classes('combobox-dropdown absolute z-10 m-0 flex max-h-[min(20rem,calc(100vh-1rem))] w-full max-w-[calc(100vw-1rem)] flex-col gap-0.5 overflow-x-hidden overflow-y-auto rounded-md border border-secondary bg-surface-300 p-1.5 drop-shadow-sm', ...floatingPlacementClasses(floating.placement(), 'mt-1'), local.listClass)}>
             <Show when={loading()}><li class="px-4 py-2 text-sm text-200" role="status">{labels().loading}</li></Show>
             <For each={visibleOptions()}>{(item, index) => (
               <li
@@ -232,9 +232,9 @@ export function Combobox(props: ComboboxProps) {
                 aria-disabled={item.disabled || item.groupHeader || undefined}
                 tabindex={item.disabled || item.groupHeader ? -1 : 0}
                 class={classes(
-                  'combobox-option inline-flex cursor-pointer justify-between gap-6 px-4 py-2 text-sm rounded-md duration-100 hover:bg-surface-400 focus-visible:bg-surface-400 focus-visible:outline-none',
+                  'combobox-option inline-flex cursor-pointer items-center justify-between gap-6 px-3 py-1.5 min-h-8 text-sm text-100 rounded-md duration-100 hover:bg-surface-400 focus-visible:bg-surface-400 focus-visible:outline-none',
                   activeIndex() === index() && 'bg-surface-400',
-                  item.groupHeader ? '!cursor-default !py-1 mt-1 text-xs uppercase tracking-wide text-200 pointer-events-none hover:bg-transparent' : item.disabled && 'opacity-40 !cursor-not-allowed hover:bg-transparent',
+                  item.groupHeader ? '!cursor-default !px-3 !pt-2 !pb-1 first:!pt-1 text-[11px] font-semibold uppercase tracking-wide text-200 pointer-events-none hover:bg-transparent' : item.disabled && 'opacity-40 !cursor-not-allowed hover:bg-transparent',
                 )}
                 onMouseEnter={() => !item.disabled && !item.groupHeader && setActiveIndex(index())}
                 onClick={() => select(item)}

@@ -180,7 +180,7 @@ export function SearchSelect(props: SearchSelectProps) {
       />
       <input type="hidden" name={local.name} form={local.form} value={value()} disabled={local.disabled} />
       <Show when={open() && !inactive()}>
-        <ul ref={list} id={listID()} role="listbox" class={classes('absolute z-10 max-h-[min(15rem,calc(100vh-1rem))] w-full max-w-[calc(100vw-1rem)] overflow-auto border bg-white', ...floatingPlacementClasses(floating.placement(), 'mt-1'))}>
+        <ul ref={list} id={listID()} role="listbox" class={classes('absolute z-10 max-h-[min(15rem,calc(100vh-1rem))] w-full max-w-[calc(100vw-1rem)] overflow-auto border bg-surface-300', ...floatingPlacementClasses(floating.placement(), 'mt-1'))}>
           <Show when={loading()}><li class="p-2 text-gray-300" role="status">{labels().loading}</li></Show>
           <Show when={!loading() && failed()}><li class="p-2 text-gray-300" role="alert">{labels().loadError}</li></Show>
           <Show when={!loading() && !failed() && options().length === 0}><li class="p-2 text-gray-300">{labels().nothingFound}</li></Show>
