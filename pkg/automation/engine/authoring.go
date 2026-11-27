@@ -97,8 +97,10 @@ type DryRunInput struct {
 // call is in flight still makes that call. The fence keeps such a repeat from being paid twice where the
 // provider can deduplicate it, and bounds it where the provider cannot:
 //
-//   - every real call carries the idempotency key Scope:node:n:digest (the n-th call of the node in the
-//     dry run, and a digest of the request it sends: requestDigest), the same for every holder that sends
+//   - every real call carries the idempotency key Scope:node@token#visit:digest (where the call is in
+//     the graph: the token that makes it, a branch or a foreach item, and how many times that token
+//     reached the node; and a digest of the request it sends: requestDigest), the same for every holder
+//     that makes the same call of the same occurrence, whatever other tokens did, and that sends
 //     the same request whatever else of the step changed, so a provider that deduplicates by key
 //     (catalog.SupportsIdempotencyKey) makes a repeated call once; a repeat that sends a different
 //     request (the automation's memory changed in between) gets another key, never the first answer; a
@@ -124,10 +126,11 @@ type CallFence interface {
 	Strict() bool
 }
 
-// fencedKey is the idempotency key of the n-th call of a node under a fence, from the digest of the
-// request it sends (requestDigest).
-func fencedKey(scope, node string, n int, digest string) string {
-	return scope + ":" + node + ":" + strconv.Itoa(n) + ":" + digest
+// fencedKey is the idempotency key of a call of a node under a fence: where it is in the graph (the
+// token and its visit of the node, so another token's call skipped or added in a replay does not move
+// it) and the digest of the request it sends (requestDigest).
+func fencedKey(scope, node string, site graph.CallSite, digest string) string {
+	return scope + ":" + node + "@" + site.Token + "#" + strconv.Itoa(site.Visit) + ":" + digest
 }
 
 // requestDigest is the stable form of the request a call sends: the node's own canonical request
@@ -370,12 +373,10 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 	// node come in the same order, so a cached one is reported as such and not as a live call.
 	cachedBy := map[string][]bool{}
 	live := 0
-	// stopped is the fence's error that ended the dry run's real calls; calls per node number the keys
-	// of a fenced dry run.
+	// stopped is the fence's error that ended the dry run's real calls.
 	var stopped error
-	calls := map[string]int{}
 	if mode != DecisionsScripted {
-		opts.Execute = func(node graph.Node, effects []graph.Effect) graph.ExecAnswer {
+		opts.ExecuteAt = func(node graph.Node, effects []graph.Effect, site graph.CallSite) graph.ExecAnswer {
 			if stopped != nil {
 				return graph.ExecAnswer{Code: CodeCancelled, Message: "the dry run stopped"}
 			}
@@ -385,13 +386,8 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 			if len(effects) > 0 {
 				params, stepCtx, templated = effects[0].Params, effects[0].Context, effects[0].Templated
 			}
-			call := 0
-			if in.Fence != nil {
-				calls[node.ID]++
-				call = calls[node.ID]
-			}
 			res := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params, context: stepCtx, templated: templated,
-				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode, budget: budget, realCalls: in.RealCalls, fence: in.Fence, fenceCall: call})
+				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode, budget: budget, realCalls: in.RealCalls, fence: in.Fence, site: site})
 			if res.stop != nil {
 				stopped = res.stop
 				return graph.ExecAnswer{Code: CodeCancelled, Message: "the dry run stopped"}
@@ -909,10 +905,10 @@ type directCall struct {
 	budget *callBudget
 	// realCalls narrows the nodes called for real (DryRunInput.RealCalls).
 	realCalls string
-	// fence, when set, is asked before the real call (DryRunInput.Fence); fenceCall numbers the node's
-	// calls under it (the n of its key).
-	fence     CallFence
-	fenceCall int
+	// fence, when set, is asked before the real call (DryRunInput.Fence); site is where the call is in
+	// the graph (its key names it).
+	fence CallFence
+	site  graph.CallSite
 }
 
 // callBudget is how many real calls a dry run may still make.
@@ -1049,7 +1045,7 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 			}
 			digest = uuid.NewString() // never deduplicated: the residual risk of CallFence
 		}
-		in.IdempotencyKey = fencedKey(c.fence.Scope(), c.node.ID, c.fenceCall, digest)
+		in.IdempotencyKey = fencedKey(c.fence.Scope(), c.node.ID, c.site, digest)
 		// The last check before the call: a holder that lost the work makes no further call. The call
 		// itself may still outlive the lease; its key lets the next holder's repeat be made once.
 		if err := c.fence.Hold(ctx); err != nil {

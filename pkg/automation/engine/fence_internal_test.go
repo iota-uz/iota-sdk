@@ -69,7 +69,7 @@ func TestRequestDigestFollowsTheRequestSent(t *testing.T) {
 	assert.NotEqual(t, p, digestOf(t, plainCall{}, map[string]any{"text": "hello", "n": 2}, nil))
 	assert.NotEqual(t, p, digestOf(t, plainCall{}, map[string]any{"text": "hello", "n": 1}, map[string]any{"vars": 1}))
 
-	assert.Equal(t, "backtest:b:e:d1:2:"+p, fencedKey("backtest:b:e", "d1", 2, p))
+	assert.Equal(t, "backtest:b:e:d1@each[1]#2:"+p, fencedKey("backtest:b:e", "d1", graph.CallSite{Token: "each[1]", Visit: 2}, p))
 }
 
 // A request with no stable form (a value JSON cannot encode, a decision its node cannot key) has no

@@ -234,7 +234,7 @@ func TestSupersededLeaseMidCall(t *testing.T) {
 			stalled := p.calls()
 			require.Len(t, stalled, tc.at, "the superseded worker makes no call after the one in flight")
 			assert.Contains(t, stalled[0], "backtest:"+id.String()+":")
-			assert.Contains(t, stalled[0], ":d1:1:")
+			assert.Contains(t, stalled[0], ":d1@#1:")
 			assert.Zero(t, resultCount(t, e, id), "the superseded worker keeps no result")
 
 			// The next worker claims the backtest and runs the example again from its trigger.
@@ -243,7 +243,7 @@ func TestSupersededLeaseMidCall(t *testing.T) {
 			keys := p.calls()
 			require.Len(t, keys, tc.at+2, "d1 and d2 again")
 			assert.Equal(t, stalled, keys[tc.at:tc.at+len(stalled)], "each repeat carries the key of the superseded call")
-			assert.Contains(t, keys[len(keys)-1], ":d2:1:")
+			assert.Contains(t, keys[len(keys)-1], ":d2@#1:")
 			assert.Equal(t, tc.paid, p.charged())
 			rep, err := e.svc.Report(context.Background(), e.human(), id)
 			require.NoError(t, err)
@@ -336,4 +336,75 @@ func TestStrictFencingRefusesARequestWithoutStableForm(t *testing.T) {
 	assert.Equal(t, backtest.StatusFailed, rep.Backtest.Status)
 	assert.Contains(t, rep.Backtest.Error, "stable form")
 	assert.Empty(t, p.calls())
+}
+
+// graphForeach decides once per item of a foreach, with the text given (a template over the item, or a
+// constant); item 0 skips the decision when the memory says skip.
+func graphForeach(text string) string {
+	return `{"name": "Each", "triggers": [{"id": "m", "event": "acme.message.v1"}],
+ "nodes": [
+  {"id": "each", "type": "foreach", "params": {"items": "[\"x\", \"y\"]"}},
+  {"id": "skip", "type": "branch", "params": {"expression": "foreach.each.index == 0 && state.get('skip') == true"}},
+  {"id": "d", "type": "acme.decide", "params": {"text": "` + text + `"}},
+  {"id": "take", "type": "collect", "params": {"of": "each"}},
+  {"id": "fin", "type": "end", "params": {}}
+ ],
+ "edges": [
+  {"from": {"node": "m", "outcome": "fired"}, "to": "each"},
+  {"from": {"node": "each", "outcome": "item"}, "to": "skip"},
+  {"from": {"node": "skip", "outcome": "true"}, "to": "take"},
+  {"from": {"node": "skip", "outcome": "false"}, "to": "d"},
+  {"from": {"node": "d", "outcome": "ok"}, "to": "take"}, {"from": {"node": "d", "outcome": "failed"}, "to": "take"},
+  {"from": {"node": "each", "outcome": "done"}, "to": "fin"},
+  {"from": {"node": "each", "outcome": "partial_failed"}, "to": "fin"},
+  {"from": {"node": "each", "outcome": "failed"}, "to": "fin"}
+ ]}`
+}
+
+// A replay that skips an earlier item's call keeps the key of a later item's unchanged call: the key
+// names the item (its token), not how many calls of the node came before it.
+func TestFencedRepeatKeepsItsKeyWhenAnEarlierCallIsSkipped(t *testing.T) {
+	p := newProvider(true)
+	e := newFenceEnv(t, p, true, true)
+	ctx := context.Background()
+	am, ds := datasetOf(t, e, graphForeach("{{ foreach.each.item }}"), "hello")
+	id, err := runLive(t, e, ds)
+	require.NoError(t, err)
+	// The first worker decided item 0 and is inside item 1's call when the lease passes.
+	stallMidCall(t, e, p, id, 2)
+	stalled := p.calls()
+	require.Len(t, stalled, 2)
+	assert.Contains(t, stalled[0], ":d@each[0]#1:")
+	assert.Contains(t, stalled[1], ":d@each[1]#1:")
+
+	// Before the next worker replays, item 0 stops reaching the decision.
+	_, err = e.rt.Memory().Set(ctx, e.human(), am, "skip", json.RawMessage(`true`), 0)
+	require.NoError(t, err)
+	expire(t, e, id)
+	e.drain()
+	keys := p.calls()
+	require.Len(t, keys, 3, "the replay decides item 1 only")
+	assert.Equal(t, stalled[1], keys[2], "item 1's repeat carries its first key")
+	assert.Equal(t, 2, p.charged(), "item 1 is paid once")
+	rep, err := e.svc.Report(ctx, e.human(), id)
+	require.NoError(t, err)
+	assert.Equal(t, backtest.StatusDone, rep.Backtest.Status, rep.Backtest.Error)
+}
+
+// Two occurrences of a node with the same request (two items, one prompt) are two calls: their keys
+// differ by their item, so a deduplicating provider answers and charges each.
+func TestFencedOccurrencesWithTheSamePayloadAreDistinctCalls(t *testing.T) {
+	p := newProvider(true)
+	e := newFenceEnv(t, p, true, true)
+	_, ds := datasetOf(t, e, graphForeach("same"), "hello")
+	id, err := runLive(t, e, ds)
+	require.NoError(t, err)
+	e.drain()
+	keys := p.calls()
+	require.Len(t, keys, 2)
+	assert.NotEqual(t, keys[0], keys[1])
+	assert.Equal(t, 2, p.charged())
+	rep, err := e.svc.Report(context.Background(), e.human(), id)
+	require.NoError(t, err)
+	assert.Equal(t, backtest.StatusDone, rep.Backtest.Status, rep.Backtest.Error)
 }

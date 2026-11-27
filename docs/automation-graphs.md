@@ -618,8 +618,11 @@ anything out and reports what the graph would have done for each of them.
   (`ErrStaleEstimate`), so it never runs more than the estimate counted. A live run requires it.
 - **Fencing paid calls (#1464).** A worker that stalls past `LeaseTTL` may still be inside a provider
   call when another worker takes the backtest. Each example's dry run carries an `engine.CallFence`:
-  every real call gets the idempotency key `backtest:<backtest>:<example>:<node>:<n>:<digest>` (the n-th
-  call of the node in that example and a digest of the request it sends: the node's
+  every real call gets the idempotency key `backtest:<backtest>:<example>:<node>@<token>#<visit>:<digest>`
+  (where the call is in the graph, `graph.CallSite`: the token that makes it, the main path, a branch or a
+  foreach item such as `each[1]`, and how many times that token reached the node, so a replay in which
+  another item's call is skipped or added keeps the key of an unchanged call, and two items with the same
+  request are two calls; and a digest of the request it sends: the node's
   `catalog.RequestKeyer`, else a decision's cache key `DecisionKey`, else its params and step context; it
   never names the lease, so the next worker repeats the same request under the same key whatever else of
   the step changed, while a request that changed, say after the automation's memory changed, gets another
