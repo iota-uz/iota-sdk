@@ -391,9 +391,7 @@ jobs:
     concurrency:
       group: automation-editor-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: true
-    # The editor bench holds absolute frame and task times under a 4x CPU throttle: a shared
-    # runner's speed varies from run to run, so the job runs on dedicated vCPUs like the E2E suite.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     name: Automation Editor
     steps:
