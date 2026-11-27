@@ -116,8 +116,11 @@ from an **automatic migrated template**:
   builds a new template. A template left half-built by a killed process has no
   ready marker and is rebuilt. Templates unused for a week are dropped the next
   time any template is built.
-- The migrator still runs over each clone and plans zero migrations; that run
-  skips the cluster-wide migration lock.
+- The migrator does not run over an automatic clone, and no migration lock is
+  taken: the clone carries exactly the template's migration set, so the harness
+  only checks that some `gorp_migrations` table in it, in whatever schema the
+  migrator created it, lists every migration id. (A clone of an explicit
+  `ITF_TEMPLATE_DB` is still migrated; see below.)
 - `ITF_AUTO_TEMPLATE=0` turns it off: every harness replays the migrations into
   an empty database under the migration lock, as before.
 

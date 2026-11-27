@@ -506,12 +506,13 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 	dbName := buildDBName(cfg.Name, key, isPerTest)
 	template := cfg.Migration.TemplateDB
 	autoTemplate := false
+	var autoTemplateIDs []string
 	if template == "" && cfg.Migration.Policy == MigrationApplyOnce && autoTemplateEnabled() {
-		name, err := ensureAutoTemplate(context.Background(), db, cfg.Source)
+		name, ids, err := ensureAutoTemplate(context.Background(), db, cfg.Source)
 		if err != nil {
 			return nil, serrors.WrapContext(opCreateDB, err, "build migrated template")
 		}
-		template, autoTemplate = name, name != ""
+		template, autoTemplate, autoTemplateIDs = name, name != "", ids
 	}
 	if err := CreateDBFromTemplateE(dbName, template, db); err != nil {
 		return nil, serrors.WrapContext(opCreateDB, err, "create database")
@@ -538,13 +539,13 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		}
 		if autoTemplate {
 			// A clone of the auto template already carries exactly this
-			// migration set (the template is named after its hash), so it is
-			// only checked, not migrated again. Running the migrator here
+			// migration set (the template is named after its hash), so its
+			// history is checked, not migrated again. Running the migrator here
 			// would also be wrong, not just slow: the clone gets the template's
 			// database settings, and a migration that changed search_path
 			// would send the migrator's unqualified ledger lookup to another
 			// schema, where it would replay everything.
-			return runMigrationPolicy(ctx, pool, app, MigrationConfig{Policy: MigrationSkip})
+			return verifyAutoClone(ctx, pool, autoTemplateIDs)
 		}
 		return runMigrationPolicy(ctx, pool, app, cfg.Migration)
 	}
