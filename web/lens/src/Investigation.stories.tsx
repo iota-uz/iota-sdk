@@ -170,13 +170,23 @@ interface ScenarioProps extends HostOptions {
   width?: string
 }
 
+/**
+ * Clicks the control once it is enabled, the way a person would: only after the
+ * surface it sits on has painted. A dialog moves focus to its first field in an
+ * animation frame after it mounts; clicking before that frame would let the
+ * story's end state depend on whether the frame or the click won (a slow CI
+ * runner delays the frame, the click disables the field, and focus lands on it
+ * only after the save failed). Two frames guarantee the dialog's own frame ran.
+ */
 function clickWhenReady(selector: string, attempts = 120): Promise<void> {
   return new Promise((resolve) => {
     const tick = (left: number) => {
       const element = globalThis.document.querySelector<HTMLElement>(selector)
       if (element && !(element as HTMLButtonElement).disabled) {
-        element.click()
-        resolve()
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          element.click()
+          resolve()
+        }))
         return
       }
       if (left > 0) setTimeout(() => tick(left - 1), 50)

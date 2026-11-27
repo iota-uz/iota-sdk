@@ -4,7 +4,7 @@ import { Portal } from 'solid-js/web'
 import type { JSX } from 'solid-js'
 import { Show, For } from 'solid-js'
 import { useTranslate } from '../runtime'
-import { hoverBridgeDelay, useOverlayContainer } from './overlayContainer'
+import { followAnchorLayout, hoverBridgeDelay, useOverlayContainer } from './overlayContainer'
 import { Info } from '../icons'
 
 export interface InfoTipProps {
@@ -119,18 +119,7 @@ export function InfoTip(props: InfoTipProps) {
 
   createEffect(() => {
     if (!container()) return
-    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(reposition)
-    const bubble = bubbleRef()
-    if (bubble) observer?.observe(bubble)
-    globalThis.addEventListener('resize', reposition)
-    // Capture scrolls from the dashboard's own scroll container as well as the
-    // document; a fixed portal must continue to follow its trigger.
-    globalThis.addEventListener('scroll', reposition, true)
-    onCleanup(() => {
-      observer?.disconnect()
-      globalThis.removeEventListener('resize', reposition)
-      globalThis.removeEventListener('scroll', reposition, true)
-    })
+    followAnchorLayout(reposition, [bubbleRef(), buttonRef])
   })
 
   // An open bubble is dismissed the way every other transient surface in the

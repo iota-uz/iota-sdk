@@ -28,16 +28,35 @@ func resolveSQLStatsDataset(spec CubeSpec, ctx DrillContext, name string) lens.D
 }
 
 func resolveSQLDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec, name string) lens.DatasetSpec {
-	joins := requiredSQLJoins(spec, dim, ctx)
-	labelColumn := dim.LabelColumn
-	if strings.TrimSpace(labelColumn) == "" {
-		labelColumn = dim.Column
+	var primaryMeasure MeasureSpec
+	if len(spec.Measures) > 0 {
+		primaryMeasure = spec.Measures[0]
 	}
+	return resolveSQLChartDataset(spec, ctx, dim, nil, primaryMeasure, name)
+}
+
+func resolveSQLChartDataset(
+	spec CubeSpec,
+	ctx DrillContext,
+	dim DimensionSpec,
+	seriesDim *DimensionSpec,
+	orderMeasure MeasureSpec,
+	name string,
+) lens.DatasetSpec {
+	joins := requiredSQLJoins(spec, dim, ctx)
+	if seriesDim != nil {
+		addJoinNames(joins, seriesDim.RequiresJoin)
+	}
+	dimCol := dim.sqlColumn()
+	labelCol := dim.sqlLabelColumn()
 	measureSelects := make([]string, 0, len(spec.Measures))
 	for _, measure := range spec.Measures {
 		measureSelects = append(measureSelects, sqlMeasureSelect(measure))
 	}
-	text := "SELECT\n  " + dim.Column + " AS filter_value,\n  " + labelColumn + " AS label"
+	text := "SELECT\n  " + dimCol + " AS filter_value,\n  " + labelCol + " AS label"
+	if seriesDim != nil {
+		text += ",\n  " + seriesDim.sqlColumn() + " AS series_value,\n  " + seriesDim.sqlLabelColumn() + " AS series"
+	}
 	if strings.TrimSpace(dim.ColorColumn) != "" {
 		text += ",\n  " + dim.ColorColumn + " AS color_value"
 	}
@@ -50,15 +69,87 @@ func resolveSQLDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSp
 		text += "\nWHERE " + where
 	}
 	groupBy := []string{"filter_value", "label"}
+	if seriesDim != nil {
+		groupBy = append(groupBy, "series_value", "series")
+	}
 	if strings.TrimSpace(dim.ColorColumn) != "" {
 		groupBy = append(groupBy, "color_value")
 	}
 	text += "\nGROUP BY " + strings.Join(groupBy, ", ")
-	if len(spec.Measures) > 0 {
-		text += "\nORDER BY " + spec.Measures[0].Name + " DESC, label ASC"
+	if dim.Type == DimensionTypeTimeBucket {
+		if seriesDim != nil {
+			text += "\nORDER BY filter_value ASC, series ASC"
+		} else {
+			text += "\nORDER BY filter_value ASC"
+		}
+	} else if strings.TrimSpace(orderMeasure.Name) != "" {
+		if seriesDim != nil {
+			text += "\nORDER BY " + orderMeasure.Name + " DESC, label ASC, series ASC"
+		} else {
+			text += "\nORDER BY " + orderMeasure.Name + " DESC, label ASC"
+		}
 	}
 	return lens.DatasetSpec{
 		Name:   name,
+		Kind:   lens.DatasetKindQuery,
+		Source: spec.DataSource,
+		Query: &lens.QuerySpec{
+			Text:   text,
+			Params: sqlParams(spec, ctx),
+			Kind:   datasource.QueryKindRaw,
+		},
+	}
+}
+
+func resolveSQLLeafDataset(spec CubeSpec, ctx DrillContext, table *LeafTableSpec, name string) lens.DatasetSpec {
+	if table != nil && strings.TrimSpace(table.SQL) != "" {
+		return lens.DatasetSpec{
+			Name:   name,
+			Title:  table.Title,
+			Kind:   lens.DatasetKindQuery,
+			Source: spec.DataSource,
+			Query: &lens.QuerySpec{
+				Text:   table.SQL,
+				Params: mergeParamValues(overrideBaseParams(spec), overrideFilterParams(spec, ctx)),
+				Kind:   datasource.QueryKindRaw,
+			},
+		}
+	}
+	joins := requiredSQLJoins(spec, DimensionSpec{}, ctx)
+	selects := make([]string, 0, len(spec.Dimensions)+len(spec.Measures))
+	for _, dim := range spec.Dimensions {
+		addJoinNames(joins, dim.RequiresJoin)
+		col := dim.sqlLabelColumn()
+		if col == "" {
+			continue
+		}
+		selects = append(selects, col+" AS "+dim.Name)
+	}
+	for _, measure := range spec.Measures {
+		addJoinNames(joins, measure.RequiresJoin)
+		col := strings.TrimSpace(measure.Column)
+		if col == "" || col == "*" || strings.Contains(strings.ToUpper(col), "DISTINCT") {
+			continue
+		}
+		selects = append(selects, col+" AS "+measure.Name)
+	}
+	if len(selects) == 0 {
+		selects = []string{"*"}
+	}
+	text := "SELECT\n  " + strings.Join(selects, ",\n  ") + "\nFROM " + spec.FromSQL + sqlJoinSQL(spec, joins)
+	if where := sqlWhere(spec, ctx); where != "" {
+		text += "\nWHERE " + where
+	}
+	if table != nil && strings.TrimSpace(table.OrderBy) != "" {
+		text += "\nORDER BY " + strings.TrimSpace(table.OrderBy)
+	}
+	title := ""
+	if table != nil {
+		title = table.Title
+	}
+	return lens.DatasetSpec{
+		Name:   name,
+		Title:  title,
 		Kind:   lens.DatasetKindQuery,
 		Source: spec.DataSource,
 		Query: &lens.QuerySpec{
@@ -102,10 +193,20 @@ func sqlWhere(spec CubeSpec, ctx DrillContext) string {
 		if !ok {
 			continue
 		}
-		if len(filter.values()) == 0 {
+		values := filter.values()
+		if len(values) == 0 {
 			continue
 		}
-		clauses = append(clauses, fmt.Sprintf("%s = ANY(@%s)", dim.Column, sqlFilterParam(filter.Dimension)))
+		col := dim.sqlColumn()
+		if col == "" {
+			continue
+		}
+		paramName := sqlFilterParam(filter.Dimension)
+		if containsString(values, UnknownDrillValue) {
+			clauses = append(clauses, fmt.Sprintf("((%s) IS NULL OR (%s)::text = ANY(@%s))", col, col, paramName))
+			continue
+		}
+		clauses = append(clauses, fmt.Sprintf("%s = ANY(@%s)", col, paramName))
 	}
 	return strings.Join(clauses, "\n  AND ")
 }
@@ -120,9 +221,24 @@ func sqlParams(spec CubeSpec, ctx DrillContext) map[string]lens.ParamValue {
 		if len(values) == 0 {
 			continue
 		}
-		params[sqlFilterParam(filter.Dimension)] = lens.ParamValue{Literal: values}
+		params[sqlFilterParam(filter.Dimension)] = lens.ParamValue{Literal: sqlFilterValues(values)}
 	}
 	return params
+}
+
+func sqlFilterValues(values []string) []string {
+	if !containsString(values, UnknownDrillValue) {
+		return values
+	}
+	expanded := make([]string, 0, len(values)+1)
+	expanded = append(expanded, "")
+	for _, v := range values {
+		if v == "" {
+			continue
+		}
+		expanded = append(expanded, v)
+	}
+	return expanded
 }
 
 func sqlFilterParam(name string) string {

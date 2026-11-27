@@ -21,6 +21,7 @@ type Kind string
 const (
 	KindStat          Kind = "stat"
 	KindTimeSeries    Kind = "time_series"
+	KindLine          Kind = KindTimeSeries
 	KindBar           Kind = "bar"
 	KindHorizontalBar Kind = "horizontal_bar"
 	KindStackedBar    Kind = "stacked_bar"

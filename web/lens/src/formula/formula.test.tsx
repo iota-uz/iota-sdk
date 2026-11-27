@@ -78,6 +78,42 @@ describe('FormulaView', () => {
     expect(container.querySelector('[role="math"]')).toHaveAttribute('aria-label', 'N divided by E')
   })
 
+  it('keeps the variable tip under its symbol when the symbol moves while shown', async () => {
+    // KaTeX's faces arrive after the symbol is focused and move it; a tip
+    // measured once on focus would stay where the fallback glyph was.
+    const fonts = new EventTarget()
+    const previous = Object.getOwnPropertyDescriptor(document, 'fonts')
+    Object.defineProperty(document, 'fonts', { configurable: true, value: fonts })
+    try {
+      const vars = resolveFormulaVariables(formula, panel, frame, 'en')
+      const { container } = render(() => <FormulaView formula={formula} variables={vars} />)
+      await waitFor(() => expect(container.querySelector('[data-var="N"]')).not.toBeNull())
+      const symbol = container.querySelector<HTMLElement>('[data-var="N"]')!
+      let rect = { left: 100, width: 20, bottom: 50 }
+      symbol.getBoundingClientRect = () => ({ ...rect, right: rect.left + rect.width, top: rect.bottom - 20, height: 20, x: rect.left, y: rect.bottom - 20, toJSON: () => rect }) as DOMRect
+      symbol.dispatchEvent(new FocusEvent('focus'))
+      const tip = () => container.querySelector<HTMLElement>('[role="tooltip"]')
+      await waitFor(() => expect(tip()).not.toBeNull())
+      expect(tip()!.style.left).toBe('110px')
+      expect(tip()!.style.top).toBe('56px')
+
+      rect = { left: 104, width: 22, bottom: 52 }
+      fonts.dispatchEvent(new Event('loadingdone'))
+      await waitFor(() => expect(tip()!.style.left).toBe('115px'))
+      expect(tip()!.style.top).toBe('58px')
+
+      rect = { left: 40, width: 22, bottom: 30 }
+      globalThis.dispatchEvent(new Event('scroll'))
+      await waitFor(() => expect(tip()!.style.left).toBe('51px'))
+
+      symbol.dispatchEvent(new FocusEvent('blur'))
+      await waitFor(() => expect(tip()).toBeNull())
+    } finally {
+      if (previous) Object.defineProperty(document, 'fonts', previous)
+      else delete (document as { fonts?: unknown }).fonts
+    }
+  })
+
   it('reports invalid LaTeX and keeps rendering', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const onError = vi.fn()

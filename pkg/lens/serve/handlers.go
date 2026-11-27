@@ -258,8 +258,8 @@ func (h *Handlers) queuePanelResult(
 	if validationErr != nil {
 		return immediatePanelResult(panelError(document.QueryErrorBadRequest, validationErr.Error()))
 	}
-	if req.Recompute {
-		if calculation, ok := snapshot.Panels[panelSpec.ID]; ok && time.Since(calculation.CalculatedAt) < recomputeCooldown {
+	if req.Recompute && h.recomputeCooldown > 0 {
+		if calculation, ok := snapshot.Panels[panelSpec.ID]; ok && time.Since(calculation.CalculatedAt) < h.recomputeCooldown {
 			return immediatePanelResult(panelError(document.QueryErrorBadRequest, "panel was recomputed recently"))
 		}
 	}
@@ -374,7 +374,7 @@ func (h *Handlers) queuePanelValue(
 		base := thawRuntimeRequest(current, latest.Params)
 		base.Recompute = req.Recompute
 		base.ExecutionClass = datasourceExecutionClass(priority)
-		executed, err := h.engine.Execute(workCtx, h.spec, base, lensruntime.PanelScope(panelSpec.ID))
+		executed, err := h.engine.Execute(withRecompute(workCtx, req.Recompute), h.spec, base, lensruntime.PanelScope(panelSpec.ID))
 		if err != nil {
 			return nil, err
 		}
@@ -840,7 +840,7 @@ func (h *Handlers) startBackgroundPrefetch(
 				continue
 			}
 			key := "level:" + snapshot.ID + ":" + string(target.cacheRef())
-			result := session.submit(context.WithoutCancel(base), key, priorityIdlePrefetch, order, func(ctx context.Context) (any, error) {
+			result := session.submit(withRecompute(context.WithoutCancel(base), false), key, priorityIdlePrefetch, order, func(ctx context.Context) (any, error) {
 				return h.materializeAggregate(ctx, snapshot.ID, current, target)
 			})
 			loaded := <-result.result

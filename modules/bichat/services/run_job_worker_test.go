@@ -587,6 +587,12 @@ func TestRunJobWorker_BusyJobRemainsPendingWhenFIFOStorageFails(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(1), pending.Count)
 	fifo.SetError("")
+	// miniredis rejects MULTI itself while the error is set, and go-redis can return that
+	// transaction's connection to the pool with replies still unread; the next transaction on it
+	// then reads a stale "+OK". Recovery is exercised on a fresh connection, as after a real outage.
+	recovered := redis.NewClient(&redis.Options{Addr: fifo.Addr()})
+	t.Cleanup(func() { _ = recovered.Close() })
+	sessionQueue.client = recovered
 	require.NoError(t, worker.processMessage(ctx, message))
 	head, ok, err := sessionQueue.Pop(ctx, payload.TenantID, payload.SessionID)
 	require.NoError(t, err)

@@ -651,7 +651,10 @@ jobs:
           DB_NAME: iota_erp
           DB_USER: postgres
           DB_PASSWORD: postgres
-        run: go test -tags dev -count=1 -v ./... -coverprofile=coverage.out -covermode=atomic
+        # Every DB test package migrates its own databases against one shared Postgres, so a package's
+        # wall time depends on the runner's load: core/services took 393 s in one release verify and
+        # over 600 s in the next with no test hung. Go's default 10 m package timeout is too tight.
+        run: go test -tags dev -count=1 -timeout 25m -v ./... -coverprofile=coverage.out -covermode=atomic
 
       - name: Generate coverage report
         env:

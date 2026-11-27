@@ -8,9 +8,11 @@ import (
 )
 
 const (
-	QueryFilter    = "_f"
-	QueryDimension = "_dim"
-	QueryGroupBy   = "_groupby"
+	QueryFilter       = "_f"
+	QueryDimension    = "_dim"
+	QueryGroupBy      = "_groupby"
+	QueryLeaf         = "_leaf"
+	UnknownDrillValue = "__unknown__"
 )
 
 type DimensionFilter struct {
@@ -23,6 +25,9 @@ type DrillContext struct {
 	Filters         []DimensionFilter
 	ActiveDimension string
 	GroupBy         string
+	// Leaf explicitly requests the cube's leaf view (e.g. via _leaf=1) while
+	// keeping all active drill filters and period parameters intact.
+	Leaf bool
 	// Request preserves non-drill query state (period comparison, external
 	// controls) for cube compilation. Encode still emits only cube state.
 	Request url.Values
@@ -55,7 +60,40 @@ func ParseDrillContext(values url.Values) DrillContext {
 	if ctx.GroupBy == "" {
 		ctx.GroupBy = ctx.ActiveDimension
 	}
+	leafRaw := strings.ToLower(strings.TrimSpace(values.Get(QueryLeaf)))
+	ctx.Leaf = leafRaw == "1" || leafRaw == "true"
 	return ctx
+}
+
+// ParseDrillContextNormalized parses cube drill state like ParseDrillContext,
+// normalizing empty filter values ("dimension:") to emptyValue (defaulting to
+// UnknownDrillValue) so "unknown/null" buckets are preserved instead of dropped.
+func ParseDrillContextNormalized(values url.Values, emptyValue string) DrillContext {
+	emptyValue = strings.TrimSpace(emptyValue)
+	if emptyValue == "" {
+		emptyValue = UnknownDrillValue
+	}
+	raw, ok := values[QueryFilter]
+	if !ok {
+		return ParseDrillContext(values)
+	}
+	normalized := make([]string, len(raw))
+	changed := false
+	for i, item := range raw {
+		dimension, value, hasColon := strings.Cut(strings.TrimSpace(item), ":")
+		if hasColon && strings.TrimSpace(dimension) != "" && strings.TrimSpace(value) == "" {
+			normalized[i] = strings.TrimSpace(dimension) + ":" + emptyValue
+			changed = true
+			continue
+		}
+		normalized[i] = item
+	}
+	if !changed {
+		return ParseDrillContext(values)
+	}
+	out := cloneValues(values)
+	out[QueryFilter] = normalized
+	return ParseDrillContext(out)
 }
 
 func (c DrillContext) Encode() url.Values {
@@ -72,6 +110,9 @@ func (c DrillContext) Encode() url.Values {
 	}
 	if trimmed := c.normalizedGroupBy(); trimmed != "" {
 		values.Set(QueryGroupBy, trimmed)
+	}
+	if c.Leaf {
+		values.Set(QueryLeaf, "1")
 	}
 	return values
 }
@@ -158,6 +199,14 @@ func (c DrillContext) RemainingDimensions(spec CubeSpec) []DimensionSpec {
 }
 
 func (c DrillContext) IsLeaf(spec CubeSpec) bool {
+	if len(spec.DrillPath) > 0 {
+		for _, name := range spec.DrillPath {
+			if !c.ContainsDimension(name) {
+				return false
+			}
+		}
+		return true
+	}
 	if len(spec.Dimensions) == 0 {
 		return false
 	}
@@ -177,12 +226,17 @@ func (c DrillContext) Breadcrumbs(spec CubeSpec, baseURL string) []Breadcrumb {
 	crumbs := make([]Breadcrumb, 0, len(c.Filters))
 	for idx, filter := range c.Filters {
 		part := c
+		part.Leaf = false
 		part.Filters = append(append([]DimensionFilter(nil), c.Filters[:idx]...), c.Filters[idx+1:]...)
+		displayValue := filter.Value
+		if dim, ok := spec.Dimension(filter.Dimension); ok {
+			displayValue = dim.DisplayLabel(filter.Value)
+		}
 		crumbs = append(crumbs, Breadcrumb{
 			URL:       mergeURL(baseURL, part.Encode()),
 			Dimension: filter.Dimension,
 			Label:     firstNonEmpty(dimensions[filter.Dimension], filter.Dimension),
-			Value:     filter.Value,
+			Value:     displayValue,
 		})
 	}
 	return crumbs
@@ -193,6 +247,7 @@ func (c DrillContext) WithValues(values url.Values) url.Values {
 	delete(merged, QueryFilter)
 	delete(merged, QueryDimension)
 	delete(merged, QueryGroupBy)
+	delete(merged, QueryLeaf)
 	delete(merged, QueryFacet)
 	delete(merged, QueryFacetSearch)
 	for _, filter := range c.Filters {
@@ -207,6 +262,9 @@ func (c DrillContext) WithValues(values url.Values) url.Values {
 	if trimmed := c.normalizedGroupBy(); trimmed != "" {
 		merged.Set(QueryGroupBy, trimmed)
 	}
+	if c.Leaf {
+		merged.Set(QueryLeaf, "1")
+	}
 	return merged
 }
 
@@ -215,6 +273,7 @@ func Strip(values url.Values) url.Values {
 	delete(clean, QueryFilter)
 	delete(clean, QueryDimension)
 	delete(clean, QueryGroupBy)
+	delete(clean, QueryLeaf)
 	delete(clean, QueryFacet)
 	delete(clean, QueryFacetSearch)
 	return clean
@@ -236,11 +295,16 @@ func drillMeta(spec CubeSpec, drillCtx DrillContext, baseURL string, remaining [
 		})
 	}
 	for _, filter := range drillCtx.Filters {
+		dim, hasDim := spec.Dimension(filter.Dimension)
 		for _, value := range filter.values() {
+			display := value
+			if hasDim {
+				display = dim.DisplayLabel(value)
+			}
 			meta.Filters = append(meta.Filters, lens.DrillFilterMeta{
 				Dimension: filter.Dimension,
 				Value:     value,
-				Display:   value,
+				Display:   display,
 			})
 		}
 	}
@@ -258,6 +322,7 @@ func (c DrillContext) clone() DrillContext {
 		Filters:         make([]DimensionFilter, len(c.Filters)),
 		ActiveDimension: c.ActiveDimension,
 		GroupBy:         c.GroupBy,
+		Leaf:            c.Leaf,
 		Request:         cloneValues(c.Request),
 	}
 	for idx, filter := range c.Filters {

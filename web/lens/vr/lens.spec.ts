@@ -775,6 +775,15 @@ for (const [storyId, canvasCount, maxDiffPixels] of staticStories) {
       // the loading and invalid-LaTeX cards are meant to stay unready.
       await expect(page.locator('.lens-formula[data-state="ready"]').first()).toBeVisible()
       await expect(page.locator('[data-var="N"]:focus')).toHaveCount(1)
+      // The variable's tip is fixed to the viewport; capture only once it sits
+      // under the symbol as laid out now (in KaTeX's own faces), not where the
+      // symbol was when focus arrived.
+      await expect.poll(async () => page.evaluate(() => {
+        const symbol = document.querySelector('[data-var="N"]:focus')?.getBoundingClientRect()
+        const tip = document.querySelector('.lens-formula-tip')?.getBoundingClientRect()
+        if (!symbol || !tip) return undefined
+        return Math.round(Math.abs((tip.left + tip.width / 2) - (symbol.left + symbol.width / 2)) * 10) / 10
+      })).toBeLessThanOrEqual(0.5)
     }
     if (storyId.startsWith('filter-controls--dashboard-filter-chips')) {
       // The chip kit loads lazily; the open story clicks its chip once it mounts.
@@ -1804,7 +1813,13 @@ async function investigationSettled(page: Page, storyId: string): Promise<void> 
     else await expect(page.getByTestId('drill-save')).toBeVisible()
   }
   if (storyId.includes('save-form')) await expect(page.getByTestId('investigation-name')).toBeFocused()
-  if (storyId.includes('save-failed')) await expect(page.getByTestId('save-investigation').getByRole('alert')).toBeVisible()
+  if (storyId.includes('save-failed')) {
+    await expect(page.getByTestId('save-investigation').getByRole('alert')).toBeVisible()
+    // The story focuses the name field first and then submits; the field is
+    // disabled while saving, so the failed state has no focus ring on it. A
+    // ring here means the dialog's initial focus landed after the failure.
+    await expect(page.getByTestId('investigation-name')).not.toBeFocused()
+  }
   if (storyId.includes('adding-failed')) await expect(page.getByTestId('investigation-add-failed')).toBeVisible()
   if (storyId.includes('expired')) await expect(page.getByTestId('snapshot-expired')).toBeVisible()
   if (storyId.includes('records-and-back')) await expect(page.locator('.lens-trail-current')).toHaveText('Regions')
