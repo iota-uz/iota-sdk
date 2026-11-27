@@ -2,6 +2,8 @@ package engine
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -95,16 +97,20 @@ type DryRunInput struct {
 // call is in flight still makes that call. The fence keeps such a repeat from being paid twice where the
 // provider can deduplicate it, and bounds it where the provider cannot:
 //
-//   - every real call carries the idempotency key Scope:node:n (the n-th call of the node in the dry
-//     run), the same for every holder of the work, so a provider that deduplicates by key
-//     (catalog.SupportsIdempotencyKey) makes a repeated call once;
+//   - every real call carries the idempotency key Scope:node:n:digest (the n-th call of the node in the
+//     dry run, and a digest of the request it renders: its params and step context), the same for every
+//     holder that renders the same request, so a provider that deduplicates by key
+//     (catalog.SupportsIdempotencyKey) makes a repeated call once; a repeat that renders a different
+//     request (the automation's memory changed in between) gets another key, never the first answer;
 //   - Hold is asked right before each real call; once it fails the dry run makes no further call and
 //     DryRun returns its error;
 //   - Strict refuses (ErrUnfenced) a real call of a node that cannot deduplicate.
 //
-// Residual risk without Strict: a node whose provider cannot deduplicate may be paid twice for the call
-// that was in flight (or past its Hold) when the lease passed: at most one call per example the superseded
-// holder was running.
+// Residual risk without Strict: the next holder replays the unit of work from its start, so a node whose
+// provider cannot deduplicate may be paid again for every call the superseded holder made in it (the
+// completed ones and the one in flight or past its Hold when the lease passed): at most the calls of one
+// unit (a dry run's MaxCalls) per unit the superseded holder was running. Hold only keeps the superseded
+// holder from making the calls after those.
 type CallFence interface {
 	// Scope is the stable part of the calls' idempotency keys: what identifies the unit of work (a
 	// backtest and an example), never the holder or its lease.
@@ -115,9 +121,16 @@ type CallFence interface {
 	Strict() bool
 }
 
-// fencedKey is the idempotency key of the n-th call of a node under a fence.
-func fencedKey(scope, node string, n int) string {
-	return scope + ":" + node + ":" + strconv.Itoa(n)
+// fencedKey is the idempotency key of the n-th call of a node under a fence: the same request (params
+// and step context, as JSON with sorted keys) has the same key whoever renders it, a different one
+// another key. A request with no JSON form gets a key of its own (never deduplicated).
+func fencedKey(scope, node string, n int, params, stepCtx map[string]any) string {
+	digest := uuid.NewString()
+	if b, err := json.Marshal([]any{params, stepCtx}); err == nil {
+		sum := sha256.Sum256(b)
+		digest = hex.EncodeToString(sum[:12])
+	}
+	return scope + ":" + node + ":" + strconv.Itoa(n) + ":" + digest
 }
 
 // DryRunResult is the trace of a dry run.
@@ -348,7 +361,7 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 			key := "dry-run:" + uuid.NewString()
 			if in.Fence != nil {
 				calls[node.ID]++
-				key = fencedKey(in.Fence.Scope(), node.ID, calls[node.ID])
+				key = fencedKey(in.Fence.Scope(), node.ID, calls[node.ID], params, stepCtx)
 			}
 			res := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params, context: stepCtx, templated: templated,
 				subject: normSubject(in.Subject), key: key, decisions: mode, budget: budget, realCalls: in.RealCalls, fence: in.Fence})

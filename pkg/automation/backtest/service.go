@@ -55,10 +55,12 @@ type Config struct {
 	LeaseTTL     time.Duration
 	Parallel     int
 	// StrictFencing refuses a backtest that would pay a decision whose provider cannot deduplicate a
-	// repeated call (catalog.SupportsIdempotencyKey): a worker that stalls past LeaseTTL with such a call
-	// in flight may have it paid again by the worker that takes the backtest over. Off (the default), the
-	// backtest runs and that risk is bounded to the calls in flight when the lease passes (one in a live
-	// backtest, which runs one example at a time; see engine.CallFence).
+	// repeated call (catalog.SupportsIdempotencyKey): a worker that stalls past LeaseTTL in the middle of
+	// an example may have that example's calls paid again by the worker that takes the backtest over and
+	// replays it. Off (the default), the backtest runs and that risk is bounded to the calls the superseded
+	// worker made in the examples it had not finished: at most one example's calls (callsPerExample) in a
+	// live backtest, which runs one example at a time; up to Parallel examples' in a person's cached one
+	// (see engine.CallFence).
 	StrictFencing bool
 	Logger        *slog.Logger
 	// Now is the clock (default time.Now).

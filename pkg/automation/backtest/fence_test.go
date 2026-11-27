@@ -18,7 +18,7 @@ import (
 )
 
 // provider is a paid decision provider. With dedupe it answers a repeated idempotency key with the first
-// call's answer and charges once; hold, when set, keeps the first call in flight until it is closed.
+// call's answer and charges once; hold, when set, keeps the holdAt-th call in flight until it is closed.
 type provider struct {
 	dedupe bool
 	mu     sync.Mutex
@@ -26,7 +26,8 @@ type provider struct {
 	seen   map[string]bool
 	charge int // the calls charged
 	hold   chan struct{}
-	inside chan struct{} // closed when the first call is in flight
+	holdAt int           // the call (1-based) hold keeps in flight
+	inside chan struct{} // closed when that call is in flight
 }
 
 func newProvider(dedupe bool) *provider {
@@ -35,15 +36,15 @@ func newProvider(dedupe bool) *provider {
 
 func (p *provider) call(key string) {
 	p.mu.Lock()
-	first := len(p.keys) == 0
 	p.keys = append(p.keys, key)
+	held := len(p.keys) == p.holdAt
 	if !p.dedupe || !p.seen[key] {
 		p.charge++
 	}
 	p.seen[key] = true
 	hold := p.hold
 	p.mu.Unlock()
-	if first && hold != nil {
+	if held && hold != nil {
 		close(p.inside)
 		// A provider that took the request finishes it whether or not the caller still waits.
 		<-hold
@@ -62,10 +63,10 @@ func (p *provider) charged() int {
 	return p.charge
 }
 
-func (p *provider) setHold(h chan struct{}) {
+func (p *provider) setHold(h chan struct{}, at int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.hold = h
+	p.hold, p.holdAt = h, at
 }
 
 // decide is a decision node of provider; keyed reports provider-side deduplication
@@ -158,12 +159,12 @@ func resultCount(t *testing.T, e *env, id backtest.BacktestID) int {
 	return n
 }
 
-// stallMidCall runs one worker until its first provider call is in flight, takes the lease from it while
+// stallMidCall runs one worker until its at-th provider call is in flight, takes the lease from it while
 // the call is still being made, then lets the call finish and waits for that worker to stop.
-func stallMidCall(t *testing.T, e *env, p *provider, id backtest.BacktestID) {
+func stallMidCall(t *testing.T, e *env, p *provider, id backtest.BacktestID, at int) {
 	t.Helper()
 	hold := make(chan struct{})
-	p.setHold(hold)
+	p.setHold(hold, at)
 	done := make(chan error, 1)
 	go func() {
 		_, err := e.svc.RunOnce(context.Background())
@@ -172,7 +173,7 @@ func stallMidCall(t *testing.T, e *env, p *provider, id backtest.BacktestID) {
 	select {
 	case <-p.inside:
 	case <-time.After(30 * time.Second):
-		t.Fatal("the first call was not made")
+		t.Fatal("the held call was not made")
 	}
 	supersede(t, e, id)
 	close(hold)
@@ -182,55 +183,55 @@ func stallMidCall(t *testing.T, e *env, p *provider, id backtest.BacktestID) {
 	case <-time.After(30 * time.Second):
 		t.Fatal("the superseded worker did not stop")
 	}
-	p.setHold(nil)
+	p.setHold(nil, 0)
 }
 
-// A worker whose lease is taken while a live call is in flight makes that call (it cannot be recalled)
-// but no further one, and keeps no result. The worker that takes the backtest over repeats the call
-// under the same idempotency key, so a provider that deduplicates by key is paid once for it.
-func TestSupersededLeaseMidCallIsPaidOnce(t *testing.T) {
-	p := newProvider(true)
-	e := newFenceEnv(t, p, true, true)
-	id, err := runLive(t, e, datasetOfOne(t, e))
-	require.NoError(t, err)
+// The lease passes while a worker is inside a live call of the example: after d1's call (at 1), or
+// after d1 completed and while d2's call is in flight (at 2). The superseded worker makes no call after
+// the one in flight and keeps no result; the next worker replays the example from its trigger, every
+// call under the key of the superseded one's same call.
+func TestSupersededLeaseMidCall(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		at     int // the call in flight when the lease passes
+		dedupe bool
+		paid   int // the calls charged in the end
+	}{
+		// A provider that deduplicates by key is paid once per decision, whatever was in flight.
+		{name: "first call, dedupe", at: 1, dedupe: true, paid: 2},
+		{name: "second call, dedupe", at: 2, dedupe: true, paid: 2},
+		// The residual risk of one that cannot (fencing not strict): every call the superseded worker
+		// made in the example is paid again, the completed prefix included; nothing after them.
+		{name: "first call, no dedupe", at: 1, dedupe: false, paid: 3},
+		{name: "second call, no dedupe", at: 2, dedupe: false, paid: 4},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newProvider(tc.dedupe)
+			e := newFenceEnv(t, p, tc.dedupe, tc.dedupe)
+			id, err := runLive(t, e, datasetOfOne(t, e))
+			require.NoError(t, err)
 
-	stallMidCall(t, e, p, id)
-	first := p.calls()
-	require.Len(t, first, 1, "the superseded worker makes no call after the one in flight")
-	assert.Contains(t, first[0], "backtest:"+id.String()+":")
-	assert.Contains(t, first[0], ":d1:1")
-	assert.Zero(t, resultCount(t, e, id), "the superseded worker keeps no result")
+			stallMidCall(t, e, p, id, tc.at)
+			stalled := p.calls()
+			require.Len(t, stalled, tc.at, "the superseded worker makes no call after the one in flight")
+			assert.Contains(t, stalled[0], "backtest:"+id.String()+":")
+			assert.Contains(t, stalled[0], ":d1:1:")
+			assert.Zero(t, resultCount(t, e, id), "the superseded worker keeps no result")
 
-	// The next worker claims the backtest and runs the example again.
-	expire(t, e, id)
-	e.drain()
-	keys := p.calls()
-	require.Len(t, keys, 3, "d1 repeated, then d2")
-	assert.Equal(t, first[0], keys[1], "the repeat carries the key of the superseded call")
-	assert.Contains(t, keys[2], ":d2:1")
-	assert.Equal(t, 2, p.charged(), "every decision is paid once")
-	rep, err := e.svc.Report(context.Background(), e.human(), id)
-	require.NoError(t, err)
-	assert.Equal(t, backtest.StatusDone, rep.Backtest.Status, rep.Backtest.Error)
-	assert.Equal(t, 1, resultCount(t, e, id))
-}
-
-// The residual risk of a provider that cannot deduplicate (fencing not strict): the call in flight when
-// the lease passed is paid again by the next worker; the rest of the example is not.
-func TestSupersededLeaseWithoutDedupePaysOnlyTheCallInFlightTwice(t *testing.T) {
-	p := newProvider(false)
-	e := newFenceEnv(t, p, false, false)
-	id, err := runLive(t, e, datasetOfOne(t, e))
-	require.NoError(t, err)
-
-	stallMidCall(t, e, p, id)
-	require.Len(t, p.calls(), 1)
-	expire(t, e, id)
-	e.drain()
-	keys := p.calls()
-	require.Len(t, keys, 3)
-	assert.Equal(t, keys[0], keys[1], "the same key; the provider ignores it")
-	assert.Equal(t, 3, p.charged(), "the call in flight is paid twice, nothing else")
+			// The next worker claims the backtest and runs the example again from its trigger.
+			expire(t, e, id)
+			e.drain()
+			keys := p.calls()
+			require.Len(t, keys, tc.at+2, "d1 and d2 again")
+			assert.Equal(t, stalled, keys[tc.at:tc.at+len(stalled)], "each repeat carries the key of the superseded call")
+			assert.Contains(t, keys[len(keys)-1], ":d2:1:")
+			assert.Equal(t, tc.paid, p.charged())
+			rep, err := e.svc.Report(context.Background(), e.human(), id)
+			require.NoError(t, err)
+			assert.Equal(t, backtest.StatusDone, rep.Backtest.Status, rep.Backtest.Error)
+			assert.Equal(t, 1, resultCount(t, e, id))
+		})
+	}
 }
 
 // Strict fencing refuses up front a backtest that would pay a provider that cannot deduplicate.
