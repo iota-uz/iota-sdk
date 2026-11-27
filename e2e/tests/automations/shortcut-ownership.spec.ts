@@ -16,8 +16,8 @@ test.describe('automations: shortcut ownership', () => {
 		await expect(page.locator('.ae-canvas')).toBeVisible();
 		await expect(page.locator('.ae-editor')).toHaveAttribute('data-claim-shortcuts', /(^| )mod\+k( |$)/);
 
-		// Focus on the canvas.
-		await page.locator('.ae-canvas').click({ position: { x: 400, y: 300 } });
+		// Focus on the canvas, clicked above the empty-state card that covers its middle.
+		await page.locator('.ae-canvas').click({ position: { x: 500, y: 40 } });
 		await page.keyboard.press('ControlOrMeta+k');
 		await expect(page.locator('.ae-palette')).toBeVisible();
 		await expect(search(page)).toBeHidden();

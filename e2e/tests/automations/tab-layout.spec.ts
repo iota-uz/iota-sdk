@@ -4,7 +4,7 @@
  */
 import { test, expect, type Page } from '../../fixtures/test';
 import { login } from '../../fixtures/auth';
-import { ADMIN, PASSWORD } from './inbox';
+import { ADMIN, PASSWORD, createGraph } from './inbox';
 
 const boxes = (page: Page) =>
 	page.evaluate(() => {
@@ -30,8 +30,12 @@ test.describe('automations: Edit and Runs share one layout', () => {
 		test(`nav, avatar, title and tabs stand still between the tabs (${width} px)`, async ({ page }) => {
 			await page.setViewportSize({ width, height: 900 });
 			await login(page, ADMIN, PASSWORD);
-			await page.goto('/automations/new');
+			// The Runs tab belongs to a saved automation: /automations/new has none.
+			await page.goto('/automations');
+			const id = await createGraph(page, `Layout ${width}`);
+			await page.goto(`/automations/${id}`);
 			await expect(page.locator('.ae-canvas')).toBeVisible();
+			await expect(page.locator('.ae-toolbar__name')).toBeVisible();
 			const edit = await boxes(page);
 			await page.getByTestId('tab-runs').click();
 			await expect(page.locator('.ae-runs-tab')).toBeVisible();
