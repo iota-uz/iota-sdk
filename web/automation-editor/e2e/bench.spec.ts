@@ -139,19 +139,19 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
     // what is measured is the glide after it.
     // The glide ends when the canvas drops its gliding class; the routing for the new layout after it is
     // Tidy's own work, the same without a glide.
-    const start = await page.evaluate(() => {
-      const w = window as unknown as { __glideEnd?: number }
-      w.__glideEnd = undefined
+    // One evaluate that resolves when the glide ends: nothing polls the page while it glides.
+    const { start, end } = await page.evaluate(() => new Promise<{ start: number; end: number }>((resolve) => {
       const canvas = document.querySelector('.ae-canvas')!
+      let begun = 0
       const watch = new MutationObserver(() => {
-        if (!canvas.classList.contains('ae-canvas--tidying')) { w.__glideEnd = performance.now(); watch.disconnect() }
+        if (canvas.classList.contains('ae-canvas--tidying')) return
+        watch.disconnect()
+        resolve({ start: begun, end: performance.now() })
       })
       window.__fixture.tidy!()
+      begun = performance.now()
       watch.observe(canvas, { attributes: true, attributeFilter: ['class'] })
-      return performance.now()
-    })
-    await expect.poll(() => page.evaluate(() => (window as unknown as { __glideEnd?: number }).__glideEnd ?? 0)).toBeGreaterThan(0)
-    const end = await page.evaluate(() => (window as unknown as { __glideEnd: number }).__glideEnd)
+    }))
     await page.waitForTimeout(300)
     glides.push(await page.evaluate(({ start, end }) => {
       const w = window as unknown as { __longTasks: { start: number; duration: number }[]; __frames: number[] }
