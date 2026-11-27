@@ -39,7 +39,7 @@ type squashedBaseline struct {
 // readSquashedBaselines returns the baselines among source, read from the
 // directive header of each migration file in dir.
 func readSquashedBaselines(dir string, source []*migrate.Migration) ([]squashedBaseline, error) {
-	var baselines []squashedBaseline
+	baselines := make([]squashedBaseline, 0, 1)
 	present := make(map[string]struct{}, len(source))
 	for _, mig := range source {
 		present[mig.Id] = struct{}{}
@@ -144,7 +144,8 @@ func (e *PartialSquashedHistoryError) Error() string {
 // ids from the tracking table in the same transaction. It updates applied in
 // place. A baseline none of whose migrations are applied is left pending, and
 // runs like any other migration.
-func adoptSquashedBaselines(ctx context.Context, conn *pgx.Conn, baselines []squashedBaseline, applied map[string]struct{}) (adopted []string, err error) {
+func adoptSquashedBaselines(ctx context.Context, conn *pgx.Conn, baselines []squashedBaseline, applied map[string]struct{}) ([]string, error) {
+	adopted := make([]string, 0, len(baselines))
 	for _, b := range baselines {
 		if _, ok := applied[b.id]; ok {
 			// Adopted elsewhere (by hand, or by a consumer's own tooling) with

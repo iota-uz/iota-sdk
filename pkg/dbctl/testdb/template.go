@@ -79,7 +79,9 @@ func migrationsFingerprintFS(fsys fs.FS) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		fmt.Fprintf(hash, "%s\x00%d\x00", name, len(body))
+		if _, err := fmt.Fprintf(hash, "%s\x00%d\x00", name, len(body)); err != nil {
+			return "", err
+		}
 		hash.Write(body)
 	}
 	return hex.EncodeToString(hash.Sum(nil)), nil
@@ -203,10 +205,12 @@ func ensureTemplate(ctx context.Context, db dbconfig.Config, name string, build 
 	})
 }
 
-func templateState(ctx context.Context, conn *sql.DB, name string) (ready, exists bool, err error) {
+// templateState reports whether name is a finished template (ready) and
+// whether a database of that name exists at all.
+func templateState(ctx context.Context, conn *sql.DB, name string) (bool, bool, error) {
 	var allowConn bool
 	var comment sql.NullString
-	err = conn.QueryRowContext(ctx, `
+	err := conn.QueryRowContext(ctx, `
 		SELECT datallowconn, shobj_description(oid, 'pg_database')
 		FROM pg_database WHERE datname = $1`, name).Scan(&allowConn, &comment)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -216,6 +220,27 @@ func templateState(ctx context.Context, conn *sql.DB, name string) (ready, exist
 		return false, false, fmt.Errorf("probe template %s: %w", name, err)
 	}
 	return !allowConn && strings.HasPrefix(comment.String, templateReadyMarker), true, nil
+}
+
+// staleTemplates reads (name, comment) rows and returns the ready templates
+// other than keep last used longer than templateRetention ago.
+func staleTemplates(rows *sql.Rows, keep string) ([]string, error) {
+	defer func() { _ = rows.Close() }()
+	var stale []string
+	for rows.Next() {
+		var name, comment string
+		if err := rows.Scan(&name, &comment); err != nil {
+			return stale, err
+		}
+		if name == keep || !strings.HasPrefix(comment, templateReadyMarker) {
+			continue
+		}
+		used, err := time.Parse(time.RFC3339, strings.TrimPrefix(comment, templateReadyMarker))
+		if err == nil && time.Since(used) > templateRetention {
+			stale = append(stale, name)
+		}
+	}
+	return stale, rows.Err()
 }
 
 func markTemplateUsed(ctx context.Context, conn *sql.DB, name string) error {
@@ -247,22 +272,10 @@ func pruneStaleTemplates(ctx context.Context, conn *sql.DB, keep string) {
 		log.Printf("[WARNING] list migrated templates: %v", err)
 		return
 	}
-	var stale []string
-	for rows.Next() {
-		var name, comment string
-		if err := rows.Scan(&name, &comment); err != nil {
-			log.Printf("[WARNING] list migrated templates: %v", err)
-			break
-		}
-		if name == keep || !strings.HasPrefix(comment, templateReadyMarker) {
-			continue
-		}
-		used, err := time.Parse(time.RFC3339, strings.TrimPrefix(comment, templateReadyMarker))
-		if err == nil && time.Since(used) > templateRetention {
-			stale = append(stale, name)
-		}
+	stale, err := staleTemplates(rows, keep)
+	if err != nil {
+		log.Printf("[WARNING] list migrated templates: %v", err)
 	}
-	_ = rows.Close()
 	for _, name := range stale {
 		if err := dropTemplate(ctx, conn, name); err != nil {
 			log.Printf("[WARNING] drop stale template %s: %v", name, err)

@@ -201,11 +201,12 @@ func resolveApplicationSource(src config.Source) (config.Source, *dbconfig.Confi
 		src = fallback
 	}
 	reg := config.NewRegistry(src)
-	cfg, err := config.Register[dbconfig.Config](reg)
-	if err != nil {
-		return src, nil, nil
+	// A source without a usable database config is not an error: the
+	// application then gets the no-op migrator.
+	if cfg, err := config.Register[dbconfig.Config](reg); err == nil {
+		return src, cfg, nil
 	}
-	return src, cfg, nil
+	return src, nil, nil
 }
 
 // setupApplicationWithSource bootstraps an application and composition container for tests.

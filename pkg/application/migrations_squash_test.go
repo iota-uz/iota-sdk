@@ -2,7 +2,6 @@ package application_test
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -77,7 +76,7 @@ func TestSquashedBaselineRejectsPartialHistory(t *testing.T) {
 
 	err := newManager(pool, squashedDir(t)).Run(ctx)
 	var partial *application.PartialSquashedHistoryError
-	require.True(t, errors.As(err, &partial), "got %v", err)
+	require.ErrorAs(t, err, &partial)
 	require.Equal(t, "0000_baseline.sql", partial.Baseline)
 	require.Equal(t, 1, partial.Applied)
 	require.Equal(t, []string{"0002_b.sql"}, partial.Missing)
