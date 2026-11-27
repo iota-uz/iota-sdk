@@ -119,9 +119,14 @@ func run() error {
 	if err := testdb.Seal(ctx, *name, db); err != nil {
 		return err
 	}
-	ready = true
-	return json.NewEncoder(os.Stdout).Encode(struct {
+	// The caller learns the baseline's name only from this result: if it
+	// cannot be written, the deferred drop removes the baseline.
+	if err := json.NewEncoder(os.Stdout).Encode(struct {
 		Database string          `json:"database"`
 		Manifest testdb.Manifest `json:"manifest"`
-	}{*name, manifest})
+	}{*name, manifest}); err != nil {
+		return err
+	}
+	ready = true
+	return nil
 }
