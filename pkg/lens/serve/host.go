@@ -49,7 +49,11 @@ func RecomputeRequested(ctx context.Context) bool {
 
 // WithRecompute marks ctx as an explicit user recompute request.
 func WithRecompute(ctx context.Context) context.Context {
-	return context.WithValue(ctx, hostRecomputeContextKey{}, true)
+	return withRecompute(ctx, true)
+}
+
+func withRecompute(ctx context.Context, recompute bool) context.Context {
+	return context.WithValue(ctx, hostRecomputeContextKey{}, recompute)
 }
 
 // CacheOptions configures parameter-keyed document reuse, bounded memory,
@@ -577,26 +581,33 @@ func (h *Host) Panel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reqCtx := r.Context()
 	hasRecompute := false
 	for _, panelReq := range req.Panels {
 		if panelReq.Recompute {
 			hasRecompute = true
-			reqCtx = WithRecompute(reqCtx)
 			break
 		}
+	}
+	reqCtx := r.Context()
+	resolveReq := r
+	if hasRecompute {
+		reqCtx = WithRecompute(reqCtx)
+		resolveReq = r.Clone(reqCtx)
 	}
 	if hasRecompute && h.recomputeCooldown > 0 {
 		if err := h.waitForRecomputeCooldown(reqCtx, req.SnapshotID, req.Panels); err != nil {
 			return
 		}
 	}
-	current, err := h.resolveRuntimeRequest(r)
+	current, err := h.resolveRuntimeRequest(resolveReq)
 	if err != nil {
 		h.writeInternalError(r.Context(), w, "lens/serve.Host.Panel", "request scope resolution failed", err)
 		return
 	}
-	proxy := r.Clone(context.WithValue(reqCtx, hostRuntimeRequestContextKey{}, current))
+	// Keep the request context unmarked here; Handlers.queuePanelValue sets the
+	// per-job recompute marker from each PanelRequest.Recompute so non-recompute
+	// siblings and background prefetch never inherit it.
+	proxy := r.Clone(context.WithValue(r.Context(), hostRuntimeRequestContextKey{}, current))
 	proxy.Body = io.NopCloser(bytes.NewReader(body))
 	entry.Handlers.Panel(w, proxy)
 }
@@ -764,10 +775,8 @@ func (h *Host) FacetOptions(w http.ResponseWriter, r *http.Request) {
 			ToggleURL: joinURLQuery(pagePath, toggled.WithValues(normalizedQuery)),
 		})
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "private, no-store")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(response)
+	writeJSON(w, http.StatusOK, response)
 }
 
 // ToggleFilter toggles one cube dimension filter value while preserving period
@@ -812,15 +821,26 @@ func (h *Host) toggleFilterURL(raw url.Values) (string, error) {
 		return "", fmt.Errorf("lens_filter_dimension and lens_filter_value are required")
 	}
 	target, err := url.Parse(targetPath)
-	if err != nil || target.IsAbs() || target.Host != "" || target.User != nil ||
+	if err != nil || target.IsAbs() || target.Scheme != "" || target.Host != "" || target.User != nil ||
+		target.RawQuery != "" || target.Fragment != "" ||
+		hasControlRune(targetPath) || hasControlRune(target.Path) ||
 		!strings.HasPrefix(target.Path, "/") || strings.HasPrefix(target.Path, "//") ||
-		strings.ContainsRune(targetPath, '\\') || target.RawQuery != "" ||
-		target.Path == h.endpoint("/toggle-filter") {
+		strings.ContainsRune(targetPath, '\\') || strings.ContainsRune(target.Path, '\\') {
+		return "", fmt.Errorf("invalid filter toggle target")
+	}
+	cleaned := path.Clean(target.Path)
+	if !strings.HasPrefix(cleaned, "/") || strings.HasPrefix(cleaned, "//") ||
+		strings.ContainsRune(cleaned, '\\') || cleaned == h.endpoint("/toggle-filter") {
 		return "", fmt.Errorf("invalid filter toggle target")
 	}
 	drillCtx := cube.ParseDrillContextNormalized(values, h.emptyDrillValue).ToggleFilter(dimension, value)
 	drillCtx.Leaf = false
-	return joinURLQuery(target.Path, drillCtx.WithValues(values)), nil
+	escapedPath := (&url.URL{Path: cleaned}).EscapedPath()
+	encodedQuery := drillCtx.WithValues(values).Encode()
+	if encodedQuery == "" {
+		return escapedPath, nil
+	}
+	return escapedPath + "?" + encodedQuery, nil
 }
 
 func (h *Host) resolveCubeFacetOptions(
@@ -844,10 +864,14 @@ func (h *Host) resolveCubeFacetOptions(
 		}
 		return cube.ResolveFacetOptions(ctx, resolved.Spec, drillCtx, dim.Name, search, h.facetLimit,
 			func(ctx context.Context, text string, params map[string]lens.ParamValue, maxRows int) ([]lens.DrillFacetOptionMeta, error) {
+				boundParams, paramErr := resolveFacetParams(resolved.Spec.Variables, params, runtimeReq)
+				if paramErr != nil {
+					return nil, paramErr
+				}
 				frames, err := ds.Run(ctx, datasource.QueryRequest{
 					Source:   resolved.Spec.DataSource,
 					Text:     text,
-					Params:   resolveLiteralAndQueryParams(params, runtimeReq),
+					Params:   boundParams,
 					Timezone: runtimeReq.Timezone,
 					Locale:   runtimeReq.Locale,
 					Kind:     datasource.QueryKindRaw,
@@ -885,18 +909,26 @@ func (h *Host) resolveCubeFacetOptions(
 		if ds == nil {
 			return nil, fmt.Errorf("datasource %q not configured", resolved.Spec.DataSource)
 		}
-		frames, err := ds.Run(ctx, datasource.QueryRequest{
-			Source:   resolved.Spec.DataSource,
-			Text:     resolved.Spec.NamedQuery,
-			Params:   resolveLiteralAndQueryParams(resolved.Spec.Params, runtimeReq),
-			Timezone: runtimeReq.Timezone,
-			Locale:   runtimeReq.Locale,
-			Kind:     datasource.QueryKindNamed,
-		})
-		if err != nil {
-			return nil, err
-		}
-		return cube.ResolveFacetOptionsFromFrames(resolved.Spec, frames, drillCtx, dim, search, h.facetLimit), nil
+		return cube.ResolveFacetOptions(ctx, resolved.Spec, drillCtx, dim.Name, search, h.facetLimit,
+			func(ctx context.Context, queryName string, params map[string]lens.ParamValue, _ int) ([]lens.DrillFacetOptionMeta, error) {
+				boundParams, paramErr := resolveFacetParams(resolved.Spec.Variables, params, runtimeReq)
+				if paramErr != nil {
+					return nil, paramErr
+				}
+				frames, err := ds.Run(ctx, datasource.QueryRequest{
+					Source:   resolved.Spec.DataSource,
+					Text:     queryName,
+					Params:   boundParams,
+					Timezone: runtimeReq.Timezone,
+					Locale:   runtimeReq.Locale,
+					Kind:     datasource.QueryKindNamed,
+				})
+				if err != nil {
+					return nil, err
+				}
+				return cube.ResolveFacetOptionsFromFrames(resolved.Spec, frames, drillCtx, dim, search, h.facetLimit), nil
+			},
+		)
 	default:
 		return nil, fmt.Errorf("unsupported cube mode %q", resolved.Spec.DataMode)
 	}
@@ -1168,6 +1200,15 @@ func joinURLQuery(base string, query url.Values) string {
 	return cleaned + "?" + query.Encode()
 }
 
+func hasControlRune(s string) bool {
+	for _, r := range s {
+		if r < 0x20 || r == 0x7f {
+			return true
+		}
+	}
+	return false
+}
+
 func canonicalQueryKey(values url.Values) string {
 	if len(values) == 0 {
 		return ""
@@ -1182,11 +1223,7 @@ func canonicalQueryKey(values url.Values) string {
 		if i > 0 {
 			b.WriteByte('&')
 		}
-		items := append([]string(nil), values[k]...)
-		if k != cube.QueryFilter {
-			sort.Strings(items)
-		}
-		for j, item := range items {
+		for j, item := range values[k] {
 			if j > 0 {
 				b.WriteByte('&')
 			}
@@ -1198,9 +1235,17 @@ func canonicalQueryKey(values url.Values) string {
 	return b.String()
 }
 
-func resolveLiteralAndQueryParams(params map[string]lens.ParamValue, req lensruntime.Request) map[string]any {
+func resolveFacetParams(variables []lens.VariableSpec, params map[string]lens.ParamValue, req lensruntime.Request) (map[string]any, error) {
 	if len(params) == 0 {
-		return nil
+		return map[string]any{}, nil
+	}
+	var resolvedVars map[string]any
+	if len(variables) > 0 {
+		var err error
+		resolvedVars, err = lensruntime.ResolveVariables(variables, req)
+		if err != nil {
+			return nil, err
+		}
 	}
 	out := make(map[string]any, len(params))
 	for key, param := range params {
@@ -1209,15 +1254,15 @@ func resolveLiteralAndQueryParams(params map[string]lens.ParamValue, req lensrun
 			continue
 		}
 		if param.Variable != "" {
+			if resolvedVars != nil {
+				if val, ok := resolvedVars[param.Variable]; ok {
+					out[key] = resolveBoundVariableParam(val, param.Part)
+					continue
+				}
+			}
 			if req.Overrides != nil {
 				if val, ok := req.Overrides[param.Variable]; ok {
-					if param.Part != "" {
-						if partVal, ok := lens.ResolveRangePart(val, param.Part); ok {
-							out[key] = partVal
-							continue
-						}
-					}
-					out[key] = val
+					out[key] = resolveBoundVariableParam(val, param.Part)
 					continue
 				}
 			}
@@ -1236,7 +1281,19 @@ func resolveLiteralAndQueryParams(params map[string]lens.ParamValue, req lensrun
 		}
 		out[key] = nil
 	}
-	return out
+	return out, nil
+}
+
+func resolveBoundVariableParam(val any, part lens.RangePart) any {
+	if part != "" {
+		if partVal, ok := lens.ResolveRangePart(val, part); ok {
+			return partVal
+		}
+	}
+	if comparison, ok := val.(lens.CompareValue); ok {
+		return comparison.Range
+	}
+	return val
 }
 
 func coerceInt(value any) int {

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -95,7 +96,7 @@ func buildTestCubeSpec(t *testing.T) cube.CubeSpec {
 			cube.Chart("top_agencies", panel.KindBar).Dimension("agency").Measure("premium").TopN(2).WithRemainder(),
 		).
 		DrillPath("agent_type", "agency").
-		Leaf(cube.LeafSpec{
+		LeafSpec(cube.LeafSpec{
 			Table: cube.LeafTable("policies_leaf", "Полисы"),
 			ExternalLink: func(_ context.Context, drill cube.DrillContext, _ map[string]any) string {
 				return "/portfolio/policies?" + drill.Encode().Encode()
@@ -281,7 +282,8 @@ func TestHost_CubeMode_CachingFacetsToggleLeafAndExport(t *testing.T) {
 	require.Equal(t, http.StatusGone, recCross.Code)
 
 	// 6. Release endpoint returns 204.
-	releaseBody, _ := json.Marshal(document.ReleaseRequest{SnapshotID: doc1.SnapshotID})
+	releaseBody, err := json.Marshal(document.ReleaseRequest{SnapshotID: doc1.SnapshotID})
+	require.NoError(t, err)
 	recRelease := httptest.NewRecorder()
 	router.ServeHTTP(recRelease, httptest.NewRequest(http.MethodPost, "/analytics/agent-program/lens/release", bytes.NewReader(releaseBody)))
 	require.Equal(t, http.StatusNoContent, recRelease.Code)
@@ -332,21 +334,23 @@ func TestHost_ProgressiveRecomputeCooldownWaitsGracefully(t *testing.T) {
 	require.Equal(t, "/analytics/progressive/lens/panel", doc.Endpoints.Panel)
 
 	// Step 2: Materialize panel initially.
-	panelReq, _ := json.Marshal(document.PanelBatchRequest{
+	started := time.Now()
+	panelReq, err := json.Marshal(document.PanelBatchRequest{
 		SnapshotID: doc.SnapshotID,
 		Panels:     []document.PanelRequest{{PanelID: "by_type"}},
 	})
+	require.NoError(t, err)
 	recPanel1 := httptest.NewRecorder()
 	handler.ServeHTTP(recPanel1, httptest.NewRequest(http.MethodPost, "/analytics/progressive/lens/panel", bytes.NewReader(panelReq)))
 	require.Equal(t, http.StatusOK, recPanel1.Code)
 	require.Equal(t, "identity", recPanel1.Header().Get("Content-Encoding"))
 
 	// Step 3: Immediately trigger Recompute=true within the 80ms cooldown.
-	started := time.Now()
-	recomputeReq, _ := json.Marshal(document.PanelBatchRequest{
+	recomputeReq, err := json.Marshal(document.PanelBatchRequest{
 		SnapshotID: doc.SnapshotID,
 		Panels:     []document.PanelRequest{{PanelID: "by_type", Recompute: true}},
 	})
+	require.NoError(t, err)
 	recPanel2 := httptest.NewRecorder()
 	handler.ServeHTTP(recPanel2, httptest.NewRequest(http.MethodPost, "/analytics/progressive/lens/panel", bytes.NewReader(recomputeReq)))
 	require.Equal(t, http.StatusOK, recPanel2.Code)
@@ -537,21 +541,23 @@ func TestHost_DashboardMode_ExplorationDrawerAndExportAuth(t *testing.T) {
 	require.Equal(t, "/analytics/custom/lens/drawer", doc.Endpoints.Drawer)
 
 	// 2. Query exploration level.
-	qBody, _ := json.Marshal(document.QueryRequest{
+	qBody, err := json.Marshal(document.QueryRequest{
 		SnapshotID:  doc.SnapshotID,
 		Path:        document.NodePath{"products"},
 		Perspective: "by_product",
 	})
+	require.NoError(t, err)
 	recQuery := httptest.NewRecorder()
 	handler.ServeHTTP(recQuery, httptest.NewRequest(http.MethodPost, "/analytics/custom/lens/query", bytes.NewReader(qBody)))
 	require.Equal(t, http.StatusOK, recQuery.Code, recQuery.Body.String())
 	require.Equal(t, int32(1), exploreExec.calls.Load())
 
 	// 3. Resolve drawer URL.
-	dBody, _ := json.Marshal(document.DrawerResolveRequest{
+	dBody, err := json.Marshal(document.DrawerResolveRequest{
 		SnapshotID: doc.SnapshotID,
 		MetricKey:  "premium_total",
 	})
+	require.NoError(t, err)
 	recDrawer := httptest.NewRecorder()
 	handler.ServeHTTP(recDrawer, httptest.NewRequest(http.MethodPost, "/analytics/custom/lens/drawer", bytes.NewReader(dBody)))
 	require.Equal(t, http.StatusOK, recDrawer.Code)
@@ -638,7 +644,7 @@ func TestHost_SQLCubeMode_FacetOptionsAndValidation(t *testing.T) {
 			cube.SplitRow(cube.Chart("by_product", panel.KindDonut).Dimension("product").Measure("policies")),
 		).
 		DrillPath("product").
-		Leaf(cube.LeafSpec{
+		LeafSpec(cube.LeafSpec{
 			ExternalLink: func(_ context.Context, drill cube.DrillContext, _ map[string]any) string {
 				return "/contracts?" + drill.Encode().Encode()
 			},
@@ -679,4 +685,370 @@ func TestHost_SQLCubeMode_FacetOptionsAndValidation(t *testing.T) {
 	require.Equal(t, "osago", facetResp.Options[0].Value)
 	require.Equal(t, "OSAGO Auto", facetResp.Options[0].Label)
 	require.Equal(t, 42, facetResp.Options[0].Count)
+}
+
+type recordingPanelExecutor struct {
+	base             engine.Executor
+	mu               sync.Mutex
+	recomputeByPanel map[string]bool
+	calls            atomic.Int32
+	delay            time.Duration
+}
+
+func (e *recordingPanelExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req lensruntime.Request, scope lensruntime.Scope) (*lensruntime.DashboardResult, error) {
+	e.calls.Add(1)
+	if len(scope.PanelIDs) > 0 {
+		e.mu.Lock()
+		if e.recomputeByPanel == nil {
+			e.recomputeByPanel = map[string]bool{}
+		}
+		for _, panelID := range scope.PanelIDs {
+			e.recomputeByPanel[panelID] = serve.RecomputeRequested(ctx)
+		}
+		e.mu.Unlock()
+	}
+	if e.delay > 0 && len(scope.PanelIDs) > 0 {
+		timer := time.NewTimer(e.delay)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+	return e.base.Execute(ctx, spec, req, scope)
+}
+
+func TestHost_PanelRecomputeScopingAndRequestResolverContext(t *testing.T) {
+	t.Parallel()
+
+	// Would be falsely green if non-recompute siblings inherited RecomputeRequested or Request resolver saw false.
+	rt := lensruntime.New(lensruntime.Options{})
+	exec := &recordingPanelExecutor{base: engine.New(rt).Executor()}
+
+	var reqResolverMu sync.Mutex
+	var reqResolverSawRecompute []bool
+
+	host, err := serve.NewHost(serve.HostConfig{
+		BasePath:    "/analytics/recompute/lens",
+		Executor:    exec,
+		Progressive: true,
+		Cache:       serve.CacheOptions{RecomputeCooldown: -1},
+		Request: func(r *http.Request) lensruntime.Request {
+			reqResolverMu.Lock()
+			reqResolverSawRecompute = append(reqResolverSawRecompute, serve.RecomputeRequested(r.Context()))
+			reqResolverMu.Unlock()
+			return lensruntime.Request{DataScope: "tenant-1", Locale: "en"}
+		},
+		ResolveCube: func(_ context.Context, _ *http.Request, _ cube.DrillContext) (serve.ResolvedCube, error) {
+			return serve.ResolvedCube{
+				Spec:    buildTestCubeSpec(t),
+				Request: lensruntime.Request{DataScope: "tenant-1", Locale: "en"},
+			}, nil
+		},
+	})
+	require.NoError(t, err)
+	defer host.Close()
+
+	handler := host.Handler()
+	recDoc := httptest.NewRecorder()
+	handler.ServeHTTP(recDoc, httptest.NewRequest(http.MethodGet, "/analytics/recompute/lens/document", nil))
+	require.Equal(t, http.StatusOK, recDoc.Code)
+	var doc document.DashboardDocument
+	require.NoError(t, json.Unmarshal(recDoc.Body.Bytes(), &doc))
+
+	// Ordinary panel load: Request resolver must see RecomputeRequested == false.
+	ordinaryBody, err := json.Marshal(document.PanelBatchRequest{
+		SnapshotID: doc.SnapshotID,
+		Panels:     []document.PanelRequest{{PanelID: "top_agencies", Recompute: false}},
+	})
+	require.NoError(t, err)
+	recOrd := httptest.NewRecorder()
+	handler.ServeHTTP(recOrd, httptest.NewRequest(http.MethodPost, "/analytics/recompute/lens/panel", bytes.NewReader(ordinaryBody)))
+	require.Equal(t, http.StatusOK, recOrd.Code)
+
+	reqResolverMu.Lock()
+	require.Equal(t, []bool{false}, reqResolverSawRecompute)
+	reqResolverSawRecompute = nil
+	reqResolverMu.Unlock()
+
+	// Mixed batch: by_type has Recompute=true, trend has Recompute=false (uncached).
+	mixedBody, err := json.Marshal(document.PanelBatchRequest{
+		SnapshotID: doc.SnapshotID,
+		Panels: []document.PanelRequest{
+			{PanelID: "by_type", Recompute: true},
+			{PanelID: "trend", Recompute: false},
+		},
+	})
+	require.NoError(t, err)
+	recMixed := httptest.NewRecorder()
+	handler.ServeHTTP(recMixed, httptest.NewRequest(http.MethodPost, "/analytics/recompute/lens/panel", bytes.NewReader(mixedBody)))
+	require.Equal(t, http.StatusOK, recMixed.Code)
+
+	reqResolverMu.Lock()
+	require.Equal(t, []bool{true}, reqResolverSawRecompute, "HostConfig.Request must observe recompute context")
+	reqResolverMu.Unlock()
+
+	exec.mu.Lock()
+	require.True(t, exec.recomputeByPanel["by_type"], "recompute panel job must see RecomputeRequested=true")
+	require.False(t, exec.recomputeByPanel["trend"], "non-recompute sibling must see RecomputeRequested=false")
+	exec.mu.Unlock()
+}
+
+func TestHost_ExportAdmissionBeforeMaterializationAndDeadline(t *testing.T) {
+	t.Parallel()
+
+	// Would be falsely green if BuildLimiter saturation still ran panels or Export.Timeout ignored panel materialization.
+	rt := lensruntime.New(lensruntime.Options{})
+	exec := &recordingPanelExecutor{base: engine.New(rt).Executor(), delay: 120 * time.Millisecond}
+	limiter := serve.NewReportBuildLimiter(1, 0)
+
+	host, err := serve.NewHost(serve.HostConfig{
+		BasePath:         "/analytics/exp/lens",
+		Executor:         exec,
+		ExecutionTimeout: 5 * time.Second,
+		Progressive:      true,
+		Cache: serve.CacheOptions{
+			BuildLimiter: limiter,
+		},
+		Export: serve.ExportOptions{
+			Timeout: 40 * time.Millisecond,
+		},
+		ResolveCube: func(_ context.Context, _ *http.Request, _ cube.DrillContext) (serve.ResolvedCube, error) {
+			return serve.ResolvedCube{
+				Spec:    buildTestCubeSpec(t),
+				Request: lensruntime.Request{DataScope: "tenant-1", Locale: "en"},
+			}, nil
+		},
+	})
+	require.NoError(t, err)
+	defer host.Close()
+
+	handler := host.Handler()
+	recDoc := httptest.NewRecorder()
+	handler.ServeHTTP(recDoc, httptest.NewRequest(http.MethodGet, "/analytics/exp/lens/document", nil))
+	require.Equal(t, http.StatusOK, recDoc.Code)
+	var doc document.DashboardDocument
+	require.NoError(t, json.Unmarshal(recDoc.Body.Bytes(), &doc))
+	callsAfterDoc := exec.calls.Load()
+
+	// 1. Saturate BuildLimiter: export must be rejected BEFORE submitting any panel jobs.
+	release, err := limiter.Acquire(context.Background())
+	require.NoError(t, err)
+	recBusy := httptest.NewRecorder()
+	handler.ServeHTTP(recBusy, httptest.NewRequest(http.MethodGet, "/analytics/exp/lens/export?snapshot="+url.QueryEscape(doc.SnapshotID), nil))
+	release()
+	require.Equal(t, http.StatusServiceUnavailable, recBusy.Code)
+	require.Equal(t, callsAfterDoc, exec.calls.Load(), "rejected export must not submit progressive panel jobs")
+
+	// 2. With capacity available, slow panel materialization exceeding Export.Timeout must return 504 Gateway Timeout.
+	recTimeout := httptest.NewRecorder()
+	handler.ServeHTTP(recTimeout, httptest.NewRequest(http.MethodGet, "/analytics/exp/lens/export?snapshot="+url.QueryEscape(doc.SnapshotID), nil))
+	require.Equal(t, http.StatusGatewayTimeout, recTimeout.Code)
+}
+
+func TestProjectPanelExportFields_PreservesTemporalOverlays(t *testing.T) {
+	t.Parallel()
+
+	// Would be falsely green if temporal overlay columns (e.g. sma_7) were dropped or unshown columns kept.
+	fs, err := frame.FromRows("series",
+		frame.Row{"period": "2026-01", "premium": 100.0, "sma_7": 95.0, "reg": 98.0, "internal_id": "secret-1"},
+	)
+	require.NoError(t, err)
+
+	p := panel.TimeSeries("trend", "Premium Trend", "series").
+		CategoryField("period").
+		ValueField("premium").
+		MovingAverage(7, panel.Ref("sma_7"), "7d SMA").
+		Regression(panel.Ref("reg"), "Trendline").
+		Build()
+
+	result := &lensruntime.DashboardResult{
+		Panels: map[string]*lensruntime.PanelResult{
+			"trend": {Panel: p, Frames: fs},
+		},
+	}
+
+	require.NoError(t, serve.ProjectPanelExportFields(result, map[string]string{
+		"period":  "Period",
+		"premium": "Premium",
+	}))
+
+	fields := result.Panels["trend"].Frames.Primary().Fields
+	fieldLabels := map[string]string{}
+	for _, f := range fields {
+		fieldLabels[f.Name] = f.Labels["default"]
+	}
+	require.Equal(t, "Period", fieldLabels["period"])
+	require.Equal(t, "Premium", fieldLabels["premium"])
+	require.Equal(t, "7d SMA", fieldLabels["sma_7"], "moving average overlay column must be preserved")
+	require.Equal(t, "Trendline", fieldLabels["reg"], "regression overlay column must be preserved")
+	_, hasInternal := fieldLabels["internal_id"]
+	require.False(t, hasInternal, "unshown unnamed columns must remain excluded")
+}
+
+func TestHost_ToggleFilterBlocksEncodedOpenRedirectsAndCacheKeyPreservesValueOrder(t *testing.T) {
+	t.Parallel()
+
+	// Would be falsely green if encoded backslash/slash bypassed redirect validation or repeated param order collided in cache.
+	rt := lensruntime.New(lensruntime.Options{})
+	exec := &countingExecutor{base: engine.New(rt).Executor()}
+
+	host, err := serve.NewHost(serve.HostConfig{
+		BasePath: "/analytics/sec/lens",
+		Executor: exec,
+		ResolveCube: func(_ context.Context, r *http.Request, _ cube.DrillContext) (serve.ResolvedCube, error) {
+			metric := r.URL.Query().Get("metric")
+			spec := buildTestCubeSpec(t)
+			if metric != "" {
+				spec.Title = "Metric " + metric
+			}
+			return serve.ResolvedCube{
+				Spec:    spec,
+				Request: lensruntime.Request{DataScope: "tenant-1", Locale: "en"},
+			}, nil
+		},
+	})
+	require.NoError(t, err)
+	defer host.Close()
+
+	handler := host.Handler()
+
+	for _, badTarget := range []string{"/%5Cevil.com", "/%2Fevil.com", "//evil.com", "/analytics/sec/lens/toggle-filter"} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/analytics/sec/lens/toggle-filter?lens_filter_target="+badTarget+"&lens_filter_dimension=agent_type&lens_filter_value=legal", nil))
+		require.Equal(t, http.StatusBadRequest, rec.Code, "target %q must be rejected", badTarget)
+	}
+
+	// Repeated query value order must produce distinct cache entries.
+	recA := httptest.NewRecorder()
+	handler.ServeHTTP(recA, httptest.NewRequest(http.MethodGet, "/analytics/sec/lens/document?metric=claims&metric=premium", nil))
+	require.Equal(t, http.StatusOK, recA.Code)
+	var docA document.DashboardDocument
+	require.NoError(t, json.Unmarshal(recA.Body.Bytes(), &docA))
+
+	recB := httptest.NewRecorder()
+	handler.ServeHTTP(recB, httptest.NewRequest(http.MethodGet, "/analytics/sec/lens/document?metric=premium&metric=claims", nil))
+	require.Equal(t, http.StatusOK, recB.Code)
+	var docB document.DashboardDocument
+	require.NoError(t, json.Unmarshal(recB.Body.Bytes(), &docB))
+
+	require.NotEqual(t, docA.SnapshotID, docB.SnapshotID, "reordered repeated values must not share cache key")
+	require.Equal(t, "Metric claims", docA.Meta.Title)
+	require.Equal(t, "Metric premium", docB.Meta.Title)
+}
+
+func TestHost_FacetOptionsResolvesDateRangeUntilAndNamedDrillParams(t *testing.T) {
+	t.Parallel()
+
+	// Would be falsely green if RangeUntil bound nil from browser range-start/range-end or Named mode dropped f_<dim>.
+	rt := lensruntime.New(lensruntime.Options{})
+	exec := engine.New(rt).Executor()
+
+	periodVar := lens.VariableSpec{
+		Name:        "period",
+		Kind:        lens.VariableDateRange,
+		RequestKeys: []string{"range-start", "range-end"},
+	}
+
+	// 1. SQL mode: browser range-start/range-end resolves RangeStart & RangeUntil (first instant after end date).
+	var sqlCaptured datasource.QueryRequest
+	sqlDS := &stubSQLDataSource{
+		queryFunc: func(_ context.Context, req datasource.QueryRequest) (*frame.FrameSet, error) {
+			sqlCaptured = req
+			return frame.FromRows("facet", frame.Row{"value": "osago", "label": "OSAGO", "count": 5.0})
+		},
+	}
+	sqlSpec := cube.New("sql_range", "SQL Range").
+		SQL("primary", "insurance.contracts c").
+		Variable(periodVar).
+		Dimension("product", "Product").Column("c.product_code").AsFacet().Done().
+		Measure("policies", "Policies").Column("c.id").Count().Done().
+		Build()
+	sqlSpec.Params["from"] = lens.RangeParam("period", lens.RangeStart)
+	sqlSpec.Params["until"] = lens.RangeParam("period", lens.RangeUntil)
+
+	var useOverride atomic.Bool
+	overrideStart := time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
+	overrideEnd := time.Date(2025, 6, 15, 0, 0, 0, 0, time.UTC)
+
+	sqlHost, err := serve.NewHost(serve.HostConfig{
+		BasePath: "/sql-range/lens",
+		Executor: exec,
+		ResolveCube: func(_ context.Context, _ *http.Request, _ cube.DrillContext) (serve.ResolvedCube, error) {
+			req := lensruntime.Request{
+				DataScope:   "t1",
+				Timezone:    "UTC",
+				DataSources: map[string]datasource.DataSource{"primary": sqlDS},
+			}
+			if useOverride.Load() {
+				req.Overrides = map[string]any{
+					"period": lens.DateRangeValue{Mode: "custom", Start: &overrideStart, End: &overrideEnd},
+				}
+			}
+			return serve.ResolvedCube{Spec: sqlSpec, PagePath: "/sql-range", Request: req}, nil
+		},
+	})
+	require.NoError(t, err)
+	defer sqlHost.Close()
+
+	recSQL := httptest.NewRecorder()
+	sqlHost.Handler().ServeHTTP(recSQL, httptest.NewRequest(http.MethodGet, "/sql-range/lens/facet-options?_facet=product&range-start=2026-01-01&range-end=2026-01-31", nil))
+	require.Equal(t, http.StatusOK, recSQL.Code, recSQL.Body.String())
+	require.Equal(t, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), sqlCaptured.Params["from"])
+	require.Equal(t, time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), sqlCaptured.Params["until"], "RangeUntil must be exclusive first instant after 2026-01-31")
+
+	// Explicit typed override still takes precedence over query params.
+	useOverride.Store(true)
+	recSQLOverride := httptest.NewRecorder()
+	sqlHost.Handler().ServeHTTP(recSQLOverride, httptest.NewRequest(http.MethodGet, "/sql-range/lens/facet-options?_facet=product&range-start=2026-01-01&range-end=2026-01-31", nil))
+	require.Equal(t, http.StatusOK, recSQLOverride.Code, recSQLOverride.Body.String())
+	require.Equal(t, overrideStart, sqlCaptured.Params["from"])
+	require.Equal(t, overrideEnd.Add(time.Nanosecond), sqlCaptured.Params["until"])
+
+	// 2. Named mode: binds active cross-dimension drill filters (f_region), binds facet's own f_product key, and resolves RangeUntil.
+	var namedCaptured datasource.QueryRequest
+	namedDS := datasource.NewNamedDataSource()
+	require.NoError(t, namedDS.Register("policies_named", func(_ context.Context, req datasource.QueryRequest) (*frame.FrameSet, error) {
+		namedCaptured = req
+		return frame.FromRows("policies",
+			frame.Row{"region": "tashkent", "product": "osago", "premium": 100.0},
+			frame.Row{"region": "tashkent", "product": "kasko", "premium": 200.0},
+		)
+	}))
+	namedSpec := cube.New("named_range", "Named Range").
+		Named("domain", "policies_named").
+		Variable(periodVar).
+		Dimension("region", "Region").Field("region").AsFacet().Done().
+		Dimension("product", "Product").Field("product").AsFacet().Done().
+		Measure("premium", "Premium").Field("premium").Sum().Done().
+		Build()
+	namedSpec.Params["until"] = lens.RangeParam("period", lens.RangeUntil)
+
+	namedHost, err := serve.NewHost(serve.HostConfig{
+		BasePath: "/named-range/lens",
+		Executor: exec,
+		ResolveCube: func(_ context.Context, _ *http.Request, _ cube.DrillContext) (serve.ResolvedCube, error) {
+			return serve.ResolvedCube{
+				Spec:     namedSpec,
+				PagePath: "/named-range",
+				Request: lensruntime.Request{
+					DataScope:   "t1",
+					Timezone:    "UTC",
+					DataSources: map[string]datasource.DataSource{"domain": namedDS},
+				},
+			}, nil
+		},
+	})
+	require.NoError(t, err)
+	defer namedHost.Close()
+
+	recNamed := httptest.NewRecorder()
+	namedHost.Handler().ServeHTTP(recNamed, httptest.NewRequest(http.MethodGet, "/named-range/lens/facet-options?_facet=product&_f=region:tashkent&_f=product:osago&range-start=2026-03-01&range-end=2026-03-31", nil))
+	require.Equal(t, http.StatusOK, recNamed.Code, recNamed.Body.String())
+	require.Equal(t, time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC), namedCaptured.Params["until"])
+	require.Equal(t, []string{"tashkent"}, namedCaptured.Params["f_region"], "active cross-dimension drill filter must be bound for Named query")
+	_, hasOwnDimKey := namedCaptured.Params["f_product"]
+	require.True(t, hasOwnDimKey, "facet dimension param key should be explicitly bound")
+	require.Nil(t, namedCaptured.Params["f_product"], "facet's own dimension param should bind nil so unselected options remain visible")
 }

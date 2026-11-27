@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -101,32 +102,6 @@ func (h *Host) Export(w http.ResponseWriter, r *http.Request) {
 		h.writeInternalError(r.Context(), w, "lens/serve.Host.Export", "snapshot conversion failed", err)
 		return
 	}
-	if entry.State.progressive {
-		if err := h.materializeExportPanels(r.Context(), entry, spec, snapshotID, panelID, current); err != nil {
-			lensexport.SetDownloadSignal(w, r, lensexport.DownloadSignalError)
-			h.writeInternalError(r.Context(), w, "lens/serve.Host.Export", "panel materialization failed", err)
-			return
-		}
-		snapshot, err = h.snapshots.Get(r.Context(), snapshotID)
-		if err != nil {
-			lensexport.SetDownloadSignal(w, r, lensexport.DownloadSignalError)
-			h.writeSnapshotError(r.Context(), w, err)
-			return
-		}
-	}
-	thawed := thawRuntimeRequest(current, snapshot.Params)
-	result, err := runtimeResultFromSnapshot(spec, snapshot, thawed)
-	if err != nil {
-		lensexport.SetDownloadSignal(w, r, lensexport.DownloadSignalError)
-		h.writeInternalError(r.Context(), w, "lens/serve.Host.Export", "snapshot conversion failed", err)
-		return
-	}
-	if panelID != "" && result.Panel(panelID) == nil {
-		lensexport.SetDownloadSignal(w, r, lensexport.DownloadSignalError)
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "panel is not available in the snapshot")
-		return
-	}
-
 	timeout := h.export.Timeout
 	if timeout <= 0 {
 		timeout = h.executionTimeout
@@ -149,6 +124,48 @@ func (h *Host) Export(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer release()
+
+	if entry.State.progressive {
+		if err := h.materializeExportPanels(exportCtx, entry, spec, snapshotID, panelID, current); err != nil {
+			lensexport.SetDownloadSignal(w, r, lensexport.DownloadSignalError)
+			if errors.Is(requestCtx.Err(), context.Canceled) {
+				return
+			}
+			if errors.Is(exportCtx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
+				h.observer.OnError(requestCtx, "lens/serve.Host.Export", serrors.Wrap("lens/serve.Host.Export", err))
+				writeError(w, http.StatusGatewayTimeout, document.QueryErrorInternal, "export deadline exceeded")
+				return
+			}
+			h.writeInternalError(requestCtx, w, "lens/serve.Host.Export", "panel materialization failed", err)
+			return
+		}
+		snapshot, err = h.snapshots.Get(exportCtx, snapshotID)
+		if err != nil {
+			lensexport.SetDownloadSignal(w, r, lensexport.DownloadSignalError)
+			if errors.Is(requestCtx.Err(), context.Canceled) {
+				return
+			}
+			if errors.Is(exportCtx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
+				h.observer.OnError(requestCtx, "lens/serve.Host.Export", serrors.Wrap("lens/serve.Host.Export", err))
+				writeError(w, http.StatusGatewayTimeout, document.QueryErrorInternal, "export deadline exceeded")
+				return
+			}
+			h.writeSnapshotError(requestCtx, w, err)
+			return
+		}
+	}
+	thawed := thawRuntimeRequest(current, snapshot.Params)
+	result, err := runtimeResultFromSnapshot(spec, snapshot, thawed)
+	if err != nil {
+		lensexport.SetDownloadSignal(w, r, lensexport.DownloadSignalError)
+		h.writeInternalError(requestCtx, w, "lens/serve.Host.Export", "snapshot conversion failed", err)
+		return
+	}
+	if panelID != "" && result.Panel(panelID) == nil {
+		lensexport.SetDownloadSignal(w, r, lensexport.DownloadSignalError)
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "panel is not available in the snapshot")
+		return
+	}
 
 	if h.export.VisibleTableColumnsOnly {
 		if err := ProjectVisibleTableExportColumns(result); err != nil {
@@ -241,6 +258,9 @@ func (h *Host) materializeExportPanels(
 			req := httptest.NewRequest(http.MethodPost, h.endpoint("/panel"), bytes.NewReader(payload)).WithContext(reqCtx)
 			recorder := httptest.NewRecorder()
 			entry.Handlers.Panel(recorder, req)
+			if err := groupCtx.Err(); err != nil {
+				return err
+			}
 			if recorder.Code != http.StatusOK {
 				return fmt.Errorf("panel %q returned %d: %s", panelSpec.ID, recorder.Code, strings.TrimSpace(recorder.Body.String()))
 			}
@@ -248,8 +268,11 @@ func (h *Host) materializeExportPanels(
 			decoder := json.NewDecoder(recorder.Body)
 			for decoder.More() {
 				var evt document.PanelBatchStreamEvent
-				if err := decoder.Decode(&evt); err != nil {
-					break
+				if decErr := decoder.Decode(&evt); decErr != nil {
+					if errors.Is(decErr, io.EOF) {
+						break
+					}
+					return fmt.Errorf("panel %q stream decode failed: %w", panelSpec.ID, decErr)
 				}
 				if evt.Result != nil && evt.Result.Error != nil {
 					if evt.Result.Error.Error == document.QueryErrorResourceExhausted {
@@ -258,7 +281,7 @@ func (h *Host) materializeExportPanels(
 					return fmt.Errorf("panel %q failed: %s", panelSpec.ID, evt.Result.Error.Message)
 				}
 			}
-			return nil
+			return groupCtx.Err()
 		})
 	}
 	return group.Wait()
@@ -318,10 +341,35 @@ func ProjectPanelExportFields(result *lensruntime.DashboardResult, labels map[st
 		mapping := rendered.Panel.Fields
 		stat := rendered.Panel.Kind == panel.KindStat
 		shown := map[string]bool{mapping.Value.Name(): true}
+		overlayLabels := map[string]string{}
 		if !stat {
 			shown[mapping.Label.Name()] = true
 			shown[mapping.Category.Name()] = true
 			shown[mapping.Series.Name()] = true
+			if temporal := rendered.Panel.Temporal; temporal != nil {
+				addOverlay := func(ref panel.FieldRef, fallback string) {
+					name := ref.Name()
+					if name == "" {
+						return
+					}
+					shown[name] = true
+					if trimmed := strings.TrimSpace(fallback); trimmed != "" {
+						overlayLabels[name] = trimmed
+					}
+				}
+				addOverlay(temporal.RegressionField, temporal.RegressionLabel)
+				for _, ma := range temporal.MovingAverages {
+					addOverlay(ma.Field, ma.Label)
+				}
+				if temporal.Period != nil {
+					addOverlay(temporal.Period.AnnualizedField, temporal.Period.Label)
+				}
+				if temporal.Forecast != nil {
+					addOverlay(temporal.Forecast.ValueField, temporal.Forecast.Label)
+					addOverlay(temporal.Forecast.LowerField, "")
+					addOverlay(temporal.Forecast.UpperField, "")
+				}
+			}
 		}
 		projected := rendered.Frames.Clone()
 		for _, source := range projected.Frames {
@@ -334,7 +382,11 @@ func ProjectPanelExportFields(result *lensruntime.DashboardResult, labels map[st
 				case stat, !shown[field.Name] && !named:
 					continue
 				case !named:
-					label = rendered.Panel.Title
+					if overlayLabel, ok := overlayLabels[field.Name]; ok {
+						label = overlayLabel
+					} else {
+						label = rendered.Panel.Title
+					}
 				}
 				exportField := field.Clone()
 				exportField.Labels = map[string]string{"default": label}

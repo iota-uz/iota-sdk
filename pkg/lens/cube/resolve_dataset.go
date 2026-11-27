@@ -229,10 +229,22 @@ func filteredTransforms(spec CubeSpec, ctx DrillContext) []transform.Spec {
 		if len(values) == 0 {
 			continue
 		}
+		var predicateVal any = values
+		if containsString(values, UnknownDrillValue) {
+			expanded := make([]any, 0, len(values)+2)
+			expanded = append(expanded, nil, "")
+			for _, value := range values {
+				if value == "" {
+					continue
+				}
+				expanded = append(expanded, value)
+			}
+			predicateVal = expanded
+		}
 		predicates = append(predicates, transform.Predicate{
 			Field: field,
 			Op:    "in",
-			Value: values,
+			Value: predicateVal,
 		})
 	}
 	if len(predicates) == 0 {
@@ -274,7 +286,7 @@ func baseDataset(spec CubeSpec, ctx DrillContext) lens.DatasetSpec {
 			Transforms: transforms,
 			Query: &lens.QuerySpec{
 				Text:   spec.NamedQuery,
-				Params: sqlParams(spec, ctx),
+				Params: mergeParamValues(overrideBaseParams(spec), sqlParams(spec, ctx)),
 				Kind:   datasource.QueryKindNamed,
 			},
 		}
@@ -288,7 +300,16 @@ func baseDataset(spec CubeSpec, ctx DrillContext) lens.DatasetSpec {
 }
 
 func timeBucketTransforms(spec CubeSpec) []transform.Spec {
-	var specs []transform.Spec
+	count := 0
+	for _, dim := range spec.Dimensions {
+		if dim.Type == DimensionTypeTimeBucket && dim.datasetSourceField() != "" {
+			count++
+		}
+	}
+	if count == 0 {
+		return nil
+	}
+	specs := make([]transform.Spec, 0, count)
 	for _, dim := range spec.Dimensions {
 		if dim.Type != DimensionTypeTimeBucket {
 			continue
@@ -315,7 +336,16 @@ func labelMapDatasetName(dimension string) string {
 }
 
 func labelMapDatasets(spec CubeSpec) []lens.DatasetSpec {
-	var datasets []lens.DatasetSpec
+	count := 0
+	for _, dim := range spec.Dimensions {
+		if len(dim.LabelMap) > 0 {
+			count++
+		}
+	}
+	if count == 0 {
+		return nil
+	}
+	datasets := make([]lens.DatasetSpec, 0, count)
 	for _, dim := range spec.Dimensions {
 		if len(dim.LabelMap) == 0 {
 			continue

@@ -402,7 +402,7 @@ func coerceRowTimeBucket(raw any, granularity string) string {
 		if trimmed == "" {
 			return ""
 		}
-		for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05", "2006-01-02"} {
+		for _, layout := range []string{time.RFC3339Nano, time.RFC3339, "2006-01-02 15:04:05", "2006-01-02", "2006-01"} {
 			if parsed, err := time.Parse(layout, trimmed); err == nil {
 				return FormatTimeBucket(parsed, granularity)
 			}

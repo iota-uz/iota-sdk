@@ -468,22 +468,38 @@ func matches(row map[string]any, predicates []Predicate) bool {
 }
 
 func containsValue(values any, needle any) bool {
-	needleText := fmt.Sprint(needle)
 	switch current := values.(type) {
 	case []string:
+		if needle == nil {
+			return false
+		}
+		needleText := fmt.Sprint(needle)
 		for _, value := range current {
 			if value == needleText {
 				return true
 			}
 		}
 	case []any:
+		needleText := ""
+		if needle != nil {
+			needleText = fmt.Sprint(needle)
+		}
 		for _, value := range current {
-			if fmt.Sprint(value) == needleText {
+			if value == nil {
+				if needle == nil {
+					return true
+				}
+				continue
+			}
+			if needle != nil && fmt.Sprint(value) == needleText {
 				return true
 			}
 		}
 	default:
-		return fmt.Sprint(current) == needleText
+		if current == nil || needle == nil {
+			return current == nil && needle == nil
+		}
+		return fmt.Sprint(current) == fmt.Sprint(needle)
 	}
 	return false
 }

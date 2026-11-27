@@ -193,14 +193,20 @@ func sqlWhere(spec CubeSpec, ctx DrillContext) string {
 		if !ok {
 			continue
 		}
-		if len(filter.values()) == 0 {
+		values := filter.values()
+		if len(values) == 0 {
 			continue
 		}
 		col := dim.sqlColumn()
 		if col == "" {
 			continue
 		}
-		clauses = append(clauses, fmt.Sprintf("%s = ANY(@%s)", col, sqlFilterParam(filter.Dimension)))
+		paramName := sqlFilterParam(filter.Dimension)
+		if containsString(values, UnknownDrillValue) {
+			clauses = append(clauses, fmt.Sprintf("((%s) IS NULL OR (%s)::text = ANY(@%s))", col, col, paramName))
+			continue
+		}
+		clauses = append(clauses, fmt.Sprintf("%s = ANY(@%s)", col, paramName))
 	}
 	return strings.Join(clauses, "\n  AND ")
 }
@@ -215,9 +221,24 @@ func sqlParams(spec CubeSpec, ctx DrillContext) map[string]lens.ParamValue {
 		if len(values) == 0 {
 			continue
 		}
-		params[sqlFilterParam(filter.Dimension)] = lens.ParamValue{Literal: values}
+		params[sqlFilterParam(filter.Dimension)] = lens.ParamValue{Literal: sqlFilterValues(values)}
 	}
 	return params
+}
+
+func sqlFilterValues(values []string) []string {
+	if !containsString(values, UnknownDrillValue) {
+		return values
+	}
+	expanded := make([]string, 0, len(values)+1)
+	expanded = append(expanded, "")
+	for _, v := range values {
+		if v == "" {
+			continue
+		}
+		expanded = append(expanded, v)
+	}
+	return expanded
 }
 
 func sqlFilterParam(name string) string {

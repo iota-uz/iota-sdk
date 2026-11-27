@@ -134,13 +134,13 @@ func (b *Builder) DrillPath(dimensions ...string) *Builder {
 	return b
 }
 
-func (b *Builder) Leaf(spec LeafSpec) *Builder {
-	b.spec.Leaf = spec
+func (b *Builder) Leaf(url string) *Builder {
+	b.spec.Leaf.URL = url
 	return b
 }
 
-func (b *Builder) LeafURL(url string) *Builder {
-	b.spec.Leaf.URL = url
+func (b *Builder) LeafSpec(spec LeafSpec) *Builder {
+	b.spec.Leaf = spec
 	return b
 }
 
@@ -316,12 +316,12 @@ func (b *DimensionBuilder) DrillPath(dimensions ...string) *Builder {
 	return b.commit().DrillPath(dimensions...)
 }
 
-func (b *DimensionBuilder) Leaf(spec LeafSpec) *Builder {
-	return b.commit().Leaf(spec)
+func (b *DimensionBuilder) Leaf(url string) *Builder {
+	return b.commit().Leaf(url)
 }
 
-func (b *DimensionBuilder) LeafURL(url string) *Builder {
-	return b.commit().LeafURL(url)
+func (b *DimensionBuilder) LeafSpec(spec LeafSpec) *Builder {
+	return b.commit().LeafSpec(spec)
 }
 
 func (b *DimensionBuilder) Build() CubeSpec {
@@ -453,12 +453,12 @@ func (b *MeasureBuilder) DrillPath(dimensions ...string) *Builder {
 	return b.commit().DrillPath(dimensions...)
 }
 
-func (b *MeasureBuilder) Leaf(spec LeafSpec) *Builder {
-	return b.commit().Leaf(spec)
+func (b *MeasureBuilder) Leaf(url string) *Builder {
+	return b.commit().Leaf(url)
 }
 
-func (b *MeasureBuilder) LeafURL(url string) *Builder {
-	return b.commit().LeafURL(url)
+func (b *MeasureBuilder) LeafSpec(spec LeafSpec) *Builder {
+	return b.commit().LeafSpec(spec)
 }
 
 func (b *MeasureBuilder) Build() CubeSpec {

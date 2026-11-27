@@ -70,6 +70,8 @@ func resolveFilterDisplay(
 			return filter.Value, nil
 		}
 		return label, nil
+	case DataModeNamed:
+		return filter.Value, nil
 	default:
 		return filter.Value, nil
 	}
@@ -109,13 +111,27 @@ func rowMatchesDrill(row map[string]any, spec CubeSpec, drillCtx DrillContext) b
 		if field == "" {
 			continue
 		}
+		rawVal := row[field]
+		isUnknown := rawVal == nil
 		var actual string
-		if dim.Type == DimensionTypeTimeBucket {
-			actual = coerceRowTimeBucket(row[field], dim.TimeGranularity)
-		} else {
-			actual = strings.TrimSpace(fmt.Sprint(row[field]))
+		if !isUnknown {
+			if dim.Type == DimensionTypeTimeBucket {
+				actual = coerceRowTimeBucket(rawVal, dim.TimeGranularity)
+			} else {
+				actual = strings.TrimSpace(fmt.Sprint(rawVal))
+			}
+			if actual == "" || actual == "<nil>" {
+				isUnknown = true
+			}
 		}
-		if !containsString(filter.values(), actual) {
+		values := filter.values()
+		if isUnknown {
+			if !containsString(values, UnknownDrillValue) {
+				return false
+			}
+			continue
+		}
+		if !containsString(values, actual) {
 			return false
 		}
 	}

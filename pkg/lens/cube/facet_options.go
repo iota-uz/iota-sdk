@@ -59,9 +59,32 @@ func ResolveFacetOptions(
 		if lookup == nil {
 			return nil, serrors.Wrap(op, fmt.Errorf("named facet lookup is required"))
 		}
-		options, err := lookup(ctx, spec.NamedQuery, sqlParams(spec, drillCtx.WithoutDimension(dim.Name)), limit)
+		trimmedSearch := strings.ToLower(strings.TrimSpace(search))
+		lookupLimit := limit
+		if trimmedSearch != "" {
+			lookupLimit = 0
+		}
+		namedParams := mergeParamValues(overrideBaseParams(spec), sqlParams(spec, drillCtx.WithoutDimension(dim.Name)))
+		options, err := lookup(ctx, spec.NamedQuery, namedParams, lookupLimit)
 		if err != nil {
 			return nil, serrors.Wrap(op, err)
+		}
+		for idx := range options {
+			if strings.TrimSpace(options[idx].Label) == "" || options[idx].Label == options[idx].Value {
+				options[idx].Label = dim.DisplayLabel(options[idx].Value)
+			}
+		}
+		if trimmedSearch != "" {
+			filtered := make([]lens.DrillFacetOptionMeta, 0, len(options))
+			for _, opt := range options {
+				if strings.Contains(strings.ToLower(opt.Label), trimmedSearch) || strings.Contains(strings.ToLower(opt.Value), trimmedSearch) {
+					filtered = append(filtered, opt)
+				}
+			}
+			options = filtered
+		}
+		if len(options) > limit {
+			options = options[:limit]
 		}
 		markSelected(options, drillCtx, dim.Name)
 		return options, nil

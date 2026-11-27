@@ -684,6 +684,8 @@ func buildLeafTable(goCtx context.Context, spec CubeSpec, ctx DrillContext, base
 	switch spec.DataMode {
 	case DataModeSQL:
 		ds = resolveSQLLeafDataset(spec, ctx, table, dsName)
+	case DataModeDataset, DataModeNamed:
+		ds = resolveDatasetLeafDataset(spec, ctx, table, dsName)
 	default:
 		ds = resolveDatasetLeafDataset(spec, ctx, table, dsName)
 	}
@@ -755,7 +757,7 @@ func defaultLeafTableColumns(spec CubeSpec) []panel.TableColumn {
 			}
 			addCol(panel.TableColumn{Field: panel.Ref(measure.Name), Label: measure.Label, Formatter: measure.Formatter, Align: "right"})
 		}
-	default:
+	case DataModeDataset, DataModeNamed:
 		for _, dim := range spec.Dimensions {
 			fieldName := dim.datasetValueField()
 			if dim.Type != DimensionTypeTimeBucket && strings.TrimSpace(dim.LabelField) != "" {
@@ -769,6 +771,8 @@ func defaultLeafTableColumns(spec CubeSpec) []panel.TableColumn {
 			}
 			addCol(panel.TableColumn{Field: panel.Ref(measure.Field), Label: measure.Label, Formatter: measure.Formatter, Align: "right"})
 		}
+	default:
+		// Unsupported mode produces no default columns.
 	}
 	return cols
 }
@@ -1092,7 +1096,7 @@ func overrideFilterParams(spec CubeSpec, ctx DrillContext) map[string]lens.Param
 		if len(values) == 0 {
 			continue
 		}
-		params[sqlFilterParam(filter.Dimension)] = lens.ParamValue{Literal: values}
+		params[sqlFilterParam(filter.Dimension)] = lens.ParamValue{Literal: sqlFilterValues(values)}
 	}
 	return params
 }

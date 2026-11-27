@@ -79,7 +79,7 @@ func TestDeclarativeSQLCube_MultiLevelDrillAndLeaf(t *testing.T) {
 			cube.Chart("top_agencies", panel.KindBar).Dimension("agency").Measure("premium").TopN(15).WithRemainder(),
 		).
 		DrillPath("agent_type", "agency").
-		Leaf(cube.LeafSpec{
+		LeafSpec(cube.LeafSpec{
 			Table:        cube.LeafTable("policies_leaf", "Полисы"),
 			ExternalLink: resolveTestPortfolioURL,
 		}).
@@ -219,7 +219,7 @@ func TestDeclarativeDatasetCube_EndToEndExecutionAndDocumentValidation(t *testin
 			cube.Chart("top_agencies", panel.KindBar).Dimension("agency").Measure("premium").TopN(2).WithRemainder("Прочие"),
 		).
 		DrillPath("agent_type", "agency").
-		Leaf(cube.LeafSpec{
+		LeafSpec(cube.LeafSpec{
 			Table:        cube.LeafTable("policies_leaf", "Полисы"),
 			ExternalLink: resolveTestPortfolioURL,
 		}).
@@ -333,7 +333,7 @@ func TestDeclarativeNamedDataSourceCube_ParityWithDatasetMode(t *testing.T) {
 			cube.Chart("trend", panel.KindLine).Dimension("period").Series("agent_type").Measure("premium"),
 		).
 		DrillPath("agent_type").
-		Leaf(cube.LeafSpec{
+		LeafSpec(cube.LeafSpec{
 			Table:        cube.LeafTable("policies_leaf", "Полисы"),
 			ExternalLink: resolveTestPortfolioURL,
 		}).
@@ -426,4 +426,152 @@ func TestCubeSpecValidation_RejectsInvalidLayoutAndDrillPath(t *testing.T) {
 		Measure("premium", "Premium").Field("premium").Sum().Done().
 		Build()
 	require.ErrorContains(t, badGranularity.Validate(), "unsupported granularity")
+}
+
+func TestLeafStringCompatibility_AllReceivers(t *testing.T) {
+	t.Parallel()
+
+	// Would be falsely green if string-form Leaf did not compile or populate Leaf.URL on all builders.
+	fromBuilder := cube.New("b1", "B1").
+		SQL("primary", "t").
+		Dimension("d", "D").Column("d").Done().
+		Measure("m", "M").Column("m").Sum().Done().
+		Leaf("/records/from-builder").
+		Build()
+	require.Equal(t, "/records/from-builder", fromBuilder.Leaf.URL)
+
+	fromDim := cube.New("b2", "B2").
+		SQL("primary", "t").
+		Measure("m", "M").Column("m").Sum().Done().
+		Dimension("d", "D").Column("d").
+		Leaf("/records/from-dim").
+		Build()
+	require.Equal(t, "/records/from-dim", fromDim.Leaf.URL)
+
+	fromMeasure := cube.New("b3", "B3").
+		SQL("primary", "t").
+		Dimension("d", "D").Column("d").Done().
+		Measure("m", "M").Column("m").Sum().
+		Leaf("/records/from-measure").
+		Build()
+	require.Equal(t, "/records/from-measure", fromMeasure.Leaf.URL)
+}
+
+func TestUnknownDrillSentinel_MatchesEmptyAndNullInSQLAndDataset(t *testing.T) {
+	t.Parallel()
+
+	// Would be falsely green if __unknown__ failed to match empty/NULL rows or relaxed non-sentinel matching.
+	sqlSpec := cube.New("sql_unknown", "SQL Unknown").
+		SQL("primary", "insurance.contracts c").
+		Dimension("product", "Product").Column("c.product_code").Done().
+		Measure("policies", "Policies").Column("c.id").Count().Done().
+		Build()
+
+	unknownDrill := cube.ParseDrillContextNormalized(url.Values{cube.QueryFilter: {"product:"}}, "")
+	unknownDash, err := cube.ResolveWithContext(context.Background(), sqlSpec, unknownDrill, "/sales")
+	require.NoError(t, err)
+	var statsDS lens.DatasetSpec
+	for _, ds := range unknownDash.Datasets {
+		if ds.Name == "cube_stats" {
+			statsDS = ds
+			break
+		}
+	}
+	require.NotNil(t, statsDS.Query)
+	require.Contains(t, statsDS.Query.Text, "((c.product_code) IS NULL OR (c.product_code)::text = ANY(@f_product))")
+	require.Equal(t, []string{"", cube.UnknownDrillValue}, statsDS.Query.Params["f_product"].Literal)
+
+	exactDrill := cube.ParseDrillContextNormalized(url.Values{cube.QueryFilter: {"product:osago"}}, "")
+	exactDash, err := cube.ResolveWithContext(context.Background(), sqlSpec, exactDrill, "/sales")
+	require.NoError(t, err)
+	for _, ds := range exactDash.Datasets {
+		if ds.Name == "cube_stats" {
+			statsDS = ds
+			break
+		}
+	}
+	require.Contains(t, statsDS.Query.Text, "c.product_code = ANY(@f_product)")
+	require.NotContains(t, statsDS.Query.Text, "IS NULL")
+	require.Equal(t, []string{"osago"}, statsDS.Query.Params["f_product"].Literal)
+
+	// Dataset mode: rows with "", nil, and literal "__unknown__" all match; "osago" does not.
+	dsFrames, err := frame.FromRows("contracts",
+		frame.Row{"product_code": "", "region": "tashkent", "premium": 100.0},
+		frame.Row{"product_code": nil, "region": "samarkand", "premium": 200.0},
+		frame.Row{"product_code": cube.UnknownDrillValue, "region": "bukhara", "premium": 50.0},
+		frame.Row{"product_code": "osago", "region": "tashkent", "premium": 900.0},
+	)
+	require.NoError(t, err)
+	dsSpec := cube.New("ds_unknown", "DS Unknown").
+		Dataset(dsFrames).
+		Dimension("product", "Product").Field("product_code").AsFacet().Done().
+		Dimension("region", "Region").Field("region").AsFacet().Done().
+		Measure("premium", "Premium").Field("premium").Sum().Done().
+		Build()
+
+	rt := lensruntime.New(lensruntime.Options{})
+	dsUnknownDash, err := cube.ResolveWithContext(context.Background(), dsSpec, unknownDrill, "/sales")
+	require.NoError(t, err)
+	resUnknown, err := rt.Execute(context.Background(), dsUnknownDash, lensruntime.Request{DataScope: "t1"}, lensruntime.DashboardScope())
+	require.NoError(t, err)
+	require.InDelta(t, 350.0, resUnknown.Panel("stat_premium").Frames.Primary().Rows()[0]["premium"].(float64), 1e-6)
+
+	// Exact non-sentinel filter must exclude empty and NULL rows.
+	dsExactDash, err := cube.ResolveWithContext(context.Background(), dsSpec, exactDrill, "/sales")
+	require.NoError(t, err)
+	resExact, err := rt.Execute(context.Background(), dsExactDash, lensruntime.Request{DataScope: "t1"}, lensruntime.DashboardScope())
+	require.NoError(t, err)
+	require.InDelta(t, 900.0, resExact.Panel("stat_premium").Frames.Primary().Rows()[0]["premium"].(float64), 1e-6)
+
+	// Facet cross-filtering with __unknown__ on product should see all three unknown rows' regions.
+	regionOpts, err := cube.ResolveFacetOptions(context.Background(), dsSpec, unknownDrill, "region", "", 10, nil)
+	require.NoError(t, err)
+	require.Len(t, regionOpts, 3)
+}
+
+func TestResolveFacetOptions_NamedModeSearchAndMonthOnlyTimeBucket(t *testing.T) {
+	t.Parallel()
+
+	// Would be falsely green if Named mode skipped search filtering or pre-truncated before filtering.
+	namedSpec := cube.New("named_facets", "Named Facets").
+		Named("domain", "policies_named").
+		Dimension("agent_type", "Type").
+		Field("agent_type").
+		LabelMap(map[string]string{"individual": "Individual", "legal": "Legal Entity", "broker": "Broker"}).
+		AsFacet().
+		Done().
+		Measure("premium", "Premium").Field("premium").Sum().Done().
+		Build()
+
+	var capturedLimit int
+	lookup := func(_ context.Context, _ string, _ map[string]lens.ParamValue, maxRows int) ([]lens.DrillFacetOptionMeta, error) {
+		capturedLimit = maxRows
+		return []lens.DrillFacetOptionMeta{
+			{Value: "individual", Label: "Individual", Count: 10},
+			{Value: "broker", Label: "Broker", Count: 5},
+			{Value: "legal", Label: "Legal Entity", Count: 3},
+		}, nil
+	}
+	filtered, err := cube.ResolveFacetOptions(context.Background(), namedSpec, cube.DrillContext{}, "agent_type", "LEGAL", 1, lookup)
+	require.NoError(t, err)
+	require.Equal(t, 0, capturedLimit, "lookup should not pre-truncate before search filtering")
+	require.Len(t, filtered, 1)
+	require.Equal(t, "legal", filtered[0].Value)
+
+	// Month-only string ("YYYY-MM") must normalize to "YYYY" under year granularity (matching chart bucket).
+	monthFrames, err := frame.FromRows("monthly",
+		frame.Row{"ym": "2026-02", "premium": 100.0},
+		frame.Row{"ym": "2026-05", "premium": 200.0},
+	)
+	require.NoError(t, err)
+	yearSpec := cube.New("year_tb", "Year TB").
+		Dataset(monthFrames).
+		Dimension("period", "Year").TimeBucket("ym", "year").AsFacet().Done().
+		Measure("premium", "Premium").Field("premium").Sum().Done().
+		Build()
+	yearOpts, err := cube.ResolveFacetOptions(context.Background(), yearSpec, cube.DrillContext{}, "period", "", 10, nil)
+	require.NoError(t, err)
+	require.Len(t, yearOpts, 1)
+	require.Equal(t, "2026", yearOpts[0].Value)
+	require.Equal(t, 2, yearOpts[0].Count)
 }
