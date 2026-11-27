@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -82,6 +83,41 @@ type DryRunInput struct {
 	Vars json.RawMessage
 	// Now is the time the context's now reads (a backtest's event time); zero: the current time.
 	Now time.Time
+	// Fence, when set, guards the real calls of a dry run made on behalf of a lease holder (a backtest
+	// worker): see CallFence. nil: every call gets a fresh idempotency key and nothing is rechecked.
+	Fence CallFence
+}
+
+// CallFence guards the real provider calls of a dry run that a worker makes while it holds a lease on
+// the work, and that the next holder repeats when the lease passes to it.
+//
+// A lease check followed by a provider call is not atomic: a worker that stalls past its lease while a
+// call is in flight still makes that call. The fence keeps such a repeat from being paid twice where the
+// provider can deduplicate it, and bounds it where the provider cannot:
+//
+//   - every real call carries the idempotency key Scope:node:n (the n-th call of the node in the dry
+//     run), the same for every holder of the work, so a provider that deduplicates by key
+//     (catalog.SupportsIdempotencyKey) makes a repeated call once;
+//   - Hold is asked right before each real call; once it fails the dry run makes no further call and
+//     DryRun returns its error;
+//   - Strict refuses (ErrUnfenced) a real call of a node that cannot deduplicate.
+//
+// Residual risk without Strict: a node whose provider cannot deduplicate may be paid twice for the call
+// that was in flight (or past its Hold) when the lease passed: at most one call per example the superseded
+// holder was running.
+type CallFence interface {
+	// Scope is the stable part of the calls' idempotency keys: what identifies the unit of work (a
+	// backtest and an example), never the holder or its lease.
+	Scope() string
+	// Hold is nil while the caller may still make a real call.
+	Hold(ctx context.Context) error
+	// Strict refuses a real call of a node whose provider cannot deduplicate a repeat of it.
+	Strict() bool
+}
+
+// fencedKey is the idempotency key of the n-th call of a node under a fence.
+func fencedKey(scope, node string, n int) string {
+	return scope + ":" + node + ":" + strconv.Itoa(n)
 }
 
 // DryRunResult is the trace of a dry run.
@@ -294,16 +330,32 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 	// node come in the same order, so a cached one is reported as such and not as a live call.
 	cachedBy := map[string][]bool{}
 	live := 0
+	// stopped is the fence's error that ended the dry run's real calls; calls per node number the keys
+	// of a fenced dry run.
+	var stopped error
+	calls := map[string]int{}
 	if mode != DecisionsScripted {
 		opts.Execute = func(node graph.Node, effects []graph.Effect) graph.ExecAnswer {
+			if stopped != nil {
+				return graph.ExecAnswer{Code: CodeCancelled, Message: "the dry run stopped"}
+			}
 			params := map[string]any{}
 			var stepCtx map[string]any
 			var templated []string
 			if len(effects) > 0 {
 				params, stepCtx, templated = effects[0].Params, effects[0].Context, effects[0].Templated
 			}
+			key := "dry-run:" + uuid.NewString()
+			if in.Fence != nil {
+				calls[node.ID]++
+				key = fencedKey(in.Fence.Scope(), node.ID, calls[node.ID])
+			}
 			res := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params, context: stepCtx, templated: templated,
-				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode, budget: budget, realCalls: in.RealCalls})
+				subject: normSubject(in.Subject), key: key, decisions: mode, budget: budget, realCalls: in.RealCalls, fence: in.Fence})
+			if res.stop != nil {
+				stopped = res.stop
+				return graph.ExecAnswer{Code: CodeCancelled, Message: "the dry run stopped"}
+			}
 			cachedBy[node.ID] = append(cachedBy[node.ID], res.cached)
 			if res.called {
 				live++
@@ -327,6 +379,9 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 		return au.r.previewEffects(ctx, a.TenantID, sub, normSubject(in.Subject), trigger, node, effects, in.RealCalls != RealCallsAll)
 	}
 	steps := interp.DryRun(normSubject(in.Subject), gctx, inputs, opts)
+	if stopped != nil {
+		return DryRunResult{LiveCalls: live}, stopped
+	}
 	if budget.wasExceeded() {
 		return DryRunResult{}, fmt.Errorf("%w: a dry run makes at most %d real calls", ErrLimitExceeded, in.MaxCalls)
 	}
@@ -814,6 +869,8 @@ type directCall struct {
 	budget *callBudget
 	// realCalls narrows the nodes called for real (DryRunInput.RealCalls).
 	realCalls string
+	// fence, when set, is asked before the real call (DryRunInput.Fence).
+	fence CallFence
 }
 
 // callBudget is how many real calls a dry run may still make.
@@ -855,6 +912,9 @@ type directResult struct {
 	masker  Masker // the connection's: what the node logged is masked with it
 	// script: the dry run may not make this call; the node is answered from the context.
 	script bool
+	// stop: the fence refused the call (its holder lost the work, or a strict fence met a node that
+	// cannot deduplicate); no call was made and the dry run ends with this error.
+	stop error
 }
 
 // execDirect runs a call node once, as the actor, with the connection the actor may use; the output and
@@ -934,6 +994,16 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	if c.realCalls == RealCallsNone {
 		// Offline: only the cache answers; a miss is answered from the context.
 		return directResult{script: true}
+	}
+	if c.fence != nil {
+		if c.fence.Strict() && !catalog.SupportsIdempotencyKey(cn) {
+			return directResult{stop: fmt.Errorf("%w: the provider of %s cannot deduplicate a repeated call, so a strict backtest does not call it", ErrUnfenced, c.node.Type)}
+		}
+		// The last check before the call: a holder that lost the work makes no further call. The call
+		// itself may still outlive the lease; its key lets the next holder's repeat be made once.
+		if err := c.fence.Hold(ctx); err != nil {
+			return directResult{stop: err}
+		}
 	}
 	if !c.budget.take() {
 		return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: CodeLimitExceeded, Message: "the dry run reached its limit of real calls"}}

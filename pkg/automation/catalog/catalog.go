@@ -172,6 +172,23 @@ func IsIdempotent(n CallNode, params map[string]any) bool {
 	return n.Idempotent()
 }
 
+// IdempotencyKeyed is an optional interface of a CallNode that passes CallInput.IdempotencyKey to its
+// provider, which answers a repeat of a key it has seen with the first call's result and neither charges
+// nor acts again. A caller that cannot be sure it still owns a call (a backtest worker whose lease another
+// worker may take while the call is in flight) relies on it: the next owner repeats the call under the
+// same key and the provider makes it once. A node without it, or whose method is false, cannot fence a
+// repeat: such a call may be paid twice.
+type IdempotencyKeyed interface {
+	SupportsIdempotencyKey() bool
+}
+
+// SupportsIdempotencyKey reports whether the provider of the node deduplicates a call by its
+// IdempotencyKey (IdempotencyKeyed).
+func SupportsIdempotencyKey(n CallNode) bool {
+	ik, ok := n.(IdempotencyKeyed)
+	return ok && ik.SupportsIdempotencyKey()
+}
+
 // TerminalUnknown is an optional interface of a CallNode whose call must never be repeated by anyone, an
 // operator included (an SMS): its unknown outcome always ends as the failed outcome with code
 // outcome_unknown, never blocks the call for an operator to retry it.

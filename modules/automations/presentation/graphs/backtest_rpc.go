@@ -48,6 +48,9 @@ func backtestErr(err error) error {
 		return rpcError(ErrUnsupportedSource, "the source cannot import history", nil)
 	case errors.Is(err, engine.ErrHumanRequired):
 		return rpcError(ErrHumanRequired, "only a person runs a backtest with live decisions", nil)
+	case errors.Is(err, engine.ErrUnfenced):
+		// Strict fencing (backtest.Config.StrictFencing) refused a provider that cannot deduplicate.
+		return rpcError(ErrInvalidInput, strings.TrimPrefix(err.Error(), engine.ErrUnfenced.Error()+": "), nil)
 	case errors.Is(err, engine.ErrRunFinished):
 		return rpcError(ErrBacktestFinished, "the backtest has finished", nil)
 	case errors.Is(err, engine.ErrLimitExceeded):
