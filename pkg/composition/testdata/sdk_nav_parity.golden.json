@@ -340,6 +340,18 @@
       }
     },
     {
+      "tr_key": "Account.Notifications.Title",
+      "link": "/account/notifications",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
       "tr_key": "Account.Sessions.Title",
       "link": "/account/sessions",
       "access": {

@@ -266,7 +266,9 @@ the deleted parent.
 | `core/CurrencyService.Create`, `core/CurrencyService.Update`, `core/CurrencyService.Delete` | Shared currency catalogue without a tenant |
 | `core/PermissionService.Save`, `core/PermissionService.Delete` | Permission catalogue synchronised from code |
 | `core/NotificationRoutingService.SaveRule`, `core/NotificationService.MarkRead`, `core/NotificationService.MarkAllRead` | Notification settings and inbox state, technical |
-| `core/NotificationChannelService.SetEnabled`, `core/NotificationRoutingService.SetUserChannels` | A user's own choice of delivery channels, notification settings like `SaveRule`, technical |
+| `core/NotificationChannelService.SetEnabled`, `core/NotificationChannelService.SetChannelEnabled`, `core/NotificationRoutingService.SetUserChannels` | A user's own choice of delivery channels, notification settings like `SaveRule`, technical |
+| `core/NotificationChannelConnectionService.Set` | Which connection (bot) a channel delivers through for the tenant, notification settings like `SaveRule`, technical |
+| `core/NotificationChannelLinkService.CompleteLink`, `core/NotificationChannelLinkService.CompleteLinkUpdate`, `core/NotificationChannelLinkService.Unlink`, `core/NotificationChannelLinkService.CancelLink` | A user's delivery address in a messenger (link tokens and the bound chat), technical like push devices |
 | `core/NotificationChannelService.Record`, `core/NotificationChannelService.Disabled` | Delivery log written by the notification dispatcher and a read of opt-outs, technical |
 | `core/NotificationDispatchService.Send`, `core/NotificationDispatchService.SendTx` | Queues a notice and its dispatch job for an audience inside the caller's transaction; the caller's own mutation carries the business event, technical |
 | `core/NotificationChannelService.RegisterDevice`, `core/NotificationChannelService.RevokeDevice` | A user's push device (delivery address of a browser or app installation), technical like sessions |
