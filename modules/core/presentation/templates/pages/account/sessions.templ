@@ -5,11 +5,9 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/badge"
 	"github.com/iota-uz/iota-sdk/components/base/button"
-	"github.com/iota-uz/iota-sdk/components/base/card"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	corecomponents "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/components"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -26,122 +24,86 @@ type SessionsPageProps struct {
 	Filters filterbuilder.Props
 }
 
+templ sessionIcon(icon string) {
+	<div class="flex size-10 shrink-0 items-center justify-center rounded-lg border border-subtle bg-surface-100 text-200">
+		switch icon {
+			case "device-mobile":
+				@icons.DeviceMobile(icons.Props{Size: "22"})
+			case "device-tablet":
+				@icons.DeviceTablet(icons.Props{Size: "22"})
+			default:
+				@icons.Desktop(icons.Props{Size: "22"})
+		}
+	</div>
+}
+
+// SessionRow is one signed-in device.
 templ SessionRow(session *viewmodels.Session) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 	}}
-	<tr id={ fmt.Sprintf("session-row-%s", session.TokenID) } class="border-b border-subtle">
-		<td class="px-6 py-4">
-			<div class="flex items-center gap-3">
-				<div class="flex-shrink-0">
-					if session.Icon == "device-mobile" {
-						@icons.DeviceMobile(icons.Props{Size: "24", Class: "text-gray-600 dark:text-gray-400"})
-					} else if session.Icon == "device-tablet" {
-						@icons.DeviceTablet(icons.Props{Size: "24", Class: "text-gray-600 dark:text-gray-400"})
-					} else {
-						@icons.Desktop(icons.Props{Size: "24", Class: "text-gray-600 dark:text-gray-400"})
+	<li id={ fmt.Sprintf("session-row-%s", session.TokenID) } class="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4 md:px-6" data-testid="account-session-row">
+		@sessionIcon(session.Icon)
+		<div class="min-w-0 flex-1">
+			<div class="flex flex-wrap items-center gap-2">
+				<span class="truncate text-sm font-medium text-100">{ session.Browser }</span>
+				if session.IsCurrent {
+					@badge.New(badge.Props{
+						Class:   templ.Classes("px-2"),
+						Variant: badge.VariantGreen,
+						Size:    badge.SizeNormal,
+					}) {
+						{ pageCtx.T("Account.Sessions.CurrentDevice") }
 					}
-				</div>
-				<div>
-					<div class="font-medium text-gray-900 dark:text-white flex items-center gap-2">
-						<span>{ session.Browser }</span>
-						if session.IsCurrent {
-							@badge.New(badge.Props{
-								Class:   templ.Classes("px-2"),
-								Variant: badge.VariantGreen,
-								Size:    badge.SizeNormal,
-							}) {
-								{ pageCtx.T("Account.Sessions.CurrentDevice") }
-							}
-						}
-					</div>
-					<div class="text-sm text-gray-500 dark:text-gray-400">
-						{ session.OS } • { session.Device }
-					</div>
-				</div>
-			</div>
-		</td>
-		<td class="px-6 py-4 text-gray-900 dark:text-white">
-			{ session.IPAddress }
-		</td>
-		<td class="px-6 py-4 text-gray-900 dark:text-white">
-			@corecomponents.LocalDateTime(session.CreatedAtISO)
-		</td>
-		<td class="px-6 py-4 text-right">
-			if !session.IsCurrent {
-				@button.Danger(button.Props{
-					Size:  button.SizeSM,
-					Class: templ.Classes("text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"),
-					Attrs: templ.Attributes{
-						"hx-delete":  fmt.Sprintf("/account/sessions/%s", session.TokenID),
-						"hx-confirm": pageCtx.T("Account.Sessions.ConfirmRevoke"),
-						"hx-target":  fmt.Sprintf("#session-row-%s", session.TokenID),
-						"hx-swap":    "outerHTML swap:0.3s",
-					},
-				}) {
-					{ pageCtx.T("Account.Sessions.Revoke") }
 				}
+			</div>
+			<p class="mt-0.5 truncate text-sm text-200">{ session.OS } · { session.Device }</p>
+			<div class="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-xs text-200">
+				<span class="whitespace-nowrap"><span class="sr-only">{ pageCtx.T("Account.Sessions.IPAddress") }: </span>{ session.IPAddress }</span>
+				<span aria-hidden="true">·</span>
+				<span class="whitespace-nowrap [&>div]:inline">
+					{ pageCtx.T("Account.Sessions.SignedIn") }&nbsp;
+					@corecomponents.LocalDateTime(session.CreatedAtISO)
+				</span>
+			</div>
+		</div>
+		if !session.IsCurrent {
+			@button.Secondary(button.Props{
+				Size:  button.SizeSM,
+				Class: "ml-auto min-h-9 text-danger",
+				Attrs: templ.Attributes{
+					"hx-delete":       fmt.Sprintf("/account/sessions/%s", session.TokenID),
+					"hx-confirm":      pageCtx.T("Account.Sessions.ConfirmRevoke"),
+					"hx-target":       fmt.Sprintf("#session-row-%s", session.TokenID),
+					"hx-swap":         "outerHTML swap:0.3s",
+					"hx-disabled-elt": "this",
+				},
+			}) {
+				{ pageCtx.T("Account.Sessions.Revoke") }
 			}
-		</td>
-	</tr>
+		}
+	</li>
 }
 
 templ SessionsList(props *SessionsPageProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 	}}
-	<div>
-		@card.Card(card.Props{
-			Class: "p-0 overflow-hidden",
-		}) {
-			<div class="overflow-x-auto">
-				<table class="min-w-full divide-y divide-subtle">
-					<thead class="bg-gray-50 dark:bg-gray-800">
-						<tr>
-							<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-								{ pageCtx.T("Account.Sessions.Device") }
-							</th>
-							<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-								{ pageCtx.T("Account.Sessions.IPAddress") }
-							</th>
-							<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-								{ pageCtx.T("Account.Sessions.CreatedAt") }
-							</th>
-							<th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-								{ pageCtx.T("Account.Sessions.Actions") }
-							</th>
-						</tr>
-					</thead>
-					<tbody class="bg-white dark:bg-gray-900 divide-y divide-subtle" id="sessions-table-body">
-						for _, session := range props.Sessions {
-							@SessionRow(session)
-						}
-					</tbody>
-				</table>
-			</div>
+	<ul class="flex flex-col divide-y divide-subtle border-t border-subtle" role="list" id="sessions-table-body" aria-label={ pageCtx.T("Account.Sessions.Title") }>
+		for _, session := range props.Sessions {
+			@SessionRow(session)
 		}
-	</div>
+	</ul>
 }
 
 templ EmptyState() {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 	}}
-	@card.Card(card.Props{
-		Class: "flex flex-col items-center justify-center py-12",
-	}) {
-		<div class="flex flex-col items-center gap-4 text-center">
-			@icons.DeviceMobile(icons.Props{Size: "48", Class: "text-gray-400"})
-			<div>
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">
-					{ pageCtx.T("Account.Sessions.EmptyState") }
-				</h3>
-				<p class="text-sm text-gray-500 dark:text-gray-400">
-					{ pageCtx.T("Account.Sessions.DescText") }
-				</p>
-			</div>
-		</div>
-	}
+	<div class="flex flex-col items-center gap-3 px-4 py-12 text-center">
+		@icons.Devices(icons.Props{Size: "40", Class: "text-200"})
+		<p class="text-sm font-medium text-100">{ pageCtx.T("Account.Sessions.EmptyState") }</p>
+	</div>
 }
 
 // NoMatchesState is shown when the chips leave no session.
@@ -149,13 +111,9 @@ templ NoMatchesState() {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 	}}
-	@card.Card(card.Props{
-		Class: "flex flex-col items-center justify-center py-12",
-	}) {
-		<p class="text-sm text-gray-500 dark:text-gray-400">
-			{ pageCtx.T("Account.Sessions.NoMatches") }
-		</p>
-	}
+	<p class="px-4 py-12 text-center text-sm text-200">
+		{ pageCtx.T("Account.Sessions.NoMatches") }
+	</p>
 }
 
 // SessionsResults is the list part the chips re-render.
@@ -180,59 +138,59 @@ templ SessionsListWithChips(props *SessionsPageProps) {
 	}
 }
 
-templ SessionsPage(props *SessionsPageProps) {
+templ revokeOthersButton() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@button.Danger(button.Props{
+		Size:  button.SizeSM,
+		Class: "min-h-9",
+		Icon:  icons.SignOut(icons.Props{Size: "18"}),
+		Attrs: templ.Attributes{
+			"type":            "button",
+			"hx-delete":       "/account/sessions/others",
+			"hx-confirm":      pageCtx.T("Account.Sessions.ConfirmRevokeAll"),
+			"hx-disabled-elt": "this",
+			"data-testid":     "account-sessions-revoke-others",
+		},
+	}) {
+		{ pageCtx.T("Account.Sessions.RevokeAll") }
+	}
+}
+
+// Sessions is the «Sessions» tab: the devices signed in to the account.
+templ Sessions(props *SessionsPageProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
-		hasOtherSessions := props.HasOtherSessions
 	}}
-	@layouts.Authenticated(layouts.AuthenticatedProps{
-		BaseProps: layouts.BaseProps{Title: pageCtx.T("Account.Sessions.Title")},
+	@Section(SectionProps{
+		Title:       pageCtx.T("Account.Sessions.Title"),
+		Description: pageCtx.T("Account.Sessions.DescText"),
+		Aside:       sessionsAside(props.HasOtherSessions),
+		BodyCls:     "p-0 pt-4 md:px-0",
+		TestID:      "account-sessions",
 	}) {
-		<div class="flex flex-col h-full">
-			<div class="flex-1 overflow-y-auto p-6">
-				<div class="max-w-5xl mx-auto">
-					<div class="mb-6">
-						<div class="flex items-center gap-2 mb-2">
-							<h1 class="text-2xl font-bold text-gray-900 dark:text-white">
-								{ pageCtx.T("Account.Sessions.Title") }
-							</h1>
-							@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"})
-						</div>
-						<p class="text-gray-600 dark:text-gray-400">
-							{ pageCtx.T("Account.Sessions.DescText") }
-						</p>
-					</div>
-					if hasOtherSessions {
-						<div class="mb-4 flex justify-end">
-							@button.Danger(button.Props{
-								Attrs: templ.Attributes{
-									"type":       "button",
-									"hx-delete":  "/account/sessions/others",
-									"hx-confirm": pageCtx.T("Account.Sessions.ConfirmRevokeAll"),
-								},
-							}) {
-								@icons.SignOut(icons.Props{Size: "20"})
-								<span>{ pageCtx.T("Account.Sessions.RevokeAll") }</span>
-							}
-						</div>
-					}
-					if props.Filters.Registry != nil {
-						<form
-							action="/account/sessions"
-							method="get"
-							class="mb-4"
-							hx-get="/account/sessions"
-							hx-trigger="filter-changed"
-							hx-target="#account-sessions-results"
-							hx-swap="outerHTML"
-							hx-push-url="true"
-						>
-							@filterbuilder.Builder(props.Filters)
-						</form>
-					}
-					@SessionsResults(props)
-				</div>
-			</div>
-		</div>
+		if props.Filters.Registry != nil {
+			<form
+				action="/account/sessions"
+				method="get"
+				class="px-4 pb-3 md:px-6"
+				hx-get="/account/sessions"
+				hx-trigger="filter-changed"
+				hx-target="#account-sessions-results"
+				hx-swap="outerHTML"
+				hx-push-url="true"
+			>
+				@filterbuilder.Builder(props.Filters)
+			</form>
+		}
+		@SessionsResults(props)
 	}
+}
+
+templ sessionsAside(hasOthers bool) {
+	<div class="flex items-center gap-3">
+		@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"})
+		if hasOthers {
+			@revokeOthersButton()
+		}
+	</div>
 }

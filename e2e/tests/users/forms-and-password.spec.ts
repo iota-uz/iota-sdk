@@ -133,7 +133,7 @@ test.describe('user form scalability and self-service password change', () => {
 		try {
 			await login(page, email, oldPassword);
 			await login(otherPage, email, oldPassword);
-			await page.goto('/account');
+			await page.goto('/account/password');
 			await expect(page.getByTestId('change-password-form')).toBeVisible();
 
 			await page.getByTestId('current-password').fill(oldPassword);

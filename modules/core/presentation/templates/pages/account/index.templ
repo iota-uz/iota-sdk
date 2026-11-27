@@ -1,16 +1,16 @@
 package account
 
 import (
+	"context"
 	"strings"
 
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components"
 	"github.com/iota-uz/iota-sdk/components/base/avatar"
 	"github.com/iota-uz/iota-sdk/components/base/button"
-	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -21,169 +21,281 @@ type ProfilePageProps struct {
 	Errors    map[string]string
 	PostPath  string
 	Languages []intl.SupportedLanguage
-	// ShowNotifications loads the «Notifications» section (the notification stack is composed).
-	ShowNotifications bool
 }
 
+// PasswordPath is where the password form posts.
+const PasswordPath = BasePath + "/password"
+
+// ProfileFormID is the profile form; a save swaps it.
+const ProfileFormID = "account-profile-form"
+
+// ProfileForm is the «Profile» tab: one form (the avatar is a field of it, the
+// save writes every field at once), split into cards, with one save bar.
 templ ProfileForm(props *ProfilePageProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
-
 		isUpdatable := composables.CanUser(ctx, permissions.UserUpdate) == nil
+		isEmailDisabled := props.User.Email != "" && !isUpdatable
+		isPhoneDisabled := props.User.Phone != "" && !isUpdatable
+		uploads := []*viewmodels.Upload{}
+		if props.User.Avatar != nil {
+			uploads = []*viewmodels.Upload{props.User.Avatar}
+		}
 	}}
 	<form
-		class="flex flex-col justify-between h-full"
+		id={ ProfileFormID }
+		class="flex flex-col gap-6"
 		hx-post={ props.PostPath }
 		hx-swap="outerHTML"
+		hx-disabled-elt="find button[type=submit]"
+		x-data="{ dirty: false }"
+		x-on:input="dirty = true"
+		x-on:change="dirty = true"
+		data-testid="account-profile-form"
 	>
-		<div class="flex flex-col gap-5 p-4 md:p-6">
-			@card.Card(card.Props{
-				Class: "grid grid-cols-1 md:grid-cols-3 gap-4",
-			}) {
-				<div class="md:col-span-3 flex items-center gap-4">
-					@avatar.Avatar(avatar.Props{
-						ImageURL: avatarURL(props.User),
-						Initials: props.User.Initials(),
-						Class:    templ.Classes("!size-20 text-2xl cursor-default"),
-					})
-					<div class="min-w-0">
-						<div class="truncate text-lg font-semibold text-100">{ displayName(props.User) }</div>
-						<div class="truncate text-sm text-200">{ props.User.Email }</div>
-					</div>
-				</div>
-				if props.User.Avatar == nil {
-					@components.UploadInput(&components.UploadInputProps{
-						Label:   pageCtx.T("Account.BrowseFilesystem"),
-						Name:    "AvatarID",
-						Class:   "md:col-span-3",
-						Uploads: []*viewmodels.Upload{},
-					})
-				} else {
-					@components.UploadInput(&components.UploadInputProps{
-						Label:   pageCtx.T("Account.BrowseFilesystem"),
-						Name:    "AvatarID",
-						Class:   "md:col-span-3",
-						Uploads: []*viewmodels.Upload{props.User.Avatar},
-					})
-				}
-				@input.Text(&input.Props{
-					Label:       pageCtx.T("Account.FirstName.Label"),
-					Placeholder: pageCtx.T("Account.FirstName.Placeholder"),
-					Attrs: templ.Attributes{
-						"name":  "FirstName",
-						"value": props.User.FirstName,
-					},
-					Error: props.Errors["FirstName"],
-				})
-				@input.Text(&input.Props{
-					Label:       pageCtx.T("Account.LastName.Label"),
-					Placeholder: pageCtx.T("Account.LastName.Placeholder"),
-					Attrs: templ.Attributes{
-						"name":  "LastName",
-						"value": props.User.LastName,
-					},
-					Error: props.Errors["LastName"],
-				})
-				@input.Text(&input.Props{
-					Label:       pageCtx.T("Account.MiddleName.Label"),
-					Placeholder: pageCtx.T("Account.MiddleName.Placeholder"),
-					Attrs: templ.Attributes{
-						"name":  "MiddleName",
-						"value": props.User.MiddleName,
-					},
-					Error: props.Errors["MiddleName"],
-				})
-				<div class="w-full">
-					{{ isEmailDisabled := props.User.Email != "" && !isUpdatable }}
-					@input.Text(&input.Props{
-						Label:       pageCtx.T("Account.Email.Label"),
-						Placeholder: pageCtx.T("Account.Email.Placeholder"),
-						Attrs: templ.Attributes{
-							"name":     "Email",
-							"value":    props.User.Email,
-							"type":     "email",
-							"disabled": isEmailDisabled,
-							"readonly": isEmailDisabled,
-						},
-						Error: props.Errors["Email"],
-					})
-				</div>
-				<div class="w-full">
-					{{ isPhoneDisabled := props.User.Phone != "" && !isUpdatable }}
-					@input.Text(&input.Props{
-						Label:       pageCtx.T("Account.Phone.Label"),
-						Placeholder: pageCtx.T("Account.Phone.Placeholder"),
-						Attrs: templ.Attributes{
-							"name":      "Phone",
-							"value":     props.User.Phone,
-							"disabled":  isPhoneDisabled,
-							"readonly":  isPhoneDisabled,
-							"minlength": "16",
-							"maxlength": "16",
-							"pattern":   "^\\+998.{12}",
-							"x-mask":    "+999 99 999 9999",
-						},
-						Error: props.Errors["Phone"],
-					})
-					<span class="text-gray-500 pr-2 text-xs">+998 XX XXX XXXX</span>
-				</div>
-				@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
-					Label:       pageCtx.T("Users.Single.Language"),
-					Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
-					Value:       string(props.User.Language),
-					Attrs:       templ.Attributes{"name": "Language"},
-					Error:       props.Errors["Language"],
-					Languages:   props.Languages,
-				})
-			}
-		</div>
-		<div class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4">
-			@button.Primary(button.Props{
+		@Section(SectionProps{
+			Title:       pageCtx.T("Account.Profile.Photo.Title"),
+			Description: pageCtx.T("Account.Profile.Photo.DescText"),
+			BodyCls:     "flex flex-col gap-4 sm:flex-row sm:items-center",
+		}) {
+			@avatar.Avatar(avatar.Props{
+				ImageURL: avatarURL(props.User),
+				Initials: props.User.Initials(),
+				Class:    templ.Classes("!size-20 shrink-0 cursor-default text-2xl"),
+			})
+			@components.UploadInput(&components.UploadInputProps{
+				Label:   pageCtx.T("Account.BrowseFilesystem"),
+				Name:    "AvatarID",
+				Accept:  "image/*",
+				Class:   "min-w-0 flex-1",
+				Uploads: uploads,
+				Error:   props.Errors["AvatarID"],
+			})
+		}
+		@Section(SectionProps{
+			Title:       pageCtx.T("Account.Profile.Personal.Title"),
+			Description: pageCtx.T("Account.Profile.Personal.DescText"),
+			BodyCls:     "grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-3",
+		}) {
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Account.FirstName.Label"),
+				Placeholder: pageCtx.T("Account.FirstName.Placeholder"),
+				Attrs:       templ.Attributes{"name": "FirstName", "value": props.User.FirstName, "autocomplete": "given-name", "required": true},
+				Error:       props.Errors["FirstName"],
+			})
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Account.LastName.Label"),
+				Placeholder: pageCtx.T("Account.LastName.Placeholder"),
+				Attrs:       templ.Attributes{"name": "LastName", "value": props.User.LastName, "autocomplete": "family-name", "required": true},
+				Error:       props.Errors["LastName"],
+			})
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Account.MiddleName.Label"),
+				Placeholder: pageCtx.T("Account.MiddleName.Placeholder"),
+				Attrs:       templ.Attributes{"name": "MiddleName", "value": props.User.MiddleName, "autocomplete": "additional-name"},
+				Error:       props.Errors["MiddleName"],
+			})
+		}
+		@Section(SectionProps{
+			Title:       pageCtx.T("Account.Profile.Contact.Title"),
+			Description: pageCtx.T("Account.Profile.Contact.DescText"),
+			BodyCls:     "grid grid-cols-1 gap-x-4 gap-y-5 md:grid-cols-2",
+		}) {
+			@input.Text(&input.Props{
+				Label:       pageCtx.T("Account.Email.Label"),
+				Placeholder: pageCtx.T("Account.Email.Placeholder"),
 				Attrs: templ.Attributes{
-					"type": "submit",
-				}},
-			) {
+					"name":         "Email",
+					"value":        props.User.Email,
+					"type":         "email",
+					"autocomplete": "email",
+					"disabled":     isEmailDisabled,
+					"readonly":     isEmailDisabled,
+				},
+				Error: props.Errors["Email"],
+			})
+			<div class="flex flex-col gap-1">
+				@input.Text(&input.Props{
+					Label:       pageCtx.T("Account.Phone.Label"),
+					Placeholder: pageCtx.T("Account.Phone.Placeholder"),
+					Attrs: templ.Attributes{
+						"name":         "Phone",
+						"value":        props.User.Phone,
+						"type":         "tel",
+						"autocomplete": "tel",
+						"disabled":     isPhoneDisabled,
+						"readonly":     isPhoneDisabled,
+						"minlength":    "16",
+						"maxlength":    "16",
+						"pattern":      "^\\+998.{12}",
+						"x-mask":       "+999 99 999 9999",
+					},
+					Error: props.Errors["Phone"],
+				})
+				<span class="text-xs text-200">+998 XX XXX XXXX</span>
+			</div>
+			if isEmailDisabled || isPhoneDisabled {
+				<p class="flex items-start gap-2 text-sm text-200 md:col-span-2">
+					@icons.Info(icons.Props{Size: "18", Class: "mt-0.5 shrink-0"})
+					{ pageCtx.T("Account.Profile.Contact.Locked") }
+				</p>
+			}
+		}
+		@Section(SectionProps{
+			Title:       pageCtx.T("Account.Profile.Preferences.Title"),
+			Description: pageCtx.T("Account.Profile.Preferences.DescText"),
+			BodyCls:     "grid grid-cols-1 gap-4 md:grid-cols-2",
+		}) {
+			@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
+				Label:       pageCtx.T("Users.Single.Language"),
+				Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
+				Value:       string(props.User.Language),
+				Attrs:       templ.Attributes{"name": "Language"},
+				Error:       props.Errors["Language"],
+				Languages:   props.Languages,
+			})
+		}
+		<div class="sticky bottom-0 z-10 -mx-4 flex flex-wrap items-center justify-end gap-3 border-t border-subtle bg-surface-300 px-4 py-3 md:mx-0 md:rounded-lg md:border md:px-6">
+			if len(props.Errors) > 0 {
+				<p role="alert" class="mr-auto flex items-center gap-2 text-sm text-danger">
+					@icons.WarningCircle(icons.Props{Size: "18", Class: "shrink-0"})
+					{ pageCtx.T("Account.Profile.FixErrors") }
+				</p>
+			} else {
+				<p x-show="dirty" x-cloak class="mr-auto text-sm text-200" aria-live="polite">{ pageCtx.T("Account.Profile.Unsaved") }</p>
+			}
+			@button.Primary(button.Props{
+				Class: "min-h-10 min-w-32 justify-center",
+				Attrs: templ.Attributes{"type": "submit", "data-testid": "account-profile-save"},
+			}) {
 				{ pageCtx.T("Account.Save") }
 			}
 		</div>
 	</form>
 }
 
+// ProfileSaved answers a save: the form again and the page header with the
+// new name.
+templ ProfileSaved(props *ProfilePageProps) {
+	@ProfileForm(props)
+	@Header(props.User, true)
+}
+
+// passwordState gives the hints of the password form. They only describe the
+// rules the server checks; the server decides.
+const passwordState = `{
+	pw: '', confirm: '',
+	get longEnough() { return this.pw.length >= 8 },
+	get matches() { return this.confirm !== '' && this.pw === this.confirm },
+	get score() {
+		const p = this.pw; if (!p) return 0;
+		let s = p.length >= 8 ? 1 : 0;
+		if (p.length >= 12) s++;
+		if (/[a-z]/.test(p) && /[A-Z]/.test(p)) s++;
+		if (/\d/.test(p) && /[^A-Za-z0-9]/.test(p)) s++;
+		return Math.max(1, s);
+	},
+}`
+
+// PasswordForm is the «Password» tab. A change signs the person out everywhere
+// (the service drops every session), so success lands on the login page.
 templ PasswordForm(postPath string, errors map[string]string) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<form
 		data-testid="change-password-form"
-		class="flex flex-col gap-4 p-4 md:p-6"
 		hx-post={ postPath }
 		hx-swap="outerHTML"
+		hx-disabled-elt="find button[type=submit]"
+		x-data={ passwordState }
 	>
-		@card.Card(card.Props{Class: "grid grid-cols-1 md:grid-cols-3 gap-4"}) {
-			<div class="md:col-span-3">
-				<h2 class="text-lg font-semibold text-gray-900">{ pageCtx.T("Account.ChangePassword.Title") }</h2>
-				<p class="text-sm text-gray-700">{ pageCtx.T("Account.ChangePassword.DescText") }</p>
+		@composables.CSRFTokenField()
+		@Section(SectionProps{
+			Title:       pageCtx.T("Account.ChangePassword.Title"),
+			Description: pageCtx.T("Account.ChangePassword.DescText"),
+			BodyCls:     "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:gap-10",
+			Footer:      passwordSubmit(),
+		}) {
+			<div class="flex flex-col gap-5">
+				@input.Password(&input.Props{
+					Label: pageCtx.T("Account.ChangePassword.CurrentPassword"),
+					Attrs: templ.Attributes{"name": "CurrentPassword", "autocomplete": "current-password", "data-testid": "current-password", "id": "account-current-password"},
+					Error: errors["CurrentPassword"],
+				})
+				<div class="flex flex-col gap-2">
+					@input.Password(&input.Props{
+						Label: pageCtx.T("Account.ChangePassword.NewPassword"),
+						Attrs: templ.Attributes{
+							"name": "NewPassword", "autocomplete": "new-password", "data-testid": "new-password", "id": "account-new-password",
+							"x-model": "pw", "aria-describedby": "account-password-rules",
+						},
+						Error: errors["NewPassword"],
+					})
+					<div class="flex items-center gap-3" x-show="pw !== ''" x-cloak aria-hidden="true">
+						<div class="grid flex-1 grid-cols-4 gap-1">
+							for i := 1; i <= 4; i++ {
+								<span
+									class="h-1.5 rounded-full transition-colors"
+									x-bind:class={ passwordBarClass(i) }
+								></span>
+							}
+						</div>
+						<span class="w-16 text-right text-xs text-200" x-text={ passwordStrengthText(ctx) }></span>
+					</div>
+				</div>
+				@input.Password(&input.Props{
+					Label: pageCtx.T("Account.ChangePassword.ConfirmPassword"),
+					Attrs: templ.Attributes{"name": "ConfirmPassword", "autocomplete": "new-password", "data-testid": "confirm-password", "id": "account-confirm-password", "x-model": "confirm"},
+					Error: errors["ConfirmPassword"],
+				})
 			</div>
-			@input.Text(&input.Props{
-				Label: pageCtx.T("Account.ChangePassword.CurrentPassword"),
-				Attrs: templ.Attributes{"name": "CurrentPassword", "type": "password", "autocomplete": "current-password", "data-testid": "current-password"},
-				Error: errors["CurrentPassword"],
-			})
-			@input.Text(&input.Props{
-				Label: pageCtx.T("Account.ChangePassword.NewPassword"),
-				Attrs: templ.Attributes{"name": "NewPassword", "type": "password", "autocomplete": "new-password", "data-testid": "new-password"},
-				Error: errors["NewPassword"],
-			})
-			@input.Text(&input.Props{
-				Label: pageCtx.T("Account.ChangePassword.ConfirmPassword"),
-				Attrs: templ.Attributes{"name": "ConfirmPassword", "type": "password", "autocomplete": "new-password", "data-testid": "confirm-password"},
-				Error: errors["ConfirmPassword"],
-			})
-			<div class="md:col-span-3 flex justify-end">
-				@button.Primary(button.Props{Attrs: templ.Attributes{"type": "submit", "data-testid": "change-password-submit"}}) {
-					{ pageCtx.T("Account.ChangePassword.Submit") }
-				}
+			<div id="account-password-rules" class="flex flex-col gap-3 self-start rounded-lg border border-subtle bg-surface-100 p-4 text-sm">
+				<p class="font-medium text-100">{ pageCtx.T("Account.ChangePassword.Requirements.Title") }</p>
+				<ul class="flex flex-col gap-2" role="list">
+					@passwordRule("longEnough", pageCtx.T("Account.ChangePassword.Requirements.MinLength"))
+					@passwordRule("matches", pageCtx.T("Account.ChangePassword.Requirements.Match"))
+				</ul>
 			</div>
 		}
 	</form>
+}
+
+templ passwordSubmit() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@button.Primary(button.Props{
+		Class: "min-h-10 min-w-32 justify-center",
+		Attrs: templ.Attributes{"type": "submit", "data-testid": "change-password-submit"},
+	}) {
+		{ pageCtx.T("Account.ChangePassword.Submit") }
+	}
+}
+
+templ passwordRule(flag, text string) {
+	<li class="flex items-start gap-2" x-bind:class={ flag + " ? 'text-100' : 'text-200'" }>
+		<span x-show={ flag } x-cloak class="mt-0.5 shrink-0 text-green">
+			@icons.CheckCircle(icons.Props{Size: "18", Variant: icons.Filled})
+		</span>
+		<span x-show={ "!" + flag } class="mt-0.5 shrink-0">
+			@icons.Circle(icons.Props{Size: "18"})
+		</span>
+		<span>{ text }</span>
+	</li>
+}
+
+func passwordBarClass(i int) string {
+	n := string(rune('0' + i))
+	return "score >= " + n + " ? (score <= 1 ? 'bg-danger' : score === 2 ? 'bg-warning' : 'bg-success') : 'bg-track'"
+}
+
+func passwordStrengthText(ctx context.Context) string {
+	pageCtx := composables.UsePageCtx(ctx)
+	return "['', " + jsString(pageCtx.T("Account.ChangePassword.Strength.Weak")) + ", " +
+		jsString(pageCtx.T("Account.ChangePassword.Strength.Fair")) + ", " +
+		jsString(pageCtx.T("Account.ChangePassword.Strength.Good")) + ", " +
+		jsString(pageCtx.T("Account.ChangePassword.Strength.Strong")) + "][score]"
+}
+
+func jsString(s string) string {
+	return "'" + strings.NewReplacer(`\`, `\\`, `'`, `\'`, "\n", " ").Replace(s) + "'"
 }
 
 func displayName(user *viewmodels.User) string {
@@ -195,20 +307,4 @@ func avatarURL(user *viewmodels.User) string {
 		return ""
 	}
 	return user.Avatar.URL
-}
-
-templ Index(props *ProfilePageProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@layouts.Authenticated(layouts.AuthenticatedProps{
-		BaseProps: layouts.BaseProps{Title: pageCtx.T("Account.Meta.Index.Title")},
-	}) {
-		<div class="flex flex-col">
-			<h1 class="px-4 pt-4 text-2xl font-bold text-100 md:px-6 md:pt-6">{ pageCtx.T("Account.Meta.Index.Title") }</h1>
-			@ProfileForm(props)
-			if props.ShowNotifications {
-				@NotificationsPlaceholder()
-			}
-			@PasswordForm(props.PostPath+"/password", map[string]string{})
-		</div>
-	}
 }

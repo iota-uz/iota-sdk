@@ -6,10 +6,8 @@ import (
 
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
-	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
@@ -102,73 +100,42 @@ func secondsLeft(t time.Time) int {
 	return left
 }
 
-// NotificationsPage is the section on a page of its own.
-templ NotificationsPage(props *NotificationsProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@layouts.Authenticated(layouts.AuthenticatedProps{
-		BaseProps: layouts.BaseProps{Title: pageCtx.T("Account.Notifications.Title")},
-	}) {
-		<div class="flex flex-col">
-			<h1 class="px-4 pt-4 text-2xl font-bold text-100 md:px-6 md:pt-6">{ pageCtx.T("Account.Meta.Index.Title") }</h1>
-			@Notifications(props)
-		</div>
-	}
-}
-
-// NotificationsPlaceholder loads the section into the profile, holding its place meanwhile.
-templ NotificationsPlaceholder() {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<section
-		id={ NotificationsSectionID }
-		class="px-4 pb-4 md:px-6 md:pb-6"
-		hx-get={ NotificationsPath }
-		hx-trigger="load, retry"
-		hx-swap="outerHTML"
-		aria-busy="true"
-		x-data="{ failed: false }"
-		x-on:htmx:before-request="failed = false; $el.setAttribute('aria-busy', 'true')"
-		x-on:htmx:response-error="failed = true; $el.setAttribute('aria-busy', 'false')"
-		x-on:htmx:send-error="failed = true; $el.setAttribute('aria-busy', 'false')"
-	>
-		@card.Card(card.Props{Class: "flex flex-col gap-3"}) {
-			<h2 class="text-lg font-semibold text-100">{ pageCtx.T("Account.Notifications.Title") }</h2>
-			<div x-show="failed" x-cloak role="alert" class="flex flex-wrap items-center gap-3 text-sm text-danger">
-				<span>{ pageCtx.T("Account.Notifications.Errors.Load") }</span>
-				@button.Secondary(button.Props{Size: button.SizeSM, Attrs: templ.Attributes{"type": "button", "@click": "htmx.trigger($root, 'retry')"}}) {
-					{ pageCtx.T("Account.Notifications.Retry") }
-				}
-			</div>
-			for range 3 {
-				<div x-show="!failed" class="flex min-h-11 items-center justify-between gap-3">
-					<div class="h-4 w-40 animate-pulse motion-reduce:animate-none rounded bg-surface-200"></div>
-					<div class="h-6 w-11 animate-pulse motion-reduce:animate-none rounded-full bg-surface-200"></div>
-				</div>
-			}
-		}
-	</section>
-}
-
-// Notifications is the section: a switch per channel the tenant offers and the
-// person's linked accounts.
+// Notifications is the «Notifications» tab: a switch per channel the tenant
+// offers and, when a channel needs the person's own account (Telegram), the
+// linked accounts.
 templ Notifications(props *NotificationsProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<section id={ NotificationsSectionID } class="iota-focus-scope iota-fade-in px-4 pb-4 md:px-6 md:pb-6" data-testid="account-notifications">
-		@card.Card(card.Props{Class: "flex flex-col gap-4"}) {
-			<div>
-				<h2 class="text-lg font-semibold text-100">{ pageCtx.T("Account.Notifications.Title") }</h2>
-				<p class="mt-1 text-sm text-200">{ pageCtx.T("Account.Notifications.Intro") }</p>
-			</div>
-			if props.ErrorKey != "" {
-				<p role="alert" class="text-sm text-danger">{ pageCtx.T("Account.Notifications.Errors." + props.ErrorKey) }</p>
+	<div id={ NotificationsSectionID } class="iota-focus-scope iota-fade-in flex flex-col gap-6" data-testid="account-notifications">
+		if props.ErrorKey != "" {
+			<p role="alert" class="flex items-start gap-2 rounded-lg border border-danger px-4 py-3 text-sm text-danger">
+				@icons.WarningCircle(icons.Props{Size: "18", Class: "mt-0.5 shrink-0"})
+				{ pageCtx.T("Account.Notifications.Errors." + props.ErrorKey) }
+			</p>
+		}
+		@Section(SectionProps{
+			Title:       pageCtx.T("Account.Notifications.Title"),
+			Description: pageCtx.T("Account.Notifications.Intro"),
+			BodyCls:     "pb-2 pt-1",
+		}) {
+			if len(props.Channels) == 0 {
+				<p class="py-4 text-sm text-200">{ pageCtx.T("Account.Notifications.NoChannels") }</p>
 			}
 			<ul class="flex flex-col" role="list" aria-label={ pageCtx.T("Account.Notifications.Channels") }>
 				for _, c := range props.Channels {
 					@notificationChannelRow(c)
 				}
 			</ul>
-			@NotificationLinks(props)
 		}
-	</section>
+		if len(props.Links) > 0 {
+			@Section(SectionProps{
+				Title:       pageCtx.T("Account.Notifications.Accounts.Title"),
+				Description: pageCtx.T("Account.Notifications.Accounts.DescText"),
+				BodyCls:     "pb-1 pt-0",
+			}) {
+				@NotificationLinks(props)
+			}
+		}
+	</div>
 }
 
 // ChannelsChangedEvent is the event a saved switch triggers: the accounts block follows it.
@@ -182,7 +149,7 @@ const NotificationLinksID = "account-notification-links"
 templ NotificationLinks(props *NotificationsProps) {
 	<div
 		id={ NotificationLinksID }
-		class="flex flex-col gap-4 empty:hidden"
+		class="flex flex-col divide-y divide-subtle empty:hidden"
 		hx-get={ NotificationsPath + "?part=links" }
 		hx-trigger={ ChannelsChangedEvent + " from:body" }
 		hx-swap="outerHTML"
@@ -208,14 +175,14 @@ func channelOf(props *NotificationsProps, channel string) NotificationChannel {
 templ notificationChannelRow(c NotificationChannel) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<li
-		class="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-subtle py-2 last:border-b-0"
+		class="flex min-h-14 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-subtle py-3 last:border-b-0"
 		x-data={ switchState(NotificationsPath + "/channels/" + c.Channel) }
 		data-testid={ "channel-row-" + c.Channel }
 	>
 		<div class="min-w-0">
-			<span class="font-medium text-100">{ c.Label }</span>
+			<span class="block text-sm font-medium text-100">{ c.Label }</span>
 			if c.Linked && !c.HasAddress {
-				<span class="block text-xs text-200">{ pageCtx.T("Account.Notifications.NeedsLink", map[string]any{"Channel": c.Label}) }</span>
+				<span class="mt-0.5 block text-xs text-200">{ pageCtx.T("Account.Notifications.NeedsLink", map[string]any{"Channel": c.Label}) }</span>
 			}
 		</div>
 		@input.Switch(&input.SwitchProps{
@@ -238,7 +205,7 @@ templ notificationChannelRow(c NotificationChannel) {
 templ notificationLink(l NotificationLink, c NotificationChannel) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{ args := map[string]any{"Channel": l.Label, "Account": l.Display} }}
-	<div class="flex flex-col gap-3 border-t border-subtle pt-4" data-testid={ "link-" + l.Channel } data-state={ string(l.State) }>
+	<div class="flex flex-col gap-3 py-4" data-testid={ "link-" + l.Channel } data-state={ string(l.State) }>
 		<div class="flex items-start gap-2" role="status" aria-live="polite">
 			switch l.State {
 				case LinkActive:

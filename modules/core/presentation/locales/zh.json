@@ -47,7 +47,8 @@
     }
   },
   "Account": {
-      "Notifications": {
+    "Tabs": {"Label": "账户分区", "Profile": "个人资料", "Notifications": "通知", "Password": "密码", "Sessions": "会话"}, "Profile": {"Photo": {"Title": "头像", "DescText": "在应用中显示在您的姓名旁边。"}, "Personal": {"Title": "个人信息", "DescText": "同事看到的您的姓名。"}, "Contact": {"Title": "联系方式", "DescText": "联系您的方式。", "Locked": "如需更改邮箱或电话，请联系管理员。"}, "Preferences": {"Title": "偏好设置", "DescText": "界面语言。"}, "Unsaved": "有未保存的更改。", "FixErrors": "请修正标出的字段后再次保存。", "Saved": "个人资料已保存"},
+      "Notifications": {"NoChannels": "没有可用的通知渠道。", "Accounts": {"Title": "已连接的账户", "DescText": "在应用之外接收通知的账户。"},
         "Retry": "重试",
         "Title": "通知",
         "Intro": "选择接收通知的方式。",
@@ -127,7 +128,7 @@
       "Placeholder": "输入电话号码"
     },
     "Password": "密码",
-    "ChangePassword": {"Title":"更改密码","DescText":"更改密码后，所有活动会话都将退出。","CurrentPassword":"当前密码","NewPassword":"新密码","ConfirmPassword":"确认新密码","Submit":"更改密码","Errors":{"CurrentRequired":"请输入当前密码。","CurrentIncorrect":"当前密码不正确。","NewTooShort":"新密码必须至少包含 8 个字符。","ConfirmationMismatch":"两次输入的新密码不一致。"}},
+    "ChangePassword": {"Requirements": {"Title": "密码要求", "MinLength": "至少 8 个字符", "Match": "两次输入的新密码一致"}, "Success": "密码已更改。请使用新密码登录。", "Strength": {"Weak": "弱", "Fair": "一般", "Good": "良好", "Strong": "强"},"Title":"更改密码","DescText":"更改密码后，所有活动会话都将退出。","CurrentPassword":"当前密码","NewPassword":"新密码","ConfirmPassword":"确认新密码","Submit":"更改密码","Errors":{"CurrentRequired":"请输入当前密码。","CurrentIncorrect":"当前密码不正确。","NewTooShort":"新密码必须至少包含 8 个字符。","ConfirmationMismatch":"两次输入的新密码不一致。"}},
     "Save": "保存",
     "Logo": {
       "FullLogo": "完整logo",
@@ -145,7 +146,7 @@
       "Email": "电子邮件地址",
       "EmailPlaceholder": "输入电子邮件地址"
     },
-    "Sessions": {
+    "Sessions": {"SignedIn": "登录于",
       "Title": "活动会话",
       "DescText": "管理您在不同设备上的活动会话",
       "CurrentDevice": "当前",

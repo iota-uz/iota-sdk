@@ -11,6 +11,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/iota-uz/iota-sdk/modules/core/notifications"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/account"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -109,13 +110,21 @@ func linkView(channel notifications.Channel, label string, s notifications.LinkS
 	return view
 }
 
+// render answers the section's own htmx requests with the section (or its
+// accounts block); a tab switch and a page load get the «Notifications» tab.
 func (c *AccountNotificationsController) render(w http.ResponseWriter, r *http.Request, props *account.NotificationsProps) {
-	component := account.Notifications(props)
-	if htmx.IsHxRequest(r) && r.URL.Query().Get("part") == "links" {
-		component = account.NotificationLinks(props)
+	if htmx.WantsFullPage(r) || isAccountTabSwitch(r) {
+		u, err := composables.UseUser(r.Context())
+		if err != nil || u == nil {
+			RenderForbidden(w, r)
+			return
+		}
+		renderAccountTab(w, r, mappers.UserToViewModel(u), account.TabNotifications, account.Notifications(props))
+		return
 	}
-	if !htmx.IsHxRequest(r) {
-		component = account.NotificationsPage(props)
+	component := account.Notifications(props)
+	if r.URL.Query().Get("part") == "links" {
+		component = account.NotificationLinks(props)
 	}
 	templ.Handler(component).ServeHTTP(w, r)
 }

@@ -1,0 +1,211 @@
+package account
+
+import (
+	"context"
+
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/avatar"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/twmerge"
+)
+
+// Tab is one section of the account page; each has a URL of its own.
+type Tab string
+
+const (
+	TabProfile       Tab = "profile"
+	TabNotifications Tab = "notifications"
+	TabPassword      Tab = "password"
+	TabSessions      Tab = "sessions"
+)
+
+// BasePath is where the account page lives.
+const BasePath = "/account"
+
+// TabPanelID is the element a tab switch swaps: a request aimed at it gets the
+// tab's content only, every other request keeps its own answer.
+const TabPanelID = "account-tab-panel"
+
+// HeaderID is the page header; a saved profile refreshes it out of band.
+const HeaderID = "account-header"
+
+// TabInfo describes one tab of the bar.
+type TabInfo struct {
+	Tab      Tab
+	Path     string
+	TitleKey string
+	Icon     func(icons.Props) templ.Component
+}
+
+// Tabs are the account sections in the order of the tab bar.
+var Tabs = []TabInfo{
+	{Tab: TabProfile, Path: BasePath, TitleKey: "Account.Tabs.Profile", Icon: icons.UserCircle},
+	{Tab: TabNotifications, Path: BasePath + "/notifications", TitleKey: "Account.Tabs.Notifications", Icon: icons.Bell},
+	{Tab: TabPassword, Path: BasePath + "/password", TitleKey: "Account.Tabs.Password", Icon: icons.Password},
+	{Tab: TabSessions, Path: BasePath + "/sessions", TitleKey: "Account.Tabs.Sessions", Icon: icons.Devices},
+}
+
+// TabByName returns the tab of a ?tab= value of the old single page.
+func TabByName(name string) (TabInfo, bool) {
+	for _, t := range Tabs {
+		if string(t.Tab) == name {
+			return t, true
+		}
+	}
+	return TabInfo{}, false
+}
+
+func tabInfo(tab Tab) TabInfo {
+	for _, t := range Tabs {
+		if t.Tab == tab {
+			return t
+		}
+	}
+	return Tabs[0]
+}
+
+// ShellProps is the frame shared by every tab.
+type ShellProps struct {
+	User   *viewmodels.User
+	Active Tab
+}
+
+func tabTitle(ctx context.Context, tab Tab) string {
+	pageCtx := composables.UsePageCtx(ctx)
+	return pageCtx.T(tabInfo(tab).TitleKey) + " · " + pageCtx.T("Account.Meta.Index.Title")
+}
+
+// Page is a tab on the full account page.
+templ Page(props ShellProps, content templ.Component) {
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: tabTitle(ctx, props.Active)},
+	}) {
+		<div class="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 md:px-8 md:py-8" data-testid="account-page">
+			@Header(props.User, false)
+			@tabBar(props.Active)
+			<div id={ TabPanelID } class="flex min-w-0 flex-col gap-6" data-tab={ string(props.Active) }>
+				@content
+			</div>
+		</div>
+	}
+}
+
+// TabContent answers a tab switch: the tab's content and the document title.
+templ TabContent(active Tab, content templ.Component) {
+	<title>{ tabTitle(ctx, active) }</title>
+	@content
+}
+
+// Header shows who the account belongs to.
+templ Header(user *viewmodels.User, oob bool) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<header
+		id={ HeaderID }
+		class="flex min-w-0 items-center gap-4"
+		if oob {
+			hx-swap-oob="true"
+		}
+	>
+		@avatar.Avatar(avatar.Props{
+			ImageURL: avatarURL(user),
+			Initials: user.Initials(),
+			Class:    templ.Classes("!size-14 shrink-0 cursor-default text-xl md:!size-16 md:text-2xl"),
+		})
+		<div class="min-w-0">
+			<p class="text-xs font-medium uppercase tracking-wide text-200">{ pageCtx.T("Account.Meta.Index.Title") }</p>
+			<h1 class="truncate text-xl font-semibold text-100 md:text-2xl" data-testid="account-name">{ displayName(user) }</h1>
+			if user.Email != "" {
+				<p class="truncate text-sm text-200">{ user.Email }</p>
+			}
+		</div>
+	</header>
+}
+
+// tabBar links every tab. The links are real links (open in a new tab, work
+// without JS); with htmx they swap the panel and push the URL. The active tab
+// follows the address, so Back and Forward keep it right.
+templ tabBar(active Tab) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<nav
+		aria-label={ pageCtx.T("Account.Tabs.Label") }
+		class="-mx-4 border-b border-subtle px-4 md:mx-0 md:px-0"
+		x-data="{ path: window.location.pathname }"
+		x-on:popstate.window="path = window.location.pathname"
+		x-on:htmx:history-restore.window="path = window.location.pathname"
+		x-on:htmx:pushed-into-history.window="path = window.location.pathname"
+	>
+		<ul class="-mb-px flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="list">
+			for _, t := range Tabs {
+				<li class="shrink-0">
+					<a
+						href={ templ.SafeURL(t.Path) }
+						hx-get={ t.Path }
+						hx-target={ "#" + TabPanelID }
+						hx-swap="innerHTML show:none"
+						hx-push-url="true"
+						data-testid={ "account-tab-" + string(t.Tab) }
+						x-on:click={ "path = '" + t.Path + "'" }
+						if t.Tab == active {
+							aria-current="page"
+						}
+						x-bind:aria-current={ "path === '" + t.Path + "' ? 'page' : null" }
+						class="group inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-t-md border-b-2 border-transparent px-3 text-sm font-medium text-200 transition-colors hover:border-strong hover:text-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500 aria-[current=page]:border-brand aria-[current=page]:text-100"
+					>
+						@t.Icon(icons.Props{Size: "18", Class: "hidden shrink-0 text-200 group-aria-[current=page]:text-brand-500 sm:block"})
+						<span>{ pageCtx.T(t.TitleKey) }</span>
+					</a>
+				</li>
+			}
+		</ul>
+	</nav>
+}
+
+// SectionProps is one card of a tab: a title, a line about it and its body.
+type SectionProps struct {
+	ID          string
+	Title       string
+	Description string
+	// Aside sits in the header, after the title (an action of the whole section).
+	Aside templ.Component
+	// Footer sits under the body, with the section's action on the right.
+	Footer  templ.Component
+	BodyCls string
+	TestID  string
+}
+
+// Section is the card every tab is made of.
+templ Section(p SectionProps) {
+	<section
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		if p.TestID != "" {
+			data-testid={ p.TestID }
+		}
+		class="min-w-0 rounded-lg border border-subtle bg-surface-300"
+	>
+		<div class="flex flex-col gap-3 px-4 pt-5 sm:flex-row sm:items-start sm:justify-between md:px-6">
+			<div class="min-w-0">
+				<h2 class="text-base font-semibold text-100">{ p.Title }</h2>
+				if p.Description != "" {
+					<p class="mt-1 text-sm text-200">{ p.Description }</p>
+				}
+			</div>
+			if p.Aside != nil {
+				<div class="shrink-0">
+					@p.Aside
+				</div>
+			}
+		</div>
+		<div class={ twmerge.Merge("px-4 pb-5 pt-4 md:px-6", p.BodyCls) }>
+			{ children... }
+		</div>
+		if p.Footer != nil {
+			<div class="flex flex-wrap items-center justify-end gap-3 rounded-b-lg border-t border-subtle bg-surface-100 px-4 py-3 md:px-6">
+				@p.Footer
+			</div>
+		}
+	</section>
+}

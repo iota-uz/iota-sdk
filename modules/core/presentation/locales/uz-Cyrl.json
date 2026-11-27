@@ -47,7 +47,8 @@
     }
   },
   "Account": {
-      "Notifications": {
+    "Tabs": {"Label": "Аккаунт бўлимлари", "Profile": "Профил", "Notifications": "Билдиришномалар", "Password": "Парол", "Sessions": "Сессиялар"}, "Profile": {"Photo": {"Title": "Профил расми", "DescText": "Илова бўйлаб исмингиз ёнида кўрсатилади."}, "Personal": {"Title": "Шахсий маълумотлар", "DescText": "Ҳамкасбларингиз кўрадиган исмингиз."}, "Contact": {"Title": "Алоқа маълумотлари", "DescText": "Сиз билан қандай боғланиш мумкин.", "Locked": "Email ёки телефонни ўзгартириш учун администраторга мурожаат қилинг."}, "Preferences": {"Title": "Созламалар", "DescText": "Интерфейс тили."}, "Unsaved": "Сақланмаган ўзгаришлар бор.", "FixErrors": "Белгиланган майдонларни тўғрилаб, қайта сақланг.", "Saved": "Профил сақланди"},
+      "Notifications": {"NoChannels": "Билдиришнома каналлари мавжуд эмас.", "Accounts": {"Title": "Уланган аккаунтлар", "DescText": "Иловадан ташқарида билдиришномалар келадиган аккаунтлар."},
         "Retry": "Қайта уриниш",
         "Title": "Билдиришномалар",
         "Intro": "Билдиришномалар қаерга келишини танланг.",
@@ -127,7 +128,7 @@
       "Placeholder": "Телефон рақамингизни киритинг"
     },
     "Password": "Парол",
-    "ChangePassword": {"Title":"Паролни ўзгартириш","DescText":"Парол ўзгартирилгач, барча фаол сеанслар якунланади.","CurrentPassword":"Жорий парол","NewPassword":"Янги парол","ConfirmPassword":"Янги паролни тасдиқлаш","Submit":"Паролни ўзгартириш","Errors":{"CurrentRequired":"Жорий паролни киритинг.","CurrentIncorrect":"Жорий парол нотўғри.","NewTooShort":"Янги парол камида 8 та белгидан иборат бўлиши керак.","ConfirmationMismatch":"Парол тасдиғи янги паролга мос келмайди."}},
+    "ChangePassword": {"Requirements": {"Title": "Паролга талаблар", "MinLength": "Камида 8 та белги", "Match": "Янги паролнинг иккала майдони мос келади"}, "Success": "Парол ўзгартирилди. Янги парол билан киринг.", "Strength": {"Weak": "Заиф", "Fair": "Ўртача", "Good": "Яхши", "Strong": "Кучли"},"Title":"Паролни ўзгартириш","DescText":"Парол ўзгартирилгач, барча фаол сеанслар якунланади.","CurrentPassword":"Жорий парол","NewPassword":"Янги парол","ConfirmPassword":"Янги паролни тасдиқлаш","Submit":"Паролни ўзгартириш","Errors":{"CurrentRequired":"Жорий паролни киритинг.","CurrentIncorrect":"Жорий парол нотўғри.","NewTooShort":"Янги парол камида 8 та белгидан иборат бўлиши керак.","ConfirmationMismatch":"Парол тасдиғи янги паролга мос келмайди."}},
     "Save": "Сақлаш",
     "Logo": {
       "FullLogo": "Тўлиқ логотип",
@@ -145,7 +146,7 @@
       "Email": "Электрон почта манзили",
       "EmailPlaceholder": "Электрон почта манзилини киритинг"
     },
-    "Sessions": {
+    "Sessions": {"SignedIn": "Кириш",
       "Title": "Faol sessiyalar",
       "DescText": "Turli qurilmalardagi faol sessiyalarni boshqarish",
       "CurrentDevice": "Joriy",
