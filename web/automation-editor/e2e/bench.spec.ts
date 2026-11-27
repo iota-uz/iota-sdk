@@ -11,7 +11,16 @@ import path from 'node:path'
 import { expect, test } from '@playwright/test'
 import { card } from './helpers'
 
-const THROTTLE = Number(process.env.AE_BENCH_THROTTLE ?? 4)
+// The limits hold for a reference runner (GitHub's ubuntu-24.04) slowed 4×. A runner's own speed varies
+// from run to run (a slower host made the mount 140 ms and a replacement 70 ms with the same code), so a
+// fixed CPU workload is timed unthrottled first, and on a slower runner the throttle is lowered so the
+// effective CPU stays the reference one slowed 4× (as Lighthouse calibrates its throttling). The
+// throttle never goes above 4× nor below 2×: a faster runner keeps 4×, and a runner more than twice as
+// slow as the reference still fails a real regression. AE_BENCH_THROTTLE sets the throttle directly.
+const FIXED_THROTTLE = process.env.AE_BENCH_THROTTLE ? Number(process.env.AE_BENCH_THROTTLE) : undefined
+const THROTTLE = 4
+const MIN_THROTTLE = 2
+const REFERENCE_CALIBRATION_MS = Number(process.env.AE_BENCH_REFERENCE_MS ?? 0) || 9.5
 const LIMITS = { mountMs: 150, replaceMs: 60, frameP95Ms: 17, longTasks: 0 }
 // One display frame is 16.7 ms; the measured intervals are multiples of it plus a fraction.
 const TIDY_LIMITS = { commitFrameMs: 60, glideFrameMedianMs: 17, glideFrameP95Ms: 51, longTasks: 0 }
@@ -32,7 +41,24 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
   // Warm the HTTP cache and the JIT once without throttling, as a returning user's tab would be.
   await page.goto('/?mode=canvas&graph=bench')
   await page.waitForFunction(() => document.documentElement.dataset.fixtureReady === 'true')
-  await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE })
+  // The calibration workload: object allocation, sorting and string building, the kind of work a layout
+  // and render pass does. The fastest of several runs after a warm-up is the runner's speed.
+  const calibrationMs = await page.evaluate(() => {
+    const work = () => {
+      const t = performance.now()
+      let rows = Array.from({ length: 60_000 }, (_, i) => ({ id: `n${(i * 7919) % 60_000}`, x: (i * 31) % 997, y: (i * 17) % 991 }))
+      rows = rows.sort((a, b) => a.x - b.x || a.y - b.y || (a.id < b.id ? -1 : 1))
+      let out = ''
+      for (const r of rows) out += `${r.id}:${r.x},${r.y};`
+      return out.length > 0 ? performance.now() - t : Infinity
+    }
+    work()
+    const runs: number[] = []
+    for (let i = 0; i < 9; i += 1) runs.push(work())
+    return Math.min(...runs)
+  })
+  const throttle = FIXED_THROTTLE ?? Math.min(THROTTLE, Math.max(MIN_THROTTLE, THROTTLE * REFERENCE_CALIBRATION_MS / calibrationMs))
+  await cdp.send('Emulation.setCPUThrottlingRate', { rate: throttle })
 
   const mounts: number[] = []
   for (let i = 0; i < 3; i += 1) {
@@ -211,7 +237,9 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 })
 
   const profile = {
-    throttle: THROTTLE,
+    throttle: Math.round(throttle * 100) / 100,
+    calibrationMs: Math.round(calibrationMs * 10) / 10,
+    referenceCalibrationMs: REFERENCE_CALIBRATION_MS,
     graph: { nodes: 200, edges: 500 },
     mountMs: Math.round(mountMs * 10) / 10,
     mounts,
