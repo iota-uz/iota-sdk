@@ -809,8 +809,9 @@ func (s *Svc) unfenced(g json.RawMessage) error {
 	var gr struct {
 		Nodes []graph.Node `json:"nodes"`
 	}
-	if json.Unmarshal(g, &gr) != nil {
-		return nil
+	if err := json.Unmarshal(g, &gr); err != nil {
+		// Strict fails closed: a graph whose nodes are not read is not paid for.
+		return invalid("the graph is not JSON")
 	}
 	for _, n := range gr.Nodes {
 		nt, ok := s.cfg.Catalog.Node(n.Type)

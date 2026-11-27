@@ -3,7 +3,6 @@ package backtest_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -240,9 +239,9 @@ func TestStrictFencingRefusesUnfencedProviders(t *testing.T) {
 	e := newFenceEnv(t, p, false, true)
 	ds := datasetOfOne(t, e)
 	_, err := runLive(t, e, ds)
-	assert.True(t, errors.Is(err, engine.ErrUnfenced), err)
+	require.ErrorIs(t, err, engine.ErrUnfenced)
 	_, err = e.svc.Run(context.Background(), e.human(), backtest.RunInput{DatasetID: ds, Decisions: backtest.DecisionsCached})
-	assert.True(t, errors.Is(err, engine.ErrUnfenced), "a person's cached backtest pays its misses")
+	require.ErrorIs(t, err, engine.ErrUnfenced, "a person's cached backtest pays its misses")
 	assert.Empty(t, p.calls())
 
 	// An agent's cached backtest reads the cache only: nothing to fence.

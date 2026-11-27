@@ -60,7 +60,7 @@ type Config struct {
 	// backtest runs and that risk is bounded to the calls in flight when the lease passes (one in a live
 	// backtest, which runs one example at a time; see engine.CallFence).
 	StrictFencing bool
-	Logger       *slog.Logger
+	Logger        *slog.Logger
 	// Now is the clock (default time.Now).
 	Now func() time.Time
 }
