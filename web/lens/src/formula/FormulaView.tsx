@@ -1,6 +1,7 @@
-import { createEffect, createSignal, createUniqueId, For, onCleanup, Show, type JSX } from 'solid-js'
+import { createEffect, createSignal, createUniqueId, For, on, onCleanup, Show, type JSX } from 'solid-js'
 import { renderMath } from '@iota-uz/sdk-math-internal'
 import type { Formula } from '../contract'
+import { followAnchorLayout } from '../panels/overlayContainer'
 import { useTranslate } from '../runtime'
 import type { FormulaVariableView } from './values'
 
@@ -18,6 +19,10 @@ type RenderState = 'loading' | 'ready' | 'error'
 
 interface Hover {
   key: string
+  element: HTMLElement
+}
+
+interface TipPosition {
   left: number
   top: number
 }
@@ -45,6 +50,7 @@ export function FormulaView(props: FormulaViewProps): JSX.Element {
   const translate = useTranslate()
   const [state, setState] = createSignal<RenderState>(props.formula.error ? 'error' : 'loading')
   const [hover, setHover] = createSignal<Hover>()
+  const [position, setPosition] = createSignal<TipPosition>()
   const tipId = createUniqueId()
   let host: HTMLDivElement | undefined
 
@@ -92,10 +98,7 @@ export function FormulaView(props: FormulaViewProps): JSX.Element {
       element.setAttribute('role', 'button')
       element.setAttribute('aria-label', `${entry?.label ?? key}: ${valueText(entry)}`)
       element.setAttribute('aria-describedby', tipId)
-      const show = () => {
-        const rect = element.getBoundingClientRect()
-        setHover({ key, left: rect.left + rect.width / 2, top: rect.bottom })
-      }
+      const show = () => setHover({ key, element })
       const hide = () => setHover((current) => current?.key === key ? undefined : current)
       const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') hide() }
       element.addEventListener('mouseenter', show)
@@ -114,9 +117,28 @@ export function FormulaView(props: FormulaViewProps): JSX.Element {
     onCleanup(() => cleanups.forEach((cleanup) => cleanup()))
   })
 
+  // The tip is fixed to the viewport, so it is measured from its symbol while
+  // it is shown, not once on focus: the symbol moves when KaTeX's own faces
+  // replace the fallback glyphs, when the formula reflows and on scroll.
+  createEffect(on(() => hover()?.element, (element) => {
+    if (!element) {
+      setPosition(undefined)
+      return
+    }
+    const measure = () => {
+      const rect = element.getBoundingClientRect()
+      const left = rect.left + rect.width / 2
+      const top = rect.bottom
+      setPosition((current) => current?.left === left && current.top === top ? current : { left, top })
+    }
+    measure()
+    followAnchorLayout(measure, [host, element])
+  }))
+
   const active = () => {
     const current = hover()
-    return current ? { ...current, entry: variable(current.key) } : undefined
+    const at = position()
+    return current && at ? { key: current.key, ...at, entry: variable(current.key) } : undefined
   }
 
   return (

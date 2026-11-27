@@ -3,7 +3,7 @@ import { Portal } from 'solid-js/web'
 import type { Formula } from '../contract'
 import { FormulaMark } from '../icons'
 import { useTranslate } from '../runtime'
-import { hoverBridgeDelay, useOverlayContainer } from '../panels/overlayContainer'
+import { followAnchorLayout, hoverBridgeDelay, useOverlayContainer } from '../panels/overlayContainer'
 import { infoTipTailOffset, positionInfoTip } from '../panels/InfoTip'
 import { FormulaVariables, FormulaView } from './FormulaView'
 import type { FormulaVariableView } from './values'
@@ -68,16 +68,7 @@ export function FormulaTip(props: FormulaTipProps) {
   // list opens; keep it on screen as it does.
   createEffect(() => {
     if (!container()) return
-    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(reposition)
-    const bubble = bubbleRef()
-    if (bubble) observer?.observe(bubble)
-    globalThis.addEventListener('resize', reposition)
-    globalThis.addEventListener('scroll', reposition, true)
-    onCleanup(() => {
-      observer?.disconnect()
-      globalThis.removeEventListener('resize', reposition)
-      globalThis.removeEventListener('scroll', reposition, true)
-    })
+    followAnchorLayout(reposition, [bubbleRef(), button])
   })
   createEffect(() => {
     if (!open()) return
