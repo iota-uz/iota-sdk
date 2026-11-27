@@ -173,9 +173,11 @@
 .ae-card--failed { border-color: oklch(var(--clr-border-danger)); }
 .ae-card--running, .ae-card--waiting { border-color: oklch(var(--clr-border-brand)); }
 .ae-card--passed { border-color: oklch(var(--clr-border-success)); }
-/* While cards glide (Tidy, undo) the cards sit on their own layers, so a frame of the glide moves them
-   instead of repainting them. */
-.ae-canvas--tidying .ae-card { will-change: transform; }
+/* While cards glide (Tidy, undo) they and the edges sit on their own layers, so a frame of the glide moves
+   layers instead of repainting the canvas. A gliding card takes no pointer: sliding under a still pointer it
+   would hover (and light up its path) on every frame. */
+.ae-canvas--tidying .ae-card, .ae-canvas--tidying .ae-edges { will-change: transform; }
+.ae-canvas--tidying .ae-card { pointer-events: none; }
 /* Dragging: the card lifts (shadow from the tokens on its own layer, ~1.02) and lands softly on the grid when
    released. The shadow layer exists only while it shows; only its opacity animates. */
 .ae-card--lifted::before, .ae-card--drop::before, .ae-canvas--connecting .ae-card:not(.ae-card--trigger):hover::before {
