@@ -17,10 +17,11 @@ import { card } from './helpers'
 // effective CPU stays the reference one slowed 4× (as Lighthouse calibrates its throttling). The
 // throttle never goes above 4× nor below 2×: a faster runner keeps 4×, and a runner more than twice as
 // slow as the reference still fails a real regression. AE_BENCH_THROTTLE sets the throttle directly.
+// REFERENCE_CALIBRATION_MS: the calibration workload on a typical ubuntu-24.04 runner (16.2 ms measured).
 const FIXED_THROTTLE = process.env.AE_BENCH_THROTTLE ? Number(process.env.AE_BENCH_THROTTLE) : undefined
 const THROTTLE = 4
 const MIN_THROTTLE = 2
-const REFERENCE_CALIBRATION_MS = Number(process.env.AE_BENCH_REFERENCE_MS ?? 0) || 9.5
+const REFERENCE_CALIBRATION_MS = Number(process.env.AE_BENCH_REFERENCE_MS ?? 0) || 16
 const LIMITS = { mountMs: 150, replaceMs: 60, frameP95Ms: 17, longTasks: 0 }
 // One display frame is 16.7 ms; the measured intervals are multiples of it plus a fraction.
 const TIDY_LIMITS = { commitFrameMs: 60, glideFrameMedianMs: 17, glideFrameP95Ms: 51, longTasks: 0 }

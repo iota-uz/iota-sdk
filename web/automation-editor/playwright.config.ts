@@ -32,6 +32,10 @@ export default defineConfig({
       name: 'vr',
       testMatch: /vr\.spec\.ts/,
       use: { browserName: 'chromium', deviceScaleFactor: 1, launchOptions: { args: ['--disable-gpu', '--force-color-profile=srgb', '--disable-lcd-text'] } },
+      // Even with software raster one antialiased pixel on a rounded corner (a button's, a dashed card
+      // border's) flips now and then on a shared CI runner (versions · light, dry-run · light). A real
+      // change to a screen moves far more than one pixel.
+      expect: { toHaveScreenshot: { animations: 'disabled', caret: 'hide', scale: 'css', threshold: 0, maxDiffPixels: 1 } },
     },
   ],
   webServer: {
