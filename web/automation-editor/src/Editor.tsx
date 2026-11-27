@@ -738,10 +738,12 @@ function EditorBody(props: EditorProps): JSX.Element {
     document.addEventListener('keydown', onKeyDown)
     document.addEventListener('copy', onCopy)
     document.addEventListener('paste', onPaste)
-    const observer = new ResizeObserver(() => {
+    const observer = new ResizeObserver((entries) => {
       if (area) setAreaSize({ width: area.clientWidth, height: area.clientHeight })
+      if (entries.some((e) => e.target === toolbarEl)) fitToolbar()
     })
     if (area) observer.observe(area)
+    if (toolbarEl) observer.observe(toolbarEl)
     onCleanup(() => {
       phone.removeEventListener('change', update)
       pointer.removeEventListener('change', update)
@@ -778,8 +780,28 @@ function EditorBody(props: EditorProps): JSX.Element {
   const empty = () => draft().triggers.length === 0 && draft().nodes.length === 0
   const saveLabel = () => (saveState().status === 'saving' ? t().toolbar.saving : overwrite() ? t().save.saveOver(overwrite()!) : t().toolbar.save)
 
+  // The toolbar never spills into the page: labels give way step by step (data-compact) until the actions
+  // fit beside a title of a readable width. Measured, so any language and any host actions fit.
+  let toolbarEl: HTMLElement | undefined
+  const TITLE_ROOM = 200
+  const fitToolbar = () => {
+    const bar = toolbarEl
+    const actions = bar?.querySelector<HTMLElement>('.ae-toolbar__actions')
+    const path = bar?.querySelector<HTMLElement>('.ae-toolbar__path')
+    if (!bar || !actions || !path) return
+    const right = bar.getBoundingClientRect().right - parseFloat(getComputedStyle(bar).paddingRight || '0')
+    for (let level = 0; level <= 3; level += 1) {
+      bar.dataset.compact = String(level)
+      const fits = actions.getBoundingClientRect().right <= right + 1
+      const titleShort = path.scrollWidth > path.clientWidth + 1 && path.clientWidth < TITLE_ROOM
+      if (fits && !titleShort) return
+    }
+  }
+  // What changes the width of the actions without resizing the toolbar.
+  createEffect(on(() => [t(), tab(), mobile(), validation().status, issueCount(), saveLabel(), props.runsCount, draft().name], () => queueMicrotask(fitToolbar), { defer: true }))
+
   const toolbar = () => (
-    <header class="ae-toolbar" role="toolbar" aria-label={t().toolbar.label}>
+    <header ref={toolbarEl} class="ae-toolbar" role="toolbar" aria-label={t().toolbar.label}>
       <div class="ae-toolbar__path">
         {/* Two lines, as the reference editor: the crumb small above, the name under it with its tags. */}
         <Show when={props.crumb}><span class="ae-toolbar__crumb">{props.crumb}</span></Show>
@@ -806,7 +828,9 @@ function EditorBody(props: EditorProps): JSX.Element {
       </Show>
       <div class="ae-toolbar__actions">
         <Show when={!mobile()}>
-          <Show when={tab() === 'edit'}>
+          {/* The edit tools keep their place on the Runs tab, hidden and inert, so the tabs, the title and the
+              tools to the right never move when the tab changes. */}
+          <span class="ae-toolbar__edit" classList={{ 'ae-toolbar__edit--off': tab() !== 'edit' }} inert={tab() !== 'edit' || undefined}>
           <span class="ae-toolbar__sep" aria-hidden="true" />
           <button type="button" class="ae-btn ae-btn--secondary ae-btn--sm" classList={{ 'ae-btn--bad': allErrors().length > 0 }} onClick={() => { setValidationOpen(true); void validate() }} aria-keyshortcuts={mac ? 'Meta+Enter' : 'Control+Enter'}>
             <Show when={validation().status === 'checking'} fallback={<Icon name={allErrors().length > 0 ? 'error' : 'check'} />}><span class="ae-spinner" aria-hidden="true" /></Show>
@@ -830,7 +854,8 @@ function EditorBody(props: EditorProps): JSX.Element {
           </Show>
           <button type="button" class="ae-iconbtn" aria-label={t().toolbar.settings} title={t().toolbar.settings} onClick={() => setSettingsOpen(true)}><Icon name="settings" /></button>
           <button type="button" class="ae-iconbtn" aria-label={t().toolbar.keys} title={t().toolbar.keys} onClick={() => setKeymapOpen(true)}><Icon name="keys" /></button>
-          </Show>
+          </span>
+          <span class="ae-toolbar__fill" aria-hidden="true" />
           <Show when={props.versions && props.versions.length > 0 && props.onOpenVersion}>
             <button
               type="button"
@@ -847,6 +872,7 @@ function EditorBody(props: EditorProps): JSX.Element {
           </Show>
           {props.actions}
           <Show when={!readOnly()}>
+            <span class="ae-toolbar__edit" classList={{ 'ae-toolbar__edit--off': tab() !== 'edit' }} inert={tab() !== 'edit' || undefined}>
             <button
               type="button"
               class="btn btn-primary btn-normal ae-save"
@@ -858,6 +884,7 @@ function EditorBody(props: EditorProps): JSX.Element {
               <Show when={saveState().status === 'saving'}><span class="ae-spinner" aria-hidden="true" /></Show>
               {saveLabel()}
             </button>
+            </span>
           </Show>
         </Show>
         <Show when={props.toggleEnabled}>

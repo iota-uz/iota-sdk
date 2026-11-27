@@ -4,7 +4,10 @@
 // and a run is its own screen with the read-only outline and the node's sheet.
 import { batch, createEffect, createMemo, createSignal, on, Show, type JSX } from 'solid-js'
 import type { AutomationGraph, AutomationLayout, EditorApi, EditorCatalog, EditorLocale, RunData, RunsView, RunSummary, Subject } from '../types'
+import { Canvas } from '../Canvas'
+import { Icon } from '../icons'
 import { RunsList } from './RunsList'
+import { runStrings } from './strings'
 import { RunView, type VersionGraph } from './RunView'
 import { createMinuteClock } from './util'
 
@@ -194,9 +197,19 @@ export function RunsTab(props: RunsTabProps): JSX.Element {
     </Show>
   )
 
+  // No run open beside the list (none yet, or none matches the filter): the graph of this version, read
+  // only, with how to see a run on it; the pane never stands empty.
+  const idle = () => (
+    <div class="ae-runs-idle">
+      <div class="ae-runs-idle__canvas">
+        <Canvas graph={props.graph} catalog={props.catalog} layout={props.layout} selected={null} onSelect={() => {}} label={runStrings(props.locale).list.pick} locale={props.locale} />
+      </div>
+      <p class="ae-runs-idle__hint" role="note"><Icon name="history" size={16} />{runStrings(props.locale).list.pick}</p>
+    </div>
+  )
   return (
     <div class="ae-runs-tab" classList={{ 'ae-runs-tab--mobile': props.mobile }}>
-      <Show when={props.mobile} fallback={<>{list()}<div class="ae-runs-tab__run">{run()}</div></>}>
+      <Show when={props.mobile} fallback={<>{list()}<div class="ae-runs-tab__run"><Show when={runId()} fallback={idle()}>{run()}</Show></div></>}>
         <Show when={runId()} fallback={list()}>{run()}</Show>
       </Show>
     </div>

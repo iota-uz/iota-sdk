@@ -23,7 +23,7 @@
   background: oklch(var(--clr-surface-300));
   min-width: 0;
 }
-.ae-toolbar__path { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; min-width: 7rem; flex: 1 1 auto; overflow: hidden; }
+.ae-toolbar__path { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; min-width: 7rem; flex: 0 1 auto; overflow: hidden; }
 .ae-toolbar__crumb { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: oklch(var(--clr-text-200)); font-size: 0.75rem; line-height: 1rem; padding: 0 0.375rem; }
 .ae-toolbar__title { display: flex; align-items: center; gap: 0.375rem; min-width: 0; max-width: 100%; }
 .ae-toolbar__name {
@@ -41,6 +41,14 @@
 @container (max-width: 1040px) {
   .ae-toolbar .ae-btn__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
+/* What the widths above do not foresee (longer words in another language, host actions), the editor measures:
+   it steps data-compact up until the actions fit, so the toolbar never spills into the page. */
+.ae-toolbar[data-compact="1"] .ae-btn__label--first, .ae-toolbar[data-compact="2"] .ae-btn__label, .ae-toolbar[data-compact="3"] .ae-btn__label,
+.ae-toolbar[data-compact="3"] .ae-toolbar__toggle > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ae-toolbar[data-compact] :is(.ae-btn--sm, .ae-btn--ghost) { padding: 0 0.5rem; }
+.ae-toolbar:is([data-compact="1"], [data-compact="2"], [data-compact="3"]) .ae-btn__kbd { display: none; }
+/* Last resort: clipped inside the toolbar, never a sideways scroll of the page. */
+.ae-toolbar { overflow-x: clip; }
 .ae-toolbar__sep { flex: none; width: 1px; height: 1.25rem; margin: 0 0.25rem; background: oklch(var(--clr-border-subtle)); }
 .ae-toolbar__group { display: inline-flex; align-items: center; gap: 0; }
 /* The switch's wrapper is a block whose line box adds a descender under the inline-flex label: a flex wrapper centres it. */
@@ -51,7 +59,11 @@
 .ae-btn--secondary[aria-pressed="true"] { border-color: oklch(var(--clr-border-brand)); color: oklch(var(--clr-primary-outline-btn-text)); background: oklch(var(--clr-border-brand) / 8%); }
 .ae-toolbar__name:disabled { cursor: default; }
 .ae-toolbar__tabs { display: flex; gap: 0.25rem; flex: none; }
-.ae-toolbar__actions { display: flex; align-items: center; gap: 0.375rem; flex: none; }
+.ae-toolbar__actions { display: flex; align-items: center; gap: 0.375rem; flex: 1 0 auto; }
+/* The edit tools and Save: on the Runs tab they keep their place, unseen, so nothing beside them moves. */
+.ae-toolbar__edit { display: flex; align-items: center; gap: 0.375rem; flex: none; }
+.ae-toolbar__edit--off { visibility: hidden; }
+.ae-toolbar__fill { flex: 1 1 0; min-width: 0; }
 .ae-tag {
   display: inline-flex; align-items: center; gap: 0.25rem; flex: none;
   font-size: 0.75rem; padding: 0.125rem 0.5rem; border-radius: 9999px;

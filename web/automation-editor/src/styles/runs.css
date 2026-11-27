@@ -38,6 +38,16 @@
 /* ——— the tab: list beside the run ——— */
 .ae-runs-tab { display: flex; height: 100%; min-height: 0; }
 .ae-runs-tab__run { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+/* No run open: this version's graph, read only and quieter, with how to see a run on it. */
+.ae-runs-idle { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
+.ae-runs-idle__canvas { flex: 1 1 auto; min-width: 0; min-height: 0; opacity: 0.72; }
+.ae-runs-idle__hint {
+  position: absolute; left: 50%; top: 1rem; transform: translateX(-50%); margin: 0;
+  display: inline-flex; align-items: center; gap: 0.5rem; max-width: calc(100% - 2rem);
+  padding: 0.375rem 0.875rem; border-radius: 9999px; font-size: 0.8125rem; line-height: 1.25rem;
+  color: oklch(var(--clr-text-100)); background: oklch(var(--clr-surface-300));
+  border: 1px solid oklch(var(--clr-border-subtle)); box-shadow: 0 1px 3px oklch(0 0 0 / 12%);
+}
 .ae-runs-tab--mobile { flex-direction: column; }
 .ae-runlist {
   flex: none; width: 22rem; max-width: 40%; display: flex; flex-direction: column; min-height: 0;

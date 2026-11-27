@@ -17,6 +17,8 @@ export type RunStrings = {
     emptyText: string
     start: string
     emptyFilter: string
+    /** The pane beside the list with no run open: the graph and how to see a run on it. */
+    pick: string
     reset: string
     more: string
     loading: string
@@ -178,6 +180,7 @@ const en: RunStrings = {
     emptyText: 'A run appears here each time a trigger of this graph fires.',
     start: 'Run',
     emptyFilter: 'No runs match the filter',
+    pick: 'Select a run to see its path on the graph',
     reset: 'Reset filters',
     more: 'Show more',
     loading: 'Loading runs…',
@@ -337,6 +340,7 @@ const ru: RunStrings = {
     emptyText: 'Запуск появляется здесь каждый раз, когда срабатывает триггер графа.',
     start: 'Запустить',
     emptyFilter: 'Нет запусков под фильтром',
+    pick: 'Выберите запуск, чтобы увидеть его путь по графу',
     reset: 'Сбросить фильтры',
     more: 'Показать ещё',
     loading: 'Загружаем запуски…',
@@ -496,6 +500,7 @@ const uz: RunStrings = {
     emptyText: 'Grafning triggeri har safar ishlaganda bu yerda ishga tushirish paydo bo‘ladi.',
     start: 'Ishga tushirish',
     emptyFilter: 'Filtrga mos ishga tushirishlar yo‘q',
+    pick: 'Grafdagi yo‘lini ko‘rish uchun ishga tushirishni tanlang',
     reset: 'Filtrlarni tozalash',
     more: 'Yana ko‘rsatish',
     loading: 'Ishga tushirishlar yuklanmoqda…',
@@ -655,6 +660,7 @@ const uzCyrl: RunStrings = {
     emptyText: 'Графнинг триггери ҳар сафар ишлаганда бу ерда ишга тушириш пайдо бўлади.',
     start: 'Ишга тушириш',
     emptyFilter: 'Фильтрга мос ишга туширишлар йўқ',
+    pick: 'Графдаги йўлини кўриш учун ишга туширишни танланг',
     reset: 'Фильтрларни тозалаш',
     more: 'Яна кўрсатиш',
     loading: 'Ишга туширишлар юкланмоқда…',
