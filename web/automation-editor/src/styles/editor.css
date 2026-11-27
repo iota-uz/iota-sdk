@@ -79,6 +79,8 @@
 .ae-tab:active, .ae-menu__item:active:not([aria-disabled="true"]), .ae-palette__item:active:not(.ae-palette__item--disabled) { transform: scale(0.98); }
 /* One focus ring on every screen (K2): the shared token, no animation in. */
 .ae-editor :focus-visible { outline: var(--focus-ring-width) solid oklch(var(--clr-border-brand)); outline-offset: var(--focus-ring-offset); transition: none; }
+/* A control inside a form box (combobox, input group): the box shows the ring on focus-within, the inner input none. */
+.ae-editor .form-control:focus-visible, .ae-editor .form-control :focus-visible { outline: none; }
 
 .ae-spinner {
   width: 14px; height: 14px; border-radius: 9999px; flex: none;
@@ -115,6 +117,12 @@
 
 /* ——— canvas ——— */
 .ae-canvas {
+  /* Outcome tones (handles, labels, edges), from the SDK's text tokens so both themes take them. */
+  --ae-tone-ok: var(--clr-text-green);
+  --ae-tone-warn: var(--clr-text-yellow);
+  --ae-tone-bad: var(--clr-danger-btn-text);
+  --ae-tone-neutral: var(--clr-canvas-edge);
+  --ae-tone-active: var(--clr-canvas-edge-active);
   position: absolute; inset: 0; overflow: hidden; outline: none;
   background-color: oklch(var(--clr-canvas-bg));
   touch-action: none;
@@ -129,12 +137,26 @@
 }
 .ae-viewport { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 .ae-edges { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
-.ae-edge { fill: none; stroke: oklch(var(--clr-canvas-edge)); stroke-width: 1.5; }
+.ae-edge { fill: none; stroke: oklch(var(--ae-edge-tone)); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; --ae-edge-tone: var(--ae-tone-neutral); }
+.ae-edge--ok { --ae-edge-tone: var(--ae-tone-ok); }
+.ae-edge--warn { --ae-edge-tone: var(--ae-tone-warn); }
+.ae-edge--bad { --ae-edge-tone: var(--ae-tone-bad); }
 .ae-edge--loop { stroke-dasharray: 6 4; }
+/* The hit area: a 20 px transparent stroke over the line (hover, click to select, Delete removes). */
+.ae-edge-hit { fill: none; stroke: oklch(var(--transparent)); stroke-width: 20; pointer-events: stroke; cursor: pointer; }
+.ae-canvas--readonly .ae-edge-hit, .ae-canvas--connecting .ae-edge-hit, .ae-canvas--tidying .ae-edge-hit { pointer-events: none; }
+.ae-edge--hover, .ae-edge--lit { stroke-width: 2.25; }
+.ae-edge--selected { --ae-edge-tone: var(--ae-tone-active); stroke-width: 2.5; }
+.ae-arrow polyline { stroke-width: 1; stroke-linejoin: round; }
+.ae-arrow--neutral polyline { fill: oklch(var(--ae-tone-neutral)); stroke: oklch(var(--ae-tone-neutral)); }
+.ae-arrow--ok polyline { fill: oklch(var(--ae-tone-ok)); stroke: oklch(var(--ae-tone-ok)); }
+.ae-arrow--warn polyline { fill: oklch(var(--ae-tone-warn)); stroke: oklch(var(--ae-tone-warn)); }
+.ae-arrow--bad polyline { fill: oklch(var(--ae-tone-bad)); stroke: oklch(var(--ae-tone-bad)); }
+.ae-arrow--active polyline { fill: oklch(var(--ae-tone-active)); stroke: oklch(var(--ae-tone-active)); }
 .ae-edge--hidden { display: none; }
-.ae-edge--draft { stroke: oklch(var(--clr-canvas-edge-active)); stroke-dasharray: 4 4; stroke-width: 2; }
+.ae-edge--draft { --ae-edge-tone: var(--ae-tone-active); stroke-dasharray: 4 4; stroke-width: 2; }
 .ae-edge--valid { stroke-dasharray: none; }
-.ae-edge--taken { stroke: oklch(var(--clr-canvas-edge-active)); stroke-width: 2.5; }
+.ae-edge--taken { --ae-edge-tone: var(--ae-tone-active); stroke-width: 2.5; }
 .ae-dim { opacity: 0.35; }
 /* Edges carry no transition: a drop or a selection changes the dim of hundreds of them at once, and an
    opacity transition on each made a long task (canvas benchmark, #1331). */
@@ -142,7 +164,7 @@
 .ae-edge--rewiring { opacity: 0.3; animation: ae-dim-in var(--motion-fast) var(--ease-standard); }
 @keyframes ae-dim-in { from { opacity: 1; } }
 /* A connection made: the new edge flashes once. */
-.ae-edge--flash { stroke: oklch(var(--clr-canvas-edge-active)); stroke-width: 2.5; animation: ae-edge-flash var(--motion-slow) var(--ease-out); }
+.ae-edge--flash { --ae-edge-tone: var(--ae-tone-active); stroke-width: 2.5; animation: ae-edge-flash var(--motion-slow) var(--ease-out); }
 @keyframes ae-edge-flash { from { opacity: 0.2; } 40% { opacity: 1; } }
 /* Released off a target: the draft line pulls back into its handle. */
 .ae-edge--retract { transform-box: view-box; animation: ae-retract var(--motion-fast) var(--ease-in) both; }
@@ -159,20 +181,25 @@
   /* Only opacity at rest (path highlight); lift, landing and run states add theirs while they apply, so a
      200-card replace pays for no transitions it does not run. */
   transition: opacity var(--motion-fast) var(--ease-standard);
-  border: 1px solid oklch(var(--clr-border-default)); border-radius: 12px;
-  background: oklch(var(--clr-surface-300)); box-shadow: var(--shadow-200);
+  /* The card's line is an inset shadow, not a border: a border would shift every absolutely placed child
+     (handles, chips) off the geometry the edges are drawn from. */
+  --ae-card-line: var(--clr-border-default);
+  --ae-card-accent: 0 0 oklch(var(--transparent));
+  --ae-card-ring: 0 0 oklch(var(--transparent));
+  border: 0; border-radius: 12px;
+  background: oklch(var(--clr-surface-300));
+  box-shadow: inset 0 0 0 1px oklch(var(--ae-card-line)), var(--ae-card-accent), var(--ae-card-ring), var(--shadow-200);
   cursor: grab; outline: none;
   /* Fixed-size cards: their layout and style never leak out, so moving or replacing one is cheap. */
   contain: layout style;
 }
 .ae-canvas--readonly .ae-card { cursor: pointer; }
-.ae-card--trigger { border-style: solid; border-left: 4px solid oklch(var(--clr-border-brand)); }
-.ae-card--selected { border-color: oklch(var(--clr-border-brand)); box-shadow: 0 0 0 2px oklch(var(--clr-border-brand)), var(--shadow-200); }
-.ae-card:focus-visible { box-shadow: 0 0 0 3px oklch(var(--clr-border-brand)); }
-.ae-card--error { border-color: oklch(var(--clr-border-danger)); }
-.ae-card--failed { border-color: oklch(var(--clr-border-danger)); }
-.ae-card--running, .ae-card--waiting { border-color: oklch(var(--clr-border-brand)); }
-.ae-card--passed { border-color: oklch(var(--clr-border-success)); }
+.ae-card--trigger { --ae-card-accent: inset 4px 0 0 0 oklch(var(--clr-border-brand)); }
+.ae-card--error, .ae-card--failed { --ae-card-line: var(--clr-border-danger); }
+.ae-card--running, .ae-card--waiting { --ae-card-line: var(--clr-border-brand); }
+.ae-card--passed { --ae-card-line: var(--clr-border-success); }
+.ae-card--selected { --ae-card-line: var(--clr-border-brand); --ae-card-ring: 0 0 0 3px oklch(var(--clr-border-brand) / 22%); }
+.ae-card:focus-visible { --ae-card-ring: 0 0 0 2px oklch(var(--clr-surface-300)), 0 0 0 4px oklch(var(--clr-border-brand)); }
 /* While cards glide (Tidy, undo) they and the edges sit on their own layers, so a frame of the glide moves
    layers instead of repainting the canvas. A gliding card takes no pointer: sliding under a still pointer it
    would hover (and light up its path) on every frame. */
@@ -181,14 +208,14 @@
 /* Dragging: the card lifts (shadow from the tokens on its own layer, ~1.02) and lands softly on the grid when
    released. The shadow layer exists only while it shows; only its opacity animates. */
 .ae-card--lifted::before, .ae-card--drop::before, .ae-canvas--connecting .ae-card:not(.ae-card--trigger):hover::before {
-  content: ''; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   box-shadow: var(--shadow-100); animation: ae-fade var(--motion-fast) var(--ease-out);
 }
 .ae-card--lifted { scale: 1.02; cursor: grabbing; z-index: 1; transition: opacity var(--motion-fast) var(--ease-standard), scale var(--motion-fast) var(--ease-out); }
 .ae-card--landing { transition: transform var(--motion-fast) var(--ease-out), scale var(--motion-fast) var(--ease-out); }
 .ae-card--running, .ae-card--waiting, .ae-card--passed, .ae-card--failed { transition: opacity var(--motion-fast) var(--ease-standard), border-color var(--motion-base) var(--ease-standard); }
 /* A valid drop target while a connection is drawn: its input handle (near it) or its body (under the pointer). */
-.ae-card--drop, .ae-canvas--connecting .ae-card:not(.ae-card--trigger):hover { border-color: oklch(var(--clr-border-brand)); }
+.ae-card--drop, .ae-canvas--connecting .ae-card:not(.ae-card--trigger):hover { --ae-card-line: var(--clr-border-brand); --ae-card-ring: 0 0 0 4px oklch(var(--clr-border-brand) / 20%); }
 /* A visual click in place of a haptic one (touch: drag start, a connection made). */
 .ae-card--click { animation: ae-click var(--motion-fast) var(--ease-standard); }
 @keyframes ae-click { 50% { scale: 0.96; } }
@@ -201,15 +228,24 @@
 .ae-card__title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .ae-card__sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; color: oklch(var(--clr-text-200)); font-variant-numeric: tabular-nums; }
 .ae-out {
+  --ae-out-tone: var(--ae-tone-neutral);
   position: absolute; box-sizing: border-box; height: 24px; line-height: 22px; text-align: center;
-  font-size: 0.75rem; border-radius: 9999px; border: 1px solid oklch(var(--clr-border-subtle));
-  background: oklch(var(--clr-surface-100)); color: oklch(var(--clr-text-200)); padding: 0 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.6875rem;
+  border-radius: 6px; border: 1px solid oklch(var(--clr-border-subtle));
+  background: oklch(var(--clr-surface-100)); color: oklch(var(--ae-out-tone)); padding: 0 6px;
 }
+.ae-out--ok { --ae-out-tone: var(--ae-tone-ok); }
+.ae-out--warn { --ae-out-tone: var(--ae-tone-warn); }
+.ae-out--bad { --ae-out-tone: var(--ae-tone-bad); }
+.ae-out--neutral { color: oklch(var(--clr-text-200)); }
 .ae-out__label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The handle dot sits at the declared handle position: the card's bottom edge under the chip. */
+/* The handle dot, centred on the declared handle position: the card's bottom edge under the chip. The chip
+   starts at OUTCOME_ROW_Y (60) with a 1 px border, so its padding box starts at 61 and the 12 px dot's
+   centre lands on 96 (CARD_HEIGHT) at top 29; left 50% of the padding box is the chip's centre. */
 .ae-out::after {
-  content: ''; position: absolute; left: 50%; top: 30px; width: 12px; height: 12px; margin-left: -6px; box-sizing: border-box;
-  border-radius: 9999px; border: 2px solid oklch(var(--clr-canvas-edge)); background: oklch(var(--clr-surface-300));
+  content: ''; position: absolute; left: 50%; top: 29px; width: 12px; height: 12px; margin-left: -6px; box-sizing: border-box;
+  border-radius: 9999px; border: 2px solid oklch(var(--clr-surface-300)); background: oklch(var(--ae-out-tone));
+  box-shadow: 0 1px 2px oklch(var(--black) / 18%);
 }
 /* Press: a squeeze to about 0.96; the transition is declared on the state, so idle chips carry none. */
 .ae-out.connectable:active { transform: scale(0.96); transition: transform var(--motion-instant) var(--ease-standard); }
@@ -217,13 +253,15 @@
 .ae-out::before { content: ''; position: absolute; inset: -6px -2px -14px; }
 @media (pointer: coarse) { .ae-out::before { inset: -10px -4px -20px; } }
 .ae-out.connectable { cursor: crosshair; }
+/* Not connected: a hollow dot and a dashed chip; ignored: the same, quieter (the run ends there on purpose). */
 .ae-out--open { border-style: dashed; border-color: oklch(var(--clr-border-default)); }
-.ae-out--open::after { border-color: oklch(var(--clr-border-strong)); }
-.ae-out--ignore .ae-out__label { text-decoration: line-through; }
-.ae-out--taken { border-color: oklch(var(--clr-canvas-edge-active)); color: oklch(var(--clr-text-100)); }
-.ae-out--taken::after { border-color: oklch(var(--clr-canvas-edge-active)); }
+.ae-out--open::after { background: oklch(var(--clr-surface-300)); border: 2px solid oklch(var(--ae-out-tone)); box-shadow: none; }
+.ae-out--ignore { border-style: dashed; color: oklch(var(--clr-text-300)); }
+.ae-out--ignore::after { background: oklch(var(--clr-surface-300)); border: 1.5px dashed oklch(var(--clr-text-300)); box-shadow: none; }
+.ae-out--taken { border-color: oklch(var(--ae-tone-active)); color: oklch(var(--clr-text-100)); font-weight: 600; }
+.ae-out--taken::after { background: oklch(var(--ae-tone-active)); }
 @media (hover: hover) {
-  .ae-out.connectable:hover, .ae-out.connectable:hover::after { border-color: oklch(var(--clr-border-brand)); }
+  .ae-out.connectable:hover { border-color: oklch(var(--clr-border-brand)); }
   .ae-out.connectable:hover::after { transform: scale(1.33); transition: transform var(--motion-instant) var(--ease-out); }
 }
 .ae-out-note {
@@ -234,10 +272,11 @@
 .ae-out-note--card { left: 12px; right: 12px; transform: none; text-align: center; overflow: hidden; text-overflow: ellipsis; }
 .ae-handle {
   position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; box-sizing: border-box;
-  border-radius: 9999px; border: 2px solid oklch(var(--clr-canvas-edge)); background: oklch(var(--clr-surface-300));
+  border-radius: 9999px; border: 2px solid oklch(var(--clr-surface-300)); background: oklch(var(--ae-tone-neutral));
+  box-shadow: 0 1px 2px oklch(var(--black) / 18%);
 }
 .ae-handle--target { pointer-events: none; }
-.ae-canvas--connecting .ae-handle--target { pointer-events: auto; border-color: oklch(var(--clr-canvas-edge-active)); }
+.ae-canvas--connecting .ae-handle--target { pointer-events: auto; background: oklch(var(--clr-surface-300)); border-color: oklch(var(--ae-tone-active)); box-shadow: 0 0 0 4px oklch(var(--ae-tone-active) / 22%); }
 .ae-card--drop .ae-handle--target { transform: scale(1.33); background: oklch(var(--clr-border-brand)); transition: transform var(--motion-instant) var(--ease-out); }
 
 .ae-state, .ae-badge {
@@ -361,28 +400,40 @@
 .ae-palette__search input { flex: 1 1 auto; min-width: 0; border: 0; outline: none; background: none; color: oklch(var(--clr-text-100)); font: inherit; min-height: 32px; }
 .ae-palette__count { font-size: 0.75rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ae-palette__list { overflow-y: auto; padding: 0.25rem; overscroll-behavior: contain; }
-.ae-palette__group { padding: 0.5rem 0.5rem 0.25rem; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em; color: oklch(var(--clr-text-300)); }
-.ae-palette__item { display: flex; align-items: center; gap: 0.625rem; padding: 0.375rem 0.5rem; min-height: 36px; border-radius: var(--radius, 0.5rem); cursor: pointer; }
+.ae-palette__group { padding: 0.625rem 0.5rem 0.25rem; font-size: 0.6875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: oklch(var(--clr-text-200)); }
+.ae-palette__item { display: flex; align-items: center; gap: 0.625rem; padding: 0.3125rem 0.5rem; min-height: 40px; border-radius: var(--radius, 0.5rem); cursor: pointer; }
 .ae-palette__item--active { background: oklch(var(--clr-text-100) / 8%); }
 .ae-palette__item--disabled { cursor: not-allowed; color: oklch(var(--clr-text-300)); }
-.ae-palette__icon { color: oklch(var(--clr-text-200)); display: inline-flex; }
+.ae-palette__icon {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 7px;
+  color: oklch(var(--clr-text-200)); background: oklch(var(--clr-surface-100)); box-shadow: inset 0 0 0 1px oklch(var(--clr-border-subtle));
+}
+.ae-palette__item--active .ae-palette__icon { color: oklch(var(--clr-primary-outline-btn-text)); }
+.ae-palette__icon .ae-icon { display: block; }
 .ae-palette__text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
-.ae-palette__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ae-palette__desc { font-size: 0.75rem; color: oklch(var(--clr-text-200)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ae-palette__name { line-height: 1.25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ae-palette__desc { font-size: 0.75rem; line-height: 1rem; color: oklch(var(--clr-text-200)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ae-palette__note { font-size: 0.6875rem; color: oklch(var(--clr-text-300)); white-space: nowrap; }
 .ae-palette__empty { margin: 0; padding: 1rem 0.75rem; color: oklch(var(--clr-text-200)); }
 .ae-mark { background: oklch(var(--clr-border-warning) / 35%); color: inherit; border-radius: 2px; }
 
 .ae-menu {
-  position: absolute; z-index: 40; min-width: 220px; max-width: 320px; max-height: 480px; overflow-y: auto; padding: 0.25rem;
+  position: absolute; z-index: 40; min-width: 240px; max-width: 320px; max-height: 480px; overflow-y: auto; padding: 0.25rem;
   background: oklch(var(--clr-surface-300)); border: 1px solid oklch(var(--clr-border-default)); border-radius: 10px; box-shadow: var(--shadow-100);
   display: flex; flex-direction: column;
 }
 body > .ae-menu, .ae-editor > .ae-menu { position: fixed; }
 .ae-menu__item {
-  display: flex; align-items: center; gap: 0.75rem; width: 100%; min-height: 36px; padding: 0 0.625rem; text-align: start;
-  border: 0; border-radius: var(--radius, 0.5rem); background: none; color: inherit; font: inherit; cursor: pointer;
+  display: flex; align-items: center; gap: 0.5rem; width: 100%; min-height: 32px; padding: 0 0.5rem 0 0.5rem; text-align: start;
+  border: 0; border-radius: 7px; background: none; color: inherit; font: inherit; font-size: 0.8125rem; line-height: 20px; cursor: pointer;
 }
+/* A fixed icon slot: every label starts at the same x, with or without an icon, and the icon is centred on
+   the label's 20 px line box (not on the font's baseline). */
+.ae-menu__icon { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 20px; color: oklch(var(--clr-text-200)); }
+.ae-menu__icon .ae-icon { display: block; }
+.ae-menu__item--danger .ae-menu__icon { color: inherit; }
+.ae-menu__sep { flex: none; height: 1px; margin: 0.25rem 0.125rem; background: oklch(var(--clr-border-subtle)); }
+.ae-menu__item .ae-kbd { margin-left: auto; }
 .ae-menu__item:focus-visible, .ae-menu__item:focus { background: oklch(var(--clr-text-100) / 8%); outline: none; }
 @media (hover: hover) { .ae-menu__item:hover { background: oklch(var(--clr-text-100) / 8%); } }
 .ae-menu__item--danger { color: oklch(var(--clr-danger-btn-text)); }
