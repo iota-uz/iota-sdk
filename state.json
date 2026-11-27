@@ -507,8 +507,8 @@
     "version": "0.56.0",
     "source": "f57b3f0ee59e36efc40559d17e43a4f4cd6b9b0e",
     "sha": "8990ea715620d374ebcaecff411de20a571090e9",
-    "phase": "failed",
-    "run_id": "46021283849"
+    "phase": "testing",
+    "run_id": "46026619357"
   },
   "ready": {
     "version": "0.55.1",
