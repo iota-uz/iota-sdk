@@ -1115,8 +1115,8 @@ export function Canvas(props: CanvasProps): JSX.Element {
       return undefined
     }
     return (
-      <g class="ae-edge-group" data-edge={source} data-to={to()}>
-        <path class={className()} d={path()} style={step()} marker-end={marker()} />
+      <g class="ae-edge-group">
+        <path class={className()} d={path()} style={step()} marker-end={marker()} data-edge={source} data-to={to()} />
         {/* A wide transparent stroke over the line: hover and click on it, as on the reference editor's edges. */}
         <path
           class={`ae-edge-hit ${NOPAN}`}

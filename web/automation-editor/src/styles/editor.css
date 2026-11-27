@@ -186,7 +186,7 @@
   --ae-card-line: var(--clr-border-default);
   --ae-card-accent: 0 0 oklch(var(--transparent));
   --ae-card-ring: 0 0 oklch(var(--transparent));
-  border: 0; border-radius: 12px;
+  border: 0 solid oklch(var(--ae-card-line)); border-radius: 12px;
   background: oklch(var(--clr-surface-300));
   box-shadow: inset 0 0 0 1px oklch(var(--ae-card-line)), var(--ae-card-accent), var(--ae-card-ring), var(--shadow-200);
   cursor: grab; outline: none;
@@ -232,7 +232,10 @@
   position: absolute; box-sizing: border-box; height: 24px; line-height: 22px; text-align: center;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.6875rem;
   border-radius: 6px; border: 1px solid oklch(var(--clr-border-subtle));
-  background: oklch(var(--clr-surface-100)); color: oklch(var(--ae-out-tone)); padding: 0 6px;
+  background: oklch(var(--clr-surface-100)); padding: 0 6px;
+  /* The label's tone is pulled toward the body text, so 11 px stays AA on the chip in both themes; the dot
+     and the edge keep the pure tone. */
+  color: color-mix(in oklch, oklch(var(--ae-out-tone)) 70%, oklch(var(--clr-text-100)));
 }
 .ae-out--ok { --ae-out-tone: var(--ae-tone-ok); }
 .ae-out--warn { --ae-out-tone: var(--ae-tone-warn); }
@@ -256,7 +259,7 @@
 /* Not connected: a hollow dot and a dashed chip; ignored: the same, quieter (the run ends there on purpose). */
 .ae-out--open { border-style: dashed; border-color: oklch(var(--clr-border-default)); }
 .ae-out--open::after { background: oklch(var(--clr-surface-300)); border: 2px solid oklch(var(--ae-out-tone)); box-shadow: none; }
-.ae-out--ignore { border-style: dashed; color: oklch(var(--clr-text-300)); }
+.ae-out--ignore { border-style: dashed; color: oklch(var(--clr-text-200)); }
 .ae-out--ignore::after { background: oklch(var(--clr-surface-300)); border: 1.5px dashed oklch(var(--clr-text-300)); box-shadow: none; }
 .ae-out--taken { border-color: oklch(var(--ae-tone-active)); color: oklch(var(--clr-text-100)); font-weight: 600; }
 .ae-out--taken::after { background: oklch(var(--ae-tone-active)); }

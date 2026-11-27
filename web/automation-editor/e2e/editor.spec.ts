@@ -3,6 +3,57 @@ import { expectNoA11yViolations } from '@iota-uz/sdk/testing'
 import { card, center, drag, edge, handle, mod, open, settled } from './helpers'
 
 test.describe('canvas', () => {
+  test('an edge leaves the centre of its handle dot on the card bottom and ends on the target input, at 100% and zoomed', async ({ page }) => {
+    await open(page, 'graph=connected')
+    const measure = () => page.evaluate(() => {
+      const out: { key: string; dx: number; dy: number; tx: number; ty: number }[] = []
+      for (const path of document.querySelectorAll<SVGPathElement>('path.ae-edge[data-edge]')) {
+        const key = path.dataset.edge!
+        const dot = key.lastIndexOf('.')
+        const node = key.slice(0, dot)
+        const outcome = key.slice(dot + 1)
+        const source = document.querySelector<HTMLElement>(`.iota-flow__node[data-id="${node}"]`)
+        const chip = source?.querySelector<HTMLElement>(`.iota-flow__handle.source[data-handleid="${outcome}"]`)
+        const target = document.querySelector<HTMLElement>(`.iota-flow__node[data-id="${path.dataset.to}"]`)
+        const matrix = path.getScreenCTM()
+        if (!source || !chip || !target || !matrix) continue
+        const zoom = matrix.a
+        const start = new DOMPoint(path.getPointAtLength(0).x, path.getPointAtLength(0).y).matrixTransform(matrix)
+        const end = path.getPointAtLength(path.getTotalLength())
+        const tip = new DOMPoint(end.x, end.y).matrixTransform(matrix)
+        const ball = getComputedStyle(chip, '::after')
+        const chipBox = chip.getBoundingClientRect()
+        const sourceBox = source.getBoundingClientRect()
+        const targetBox = target.getBoundingClientRect()
+        // The dot's centre: its own box inside the chip (computed, so a CSS offset shows up here).
+        const dotX = chipBox.left + (chip.clientLeft + parseFloat(ball.left) + parseFloat(ball.marginLeft) + parseFloat(ball.width) / 2) * zoom
+        const dotY = chipBox.top + (chip.clientTop + parseFloat(ball.top) + parseFloat(ball.height) / 2) * zoom
+        out.push({
+          key,
+          dx: Math.abs(start.x - dotX) + Math.abs(start.x - (chipBox.left + chipBox.width / 2)),
+          dy: Math.abs(start.y - dotY) + Math.abs(start.y - sourceBox.bottom),
+          tx: Math.abs(tip.x - (targetBox.left + targetBox.width / 2)),
+          ty: Math.abs(tip.y + 6 * zoom - targetBox.top),
+        })
+      }
+      return out
+    })
+    for (const zoomed of [false, true]) {
+      if (zoomed) {
+        await page.locator('.ae-controls button').first().click()
+        await page.waitForTimeout(400)
+      }
+      const rows = await measure()
+      expect(rows.length).toBeGreaterThan(0)
+      for (const row of rows) {
+        expect(row.dx, `${row.key} x`).toBeLessThan(1)
+        expect(row.dy, `${row.key} y`).toBeLessThan(1)
+        expect(row.tx, `${row.key} target x`).toBeLessThan(1)
+        expect(row.ty, `${row.key} target y`).toBeLessThan(1)
+      }
+    }
+  })
+
   test('connecting an occupied outcome replaces its edge; undo brings the old one back (ED3)', async ({ page }) => {
     await open(page, 'graph=connected')
     await expect(edge(page, 'check', 'true')).toHaveAttribute('data-to', 'yes')
