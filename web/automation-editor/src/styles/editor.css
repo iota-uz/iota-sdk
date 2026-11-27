@@ -23,16 +23,35 @@
   background: oklch(var(--clr-surface-300));
   min-width: 0;
 }
-.ae-toolbar__path { display: flex; align-items: center; gap: 0.5rem; min-width: 0; flex: 1 1 auto; overflow: hidden; }
-.ae-toolbar__crumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: oklch(var(--clr-text-200)); flex: 0 100 auto; }
+.ae-toolbar__path { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; min-width: 7rem; flex: 1 1 auto; overflow: hidden; }
+.ae-toolbar__crumb { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: oklch(var(--clr-text-200)); font-size: 0.75rem; line-height: 1rem; padding: 0 0.375rem; }
+.ae-toolbar__title { display: flex; align-items: center; gap: 0.375rem; min-width: 0; max-width: 100%; }
 .ae-toolbar__name {
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-weight: 600; font-size: 1rem; border: 0; background: none; color: inherit; padding: 0.25rem 0.375rem;
-  border-radius: var(--radius, 0.5rem); cursor: pointer; flex: 0 1 auto; min-width: 5rem;
+  font-weight: 600; font-size: 0.9375rem; line-height: 1.375rem; border: 0; background: none; color: inherit; padding: 0 0.375rem;
+  border-radius: 6px; cursor: pointer; flex: 0 1 auto;
 }
+/* A narrow toolbar keeps every action: labels give way first (they stay the buttons' accessible names). */
+.ae-toolbar { container-type: inline-size; }
+@container (max-width: 1240px) {
+  .ae-toolbar .ae-btn__label--first { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .ae-toolbar .ae-btn__kbd { display: none; }
+  .ae-toolbar .ae-btn--sm, .ae-toolbar .ae-btn--ghost { padding: 0 0.5rem; }
+}
+@container (max-width: 1040px) {
+  .ae-toolbar .ae-btn__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+.ae-toolbar__sep { flex: none; width: 1px; height: 1.25rem; margin: 0 0.25rem; background: oklch(var(--clr-border-subtle)); }
+.ae-toolbar__group { display: inline-flex; align-items: center; gap: 0; }
+/* The switch's wrapper is a block whose line box adds a descender under the inline-flex label: a flex wrapper centres it. */
+.ae-toolbar__actions > div:has(> .ae-toolbar__toggle) { display: flex; align-items: center; }
+.ae-toolbar__toggle { gap: 0.5rem; margin: 0; font-size: 0.8125rem; line-height: 1.25rem; white-space: nowrap; }
+.ae-toolbar .ae-btn--sm { min-height: 32px; padding: 0 0.625rem; font-size: 0.8125rem; }
+.ae-btn--bad { color: oklch(var(--clr-danger-btn-text)); border-color: oklch(var(--clr-border-danger)); }
+.ae-btn--secondary[aria-pressed="true"] { border-color: oklch(var(--clr-border-brand)); color: oklch(var(--clr-primary-outline-btn-text)); background: oklch(var(--clr-border-brand) / 8%); }
 .ae-toolbar__name:disabled { cursor: default; }
 .ae-toolbar__tabs { display: flex; gap: 0.25rem; flex: none; }
-.ae-toolbar__actions { display: flex; align-items: center; gap: 0.25rem; flex: none; }
+.ae-toolbar__actions { display: flex; align-items: center; gap: 0.375rem; flex: none; }
 .ae-tag {
   display: inline-flex; align-items: center; gap: 0.25rem; flex: none;
   font-size: 0.75rem; padding: 0.125rem 0.5rem; border-radius: 9999px;
@@ -222,11 +241,21 @@
 /* Run state change (running → done): the badge crossfades in, the card's border colour eases over. */
 .ae-card .ae-state { animation: ae-fade var(--motion-base) var(--ease-out); }
 @keyframes ae-fade { from { opacity: 0; } }
-.ae-card__body { position: absolute; left: 12px; right: 12px; top: 10px; height: 40px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.ae-card__head { display: flex; align-items: center; gap: 0.375rem; min-width: 0; height: 20px; }
-.ae-card__icon { display: inline-flex; color: oklch(var(--clr-text-200)); }
-.ae-card__title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.ae-card__sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; color: oklch(var(--clr-text-200)); font-variant-numeric: tabular-nums; }
+.ae-card__body { position: absolute; left: 12px; right: 12px; top: 10px; height: 44px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ae-card__body--std { display: grid; grid-template-columns: 28px minmax(0, 1fr); grid-template-rows: 22px 18px; column-gap: 0.5rem; row-gap: 2px; align-items: center; }
+/* The icon tile spans both lines, as the reference editor's card head; the title and the line under it share
+   one left edge. */
+/* The icon tile spans both lines, as the reference editor's card head; the title row and the line under it
+   share one left edge. */
+.ae-card__head { grid-column: 2; grid-row: 1; display: flex; align-items: center; gap: 0.375rem; min-width: 0; height: 22px; }
+.ae-card__icon {
+  grid-row: 1 / span 2; grid-column: 1; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 7px;
+  color: oklch(var(--clr-text-200)); background: oklch(var(--clr-surface-100)); box-shadow: inset 0 0 0 1px oklch(var(--clr-border-subtle));
+}
+.ae-card--trigger .ae-card__icon { color: oklch(var(--clr-primary-outline-btn-text)); background: oklch(var(--clr-border-brand) / 10%); box-shadow: inset 0 0 0 1px oklch(var(--clr-border-brand) / 25%); }
+.ae-card__icon .ae-icon { display: block; }
+.ae-card__title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 0.8125rem; line-height: 22px; }
+.ae-card__sub { grid-column: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; line-height: 18px; color: oklch(var(--clr-text-200)); font-variant-numeric: tabular-nums; }
 .ae-out {
   --ae-out-tone: var(--ae-tone-neutral);
   position: absolute; box-sizing: border-box; height: 24px; line-height: 22px; text-align: center;
@@ -241,6 +270,7 @@
 .ae-out--warn { --ae-out-tone: var(--ae-tone-warn); }
 .ae-out--bad { --ae-out-tone: var(--ae-tone-bad); }
 .ae-out--neutral { color: oklch(var(--clr-text-200)); }
+.ae-out__label--arrow { font-family: inherit; font-size: 0.875rem; }
 .ae-out__label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The handle dot, centred on the declared handle position: the card's bottom edge under the chip. The chip
    starts at OUTCOME_ROW_Y (60) with a 1 px border, so its padding box starts at 61 and the 12 px dot's
@@ -308,23 +338,26 @@
 @keyframes ae-press-fill { to { stroke-dashoffset: 0; } }
 @media (prefers-reduced-motion: reduce) { .ae-press__fill { animation: none; stroke-dashoffset: 0; } }
 .ae-hint {
-  position: absolute; left: 0.75rem; bottom: 0.75rem; max-width: calc(100% - 15rem); pointer-events: none;
-  font-size: 0.75rem; color: oklch(var(--clr-text-200)); background: oklch(var(--clr-surface-300) / 90%);
-  border: 1px solid oklch(var(--clr-border-subtle)); border-radius: var(--radius, 0.5rem); padding: 0.375rem 0.625rem;
+  /* A pill at the bottom centre, between the controls and the minimap (matches the reference editor). */
+  position: absolute; left: 50%; bottom: 1rem; transform: translateX(-50%); max-width: calc(100% - 26rem); pointer-events: none;
+  font-size: 0.75rem; color: oklch(var(--clr-text-200)); background: oklch(var(--clr-surface-300));
+  border: 1px solid oklch(var(--clr-border-subtle)); border-radius: 9999px; padding: 0.375rem 0.75rem; box-shadow: var(--shadow-200);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .ae-hint--active { color: oklch(var(--clr-text-100)); border-color: oklch(var(--clr-border-brand)); }
 .ae-controls {
   position: absolute; left: 0.75rem; top: 0.75rem; display: flex; flex-direction: column; gap: 2px;
-  background: oklch(var(--clr-surface-300)); border: 1px solid oklch(var(--clr-border-subtle)); border-radius: var(--radius, 0.5rem); padding: 2px;
+  background: oklch(var(--clr-surface-300)); border: 1px solid oklch(var(--clr-border-subtle)); border-radius: 10px; padding: 3px; box-shadow: var(--shadow-100);
 }
+.ae-controls .ae-iconbtn { width: 32px; min-height: 32px; border-radius: 7px; }
+@media (pointer: coarse) { .ae-controls .ae-iconbtn { width: 44px; min-height: 44px; } }
 .ae-minimap {
   position: absolute; right: 0.75rem; bottom: 0.75rem; background: oklch(var(--clr-surface-300));
-  border: 1px solid oklch(var(--clr-border-subtle)); border-radius: var(--radius, 0.5rem); cursor: grab;
+  border: 1px solid oklch(var(--clr-border-subtle)); border-radius: 10px; cursor: grab; box-shadow: var(--shadow-100);
 }
-.ae-minimap__node { fill: oklch(var(--clr-border-default)); }
+.ae-minimap__node { fill: oklch(var(--clr-text-300) / 45%); }
 .ae-minimap__node--selected { fill: oklch(var(--clr-border-brand)); }
-.ae-minimap__view { fill: oklch(var(--clr-border-brand) / 8%); stroke: oklch(var(--clr-border-brand)); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.ae-minimap__view { fill: oklch(var(--clr-border-brand) / 6%); stroke: oklch(var(--clr-border-brand) / 70%); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .ae-quiet { position: absolute; right: 0.75rem; top: 0.75rem; display: flex; gap: 0.5rem; font-size: 0.75rem; color: oklch(var(--clr-text-200)); }
 .ae-touchbar { position: absolute; left: 50%; bottom: 0.75rem; transform: translateX(-50%); display: flex; gap: 0.5rem; }
 .ae-touchbar [aria-pressed="true"] { border-color: oklch(var(--clr-border-brand)); color: oklch(var(--clr-primary-outline-btn-text)); }
@@ -490,7 +523,7 @@ body > .ae-menu, .ae-editor > .ae-menu { position: fixed; }
 
 /* ——— touch targets (T1) ——— */
 @media (pointer: coarse) {
-  .ae-btn, .ae-iconbtn, .ae-tab, .ae-menu__item, .ae-palette__item, .ae-issue, .ae-paths__row, .ae-toolbar__name, .ae-editor .ae-save { min-height: 44px; }
+  .ae-btn, .ae-iconbtn, .ae-tab, .ae-menu__item, .ae-palette__item, .ae-issue, .ae-paths__row, .ae-toolbar__name, .ae-editor .ae-save, .ae-toolbar .ae-btn--sm { min-height: 44px; }
   .ae-iconbtn { width: 44px; }
 }
 

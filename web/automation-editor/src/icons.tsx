@@ -46,6 +46,7 @@ const paths: Record<string, string> = {
   duplicate: 'M5.5 5.5h8v8h-8zM2.5 10.5v-8h8',
   trash: 'M2.5 4h11M6 4V2.5h4V4m-6 0 .7 9.5h6.6L12 4M6.75 6.5v4.5m2.5-4.5v4.5',
   paste: 'M5.5 2.5h5v2h-5zM5.5 3.5H3.5v10h9v-10h-2',
+  history: 'M2.5 8a5.5 5.5 0 1 0 1.6-3.9M2.5 2.5v2.6h2.6M8 5v3.2l2 1.3',
   grid: 'M2.5 2.5h11v11h-11zM6.17 2.5v11M9.83 2.5v11M2.5 6.17h11M2.5 9.83h11',
 }
 

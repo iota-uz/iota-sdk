@@ -781,16 +781,19 @@ function EditorBody(props: EditorProps): JSX.Element {
   const toolbar = () => (
     <header class="ae-toolbar" role="toolbar" aria-label={t().toolbar.label}>
       <div class="ae-toolbar__path">
+        {/* Two lines, as the reference editor: the crumb small above, the name under it with its tags. */}
         <Show when={props.crumb}><span class="ae-toolbar__crumb">{props.crumb}</span></Show>
-        <button type="button" class="ae-toolbar__name" title={draft().name || t().toolbar.newGraph} onClick={() => setSettingsOpen(true)} disabled={mobile()}>
-          {draft().name || t().toolbar.newGraph}
-        </button>
-        <Show when={base() > 0}>
-          <span class="ae-tag">v{base()}</span>
-        </Show>
-        <Show when={dirty() && !readOnly()}>
-          <span class="ae-tag ae-tag--dirty" title={t().toolbar.unsaved}><Icon name="dot" size={12} /><span class="ae-sr">{t().toolbar.unsaved}</span></span>
-        </Show>
+        <div class="ae-toolbar__title">
+          <button type="button" class="ae-toolbar__name" title={draft().name || t().toolbar.newGraph} onClick={() => setSettingsOpen(true)} disabled={mobile()}>
+            {draft().name || t().toolbar.newGraph}
+          </button>
+          <Show when={base() > 0}>
+            <span class="ae-tag">v{base()}</span>
+          </Show>
+          <Show when={dirty() && !readOnly()}>
+            <span class="ae-tag ae-tag--dirty" title={t().toolbar.unsaved}><Icon name="dot" size={12} /><span class="ae-sr">{t().toolbar.unsaved}</span></span>
+          </Show>
+        </div>
       </div>
       <Show when={props.onTab || runsAvailable()}>
         <div class="ae-toolbar__tabs" role="tablist" aria-label={t().toolbar.label}>
@@ -804,25 +807,29 @@ function EditorBody(props: EditorProps): JSX.Element {
       <div class="ae-toolbar__actions">
         <Show when={!mobile()}>
           <Show when={tab() === 'edit'}>
-          <button type="button" class="ae-btn ae-btn--ghost" onClick={() => { setValidationOpen(true); void validate() }} aria-keyshortcuts={mac ? 'Meta+Enter' : 'Control+Enter'}>
+          <span class="ae-toolbar__sep" aria-hidden="true" />
+          <button type="button" class="ae-btn ae-btn--secondary ae-btn--sm" classList={{ 'ae-btn--bad': allErrors().length > 0 }} onClick={() => { setValidationOpen(true); void validate() }} aria-keyshortcuts={mac ? 'Meta+Enter' : 'Control+Enter'}>
             <Show when={validation().status === 'checking'} fallback={<Icon name={allErrors().length > 0 ? 'error' : 'check'} />}><span class="ae-spinner" aria-hidden="true" /></Show>
-            <span>{validation().status === 'checking' ? t().toolbar.validating : t().toolbar.validate}</span>
+            <span class="ae-btn__label">{validation().status === 'checking' ? t().toolbar.validating : t().toolbar.validate}</span>
             <Show when={issueCount() > 0}><span class="ae-count ae-count--danger">{issueCount()}</span></Show>
           </button>
+          <Show when={canAuthor()}>
+            <button type="button" class="ae-btn ae-btn--secondary ae-btn--sm" aria-pressed={dock()?.kind === 'dry'} onClick={() => setDock((d) => (d?.kind === 'dry' ? null : { kind: 'dry' }))} data-testid="open-dry-run">
+              <Icon name="running" /><span class="ae-btn__label">{t().toolbar.dryRun}</span>
+            </button>
+          </Show>
+          <span class="ae-toolbar__group">
           <button type="button" class="ae-iconbtn" aria-label={t().toolbar.undo} title={`${t().toolbar.undo} (${keyLabel('⌘Z', mac)})`} disabled={editingBlocked() || !canUndo(history())} onClick={doUndo}><Icon name="undo" /></button>
           <button type="button" class="ae-iconbtn" aria-label={t().toolbar.redo} title={`${t().toolbar.redo} (${keyLabel('⇧⌘Z', mac)})`} disabled={editingBlocked() || !canRedo(history())} onClick={doRedo}><Icon name="redo" /></button>
+          </span>
+          <span class="ae-toolbar__sep" aria-hidden="true" />
           <Show when={!readOnly()}>
             <button type="button" class="ae-btn ae-btn--ghost" onClick={() => setPalette({ kind: 'add' })} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'}>
-              <Icon name="plus" /><span>{t().toolbar.add}</span><Show when={!coarse()}><kbd class="ae-kbd">{keyLabel('⌘K', mac)}</kbd></Show>
+              <Icon name="plus" /><span class="ae-btn__label">{t().toolbar.add}</span><Show when={!coarse()}><kbd class="ae-kbd ae-btn__kbd">{keyLabel('⌘K', mac)}</kbd></Show>
             </button>
           </Show>
           <button type="button" class="ae-iconbtn" aria-label={t().toolbar.settings} title={t().toolbar.settings} onClick={() => setSettingsOpen(true)}><Icon name="settings" /></button>
           <button type="button" class="ae-iconbtn" aria-label={t().toolbar.keys} title={t().toolbar.keys} onClick={() => setKeymapOpen(true)}><Icon name="keys" /></button>
-          <Show when={canAuthor()}>
-            <button type="button" class="ae-btn ae-btn--ghost" aria-pressed={dock()?.kind === 'dry'} onClick={() => setDock((d) => (d?.kind === 'dry' ? null : { kind: 'dry' }))} data-testid="open-dry-run">
-              <Icon name="running" /><span>{t().toolbar.dryRun}</span>
-            </button>
-          </Show>
           </Show>
           <Show when={props.versions && props.versions.length > 0 && props.onOpenVersion}>
             <button
@@ -835,7 +842,7 @@ function EditorBody(props: EditorProps): JSX.Element {
                 setVersionsMenu({ x: r.left, y: r.bottom + 4 })
               }}
             >
-              {t().toolbar.versions}
+              <Icon name="history" /><span class="ae-btn__label ae-btn__label--first">{t().toolbar.versions}</span>
             </button>
           </Show>
           {props.actions}
@@ -854,7 +861,8 @@ function EditorBody(props: EditorProps): JSX.Element {
           </Show>
         </Show>
         <Show when={props.toggleEnabled}>
-          <Toggle checked={props.enabled} label={t().toolbar.enabled} onChange={(event) => { event.currentTarget.checked = props.enabled; props.toggleEnabled?.() }} />
+          <span class="ae-toolbar__sep" aria-hidden="true" />
+          <Toggle labelClass="ae-toolbar__toggle" checked={props.enabled} label={t().toolbar.enabled} onChange={(event) => { event.currentTarget.checked = props.enabled; props.toggleEnabled?.() }} />
         </Show>
       </div>
     </header>

@@ -1123,7 +1123,8 @@ export function Canvas(props: CanvasProps): JSX.Element {
         <path class={className()} d={path()} style={step()} marker-end={marker()} data-edge={source} data-to={to()} />
         {/* A wide transparent stroke over the line: hover and click on it, as on the reference editor's edges. */}
         <path
-          class={`ae-edge-hit ${NOPAN}`}
+          // Not nopan: a drag or a pinch that starts on an edge still pans and zooms the canvas.
+          class="ae-edge-hit"
           d={path()}
           onPointerEnter={() => setHoveredEdge(source)}
           onPointerLeave={() => setHoveredEdge((current) => (current === source ? null : current))}
@@ -1232,9 +1233,9 @@ export function Canvas(props: CanvasProps): JSX.Element {
           )}
         </Show>
         <Show when={props.renderNode} fallback={
-          <div class="ae-card__body">
+          <div class="ae-card__body ae-card__body--std">
+            <span class="ae-card__icon"><Icon name={icon()} /></span>
             <div class="ae-card__head">
-              <span class="ae-card__icon"><Icon name={icon()} /></span>
               <span class="ae-card__title" title={name().title}>{name().title}</span>
               <Show when={item()?.state}>
                 {(state) => (
@@ -1295,7 +1296,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
                   onMouseDown={(event) => onHandleDown(id, slot.outcome, event)}
                   onTouchStart={(event) => onHandleDown(id, slot.outcome, event)}
                 >
-                  <span class="ae-out__label">{slot.outcome === FIRED && item()?.kind === 'trigger' ? '→' : slot.outcome}</span>
+                  <span class="ae-out__label" classList={{ 'ae-out__label--arrow': slot.outcome === FIRED && item()?.kind === 'trigger' }}>{slot.outcome === FIRED && item()?.kind === 'trigger' ? '→' : slot.outcome}</span>
                 </div>
                 <Show when={!out()?.to && notes().length === 1}>
                   <span class="ae-out-note" style={`left:${slot.handle.x}px;top:${slot.handle.y + 10}px`}>
@@ -1441,8 +1442,8 @@ export function Canvas(props: CanvasProps): JSX.Element {
         <svg
           ref={minimapEl}
           class={`ae-minimap ${NOPAN} ${NOWHEEL}`}
-          width="200"
-          height="140"
+          width="176"
+          height="120"
           viewBox={minimapView() ? `${minimapView()!.x} ${minimapView()!.y} ${minimapView()!.width} ${minimapView()!.height}` : '0 0 200 140'}
           preserveAspectRatio="xMidYMid meet"
           onPointerDown={onMinimapPointer}

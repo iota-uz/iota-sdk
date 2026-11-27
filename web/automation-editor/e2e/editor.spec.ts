@@ -3,6 +3,28 @@ import { expectNoA11yViolations } from '@iota-uz/sdk/testing'
 import { card, center, drag, edge, handle, mod, open, settled } from './helpers'
 
 test.describe('canvas', () => {
+  test('an edge is picked by a click on its line and Delete takes it off; Esc lets it go', async ({ page }) => {
+    await open(page, 'graph=connected')
+    const line = edge(page, 'check', 'true')
+    const at = await line.evaluate((el) => {
+      const path = el as SVGPathElement
+      const p = path.getPointAtLength(path.getTotalLength() / 2)
+      const q = new DOMPoint(p.x, p.y).matrixTransform(path.getScreenCTM()!)
+      return { x: q.x, y: q.y }
+    })
+    await page.mouse.move(at.x, at.y)
+    await expect(line).toHaveClass(/ae-edge--hover/)
+    await page.mouse.click(at.x, at.y)
+    await expect(line).toHaveClass(/ae-edge--selected/)
+    await page.keyboard.press('Escape')
+    await expect(line).not.toHaveClass(/ae-edge--selected/)
+    await page.mouse.click(at.x, at.y)
+    await page.keyboard.press('Delete')
+    await expect(line).toHaveCount(0)
+    await page.keyboard.press(`${mod}+z`)
+    await expect(line).toHaveAttribute('data-to', 'yes')
+  })
+
   test('an edge leaves the centre of its handle dot on the card bottom and ends on the target input, at 100% and zoomed', async ({ page }) => {
     await open(page, 'graph=connected')
     const measure = () => page.evaluate(() => {
