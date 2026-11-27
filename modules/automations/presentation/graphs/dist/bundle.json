@@ -1,9 +1,9 @@
 {
-  "sdkCommit": "710902436e873e70334d0e355f2745686e93693c",
+  "sdkCommit": "db75c27838a07e3e924b32b367f121c30babc5cb",
   "releasePlaceholder": "0.0.0-iota-automations-release",
   "protocolVersion": "1.0.0",
-  "entry": "assets/automations-L8ErGZqX.js",
+  "entry": "assets/automations-DhXEYep3.js",
   "styles": [
-    "assets/automations-DWmBUoJu.css"
+    "assets/automations-D9CtwPGF.css"
   ]
 }

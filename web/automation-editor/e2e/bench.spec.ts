@@ -62,6 +62,33 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
       requestAnimationFrame(tick)
     }
     requestAnimationFrame(tick)
+    // For the profile: the frames over 50 ms split into tasks before rendering, animation frame callbacks,
+    // and style, layout and paint (Long Animation Frames, where the browser has them).
+    // And how long the page's own animation frame callbacks (the glide's tween) take in each frame.
+    const cb = w as unknown as { __callbacks: { at: number; ms: number }[] }
+    cb.__callbacks = []
+    const raf = window.requestAnimationFrame.bind(window)
+    window.requestAnimationFrame = (run) => raf((now) => {
+      const t = performance.now()
+      run(now)
+      cb.__callbacks.push({ at: t, ms: performance.now() - t })
+    })
+    const loaf = w as unknown as { __loaf: { start: number; duration: number; script: number; style: number; raf: number }[] }
+    loaf.__loaf = []
+    try {
+      new PerformanceObserver((list) => {
+        for (const e of list.getEntries() as (PerformanceEntry & { renderStart: number; styleAndLayoutStart: number })[]) {
+          const end = e.startTime + e.duration
+          loaf.__loaf.push({
+            start: e.startTime,
+            duration: Math.round(e.duration),
+            script: Math.round((e.renderStart || end) - e.startTime),
+            style: Math.round(e.styleAndLayoutStart ? end - e.styleAndLayoutStart : 0),
+            raf: Math.round(e.renderStart && e.styleAndLayoutStart ? e.styleAndLayoutStart - e.renderStart : 0),
+          })
+        }
+      }).observe({ type: 'long-animation-frame', buffered: false })
+    } catch { /* not in this browser */ }
   })
   // A step in the middle of the view, so the drag measures the canvas, not the edge auto-pan.
   const target = await page.evaluate(() => {
@@ -106,7 +133,7 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
   // edges follow frame by frame. The layout is computed before, and committed at the start of, the measured
   // interval; the glide (there and back) is held to the drag's limits.
   await page.evaluate(() => window.__fixture.prepareTidy!())
-  const glides: { frames: number[]; longTasks: number[]; where: string[] }[] = []
+  const glides: { frames: number[]; longTasks: number[]; where: string[]; slow: string[]; callbackMs: number[] }[] = []
   for (let i = 0; i < 2; i += 1) {
     // The commit itself (a new layout: routes and memos, the same with or without a glide) is the start;
     // what is measured is the glide after it.
@@ -130,7 +157,12 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
       const w = window as unknown as { __longTasks: { start: number; duration: number }[]; __frames: number[] }
       const stamps = w.__frames.filter((t) => t >= start && t <= end)
       const tasks = w.__longTasks.filter((e) => e.start < end && e.start + e.duration > start)
+      const loaf = (w as unknown as { __loaf: { start: number; duration: number; script: number; style: number; raf: number }[] }).__loaf
+      const callbacks = (w as unknown as { __callbacks: { at: number; ms: number }[] }).__callbacks.filter((c) => c.at >= start && c.at <= end)
+      const perFrame = stamps.slice(1).map((t, i) => callbacks.filter((c) => c.at >= stamps[i]! && c.at < t).reduce((n, c) => n + c.ms, 0))
       return {
+        callbackMs: perFrame.map((n) => Math.round(n)),
+        slow: loaf.filter((e) => e.start < end && e.start + e.duration > start).map((e) => `${Math.round(e.start - start)}: ${e.duration} = tasks ${e.script} + frame callbacks ${e.raf} + style, layout, paint ${e.style}`),
         frames: stamps.slice(1).map((t, i) => t - stamps[i]!),
         longTasks: tasks.map((e) => e.duration),
         // Where each long task falls in the glide (ms after its start, of its length): for the profile.
@@ -159,6 +191,8 @@ test('200 steps / 500 edges at 4× CPU throttle', async ({ page }) => {
     tidyLongTasks,
     tidyLongTasksAt: glides.flatMap((g) => g.where),
     tidyFrameMs: glides.map((g) => g.frames.map((f) => Math.round(f))),
+    tidySlowFrames: glides.map((g) => g.slow),
+    tidyCallbackMs: glides.map((g) => g.callbackMs),
     limits: LIMITS,
   }
   const out = path.resolve('e2e/results')
