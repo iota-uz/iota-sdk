@@ -184,31 +184,36 @@ def take_preamble(spans):
 # pg_dump prints "varchar_col IN ('a', 'b')" as an ANY over a varchar array cast
 # to text[], and that text does not parse back into the same expression: dumping
 # the restored database prints each element cast instead. Writing the IN list
-# back keeps the baseline's dump identical to the history's. The pattern spans
-# its own string literals, so it runs on everything except dollar-quoted bodies,
-# whose contents are data.
-VARCHAR_IN = re.compile(
-    r"\(\(([a-z_][a-z0-9_]*)\)::text = ANY \(\(ARRAY\[((?:'(?:[^']|'')*'::character varying(?:, )?)+)\]\)::text\[\]\)\)"
+# back keeps the baseline's dump identical to the history's.
+
+
+# The pattern is matched against code only: every quoted span (literal, quoted
+# identifier, dollar-quoted body) is replaced by a placeholder token first, and
+# a placeholder is accepted only where an array element literal goes. SQL-like
+# text inside a comment value or a name can therefore never match.
+VARCHAR_IN_TOKENS = re.compile(
+    r"\(\(([a-z_][a-z0-9_]*)\)::text = ANY \(\(ARRAY\[((?:\x00L\d+\x00::character varying(?:, )?)+)\]\)::text\[\]\)\)"
 )
 
 
 def restore_varchar_in(spans):
+    quoted, parts = [], []
+    for kind, text in spans:
+        if kind == QUOTED:
+            # Only single-quoted literals may stand in an element position.
+            tag = "L" if text[0] == "'" else "Q"
+            parts.append("\x00%s%d\x00" % (tag, len(quoted)))
+            quoted.append(text)
+        else:
+            parts.append(text)
+    code = "".join(parts)
+
     def repl(m):
-        values = re.findall(r"'(?:[^']|'')*'(?=::character varying)", m.group(2))
+        values = re.findall(r"\x00L\d+\x00(?=::character varying)", m.group(2))
         return "(%s IN (%s))" % (m.group(1), ", ".join(values))
 
-    out, region = [], []
-    for kind, text in spans:
-        # Dollar-quoted bodies are data and quoted identifiers are names; only
-        # the single-quoted literals the pattern itself is made of stay in.
-        if kind == QUOTED and text[0] in ("$", '"'):
-            out.append(VARCHAR_IN.sub(repl, "".join(region)))
-            region = []
-            out.append(text)
-        else:
-            region.append(text)
-    out.append(VARCHAR_IN.sub(repl, "".join(region)))
-    return "".join(out)
+    code = VARCHAR_IN_TOKENS.sub(repl, code)
+    return re.sub(r"\x00[LQ](\d+)\x00", lambda m: quoted[int(m.group(1))], code)
 
 
 ATOMIC_BODY = re.compile(r"\bBEGIN\s+ATOMIC\b", re.IGNORECASE)
@@ -236,43 +241,54 @@ def check_sql_migrate_lines(spans, stmt):
                         "would drop:\n%s" % stmt[:300])
 
 
-# A sequence OWNED BY a column goes with its table even under RESTRICT, so a
-# consumer's sequence owned by a baseline column would be dropped silently.
-# The guard refuses the rollback while such a sequence exists; the baseline's
-# own sequences are allowed.
-OWNED_SEQUENCE_GUARD = """-- +migrate StatementBegin
-DO $$
-DECLARE
+# A sequence OWNED BY a column, or an identity column's sequence, goes with its
+# table even under RESTRICT, so a consumer's sequence attached to a baseline
+# table would be dropped silently. The guard refuses the rollback while such a
+# sequence exists; the baseline's own sequences are allowed. It first takes
+# ACCESS EXCLUSIVE locks on the baseline tables, held until the rollback
+# commits, so no other session can attach a sequence after the check.
+OWNED_SEQUENCE_GUARD = """DECLARE
+    tables text[] := ARRAY[%s]::text[];
+    own_sequences text[] := ARRAY[%s]::text[];
     foreign_sequences text;
+    locked text;
 BEGIN
-    SELECT string_agg(seq.oid::regclass::text, ', ')
+    SELECT string_agg(t, ', ') INTO locked FROM unnest(tables) t WHERE to_regclass(t) IS NOT NULL;
+    IF locked IS NOT NULL THEN
+        EXECUTE 'LOCK TABLE ' || locked || ' IN ACCESS EXCLUSIVE MODE';
+    END IF;
+    SELECT string_agg(format('%%s (%%s of %%s.%%I)',
+               seq.oid::regclass,
+               CASE dep.deptype WHEN 'i' THEN 'identity column' ELSE 'owned by column' END,
+               dep.refobjid::regclass, att.attname), '; ')
     INTO foreign_sequences
     FROM pg_depend dep
     JOIN pg_class seq ON seq.oid = dep.objid AND seq.relkind = 'S'
+    LEFT JOIN pg_attribute att ON att.attrelid = dep.refobjid AND att.attnum = dep.refobjsubid
     WHERE dep.classid = 'pg_class'::regclass
       AND dep.refclassid = 'pg_class'::regclass
-      AND dep.deptype = 'a'
-      AND dep.refobjid IN (SELECT to_regclass(t) FROM unnest(ARRAY[%s]::text[]) t)
-      AND seq.oid NOT IN (SELECT to_regclass(q) FROM unnest(ARRAY[%s]::text[]) q WHERE to_regclass(q) IS NOT NULL);
+      AND dep.deptype IN ('a', 'i')
+      AND dep.refobjid IN (SELECT to_regclass(t) FROM unnest(tables) t)
+      AND seq.oid NOT IN (SELECT to_regclass(q) FROM unnest(own_sequences) q WHERE to_regclass(q) IS NOT NULL);
     IF foreign_sequences IS NOT NULL THEN
-        RAISE EXCEPTION 'cannot roll back the baseline: sequences %% are owned by its tables; drop them or change their OWNED BY first', foreign_sequences;
+        RAISE EXCEPTION 'cannot roll back the baseline: sequences that are not its own depend on its tables: %%; '
+            'drop them first (for an identity column, drop the column or its identity)', foreign_sequences;
     END IF;
-END
-$$;
--- +migrate StatementEnd
-"""
+END"""
 
 
 # Drops every baseline object with RESTRICT, in an order found at run time.
 # Each pass tries every kind as one statement (which settles dependencies
 # within a kind, cycles of foreign keys included), then, if that is blocked,
 # each object of the kind on its own; passes repeat while anything is dropped.
-# What is still blocked at the end depends on something outside the baseline:
-# the last statement drops it without a handler, so the rollback fails with
-# PostgreSQL's own error naming the dependent object.
-DROP_IN_DEPENDENCY_ORDER = """-- +migrate StatementBegin
-DO $$
-DECLARE
+# A pass that drops nothing may be stuck on a cycle among the baseline's own
+# objects across kinds (a column default calling a function that takes the
+# table's row type): the column defaults and CHECK constraints of the remaining
+# baseline tables, which go with their tables anyway, are removed once and the
+# passes resume. What is still blocked after that depends on something outside
+# the baseline: the last statement drops it without a handler, so the rollback
+# fails with PostgreSQL's own error naming the dependent object.
+DROP_IN_DEPENDENCY_ORDER = """DECLARE
     kinds text[] := ARRAY[%s];
     obj_kind text[] := ARRAY[
         %s];
@@ -280,9 +296,11 @@ DECLARE
         %s];
     done boolean[];
     progress boolean;
+    detached boolean := false;
     k text;
     names text;
     i int;
+    r record;
 BEGIN
     done := array_fill(false, ARRAY[cardinality(obj_name)]);
     LOOP
@@ -310,16 +328,41 @@ BEGIN
                 END LOOP;
             END;
         END LOOP;
+        IF NOT progress AND NOT detached THEN
+            detached := true;
+            FOR i IN 1 .. cardinality(obj_name) LOOP
+                CONTINUE WHEN obj_kind[i] <> 'TABLE' OR done[i] OR to_regclass(obj_name[i]) IS NULL;
+                FOR r IN SELECT a.attname FROM pg_attrdef d
+                         JOIN pg_attribute a ON a.attrelid = d.adrelid AND a.attnum = d.adnum
+                         WHERE d.adrelid = to_regclass(obj_name[i]) AND a.attgenerated = '' LOOP
+                    EXECUTE format('ALTER TABLE %%s ALTER COLUMN %%I DROP DEFAULT', obj_name[i], r.attname);
+                    progress := true;
+                END LOOP;
+                FOR r IN SELECT conname FROM pg_constraint
+                         WHERE conrelid = to_regclass(obj_name[i]) AND contype = 'c' AND NOT coninhcount > 0 LOOP
+                    EXECUTE format('ALTER TABLE %%s DROP CONSTRAINT %%I RESTRICT', obj_name[i], r.conname);
+                    progress := true;
+                END LOOP;
+            END LOOP;
+        END IF;
         EXIT WHEN NOT progress;
     END LOOP;
     FOR i IN 1 .. cardinality(obj_name) LOOP
         CONTINUE WHEN done[i];
         EXECUTE format('DROP %%s IF EXISTS %%s RESTRICT', obj_kind[i], obj_name[i]);
     END LOOP;
-END
-$$;
--- +migrate StatementEnd
-"""
+END"""
+
+
+def do_block(body):
+    """Wrap a PL/pgSQL body in DO, with a dollar-quote tag that does not occur
+    in the body (a quoted name may contain $$)."""
+    n = 0
+    tag = "$down$"
+    while tag in body:
+        n += 1
+        tag = "$down%d$" % n
+    return "-- +migrate StatementBegin\nDO %s\n%s\n%s;\n-- +migrate StatementEnd\n" % (tag, body, tag)
 
 
 def sql_literal(text):
@@ -418,17 +461,17 @@ def generate(dump, squashed_dir, out):
     out.write("-- (a table inheriting from one, a foreign key, a view, an owned sequence, a table in an\n")
     out.write("-- SDK schema) makes the rollback fail and roll back instead of being dropped.\n")
     if drops["TABLE"]:
-        out.write(OWNED_SEQUENCE_GUARD % (
+        out.write(do_block(OWNED_SEQUENCE_GUARD % (
             ", ".join(sql_literal(t) for t in drops["TABLE"]),
-            ", ".join(sql_literal(q) for q in drops["SEQUENCE"]) or "",
-        ))
+            ", ".join(sql_literal(q) for q in drops["SEQUENCE"]),
+        )))
     objects = [(kind, name) for kind in DROPPABLE for name in drops[kind]]
     if objects:
-        out.write(DROP_IN_DEPENDENCY_ORDER % (
+        out.write(do_block(DROP_IN_DEPENDENCY_ORDER % (
             ", ".join(sql_literal(k) for k in DROPPABLE),
             ",\n        ".join(sql_literal(k) for k, _ in objects),
             ",\n        ".join(sql_literal(n) for _, n in objects),
-        ))
+        )))
     for schema in schemas:
         if schema != "public":
             out.write("DROP SCHEMA IF EXISTS %s RESTRICT;\n" % quote_ident(schema))

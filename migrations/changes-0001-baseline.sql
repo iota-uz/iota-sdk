@@ -6873,27 +6873,39 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA bichat GRANT SELECT ON TABLES TO bichat_agent
 -- (a table inheriting from one, a foreign key, a view, an owned sequence, a table in an
 -- SDK schema) makes the rollback fail and roll back instead of being dropped.
 -- +migrate StatementBegin
-DO $$
+DO $down$
 DECLARE
+    tables text[] := ARRAY['"public"."action_logs"', '"public"."ai_chat_configs"', '"public"."authentication_logs"', '"public"."billing_transactions"', '"public"."chat_members"', '"public"."chats"', '"public"."clients"', '"public"."companies"', '"public"."counterparty"', '"public"."debts"', '"public"."employees"', '"public"."expense_categories"', '"public"."expenses"', '"public"."inventory"', '"public"."inventory_check_results"', '"public"."inventory_checks"', '"public"."message_templates"', '"public"."money_accounts"', '"public"."passports"', '"public"."payment_categories"', '"public"."payments"', '"public"."positions"', '"public"."projects"', '"public"."roles"', '"public"."sessions"', '"public"."transactions"', '"public"."uploads"', '"public"."user_groups"', '"public"."users"', '"public"."warehouse_orders"', '"public"."warehouse_positions"', '"public"."warehouse_products"', '"public"."warehouse_units"', '"applets"."documents"', '"applets"."files"', '"applets"."jobs"', '"applets"."secrets"', '"automation"."automations"', '"automation"."backtest_results"', '"automation"."backtests"', '"automation"."call_contexts"', '"automation"."call_deadlines"', '"automation"."call_slots"', '"automation"."connection_checks"', '"automation"."connection_requests"', '"automation"."connections"', '"automation"."connector_usage"', '"automation"."correlations"', '"automation"."dataset_examples"', '"automation"."dataset_imports"', '"automation"."dataset_labels"', '"automation"."datasets"', '"automation"."decision_cache"', '"automation"."exclusive_identities"', '"automation"."inbound_actions"', '"automation"."inbound_collect"', '"automation"."inbound_dedup"', '"automation"."node_tests"', '"automation"."oauth_states"', '"automation"."platform_grants"', '"automation"."retired_platform_identities"', '"automation"."runs"', '"automation"."secret_values"', '"automation"."secrets"', '"automation"."state"', '"automation"."steps"', '"automation"."subject_queue"', '"automation"."tokens"', '"automation"."triggers"', '"automation"."versions"', '"automation"."waits"', '"bichat"."artifact_provider_files"', '"bichat"."artifacts"', '"bichat"."checkpoints"', '"bichat"."events"', '"bichat"."generations"', '"bichat"."learnings"', '"bichat"."messages"', '"bichat"."session_members"', '"bichat"."sessions"', '"bichat"."spans"', '"bichat"."traces"', '"bichat"."validated_queries"', '"core"."departments"', '"core"."notification_channel_connections"', '"core"."notification_channel_link_tokens"', '"core"."notification_channel_links"', '"core"."notification_channel_preferences"', '"core"."notification_deliveries"', '"core"."notification_delivery_attempts"', '"core"."notification_dispatches"', '"core"."notification_notices"', '"core"."notification_push_devices"', '"core"."notification_rules"', '"core"."notifications"', '"core"."user_positions"', '"extruntime"."activations"', '"extruntime"."artifacts"', '"extruntime"."audit_log"', '"extruntime"."binding_displaced"', '"extruntime"."bindings"', '"extruntime"."catalog_snapshots"', '"extruntime"."entity_schema_versions"', '"extruntime"."entity_schemas"', '"extruntime"."human_task_assignees"', '"extruntime"."human_task_decisions"', '"extruntime"."human_task_escalations"', '"extruntime"."human_tasks"', '"extruntime"."invocations"', '"extruntime"."outbox_events"', '"extruntime"."package_files"', '"extruntime"."packages"', '"extruntime"."schedule_accounting"', '"extruntime"."schedule_runs"', '"extruntime"."schema_migrations_history"', '"extruntime"."subscription_receipts"', '"extruntime"."subscription_watermarks"', '"extruntime"."trigger_owners"', '"extruntime"."version_reviews"', '"extruntime"."versions"', '"extruntime"."workflow_instances"', '"extruntime"."workflow_occurrences"', '"extruntime"."workflow_signals"', '"mcp"."approvals"', '"mcp"."operation_audit"', '"mcp"."operation_effects"', '"mcp"."operations"', '"mcp"."plans"', '"oidc"."auth_requests"', '"oidc"."clients"', '"oidc"."refresh_tokens"', '"oidc"."revoked_access_tokens"', '"oidc"."signing_keys"', '"public"."business_event_deliveries"', '"public"."client_contacts"', '"public"."counterparty_contacts"', '"public"."currencies"', '"public"."employee_contacts"', '"public"."employee_meta"', '"public"."employee_positions"', '"public"."expense_attachments"', '"public"."group_roles"', '"public"."group_users"', '"public"."message_media"', '"public"."messages"', '"public"."payment_attachments"', '"public"."permissions"', '"public"."project_acceptance_documents"', '"public"."project_stage_payments"', '"public"."project_stages"', '"public"."recovery_codes"', '"public"."role_permissions"', '"public"."subscription_entitlements"', '"public"."subscription_entity_counts"', '"public"."subscription_plans"', '"public"."subscription_webhook_events"', '"public"."tenants"', '"public"."two_factor_otps"', '"public"."uploaded_images"', '"public"."user_permissions"', '"public"."user_roles"', '"public"."warehouse_order_items"', '"public"."warehouse_position_images"']::text[];
+    own_sequences text[] := ARRAY['"automation"."subject_queue_seq_seq"', '"extruntime"."audit_log_id_seq"', '"extruntime"."human_task_assignees_id_seq"', '"extruntime"."outbox_events_seq_seq"', '"extruntime"."schema_migrations_history_id_seq"', '"extruntime"."version_reviews_id_seq"', '"public"."action_logs_id_seq"', '"public"."authentication_logs_id_seq"', '"public"."chats_id_seq"', '"public"."client_contacts_id_seq"', '"public"."clients_id_seq"', '"public"."companies_id_seq"', '"public"."counterparty_contacts_id_seq"', '"public"."counterparty_id_seq"', '"public"."employee_contacts_id_seq"', '"public"."employees_id_seq"', '"public"."expense_categories_id_seq"', '"public"."expenses_id_seq"', '"public"."inventory_check_results_id_seq"', '"public"."inventory_checks_id_seq"', '"public"."inventory_id_seq"', '"public"."message_templates_id_seq"', '"public"."messages_id_seq"', '"public"."money_accounts_id_seq"', '"public"."payments_id_seq"', '"public"."positions_id_seq"', '"public"."recovery_codes_id_seq"', '"public"."roles_id_seq"', '"public"."transactions_id_seq"', '"public"."two_factor_otps_id_seq"', '"public"."uploaded_images_id_seq"', '"public"."uploads_id_seq"', '"public"."users_id_seq"', '"public"."warehouse_orders_id_seq"', '"public"."warehouse_positions_id_seq"', '"public"."warehouse_products_id_seq"', '"public"."warehouse_units_id_seq"']::text[];
     foreign_sequences text;
+    locked text;
 BEGIN
-    SELECT string_agg(seq.oid::regclass::text, ', ')
+    SELECT string_agg(t, ', ') INTO locked FROM unnest(tables) t WHERE to_regclass(t) IS NOT NULL;
+    IF locked IS NOT NULL THEN
+        EXECUTE 'LOCK TABLE ' || locked || ' IN ACCESS EXCLUSIVE MODE';
+    END IF;
+    SELECT string_agg(format('%s (%s of %s.%I)',
+               seq.oid::regclass,
+               CASE dep.deptype WHEN 'i' THEN 'identity column' ELSE 'owned by column' END,
+               dep.refobjid::regclass, att.attname), '; ')
     INTO foreign_sequences
     FROM pg_depend dep
     JOIN pg_class seq ON seq.oid = dep.objid AND seq.relkind = 'S'
+    LEFT JOIN pg_attribute att ON att.attrelid = dep.refobjid AND att.attnum = dep.refobjsubid
     WHERE dep.classid = 'pg_class'::regclass
       AND dep.refclassid = 'pg_class'::regclass
-      AND dep.deptype = 'a'
-      AND dep.refobjid IN (SELECT to_regclass(t) FROM unnest(ARRAY['"public"."action_logs"', '"public"."ai_chat_configs"', '"public"."authentication_logs"', '"public"."billing_transactions"', '"public"."chat_members"', '"public"."chats"', '"public"."clients"', '"public"."companies"', '"public"."counterparty"', '"public"."debts"', '"public"."employees"', '"public"."expense_categories"', '"public"."expenses"', '"public"."inventory"', '"public"."inventory_check_results"', '"public"."inventory_checks"', '"public"."message_templates"', '"public"."money_accounts"', '"public"."passports"', '"public"."payment_categories"', '"public"."payments"', '"public"."positions"', '"public"."projects"', '"public"."roles"', '"public"."sessions"', '"public"."transactions"', '"public"."uploads"', '"public"."user_groups"', '"public"."users"', '"public"."warehouse_orders"', '"public"."warehouse_positions"', '"public"."warehouse_products"', '"public"."warehouse_units"', '"applets"."documents"', '"applets"."files"', '"applets"."jobs"', '"applets"."secrets"', '"automation"."automations"', '"automation"."backtest_results"', '"automation"."backtests"', '"automation"."call_contexts"', '"automation"."call_deadlines"', '"automation"."call_slots"', '"automation"."connection_checks"', '"automation"."connection_requests"', '"automation"."connections"', '"automation"."connector_usage"', '"automation"."correlations"', '"automation"."dataset_examples"', '"automation"."dataset_imports"', '"automation"."dataset_labels"', '"automation"."datasets"', '"automation"."decision_cache"', '"automation"."exclusive_identities"', '"automation"."inbound_actions"', '"automation"."inbound_collect"', '"automation"."inbound_dedup"', '"automation"."node_tests"', '"automation"."oauth_states"', '"automation"."platform_grants"', '"automation"."retired_platform_identities"', '"automation"."runs"', '"automation"."secret_values"', '"automation"."secrets"', '"automation"."state"', '"automation"."steps"', '"automation"."subject_queue"', '"automation"."tokens"', '"automation"."triggers"', '"automation"."versions"', '"automation"."waits"', '"bichat"."artifact_provider_files"', '"bichat"."artifacts"', '"bichat"."checkpoints"', '"bichat"."events"', '"bichat"."generations"', '"bichat"."learnings"', '"bichat"."messages"', '"bichat"."session_members"', '"bichat"."sessions"', '"bichat"."spans"', '"bichat"."traces"', '"bichat"."validated_queries"', '"core"."departments"', '"core"."notification_channel_connections"', '"core"."notification_channel_link_tokens"', '"core"."notification_channel_links"', '"core"."notification_channel_preferences"', '"core"."notification_deliveries"', '"core"."notification_delivery_attempts"', '"core"."notification_dispatches"', '"core"."notification_notices"', '"core"."notification_push_devices"', '"core"."notification_rules"', '"core"."notifications"', '"core"."user_positions"', '"extruntime"."activations"', '"extruntime"."artifacts"', '"extruntime"."audit_log"', '"extruntime"."binding_displaced"', '"extruntime"."bindings"', '"extruntime"."catalog_snapshots"', '"extruntime"."entity_schema_versions"', '"extruntime"."entity_schemas"', '"extruntime"."human_task_assignees"', '"extruntime"."human_task_decisions"', '"extruntime"."human_task_escalations"', '"extruntime"."human_tasks"', '"extruntime"."invocations"', '"extruntime"."outbox_events"', '"extruntime"."package_files"', '"extruntime"."packages"', '"extruntime"."schedule_accounting"', '"extruntime"."schedule_runs"', '"extruntime"."schema_migrations_history"', '"extruntime"."subscription_receipts"', '"extruntime"."subscription_watermarks"', '"extruntime"."trigger_owners"', '"extruntime"."version_reviews"', '"extruntime"."versions"', '"extruntime"."workflow_instances"', '"extruntime"."workflow_occurrences"', '"extruntime"."workflow_signals"', '"mcp"."approvals"', '"mcp"."operation_audit"', '"mcp"."operation_effects"', '"mcp"."operations"', '"mcp"."plans"', '"oidc"."auth_requests"', '"oidc"."clients"', '"oidc"."refresh_tokens"', '"oidc"."revoked_access_tokens"', '"oidc"."signing_keys"', '"public"."business_event_deliveries"', '"public"."client_contacts"', '"public"."counterparty_contacts"', '"public"."currencies"', '"public"."employee_contacts"', '"public"."employee_meta"', '"public"."employee_positions"', '"public"."expense_attachments"', '"public"."group_roles"', '"public"."group_users"', '"public"."message_media"', '"public"."messages"', '"public"."payment_attachments"', '"public"."permissions"', '"public"."project_acceptance_documents"', '"public"."project_stage_payments"', '"public"."project_stages"', '"public"."recovery_codes"', '"public"."role_permissions"', '"public"."subscription_entitlements"', '"public"."subscription_entity_counts"', '"public"."subscription_plans"', '"public"."subscription_webhook_events"', '"public"."tenants"', '"public"."two_factor_otps"', '"public"."uploaded_images"', '"public"."user_permissions"', '"public"."user_roles"', '"public"."warehouse_order_items"', '"public"."warehouse_position_images"']::text[]) t)
-      AND seq.oid NOT IN (SELECT to_regclass(q) FROM unnest(ARRAY['"automation"."subject_queue_seq_seq"', '"extruntime"."audit_log_id_seq"', '"extruntime"."human_task_assignees_id_seq"', '"extruntime"."outbox_events_seq_seq"', '"extruntime"."schema_migrations_history_id_seq"', '"extruntime"."version_reviews_id_seq"', '"public"."action_logs_id_seq"', '"public"."authentication_logs_id_seq"', '"public"."chats_id_seq"', '"public"."client_contacts_id_seq"', '"public"."clients_id_seq"', '"public"."companies_id_seq"', '"public"."counterparty_contacts_id_seq"', '"public"."counterparty_id_seq"', '"public"."employee_contacts_id_seq"', '"public"."employees_id_seq"', '"public"."expense_categories_id_seq"', '"public"."expenses_id_seq"', '"public"."inventory_check_results_id_seq"', '"public"."inventory_checks_id_seq"', '"public"."inventory_id_seq"', '"public"."message_templates_id_seq"', '"public"."messages_id_seq"', '"public"."money_accounts_id_seq"', '"public"."payments_id_seq"', '"public"."positions_id_seq"', '"public"."recovery_codes_id_seq"', '"public"."roles_id_seq"', '"public"."transactions_id_seq"', '"public"."two_factor_otps_id_seq"', '"public"."uploaded_images_id_seq"', '"public"."uploads_id_seq"', '"public"."users_id_seq"', '"public"."warehouse_orders_id_seq"', '"public"."warehouse_positions_id_seq"', '"public"."warehouse_products_id_seq"', '"public"."warehouse_units_id_seq"']::text[]) q WHERE to_regclass(q) IS NOT NULL);
+      AND dep.deptype IN ('a', 'i')
+      AND dep.refobjid IN (SELECT to_regclass(t) FROM unnest(tables) t)
+      AND seq.oid NOT IN (SELECT to_regclass(q) FROM unnest(own_sequences) q WHERE to_regclass(q) IS NOT NULL);
     IF foreign_sequences IS NOT NULL THEN
-        RAISE EXCEPTION 'cannot roll back the baseline: sequences % are owned by its tables; drop them or change their OWNED BY first', foreign_sequences;
+        RAISE EXCEPTION 'cannot roll back the baseline: sequences that are not its own depend on its tables: %; '
+            'drop them first (for an identity column, drop the column or its identity)', foreign_sequences;
     END IF;
 END
-$$;
+$down$;
 -- +migrate StatementEnd
 -- +migrate StatementBegin
-DO $$
+DO $down$
 DECLARE
     kinds text[] := ARRAY['VIEW', 'TABLE', 'SEQUENCE', 'AGGREGATE', 'FUNCTION', 'PROCEDURE', 'DOMAIN', 'TYPE'];
     obj_kind text[] := ARRAY[
@@ -7374,9 +7386,11 @@ DECLARE
         '"public"."action_logs_events_append_only"()'];
     done boolean[];
     progress boolean;
+    detached boolean := false;
     k text;
     names text;
     i int;
+    r record;
 BEGIN
     done := array_fill(false, ARRAY[cardinality(obj_name)]);
     LOOP
@@ -7404,6 +7418,23 @@ BEGIN
                 END LOOP;
             END;
         END LOOP;
+        IF NOT progress AND NOT detached THEN
+            detached := true;
+            FOR i IN 1 .. cardinality(obj_name) LOOP
+                CONTINUE WHEN obj_kind[i] <> 'TABLE' OR done[i] OR to_regclass(obj_name[i]) IS NULL;
+                FOR r IN SELECT a.attname FROM pg_attrdef d
+                         JOIN pg_attribute a ON a.attrelid = d.adrelid AND a.attnum = d.adnum
+                         WHERE d.adrelid = to_regclass(obj_name[i]) AND a.attgenerated = '' LOOP
+                    EXECUTE format('ALTER TABLE %s ALTER COLUMN %I DROP DEFAULT', obj_name[i], r.attname);
+                    progress := true;
+                END LOOP;
+                FOR r IN SELECT conname FROM pg_constraint
+                         WHERE conrelid = to_regclass(obj_name[i]) AND contype = 'c' AND NOT coninhcount > 0 LOOP
+                    EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I RESTRICT', obj_name[i], r.conname);
+                    progress := true;
+                END LOOP;
+            END LOOP;
+        END IF;
         EXIT WHEN NOT progress;
     END LOOP;
     FOR i IN 1 .. cardinality(obj_name) LOOP
@@ -7411,7 +7442,7 @@ BEGIN
         EXECUTE format('DROP %s IF EXISTS %s RESTRICT', obj_kind[i], obj_name[i]);
     END LOOP;
 END
-$$;
+$down$;
 -- +migrate StatementEnd
 DROP SCHEMA IF EXISTS "analytics" RESTRICT;
 DROP SCHEMA IF EXISTS "applets" RESTRICT;

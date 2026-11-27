@@ -75,6 +75,14 @@ func TestSquashedBaselineMatchesHistory(t *testing.T) {
 	_, err = fresh.pool.Exec(ctx, `DROP SEQUENCE core.consumer_department_seq`)
 	require.NoError(t, err)
 
+	// The same for a consumer's identity column on a baseline table.
+	_, err = fresh.pool.Exec(ctx, `ALTER TABLE core.departments ADD COLUMN consumer_no integer GENERATED ALWAYS AS IDENTITY`)
+	require.NoError(t, err)
+	require.ErrorContains(t, freshManager.RollbackAll(ctx), "identity column of core.departments.consumer_no")
+	require.Equal(t, appliedBefore, appliedMigrationIDs(t, fresh.pool))
+	_, err = fresh.pool.Exec(ctx, `ALTER TABLE core.departments DROP COLUMN consumer_no`)
+	require.NoError(t, err)
+
 	require.NoError(t, freshManager.RollbackAll(ctx))
 	require.Empty(t, appliedMigrationIDs(t, fresh.pool))
 	require.Empty(t, userObjects(t, fresh.pool), "the baseline's down drops everything it created")
@@ -338,7 +346,10 @@ func TestSquashedHistoryIsComplete(t *testing.T) {
 // crossKindDump is a pg_dump-shaped schema whose objects depend on each other
 // across kinds in both directions: a function takes a table's row type (the
 // table cannot go first), a view calls that function (the function cannot go
-// first), and two tables reference each other.
+// first), two tables reference each other, and a column default calls a
+// function taking its own table's row type (a cycle no drop order breaks). A
+// table name holds "$$", and a comment's text looks like the expression the
+// generator rewrites.
 const crossKindDump = `--
 -- Name: metrics; Type: TABLE; Schema: public; Owner: -
 --
@@ -394,6 +405,42 @@ ALTER TABLE ONLY public.ping
 
 ALTER TABLE ONLY public.pong
     ADD CONSTRAINT pong_ping_fkey FOREIGN KEY (ping_id) REFERENCES public.ping(id);
+
+--
+-- Name: counters; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.counters (
+    n integer
+);
+
+--
+-- Name: counter_start(public.counters); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.counter_start(public.counters) RETURNS integer
+    LANGUAGE sql
+    AS 'SELECT 1';
+
+--
+-- Name: counters n; Type: DEFAULT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.counters ALTER COLUMN n SET DEFAULT public.counter_start(NULL::public.counters);
+
+--
+-- Name: cost$$; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public."cost$$" (
+    id integer
+);
+
+--
+-- Name: TABLE metrics; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.metrics IS '((x)::text = ANY ((ARRAY[''''::character varying])::text[]))';
 `
 
 // Falsely green if the generated Down drops by a fixed kind order: DROP TABLE
@@ -420,6 +467,10 @@ func TestBaselineGeneratorDropsInDependencyOrder(t *testing.T) {
 	manager := newManager(pool, dir)
 	require.NoError(t, manager.Run(ctx))
 	require.True(t, relationExists(t, pool, "public.metric_ids"))
+	require.True(t, relationExists(t, pool, `public."cost$$"`))
+	var comment string
+	require.NoError(t, pool.QueryRow(ctx, `SELECT obj_description('public.metrics'::regclass, 'pg_class')`).Scan(&comment))
+	require.Equal(t, `((x)::text = ANY ((ARRAY[''::character varying])::text[]))`, comment, "a literal is never rewritten")
 
 	require.NoError(t, manager.RollbackAll(ctx))
 	require.Empty(t, userObjects(t, pool))
