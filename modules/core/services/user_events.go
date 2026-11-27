@@ -38,13 +38,16 @@ func localized(en, ru, uz, uzCyrl string) manifest.Label {
 	return manifest.Label{"en": en, "ru": ru, "uz": uz, "uz-Cyrl": uzCyrl}
 }
 
-// UserCreatedPayload is the versioned payload of core.user.created.v1.
+// UserCreatedPayload is the versioned payload of core.user.created.v1. Phone
+// is the user's phone in E.164 ("+998901234567"), absent when the user has
+// none; it was added to v1 as an optional field, so older consumers ignore it.
 type UserCreatedPayload struct {
-	UserID    int64  `json:"userId,string" wire:"int64"`
-	Email     string `json:"email"`
-	FirstName string `json:"firstName"`
-	LastName  string `json:"lastName"`
-	UserType  string `json:"userType"`
+	UserID    int64   `json:"userId,string" wire:"int64"`
+	Email     string  `json:"email"`
+	FirstName string  `json:"firstName"`
+	LastName  string  `json:"lastName"`
+	UserType  string  `json:"userType"`
+	Phone     *string `json:"phone,omitempty"`
 }
 
 // UserUpdatedPayload is the payload of core.user.updated.v1: the user after
@@ -99,7 +102,7 @@ var UserCreatedEvent = native.Event[UserCreatedPayload](UserCreatedEventID, nati
 		"zh":      "已创建用户账户。",
 	},
 	ReadPermission: permissions.UserRead.Name(),
-	Sensitive:      map[string][]string{"email": {permissions.UserRead.Name()}},
+	Sensitive:      map[string][]string{"email": {permissions.UserRead.Name()}, "phone": {permissions.UserRead.Name()}},
 	Category:       "core.users",
 })
 
@@ -209,13 +212,18 @@ func publishUserCreated(ctx context.Context, created user.User) error {
 			return serrors.Wrap(op, err)
 		}
 	}
-	return serrors.Wrap(op, events.PublishInTx(ctx, tenantID, UserCreatedEvent, userRef(created.ID()), UserCreatedPayload{
+	payload := UserCreatedPayload{
 		UserID:    int64(created.ID()),
 		Email:     created.Email().Value(),
 		FirstName: created.FirstName(),
 		LastName:  created.LastName(),
 		UserType:  string(created.Type()),
-	}))
+	}
+	if p := created.Phone(); p != nil && p.E164() != "" {
+		e164 := p.E164()
+		payload.Phone = &e164
+	}
+	return serrors.Wrap(op, events.PublishInTx(ctx, tenantID, UserCreatedEvent, userRef(created.ID()), payload))
 }
 
 // userEntityFields maps the history snapshot keys of a user to the core.user

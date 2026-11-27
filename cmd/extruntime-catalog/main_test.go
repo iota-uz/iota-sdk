@@ -52,6 +52,7 @@ func TestSnapshotIsDeterministicAndComplete(t *testing.T) {
 		"crm.client": "int64", "crm.chat": "int64", "hrm.employee": "int64",
 		"finance.payment": "uuid", "finance.expense": "uuid", "finance.debt": "uuid",
 		"warehouse.order": "int64", "billing.transaction": "uuid", "projects.acceptance": "uuid",
+		"automation.task": "uuid",
 	}, keyTypes, "native entities carry their key type")
 	require.Equal(t, "event", ids["core.user.created.v1"])
 	for _, id := range []string{

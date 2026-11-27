@@ -66,9 +66,13 @@ var eventCoverageByID = map[string]eventCoverage{
 var publisherRoots = []string{".", "../pkg/automation/engine"}
 
 // contractHashes pins the contracts that existed before the events of #1332:
-// their payloads did not change, so their hashes must not.
+// their payloads did not change, so their hashes must not. The one exception
+// is core.user.created.v1, which gained the optional phone field (#1468): an
+// optional field is additive (a consumer of the older payload ignores it, a
+// payload without it still validates), so the event kept its ID and only its
+// hash moved.
 var contractHashes = map[string]string{
-	"core.user.created.v1":  "e3d9470226f2757ef9269af0cfa055a77c89fcc50352549de67ee3d227f7e569",
+	"core.user.created.v1":  "77dca11dfce0565513f436d084c129716601a9116f7640a64c6353bbd0f4c556",
 	"crm.client.created.v1": "63b4839536ba51abf135cd79186d77ddfb8cd63a6c417639441282cb69b550e4",
 	"crm.client.updated.v1": "b919391660de57675d516e31d65e527f8ad018c02576bbf2c222ce64a29f8c46",
 }

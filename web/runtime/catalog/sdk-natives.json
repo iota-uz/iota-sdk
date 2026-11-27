@@ -30,6 +30,144 @@
           }
         },
         {
+          "id": "automation.task",
+          "kind": "entity",
+          "contractHash": "0d447c4b9056fd9098153c5cb9b371d4cc04ebda8441b35965a437aec0f1191d",
+          "label": {
+            "en": "Automation task",
+            "ru": "Задача автоматизации",
+            "uz": "Avtomatlashtirish vazifasi",
+            "uz-Cyrl": "Автоматлаштириш вазифаси"
+          },
+          "fields": [
+            {
+              "id": "status",
+              "type": {
+                "kind": "enum",
+                "values": [
+                  "open",
+                  "decided",
+                  "expired",
+                  "cancelled"
+                ]
+              }
+            },
+            {
+              "id": "dueAt",
+              "type": {
+                "kind": "datetime",
+                "optional": true,
+                "nullable": true
+              }
+            },
+            {
+              "id": "createdAt",
+              "type": {
+                "kind": "datetime"
+              }
+            },
+            {
+              "id": "decidedAt",
+              "type": {
+                "kind": "datetime",
+                "optional": true,
+                "nullable": true
+              }
+            }
+          ],
+          "access": {
+            "read": [
+              {
+                "permission": "Automations.Read",
+                "all": true
+              }
+            ]
+          },
+          "keyType": "uuid"
+        },
+        {
+          "id": "automation.task.assigned.v1",
+          "kind": "event",
+          "contractHash": "b6cdc9f5de8d1bcab867455a59828990062b2e42f6baaf4ae9a69b5b7e9bf8a6",
+          "label": {
+            "en": "Automation task assigned",
+            "ru": "Назначена задача автоматизации",
+            "uz": "Avtomatlashtirish vazifasi tayinlandi",
+            "uz-Cyrl": "Автоматлаштириш вазифаси тайинланди"
+          },
+          "description": "A human step of an automation was assigned to people: on creation, delegation or escalation.",
+          "payload": {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "task_id",
+                "type": {
+                  "kind": "uuid"
+                }
+              },
+              {
+                "name": "run_id",
+                "type": {
+                  "kind": "uuid"
+                }
+              },
+              {
+                "name": "automation_id",
+                "type": {
+                  "kind": "uuid"
+                }
+              },
+              {
+                "name": "node_id",
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "title",
+                "type": {
+                  "kind": "string"
+                }
+              },
+              {
+                "name": "reason",
+                "type": {
+                  "kind": "enum",
+                  "values": [
+                    "created",
+                    "delegated",
+                    "escalated"
+                  ]
+                }
+              },
+              {
+                "name": "user_ids",
+                "type": {
+                  "kind": "array",
+                  "items": {
+                    "kind": "int"
+                  }
+                }
+              },
+              {
+                "name": "delegated_by",
+                "type": {
+                  "kind": "int",
+                  "optional": true
+                }
+              },
+              {
+                "name": "due_at",
+                "type": {
+                  "kind": "datetime",
+                  "optional": true
+                }
+              }
+            ]
+          },
+          "subject": "automation.task"
+        },
+        {
           "id": "automation.transport_unavailable",
           "kind": "domainError",
           "contractHash": "86fde75340ec7f51d470465a5b088063124b4cb6896734024e4048ec3cf05c8d",
@@ -785,7 +923,7 @@
         {
           "id": "core.user.created.v1",
           "kind": "event",
-          "contractHash": "e3d9470226f2757ef9269af0cfa055a77c89fcc50352549de67ee3d227f7e569",
+          "contractHash": "77dca11dfce0565513f436d084c129716601a9116f7640a64c6353bbd0f4c556",
           "label": {
             "en": "User created",
             "pt-BR": "Usuário criado",
@@ -826,6 +964,13 @@
                 "name": "userType",
                 "type": {
                   "kind": "string"
+                }
+              },
+              {
+                "name": "phone",
+                "type": {
+                  "kind": "string",
+                  "optional": true
                 }
               }
             ]

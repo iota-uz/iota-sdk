@@ -18,6 +18,17 @@ export const Message_added: import("@iota-uz/sdk/runtime").Event<"crm.chat.messa
     body: import("@iota-uz/sdk/runtime").Schema<string, "req", "string">;
     sentAt: import("@iota-uz/sdk/runtime").Schema<import("@iota-uz/sdk/runtime").ISODateTime, "req", "datetime">;
 }>>;
+export const Send_message: import("@iota-uz/sdk/runtime").Command<"crm.chat.send_message", import("@iota-uz/sdk/runtime").ObjectSchema<{
+    chat_id: import("@iota-uz/sdk/runtime").Schema<number, "req", "int">;
+    message: import("@iota-uz/sdk/runtime").Schema<string, "req", "string">;
+    transport: import("@iota-uz/sdk/runtime").Schema<"telegram" | "whatsapp" | "instagram" | "sms" | "email" | "phone" | "website" | "other", "opt", "enum">;
+}>, import("@iota-uz/sdk/runtime").ObjectSchema<{
+    outcome: import("@iota-uz/sdk/runtime").Schema<string, "req", "string">;
+    output: import("@iota-uz/sdk/runtime").Schema<{
+        chat_id: number;
+        message_id: number;
+    }, "opt", "object">;
+}>, false>;
 export const Client: import("@iota-uz/sdk/runtime").Entity<"crm.client", {
     firstName: import("@iota-uz/sdk/runtime").Field<string, "req", "string">;
     lastName: import("@iota-uz/sdk/runtime").Field<string | null, "opt", "string">;
