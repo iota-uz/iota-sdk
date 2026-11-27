@@ -536,8 +536,16 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 				return runMigrationPolicy(ctx, pool, app, cfg.Migration)
 			})
 		}
-		// A clone of the auto template already carries every migration: the
-		// run plans nothing and needs no cluster-wide lock.
+		if autoTemplate {
+			// A clone of the auto template already carries exactly this
+			// migration set (the template is named after its hash), so it is
+			// only checked, not migrated again. Running the migrator here
+			// would also be wrong, not just slow: the clone gets the template's
+			// database settings, and a migration that changed search_path
+			// would send the migrator's unqualified ledger lookup to another
+			// schema, where it would replay everything.
+			return runMigrationPolicy(ctx, pool, app, MigrationConfig{Policy: MigrationSkip})
+		}
 		return runMigrationPolicy(ctx, pool, app, cfg.Migration)
 	}
 	app, container, err := setupApplicationWithSource(pool, nil, cfg.Components, cfg.Source, migrate, cfg.Capabilities...)
