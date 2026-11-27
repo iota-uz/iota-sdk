@@ -17,7 +17,7 @@ import (
 )
 
 // SquashDirective is the header line by which a baseline migration names one
-// migration it replaces:
+// migration it replaces, one id (file name) per line:
 //
 //	-- +squashes changes-1740741698.sql
 //
@@ -88,13 +88,14 @@ func readSquashDirectives(path string) ([]string, error) {
 		if !strings.HasPrefix(line, SquashDirective) {
 			continue
 		}
-		for _, id := range strings.Fields(strings.TrimPrefix(line, SquashDirective)) {
-			if _, dup := seen[id]; dup {
-				continue
-			}
-			seen[id] = struct{}{}
-			ids = append(ids, id)
+		// One id per line, taken whole: sql-migrate ids are file names, which
+		// may contain spaces.
+		id := strings.TrimSpace(strings.TrimPrefix(line, SquashDirective))
+		if _, dup := seen[id]; id == "" || dup {
+			continue
 		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
 	}
 	return ids, scanner.Err()
 }
@@ -139,67 +140,115 @@ func (e *PartialSquashedHistoryError) Error() string {
 	)
 }
 
-// adoptSquashedBaselines records each baseline whose replaced migrations are
-// all applied as applied itself, without running it, and drops the replaced
-// ids from the tracking table in the same transaction. It updates applied in
-// place. A baseline none of whose migrations are applied is left pending, and
-// runs like any other migration.
-func adoptSquashedBaselines(ctx context.Context, conn *pgx.Conn, baselines []squashedBaseline, applied map[string]struct{}) ([]string, error) {
-	adopted := make([]string, 0, len(baselines))
+// squashAdoption is what a run writes to the tracking table for the
+// baselines: the baselines to record as applied in place of their replaced
+// ids, and leftover replaced ids to clear next to a baseline already applied.
+type squashAdoption struct {
+	adopt []squashedBaseline
+	stale []string
+}
+
+func (a squashAdoption) empty() bool { return len(a.adopt) == 0 && len(a.stale) == 0 }
+
+// planSquashAdoption decides, without writing anything, how the tracking table
+// moves onto the baselines, and applies that to applied in place:
+//
+//   - every replaced id applied: the baseline is adopted (recorded without
+//     running) and its replaced ids go;
+//   - some applied: PartialSquashedHistoryError, and applied is left untouched;
+//   - none applied: the baseline stays pending and runs like any migration;
+//   - baseline already applied with replaced ids left behind (adopted by hand
+//     or by other tooling): those ids are cleared, since after the baseline is
+//     rolled back they would make the next run adopt it instead of running it.
+//
+// Every baseline is classified before applied changes, so a refusal for one
+// leaves no adoption of another half-planned.
+func planSquashAdoption(baselines []squashedBaseline, applied map[string]struct{}) (squashAdoption, error) {
+	var plan squashAdoption
 	for _, b := range baselines {
-		if _, ok := applied[b.id]; ok {
-			// Adopted elsewhere (by hand, or by a consumer's own tooling) with
-			// the old ids left behind. Drop them: once the baseline is rolled
-			// back they would otherwise make the next run adopt it again
-			// instead of running it.
-			var stale []string
-			for _, id := range b.replaces {
-				if _, ok := applied[id]; ok {
-					stale = append(stale, id)
-				}
-			}
-			if len(stale) > 0 {
-				if _, err := conn.Exec(ctx, `DELETE FROM `+migrationTable+` WHERE id = ANY($1)`, stale); err != nil {
-					return adopted, serrors.Wrap(opMigrationsAdoptBaseline, fmt.Errorf("clear ids squashed into %s: %w", b.id, err))
-				}
-				for _, id := range stale {
-					delete(applied, id)
-				}
-			}
-			continue
-		}
-		var missing []string
+		var present, missing []string
 		for _, id := range b.replaces {
-			if _, ok := applied[id]; !ok {
+			if _, ok := applied[id]; ok {
+				present = append(present, id)
+			} else {
 				missing = append(missing, id)
 			}
 		}
-		if len(missing) == len(b.replaces) {
+		if _, ok := applied[b.id]; ok {
+			plan.stale = append(plan.stale, present...)
 			continue
 		}
-		if len(missing) > 0 {
+		switch {
+		case len(present) == 0:
+		case len(missing) > 0:
 			sort.Strings(missing)
-			return adopted, serrors.Wrap(opMigrationsAdoptBaseline, &PartialSquashedHistoryError{
+			return squashAdoption{}, serrors.Wrap(opMigrationsAdoptBaseline, &PartialSquashedHistoryError{
 				Baseline: b.id,
-				Applied:  len(b.replaces) - len(missing),
+				Applied:  len(present),
 				Total:    len(b.replaces),
 				Missing:  missing,
 			})
+		default:
+			plan.adopt = append(plan.adopt, b)
 		}
-		if err := pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
-			if _, err := tx.Exec(ctx, `DELETE FROM `+migrationTable+` WHERE id = ANY($1)`, b.replaces); err != nil {
-				return err
-			}
-			_, err := tx.Exec(ctx, `INSERT INTO `+migrationTable+` (id, applied_at) VALUES ($1, $2)`, b.id, time.Now())
-			return err
-		}); err != nil {
-			return adopted, serrors.Wrap(opMigrationsAdoptBaseline, fmt.Errorf("adopt baseline %s: %w", b.id, err))
-		}
+	}
+	for _, id := range plan.stale {
+		delete(applied, id)
+	}
+	for _, b := range plan.adopt {
 		for _, id := range b.replaces {
 			delete(applied, id)
 		}
 		applied[b.id] = struct{}{}
-		adopted = append(adopted, b.id)
 	}
-	return adopted, nil
+	return plan, nil
+}
+
+// writeSquashAdoption applies plan to the tracking table in one transaction.
+func writeSquashAdoption(ctx context.Context, conn *pgx.Conn, plan squashAdoption) error {
+	if plan.empty() {
+		return nil
+	}
+	err := pgx.BeginFunc(ctx, conn, func(tx pgx.Tx) error {
+		if len(plan.stale) > 0 {
+			if _, err := tx.Exec(ctx, `DELETE FROM `+migrationTable+` WHERE id = ANY($1)`, plan.stale); err != nil {
+				return err
+			}
+		}
+		for _, b := range plan.adopt {
+			if _, err := tx.Exec(ctx, `DELETE FROM `+migrationTable+` WHERE id = ANY($1)`, b.replaces); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `INSERT INTO `+migrationTable+` (id, applied_at) VALUES ($1, $2)`, b.id, time.Now()); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return serrors.Wrap(opMigrationsAdoptBaseline, fmt.Errorf("record squashed baselines: %w", err))
+	}
+	return nil
+}
+
+// checkBaselineBoundary refuses a bounded rollback whose plan reaches a
+// baseline. Its Down drops the whole schema it created, which a "roll back the
+// last N" request never means; that takes an explicit RollbackAll.
+func checkBaselineBoundary(plan []plannedMigration, baselines []squashedBaseline, dir migrationDirection, limit int) error {
+	if dir != migrationDown || limit == 0 {
+		return nil
+	}
+	isBaseline := make(map[string]struct{}, len(baselines))
+	for _, b := range baselines {
+		isBaseline[b.id] = struct{}{}
+	}
+	for i, mig := range plan {
+		if _, ok := isBaseline[mig.id]; ok {
+			return serrors.New(serrors.Invalid, fmt.Sprintf(
+				"cannot roll back %d migrations: step %d is the squashed baseline %s, whose down drops the whole schema; "+
+					"roll back at most %d, or use RollbackAll (migrate down --all) to reset the database",
+				limit, i+1, mig.id, i)).WithOp(opMigrationsRollback)
+		}
+	}
+	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -97,7 +98,10 @@ func TestConnectionNameMustBeASlug(t *testing.T) {
 	e := newEnv(t)
 	_, err := e.db.Exec(e.ctx, `INSERT INTO automation.connections (tenant_id, id, kind, name, display_name, status, key_id, nonce, secret, version)
 		VALUES ($1, gen_random_uuid(), 'smtp', 'Bad', 'x', 'connected', 'k', '\x00', '\x00', 1)`, e.tenant)
-	require.Error(t, err, "a name that is not a slug")
+	var pgErr *pgconn.PgError
+	require.ErrorAs(t, err, &pgErr, "a name that is not a slug")
+	require.Equal(t, "23514", pgErr.Code, "a check violation")
+	require.Equal(t, "connections_name_check", pgErr.ConstraintName)
 }
 
 // A fingerprint stays verifiable with the key that made it after the active key rotates, and only

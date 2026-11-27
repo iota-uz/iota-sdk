@@ -38,6 +38,8 @@ $$;
 -- +migrate StatementEnd
 """
 
+# Session settings pg_dump puts at the top of the dump. Only whole top-level
+# statements are dropped, never lines inside a string or a function body.
 SKIP_PREFIXES = (
     "SET statement_timeout",
     "SET lock_timeout",
@@ -53,6 +55,12 @@ SKIP_PREFIXES = (
     "SET default_tablespace",
     "SET default_table_access_method",
 )
+
+# Object types the generated Down knows how to drop. A dump with any other
+# top-level object that a rollback would have to remove (an extension, say) is
+# refused rather than producing a Down that leaves it behind.
+DROPPABLE = ("MATERIALIZED VIEW", "VIEW", "TABLE", "SEQUENCE", "FUNCTION", "PROCEDURE", "AGGREGATE", "DOMAIN", "TYPE")
+UNSUPPORTED = ("EXTENSION", "EVENT TRIGGER", "FOREIGN DATA WRAPPER", "SERVER", "PUBLICATION", "SUBSCRIPTION", "COLLATION", "OPERATOR")
 
 TOC = re.compile(r"^-- Name: (.*); Type: (.*); Schema: (.*); Owner: .*$")
 
@@ -147,36 +155,41 @@ def main():
     with open(dump_path, encoding="utf-8") as f:
         dump = f.read()
 
-    drops = {"SCHEMA": [], "TABLE": [], "VIEW": [], "MATERIALIZED VIEW": [], "SEQUENCE": [],
-             "FUNCTION": [], "PROCEDURE": [], "TYPE": [], "DOMAIN": [], "AGGREGATE": []}
+    schemas = []
+    drops = {kind: [] for kind in DROPPABLE}
     for line in dump.split("\n"):
         m = TOC.match(line)
         if not m:
             continue
         name, kind, schema = m.groups()
         if kind == "SCHEMA":
-            drops["SCHEMA"].append(name)
-        elif kind in drops and schema == "public":
-            drops[kind].append("public." + name)
+            schemas.append(name)
+        elif kind in drops:
+            drops[kind].append("%s.%s" % (schema, name))
+        elif kind in UNSUPPORTED:
+            raise SystemExit("the dump creates %s %s, which the generated Down cannot roll back" % (kind, name))
 
-    body = []
-    for line in dump.split("\n"):
-        if line.startswith("\\restrict") or line.startswith("\\unrestrict"):
-            continue
-        if any(line.startswith(p) for p in SKIP_PREFIXES):
-            continue
-        # Default privileges belong to whoever runs the migration, not to the
-        # role that happened to build the dump.
-        line = re.sub(r"^ALTER DEFAULT PRIVILEGES FOR ROLE \S+ ", "ALTER DEFAULT PRIVILEGES ", line)
-        body.append(line)
+    # \restrict and \unrestrict are psql meta-commands on lines of their own,
+    # outside any statement.
+    body = [l for l in dump.split("\n") if not (l.startswith("\\restrict ") or l.startswith("\\unrestrict "))]
+
+    # A setval to 1 with is_called false is the state CREATE SEQUENCE already
+    # leaves, but only for a sequence that starts at 1.
+    starts_at_one = set(re.findall(r"CREATE SEQUENCE (\S+)\n(?:    .*\n)*?    START WITH 1\n", "\n".join(body)))
 
     statements = []
     for stmt in split_statements("\n".join(body)):
         stmt = restore_varchar_in(strip_leading_comments(stmt))
         if not stmt:
             continue
-        if stmt.startswith("SELECT pg_catalog.setval(") and stmt.endswith(", 1, false);"):
-            continue  # a fresh sequence already starts there
+        if any(stmt.startswith(p) for p in SKIP_PREFIXES) and stmt.endswith(";") and "\n" not in stmt:
+            continue
+        # Default privileges belong to whoever runs the migration, not to the
+        # role that happened to build the dump.
+        stmt = re.sub(r"^ALTER DEFAULT PRIVILEGES FOR ROLE \S+ ", "ALTER DEFAULT PRIVILEGES ", stmt)
+        m = re.match(r"^SELECT pg_catalog\.setval\('([^']+)', 1, false\);$", stmt)
+        if m and m.group(1) in starts_at_one:
+            continue
         lines = stmt.split("\n")
         if len(lines) == 1 and ends_with_semicolon(lines[0]):
             statements.append(stmt)
@@ -206,12 +219,15 @@ def main():
 
     out.write("-- +migrate Down\n\n")
     out.write("-- Roles are cluster-wide and may be used by other databases; they are left in place.\n")
-    schemas = [s for s in drops["SCHEMA"] if s != "public"]
-    if schemas:
-        out.write("DROP SCHEMA IF EXISTS %s CASCADE;\n" % ", ".join(schemas))
-    for kind in ("MATERIALIZED VIEW", "VIEW", "TABLE", "SEQUENCE", "FUNCTION", "PROCEDURE", "AGGREGATE", "DOMAIN", "TYPE"):
+    out.write("-- Each object the baseline created is dropped by name (CASCADE removes what depends on\n")
+    out.write("-- it, as the squashed downs did); the schemas go last with RESTRICT, so a table someone\n")
+    out.write("-- else created in one of them stops the rollback instead of being dropped with it.\n")
+    for kind in DROPPABLE:
         for name in drops[kind]:
             out.write("DROP %s IF EXISTS %s CASCADE;\n" % (kind, name))
+    for schema in schemas:
+        if schema != "public":
+            out.write("DROP SCHEMA IF EXISTS %s RESTRICT;\n" % schema)
 
 
 if __name__ == "__main__":

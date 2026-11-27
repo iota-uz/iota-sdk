@@ -79,7 +79,7 @@ func newScratchDatabase(t *testing.T, db dbconfig.Config, prefix string) scratch
 func assertSameSchema(t *testing.T, db dbconfig.Config, old, fresh scratchDatabase) {
 	t.Helper()
 	require.Equal(t, catalogSnapshot(t, old.pool), catalogSnapshot(t, fresh.pool))
-	require.Equal(t, tableRowCounts(t, old.pool), tableRowCounts(t, fresh.pool), "rows the migrations insert")
+	require.Equal(t, tableRows(t, old.pool), tableRows(t, fresh.pool), "rows the migrations insert")
 
 	dump, ok := pgDumpFor(t, old.pool)
 	if !ok {
@@ -152,32 +152,45 @@ func catalogSnapshot(t *testing.T, pool *pgxpool.Pool) []string {
 	return out
 }
 
-func tableRowCounts(t *testing.T, pool *pgxpool.Pool) map[string]int64 {
+// tableRows returns the rows migrations insert (the default tenant,
+// permissions and the like), table by table, as sorted JSON. Timestamp columns
+// are left out: they hold the time each database was migrated.
+func tableRows(t *testing.T, pool *pgxpool.Pool) map[string][]string {
 	t.Helper()
-	rows, err := pool.Query(context.Background(), `
-		SELECT quote_ident(n.nspname) || '.' || quote_ident(c.relname)
+	ctx := context.Background()
+	rows, err := pool.Query(ctx, `
+		SELECT quote_ident(n.nspname) || '.' || quote_ident(c.relname),
+			coalesce((SELECT array_agg(a.attname::text) FROM pg_attribute a
+				WHERE a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+				AND a.atttypid IN ('timestamp'::regtype, 'timestamptz'::regtype, 'date'::regtype)), '{}')
 		FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
 		WHERE c.relkind IN ('r', 'p') AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'pg_toast')
 		AND NOT (n.nspname = 'public' AND c.relname = 'gorp_migrations')`)
 	require.NoError(t, err)
-	var tables []string
+	type table struct {
+		name     string
+		volatile []string
+	}
+	var tables []table
 	for rows.Next() {
-		var name string
-		require.NoError(t, rows.Scan(&name))
-		tables = append(tables, name)
+		var tb table
+		require.NoError(t, rows.Scan(&tb.name, &tb.volatile))
+		tables = append(tables, tb)
 	}
 	require.NoError(t, rows.Err())
 	rows.Close()
 
-	counts := map[string]int64{}
-	for _, table := range tables {
-		var n int64
-		require.NoError(t, pool.QueryRow(context.Background(), "SELECT count(*) FROM "+table).Scan(&n))
-		if n > 0 {
-			counts[table] = n
+	out := map[string][]string{}
+	for _, tb := range tables {
+		var values []string
+		require.NoError(t, pool.QueryRow(ctx,
+			`SELECT coalesce(array_agg(v ORDER BY v), '{}') FROM (SELECT (to_jsonb(r) - $1::text[])::text AS v FROM `+tb.name+` r) s`,
+			tb.volatile).Scan(&values))
+		if len(values) > 0 {
+			out[tb.name] = values
 		}
 	}
-	return counts
+	return out
 }
 
 func userObjects(t *testing.T, pool *pgxpool.Pool) []string {

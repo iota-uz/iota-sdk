@@ -346,16 +346,25 @@ func (m *migrationManager) migrate(ctx context.Context, dir migrationDirection, 
 	if err != nil {
 		return 0, err
 	}
-	adopted, err := adoptSquashedBaselines(ctx, conn, baselines, applied)
-	for _, id := range adopted {
-		m.logger.Infof("Recorded baseline %s as applied: the database already has every migration it replaces", id)
-	}
+	// Everything is decided before anything is written: a refused partial
+	// history, an unknown applied id or a rollback that would cross a baseline
+	// leaves the tracking table as it was.
+	adoption, err := planSquashAdoption(baselines, applied)
 	if err != nil {
 		return 0, err
 	}
 	plan, err := planMigrations(source, applied, squashedIDs(baselines), dir, limit)
 	if err != nil {
 		return 0, err
+	}
+	if err := checkBaselineBoundary(plan, baselines, dir, limit); err != nil {
+		return 0, err
+	}
+	if err := writeSquashAdoption(ctx, conn, adoption); err != nil {
+		return 0, err
+	}
+	for _, b := range adoption.adopt {
+		m.logger.Infof("Recorded baseline %s as applied: the database already has every migration it replaces", b.id)
 	}
 	for i, mig := range plan {
 		if err := applyMigration(ctx, conn, dir, mig); err != nil {

@@ -64,8 +64,11 @@ func markerBuilder(t *testing.T, builds *atomic.Int32) TemplateBuilder {
 	}
 }
 
-// Falsely green if concurrent callers each build their own copy, or if the
-// template is left connectable (clones would then race autovacuum).
+// Falsely green if concurrent builders each build their own copy, or if the
+// template is left connectable (clones would then race autovacuum). The
+// goroutines call ensureTemplate, not EnsureMigratedTemplate, so the
+// in-process cache cannot hide a broken advisory lock or ready check: they
+// stand in for separate test binaries.
 func TestEnsureMigratedTemplateBuildsOnceAndSeals(t *testing.T) {
 	db := testConfig(t)
 	ctx := context.Background()
@@ -84,14 +87,20 @@ func TestEnsureMigratedTemplateBuildsOnceAndSeals(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			names[i], errs[i] = EnsureMigratedTemplate(ctx, db, fp, build)
+			names[i] = MigratedTemplateName(fp)
+			errs[i] = ensureTemplate(ctx, db, names[i], build)
 		}()
 	}
 	wg.Wait()
 	for i := range names {
 		require.NoError(t, errs[i])
-		require.Equal(t, MigratedTemplateName(fp), names[i])
 	}
+	require.Equal(t, int32(1), builds.Load(), "one builder; the others find the ready template")
+
+	// The cached entry point reuses the ready template without rebuilding it.
+	name, err := EnsureMigratedTemplate(ctx, db, fp, build)
+	require.NoError(t, err)
+	require.Equal(t, names[0], name)
 	require.Equal(t, int32(1), builds.Load())
 
 	ready, exists, err := templateState(ctx, admin, names[0])
