@@ -66,11 +66,18 @@ SKIP_PREFIXES = (
 
 # Object kinds the generated Down drops, in the order it drops them: views
 # before the tables they read, tables before the sequences, functions, domains
-# and types they use, aggregates before their functions. A dump with any other
-# top-level object a rollback would have to remove is refused rather than
-# producing a Down that leaves it behind.
-DROPPABLE = ("MATERIALIZED VIEW", "VIEW", "TABLE", "SEQUENCE", "AGGREGATE", "FUNCTION", "PROCEDURE", "DOMAIN", "TYPE")
-UNSUPPORTED = ("EXTENSION", "EVENT TRIGGER", "FOREIGN DATA WRAPPER", "SERVER", "PUBLICATION", "SUBSCRIPTION", "COLLATION", "OPERATOR")
+# and types they use, aggregates before their functions. Within a kind one
+# statement drops them all, so dependencies among objects of one kind need no
+# order. Materialized views are not supported: a view and a materialized view
+# can each read the other, and drops by kind cannot order that.
+DROPPABLE = ("VIEW", "TABLE", "SEQUENCE", "AGGREGATE", "FUNCTION", "PROCEDURE", "DOMAIN", "TYPE")
+
+# Entries that belong to an object above and go with it (an index with its
+# table, a comment with its object), or that create nothing to drop.
+SUBORDINATE = (
+    "TABLE DATA", "CONSTRAINT", "FK CONSTRAINT", "CHECK CONSTRAINT", "INDEX", "TRIGGER", "DEFAULT",
+    "SEQUENCE OWNED BY", "SEQUENCE SET", "COMMENT", "ACL", "DEFAULT ACL", "POLICY", "ROW SECURITY", "RULE",
+)
 
 TOC = re.compile(r"^-- Name: (.*); Type: (.*); Schema: (.*); Owner: .*$")
 META = ("\\restrict ", "\\unrestrict ")
@@ -193,7 +200,9 @@ def restore_varchar_in(spans):
 
     out, region = [], []
     for kind, text in spans:
-        if kind == QUOTED and text.startswith("$"):
+        # Dollar-quoted bodies are data and quoted identifiers are names; only
+        # the single-quoted literals the pattern itself is made of stay in.
+        if kind == QUOTED and text[0] in ("$", '"'):
             out.append(VARCHAR_IN.sub(repl, "".join(region)))
             region = []
             out.append(text)
@@ -201,6 +210,17 @@ def restore_varchar_in(spans):
             region.append(text)
     out.append(VARCHAR_IN.sub(repl, "".join(region)))
     return "".join(out)
+
+
+ATOMIC_BODY = re.compile(r"\bBEGIN\s+ATOMIC\b", re.IGNORECASE)
+
+
+def check_routine_body(spans, stmt):
+    """A SQL-standard routine body (BEGIN ATOMIC ... END) holds semicolons that
+    are not quoted, so neither this splitter nor sql-migrate can keep it in one
+    statement. Dollar-quoted bodies are fine; this form is refused."""
+    if any(kind == CODE and ATOMIC_BODY.search(text) for kind, text in spans):
+        raise SystemExit("a routine has a BEGIN ATOMIC body, which the generator cannot keep in one statement:\n%s" % stmt[:300])
 
 
 def check_sql_migrate_lines(spans, stmt):
@@ -215,6 +235,37 @@ def check_sql_migrate_lines(spans, stmt):
                     raise SystemExit(
                         "a quoted value in this statement has a line starting with '-- ', which sql-migrate "
                         "would drop:\n%s" % stmt[:300])
+
+
+# A sequence OWNED BY a column goes with its table even under RESTRICT, so a
+# consumer's sequence owned by a baseline column would be dropped silently.
+# The guard refuses the rollback while such a sequence exists; the baseline's
+# own sequences are allowed.
+OWNED_SEQUENCE_GUARD = """-- +migrate StatementBegin
+DO $$
+DECLARE
+    foreign_sequences text;
+BEGIN
+    SELECT string_agg(seq.oid::regclass::text, ', ')
+    INTO foreign_sequences
+    FROM pg_depend dep
+    JOIN pg_class seq ON seq.oid = dep.objid AND seq.relkind = 'S'
+    WHERE dep.classid = 'pg_class'::regclass
+      AND dep.refclassid = 'pg_class'::regclass
+      AND dep.deptype = 'a'
+      AND dep.refobjid IN (SELECT to_regclass(t) FROM unnest(ARRAY[%s]::text[]) t)
+      AND seq.oid NOT IN (SELECT to_regclass(q) FROM unnest(ARRAY[%s]::text[]) q WHERE to_regclass(q) IS NOT NULL);
+    IF foreign_sequences IS NOT NULL THEN
+        RAISE EXCEPTION 'cannot roll back the baseline: sequences %% are owned by its tables; drop them or change their OWNED BY first', foreign_sequences;
+    END IF;
+END
+$$;
+-- +migrate StatementEnd
+"""
+
+
+def sql_literal(text):
+    return "'" + text.replace("'", "''") + "'"
 
 
 def quote_ident(name):
@@ -256,7 +307,10 @@ def generate(dump, squashed_dir, out):
                 schemas.append(name)
             elif kind in drops:
                 drops[kind].append(qualified(schema, name, kind))
-            elif kind in UNSUPPORTED:
+            elif kind not in SUBORDINATE:
+                # Anything else (an extension, a text search configuration, a
+                # materialized view, ...) would survive the Down and make the
+                # next Up fail; refuse it rather than publish such a baseline.
                 raise SystemExit("the dump creates %s %s, which the generated Down cannot roll back" % (kind, name))
         if not spans:
             continue
@@ -271,6 +325,7 @@ def generate(dump, squashed_dir, out):
         m = re.match(r"^SELECT pg_catalog\.setval\('([^']+)', 1, false\);$", stmt)
         if m and m.group(1) in starts_at_one:
             continue
+        check_routine_body(spans, stmt)
         check_sql_migrate_lines(spans, stmt)
         lines = stmt.split("\n")
         if len(lines) == 1 and ends_with_semicolon(lines[0]):
@@ -304,6 +359,11 @@ def generate(dump, squashed_dir, out):
     out.write("-- baseline's own objects are dropped together, while anything else that depends on them\n")
     out.write("-- (a table inheriting from one, a foreign key, a view, a table in an SDK schema) makes\n")
     out.write("-- the rollback fail and roll back instead of being dropped.\n")
+    if drops["TABLE"]:
+        out.write(OWNED_SEQUENCE_GUARD % (
+            ", ".join(sql_literal(t) for t in drops["TABLE"]),
+            ", ".join(sql_literal(q) for q in drops["SEQUENCE"]) or "",
+        ))
     for kind in DROPPABLE:
         if drops[kind]:
             out.write("DROP %s IF EXISTS\n    %s\n    RESTRICT;\n" % (kind, ",\n    ".join(drops[kind])))
@@ -319,7 +379,8 @@ def main():
     with open(dump_path, encoding="utf-8") as f:
         dump = f.read()
     target_dir = os.path.dirname(os.path.abspath(output))
-    fd, tmp = tempfile.mkstemp(prefix=".baseline-", suffix=".sql", dir=target_dir)
+    # Not *.sql: the migrator would read a half-written file as a migration.
+    fd, tmp = tempfile.mkstemp(prefix=".baseline-", suffix=".tmp", dir=target_dir)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as out:
             generate(dump, squashed_dir, out)

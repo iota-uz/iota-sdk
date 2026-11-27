@@ -57,6 +57,16 @@ func TestSquashedBaselineMatchesHistory(t *testing.T) {
 	_, err = fresh.pool.Exec(ctx, `DROP TABLE public.consumer_department_archive`)
 	require.NoError(t, err)
 
+	// A consumer's sequence OWNED BY a baseline column would go with its table
+	// even under RESTRICT; the Down's guard refuses the rollback instead.
+	_, err = fresh.pool.Exec(ctx, `CREATE SEQUENCE core.consumer_department_seq OWNED BY core.departments.id`)
+	require.NoError(t, err)
+	require.ErrorContains(t, freshManager.RollbackAll(ctx), "consumer_department_seq")
+	require.True(t, relationExists(t, fresh.pool, "core.consumer_department_seq"))
+	require.True(t, relationExists(t, fresh.pool, "core.departments"))
+	_, err = fresh.pool.Exec(ctx, `DROP SEQUENCE core.consumer_department_seq`)
+	require.NoError(t, err)
+
 	require.NoError(t, freshManager.RollbackAll(ctx))
 	require.Empty(t, appliedMigrationIDs(t, fresh.pool))
 	require.Empty(t, userObjects(t, fresh.pool), "the baseline's down drops everything it created")
