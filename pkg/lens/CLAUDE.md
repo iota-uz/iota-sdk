@@ -308,6 +308,13 @@ host.Mount(subRouter) // mounts /document, /query, /panel, /export, /release, /f
 
 Key `serve.Host` behaviors:
 
+- **Cache-key-first & cube caching**: configure `HostConfig.ResolveCacheKey`
+  (or return a lazy `ResolvedCube.LoadSpec` with optional `CubeCacheKey`) when
+  cube/dashboard resolution performs expensive DB work. `Host` then checks
+  `ReportCache`, coalesces concurrent requests, and acquires `BuildLimiter`
+  admission before invoking the resolver/loader, and reuses the cached cube
+  across `/document` drills and `/facet-options` requests (scoped by tenant
+  `DataScope`, locale, timezone, and variant).
 - **Recompute cooldown**: when `/panel` receives `recompute=true` within
   `RecomputeCooldown` (e.g. a global recompute immediately after initial load),
   `Host.Panel` waits out the remaining cooldown window instead of failing panels,

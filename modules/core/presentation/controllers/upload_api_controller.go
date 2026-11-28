@@ -103,6 +103,11 @@ type GeoPointResponse struct {
 }
 
 func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
+	defer func() {
+		if r.MultipartForm != nil {
+			_ = r.MultipartForm.RemoveAll()
+		}
+	}()
 	if err := r.ParseMultipartForm(c.cfg.MaxMemory); err != nil {
 		c.writeJSONError(r.Context(), w, http.StatusBadRequest, serrors.Public(err, nil).Message)
 		return

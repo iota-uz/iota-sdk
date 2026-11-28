@@ -4,6 +4,7 @@ package oidc
 import (
 	"context"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -42,6 +43,7 @@ type Storage struct {
 	issuerURL            string
 	accessTokenLifetime  time.Duration
 	refreshTokenLifetime time.Duration
+	signingKeyLoader     func(ctx context.Context) (*rsa.PrivateKey, string, error)
 }
 
 // NewStorage creates a new OIDC storage adapter
@@ -279,6 +281,11 @@ func (s *Storage) DeleteAuthRequest(ctx context.Context, id string) error {
 
 // CreateAccessToken generates a new access token
 func (s *Storage) CreateAccessToken(ctx context.Context, req op.TokenRequest) (string, time.Time, error) {
+	accessLifetime, _ := s.resolveTokenLifetimes(ctx, req)
+	return s.createAccessToken(ctx, req, accessLifetime)
+}
+
+func (s *Storage) createAccessToken(ctx context.Context, req op.TokenRequest, lifetime time.Duration) (string, time.Time, error) {
 	const operation serrors.Op = "Storage.CreateAccessToken"
 
 	if err := s.ensureUserMayReceiveTokens(ctx, req.GetSubject()); err != nil {
@@ -286,14 +293,14 @@ func (s *Storage) CreateAccessToken(ctx context.Context, req op.TokenRequest) (s
 	}
 
 	// Get signing key
-	privateKey, keyID, err := GetActiveSigningKey(ctx, s.db, s.cryptoKey)
+	privateKey, keyID, err := s.activeSigningKey(ctx)
 	if err != nil {
 		return "", time.Time{}, serrors.Wrap(operation, fmt.Errorf("failed to get signing key: %w", err))
 	}
 
-	// Calculate expiration using configured lifetime
+	// Calculate expiration using resolved per-client or configured lifetime
 	now := time.Now()
-	expiresAt := now.Add(s.accessTokenLifetime)
+	expiresAt := now.Add(lifetime)
 
 	// Create JWT claims
 	claims := jwt.MapClaims{
@@ -317,6 +324,51 @@ func (s *Storage) CreateAccessToken(ctx context.Context, req op.TokenRequest) (s
 	return tokenString, expiresAt, nil
 }
 
+func (s *Storage) activeSigningKey(ctx context.Context) (*rsa.PrivateKey, string, error) {
+	if s.signingKeyLoader != nil {
+		return s.signingKeyLoader(ctx)
+	}
+	return GetActiveSigningKey(ctx, s.db, s.cryptoKey)
+}
+
+func tokenRequestClientID(req op.TokenRequest) string {
+	if req == nil {
+		return ""
+	}
+	if withClientID, ok := req.(interface{ GetClientID() string }); ok {
+		if id := strings.TrimSpace(withClientID.GetClientID()); id != "" {
+			return id
+		}
+	}
+	if aud := req.GetAudience(); len(aud) > 0 {
+		return strings.TrimSpace(aud[0])
+	}
+	return ""
+}
+
+func (s *Storage) resolveTokenLifetimes(ctx context.Context, req op.TokenRequest) (time.Duration, time.Duration) {
+	accessLifetime := s.accessTokenLifetime
+	refreshLifetime := s.refreshTokenLifetime
+	if s.clientRepo == nil {
+		return accessLifetime, refreshLifetime
+	}
+	clientID := tokenRequestClientID(req)
+	if clientID == "" {
+		return accessLifetime, refreshLifetime
+	}
+	c, err := s.clientRepo.GetByClientID(ctx, clientID)
+	if err != nil || c == nil {
+		return accessLifetime, refreshLifetime
+	}
+	if d := c.AccessTokenLifetime(); d > 0 {
+		accessLifetime = d
+	}
+	if d := c.RefreshTokenLifetime(); d > 0 {
+		refreshLifetime = d
+	}
+	return accessLifetime, refreshLifetime
+}
+
 // CreateAccessAndRefreshTokens generates the access token and a new refresh
 // token. currentRefreshToken is empty for the authorization code grant and
 // holds the presented token for the refresh grant; a presented token is
@@ -328,7 +380,9 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 ) (string, string, time.Time, error) {
 	const operation serrors.Op = "Storage.CreateAccessAndRefreshTokens"
 
-	accessToken, expiresAt, err := s.CreateAccessToken(ctx, req)
+	accessLifetime, refreshLifetime := s.resolveTokenLifetimes(ctx, req)
+
+	accessToken, expiresAt, err := s.createAccessToken(ctx, req, accessLifetime)
 	if err != nil {
 		return "", "", time.Time{}, serrors.Wrap(operation, err)
 	}
@@ -354,11 +408,7 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 			amr = authReq.GetAMR()
 		}
 	}
-	// The first audience element is the client the token is issued to.
-	clientID := ""
-	if len(req.GetAudience()) > 0 {
-		clientID = req.GetAudience()[0]
-	}
+	clientID := tokenRequestClientID(req)
 
 	refreshToken, err := newRefreshToken()
 	if err != nil {
@@ -371,7 +421,7 @@ func (s *Storage) CreateAccessAndRefreshTokens(
 		u.TenantID(),
 		req.GetScopes(),
 		authTime,
-		s.refreshTokenLifetime,
+		refreshLifetime,
 		token.WithAudience(req.GetAudience()),
 		token.WithAMR(amr),
 	)

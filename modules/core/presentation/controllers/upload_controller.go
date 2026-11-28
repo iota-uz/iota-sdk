@@ -91,6 +91,11 @@ func (c *UploadController) createAvatar(w http.ResponseWriter, r *http.Request) 
 }
 
 func (c *UploadController) create(w http.ResponseWriter, r *http.Request, avatar bool) {
+	defer func() {
+		if r.MultipartForm != nil {
+			_ = r.MultipartForm.RemoveAll()
+		}
+	}()
 	if err := r.ParseMultipartForm(c.cfg.MaxMemory); err != nil {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
