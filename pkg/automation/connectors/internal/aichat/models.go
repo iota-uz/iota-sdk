@@ -52,15 +52,19 @@ var (
 	snapshotRe = regexp.MustCompile(`-(\d{4}-\d{2}-\d{2}|\d{4})$`) // a dated snapshot, or OpenAI's 0613
 	// openAIFamily is the ids OpenAI serves: its own, or OpenRouter's openai/<id>.
 	openAIFamily = regexp.MustCompile(`^(openai/)?(gpt-|chatgpt-|o[0-9]|text-|omni-|davinci|babbage)`)
+	// snapshotlessOpenAI is OpenAI models published without dated snapshots (e.g. gpt-6-luna), accepted
+	// as exact ids despite lacking a -YYYY-MM-DD suffix.
+	snapshotlessOpenAI = regexp.MustCompile(`^(?:openai/)?gpt-6(?:\.[0-9]+)?-(?:luna|terra|sol|astra)$`)
 )
 
 // Rolling reports whether id is an id of OpenAI that the provider moves to newer snapshots (gpt-4o,
 // gpt-4o-mini, o3): OpenAI pins a model with its dated snapshot (gpt-4o-mini-2024-07-18), so an id of its
-// family without a date is not pinned. An id of any other family is taken as the provider's own: a
-// compatible endpoint names its models as it pleases.
+// family without a date is not pinned, except models OpenAI ships without dated snapshots (such as
+// gpt-6-luna). An id of any other family is taken as the provider's own: a compatible endpoint names its
+// models as it pleases.
 func Rolling(id string) bool {
 	l := strings.ToLower(id)
-	if !openAIFamily.MatchString(l) {
+	if !openAIFamily.MatchString(l) || snapshotlessOpenAI.MatchString(l) {
 		return false
 	}
 	// A model of the family OpenAI ships with its own fixed number (a preview, a 0613) is pinned too.
@@ -72,7 +76,7 @@ func Rolling(id string) bool {
 // is saved, with no request: an application with metadata of its own replaces it (WithVision).
 var vision = regexp.MustCompile(`^(?:openai/)?(?:` +
 	`gpt-4o(?:-mini)?|chatgpt-4o|gpt-4\.1(?:-mini|-nano)?|gpt-4\.5-preview|gpt-4-turbo|gpt-4-vision-preview|` +
-	`gpt-5(?:\.[0-9]+)?(?:-mini|-nano|-pro)?|o1|o3(?:-pro)?|o4-mini)` +
+	`gpt-5(?:\.[0-9]+)?(?:-mini|-nano|-pro)?|gpt-6(?:\.[0-9]+)?-(?:luna|terra|sol|astra)|o1|o3(?:-pro)?|o4-mini)` +
 	`(?:-\d{4}-\d{2}-\d{2})?$` +
 	`|^anthropic/claude-(?:3|3\.5|3\.7|opus-4|sonnet-4|haiku-4|opus-4\.[0-9]|sonnet-4\.[0-9]|haiku-4\.[0-9])(?:-(?:opus|sonnet|haiku))?(?:-\d{8}|-\d{4}-\d{2}-\d{2})?$` +
 	`|^google/gemini-[0-9][0-9a-z.\-]*$`)
@@ -90,14 +94,24 @@ func VisionModel(id string) bool {
 	return vision.MatchString(l)
 }
 
-// TakesTemperature reports whether the model accepts a temperature other than the default: the
-// reasoning models (o1, o3, o4, gpt-5) refuse an explicit one.
+// gpt5DefaultNone is GPT-5.1–5.4 non-pro, non-codex models that default to reasoning effort "none"
+// and therefore accept an explicit temperature when reasoning_effort is omitted. GPT-5.0 and GPT-5.5+
+// default to reasoning enabled ("medium") and are excluded.
+var gpt5DefaultNone = regexp.MustCompile(`^gpt-5\.[1-4](?:-(?:mini|nano))?(?:-\d{4}-\d{2}-\d{2})?$`)
+
+// TakesTemperature reports whether the model accepts a temperature other than the default when
+// reasoning_effort is omitted: reasoning models with reasoning enabled by default (o1, o3, o4, gpt-5
+// 5.0/5.5+/pro/codex, gpt-6) refuse an explicit one, whereas GPT-5.1–5.4 chat models default to
+// reasoning effort "none" and accept it.
 func TakesTemperature(id string) bool {
 	name := strings.ToLower(id)
 	if i := strings.LastIndex(name, "/"); i >= 0 {
 		name = name[i+1:]
 	}
-	for _, p := range []string{"o1", "o3", "o4", "gpt-5"} {
+	if gpt5DefaultNone.MatchString(name) {
+		return true
+	}
+	for _, p := range []string{"o1", "o3", "o4", "gpt-5", "gpt-6"} {
 		if strings.HasPrefix(name, p) {
 			return false
 		}
@@ -106,7 +120,7 @@ func TakesTemperature(id string) bool {
 }
 
 var structuredOutputs = regexp.MustCompile(`^(?:openai/)?(?:` +
-	`gpt-4o-mini|gpt-4\.1(?:-mini|-nano)?|gpt-5(?:\.[0-9]+)?(?:-mini|-nano|-pro)?|o1|o3(?:-mini|-pro)?|o4-mini)` +
+	`gpt-4o-mini|gpt-4\.1(?:-mini|-nano)?|gpt-5(?:\.[0-9]+)?(?:-mini|-nano|-pro)?|gpt-6(?:\.[0-9]+)?-(?:luna|terra|sol|astra)|o1|o3(?:-mini|-pro)?|o4-mini)` +
 	`(?:-\d{4}-\d{2}-\d{2})?$`)
 
 // gpt4oSnapshot is a dated gpt-4o snapshot; Structured Outputs came with 2024-08-06.

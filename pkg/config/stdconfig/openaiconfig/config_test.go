@@ -14,7 +14,7 @@ func TestConfig_StaticRoundTrip(t *testing.T) {
 	src, err := config.Build(static.New(map[string]any{
 		"automation.openai.apikey":       "sk-test",
 		"automation.openai.baseurl":      "https://llm.example.com/v1",
-		"automation.openai.defaultmodel": "gpt-4o-mini-2024-07-18",
+		"automation.openai.defaultmodel": "gpt-6-luna",
 	}))
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -24,7 +24,7 @@ func TestConfig_StaticRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Register: %v", err)
 	}
-	if cfg.APIKey != "sk-test" || cfg.BaseURL != "https://llm.example.com/v1" || cfg.DefaultModel != "gpt-4o-mini-2024-07-18" {
+	if cfg.APIKey != "sk-test" || cfg.BaseURL != "https://llm.example.com/v1" || cfg.DefaultModel != "gpt-6-luna" {
 		t.Fatalf("unexpected config: %+v", cfg)
 	}
 	if !cfg.IsConfigured() {

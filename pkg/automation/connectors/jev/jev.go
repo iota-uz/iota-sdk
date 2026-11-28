@@ -52,10 +52,10 @@ const (
 )
 
 // Default models of a node saved without one, by the provider of the platform credential: a pinned
-// TypeSafe Jev version of OpenRouter's Decisions API, or a dated snapshot of an OpenAI chat model.
+// TypeSafe Jev version of OpenRouter's Decisions API, or OpenAI's default chat model.
 const (
 	DefaultModelOpenRouter = "typesafe/jev-1.14"
-	DefaultModelOpenAI     = "gpt-4o-mini-2024-07-18"
+	DefaultModelOpenAI     = "gpt-6-luna"
 )
 
 // Credentials are the fields of a connection (the form of Descriptor.Credentials); at run time they are a

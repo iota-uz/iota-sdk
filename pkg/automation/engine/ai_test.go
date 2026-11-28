@@ -132,7 +132,7 @@ type aiEnv struct {
 }
 
 const (
-	defaultLLMModel = "gpt-4o-mini-2024-07-18"
+	defaultLLMModel = "gpt-6-luna"
 	llmKey          = "sk-platform-key-98765"
 )
 
@@ -582,7 +582,7 @@ func TestJevModelFollowsTheConnectionsProvider(t *testing.T) {
 	var model string
 	require.NoError(t, ae.db.QueryRow(context.Background(),
 		`SELECT graph->'nodes'->0->'params'->>'model' FROM automation.versions WHERE tenant_id = $1 AND automation_id = $2 AND version = 1`, ae.tenant, am.ID).Scan(&model))
-	assert.Equal(t, "gpt-4o-mini-2024-07-18", model, "an OpenAI connection is not saved with a TypeSafe Jev version")
+	assert.Equal(t, "gpt-6-luna", model, "an OpenAI connection is not saved with a TypeSafe Jev version")
 
 	named := strings.Replace(jevGraph, `"params": {"input"`, `"params": {"model": "typesafe/jev-1.14", "input"`, 1)
 	_, _, err := p.rt.Service().Create(context.Background(), ae.human(), engine.CreateInput{Graph: json.RawMessage(named)})

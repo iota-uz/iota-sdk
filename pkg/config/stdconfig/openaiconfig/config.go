@@ -14,8 +14,8 @@ import (
 // DefaultBaseURL is the API the connector uses when BaseURL is empty.
 const DefaultBaseURL = "https://api.openai.com/v1"
 
-// DefaultModel is the pinned snapshot an LLM node without a model gets when DefaultModel is empty.
-const DefaultModel = "gpt-4o-mini-2024-07-18"
+// DefaultModel is the exact model id an LLM node without a model gets when Config.DefaultModel is empty.
+const DefaultModel = "gpt-6-luna"
 
 // Config holds the platform OpenAI key of automations.
 //

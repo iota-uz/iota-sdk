@@ -79,7 +79,7 @@ func newOptions(opts []Option) options {
 }
 
 // WithDefaultModel is the exact model id an ai.llm node saved without a model gets (the platform's
-// automation.openai.defaultmodel; default gpt-4o-mini). It is written into the version when the graph is
+// automation.openai.defaultmodel; default gpt-6-luna). It is written into the version when the graph is
 // saved, so changing it later does not change a saved graph.
 func WithDefaultModel(model string) Option {
 	return func(o *options) {

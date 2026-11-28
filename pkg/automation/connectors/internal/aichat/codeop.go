@@ -83,6 +83,9 @@ func (c CodeCompleter) Complete(ctx context.Context, ep Endpoint, call connector
 	if !modelIDRe.MatchString(model) || len(model) > maxModelLen {
 		return nil, invalidArgs("model is a model id: letters, digits and . _ - : / @ +, at most %d characters", maxModelLen)
 	}
+	if args.Temperature != nil && !TakesTemperature(model) {
+		return nil, invalidArgs("the model %s takes no temperature; omit temperature or choose another model", model)
+	}
 	req := Request{Model: model, System: args.System, Prompt: args.Prompt, MaxTokens: codeDefMax, Temperature: args.Temperature}
 	if args.MaxTokens != nil {
 		req.MaxTokens = *args.MaxTokens

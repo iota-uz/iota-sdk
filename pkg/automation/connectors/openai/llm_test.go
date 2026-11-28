@@ -677,19 +677,23 @@ func TestCredentialsSchemaValidates(t *testing.T) {
 }
 
 func TestRollingIdsAreNotPinned(t *testing.T) {
-	for _, rolling := range []string{"gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-5", "o3", "o4-mini", "chatgpt-4o", "openai/gpt-4o-mini"} {
+	for _, rolling := range []string{"gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-5", "gpt-6", "o3", "o4-mini", "chatgpt-4o", "openai/gpt-4o-mini", "openai/gpt-6"} {
 		err := aichat.CheckModel(rolling)
 		require.Error(t, err, rolling)
 		assert.Contains(t, err.Error(), "rolling", rolling)
 	}
+	for _, alias := range []string{"gpt-6-latest", "gpt-6-luna-latest", "openai/gpt-6-luna:latest"} {
+		require.Error(t, aichat.CheckModel(alias), alias)
+	}
 	for _, pinned := range []string{
 		"gpt-4o-2024-08-06", "gpt-4o-mini-2024-07-18", "gpt-4.1-2025-04-14", "gpt-5-2025-08-07", "o3-2025-04-16", "gpt-4-0613",
+		"gpt-6-luna", "openai/gpt-6-luna", "gpt-6.1-terra", "gpt-6.2-sol", "gpt-6.2-astra",
 		"openai/gpt-4o-mini-2024-07-18", "anthropic/claude-3.5-sonnet", "meta-llama/llama-3-8b-instruct", "typesafe/jev-1.14", "my-company-model",
 	} {
 		require.NoError(t, aichat.CheckModel(pinned), pinned)
 	}
 	require.Error(t, aichat.CheckModel("~typesafe/jev-latest"))
-	assert.Equal(t, "gpt-4o-mini-2024-07-18", openaiconfig.DefaultModel, "the shipped default is pinned")
+	assert.Equal(t, "gpt-6-luna", openaiconfig.DefaultModel, "the shipped default is accepted")
 	require.NoError(t, aichat.CheckModel(openaiconfig.DefaultModel))
 }
 
@@ -697,6 +701,7 @@ func TestVisionIsAVerifiedList(t *testing.T) {
 	for model, want := range map[string]bool{
 		"gpt-4o-2024-08-06": true, "gpt-4o-mini-2024-07-18": true, "gpt-4.1-2025-04-14": true, "gpt-5-2025-08-07": true, "o3-2025-04-16": true,
 		"gpt-5.4-mini-2026-03-17": true, "gpt-5-mini-2025-08-07": true, "gpt-5-nano-2025-08-07": true, "gpt-5.1-2025-11-13": true, "gpt-4.1-mini-2025-04-14": true, "o3-pro-2025-06-10": true,
+		"gpt-6-luna": true, "openai/gpt-6-luna": true, "gpt-6.1-terra": true, "gpt-6.2-sol": true, "gpt-6.2-astra": true, "gpt-6": false,
 		"gpt-5-chat-latest": false, "gpt-5-codex": false,
 		"gpt-4o-mini-transcribe-2025-03-20": false, "gpt-4o-audio-preview-2025-06-03": false, "gpt-4o-realtime-preview-2025-06-03": false,
 		"gpt-4o-mini-tts-2025-03-20": false, "gpt-4o-search-preview-2025-03-11": false, "gpt-4o-mini-search-preview": false,
@@ -881,8 +886,9 @@ func TestSchemaDepthIsBoundedOnSave(t *testing.T) {
 
 func TestStructuredOutputNeedsASupportingModel(t *testing.T) {
 	for model, no := range map[string]bool{
-		"gpt-3.5-turbo-0125": true, "gpt-4-turbo-2024-04-09": true, "gpt-4-0613": true, "gpt-4o-2024-05-13": true, "o1-mini-2024-09-12": true,
+		"gpt-3.5-turbo-0125": true, "gpt-4-turbo-2024-04-09": true, "gpt-4-0613": true, "gpt-4o-2024-05-13": true, "o1-mini-2024-09-12": true, "gpt-6": true,
 		"gpt-4o-2024-08-06": false, "gpt-4o-mini-2024-07-18": false, "gpt-4.1-2025-04-14": false, "gpt-5-2025-08-07": false, "o3-2025-04-16": false,
+		"gpt-6-luna": false, "openai/gpt-6-luna": false, "gpt-6.1-terra": false, "gpt-6.2-sol": false, "gpt-6.2-astra": false,
 		"my-company-model": false, "meta-llama/llama-3-8b-instruct": false,
 	} {
 		assert.Equal(t, no, aichat.NoStructuredOutput(model), model)
@@ -902,6 +908,49 @@ func TestStructuredOutputNeedsASupportingModel(t *testing.T) {
 	_, err := nn.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, p, nil))
 	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, err).Code)
 	assert.Empty(t, srv.Requests())
+}
+
+func TestTemperatureNeedsASupportingModel(t *testing.T) {
+	n, _ := newNode(t)
+	for _, raw := range []map[string]any{
+		{"prompt": "x", "temperature": 0.5},
+		{"prompt": "x", "model": "gpt-6-luna", "temperature": 0.5},
+		{"prompt": "x", "model": "o3-2025-04-16", "temperature": 0.2},
+		{"prompt": "x", "model": "gpt-5-2025-08-07", "temperature": 0.0},
+		{"prompt": "x", "model": "gpt-5.2-pro-2025-12-11", "temperature": 0.3},
+		{"prompt": "x", "model": "gpt-5.5-2026-04-23", "temperature": 0.3},
+	} {
+		_, issues := n.Spec().Params.Parse(raw)
+		require.Len(t, issues, 1, raw)
+		assert.Equal(t, openai.ErrorModelNoTemperature, issues[0].Code, raw)
+		assert.Equal(t, []any{"temperature"}, issues[0].Path, raw)
+	}
+	for _, raw := range []map[string]any{
+		{"prompt": "x"},
+		{"prompt": "x", "model": "gpt-6-luna"},
+		{"prompt": "x", "model": "gpt-4o-2024-08-06", "temperature": 0.5},
+		{"prompt": "x", "model": "gpt-5.1-2025-11-13", "temperature": 0.5},
+		{"prompt": "x", "model": "gpt-5.4-mini-2026-03-17", "temperature": 0.5},
+	} {
+		_, issues := n.Spec().Params.Parse(raw)
+		assert.Empty(t, issues, raw)
+	}
+
+	// A call saved before this check is refused before any request.
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("ok", 1, 1)})
+	nn, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	p := parsed(t, nn, map[string]any{"prompt": "x"})
+	p["temperature"] = 0.5
+	_, err := nn.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, p, nil))
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, err).Code)
+	assert.Empty(t, srv.Requests())
+
+	// A GPT-5.1+ snapshot that defaults to reasoning effort none forwards explicit temperature.
+	p51 := parsed(t, nn, map[string]any{"prompt": "x", "model": "gpt-5.1-2025-11-13", "temperature": 0.4})
+	_, err = nn.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, p51, nil))
+	require.NoError(t, err)
+	require.Len(t, srv.Requests(), 1)
+	assert.InDelta(t, 0.4, srv.Requests()[0].JSON(t)["temperature"], 1e-9)
 }
 
 // A malformed field of an answer does not hide the usage it reports, and is not repeated.

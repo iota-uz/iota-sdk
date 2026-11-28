@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Replace retiring gpt-4o-mini-2024-07-18 automation LLM defaults with gpt-6-luna (and openai/gpt-6-luna for OpenRouter code completions) and support snapshotless GPT-6 models in aichat validation, vision, structured outputs, and temperature handling (#1486)."}
