@@ -6,7 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
+	"github.com/iota-uz/iota-sdk/pkg/automation/secrets"
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/automationconfig"
@@ -92,5 +95,89 @@ func TestPlatformCredentialsRefusesNullAndCollisions(t *testing.T) {
 	cfg := automationconfig.Config{Platform: automationconfig.PlatformConfig{Credentials: `{"openai":{}}`}}
 	if _, err := cfg.PlatformCredentials(); err != nil {
 		t.Fatalf("an empty credential object: %v", err)
+	}
+}
+
+func TestSecretsDefaultToTheSealedStore(t *testing.T) {
+	t.Parallel()
+	var cfg automationconfig.Config
+	_, ok, err := cfg.SecretBackend()
+	if err != nil || ok {
+		t.Fatalf("backend %v, %v", ok, err)
+	}
+	loc, err := cfg.SecretLocator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if root := loc.Root(uuid.Nil); root.Path != "tenants/"+uuid.Nil.String()+"/automation/secrets/" {
+		t.Fatalf("root %q", root.Path)
+	}
+}
+
+func TestSecretsOpenBaoFromEnvironmentKeys(t *testing.T) {
+	t.Parallel()
+	src, err := config.Build(static.New(map[string]any{
+		"automation.secrets.store":                       "openbao",
+		"automation.secrets.prefix":                      "prod",
+		"automation.secrets.openbao.address":             "https://openbao.internal:8200",
+		"automation.secrets.openbao.writer.method":       "approle",
+		"automation.secrets.openbao.writer.roleid":       "writer-role",
+		"automation.secrets.openbao.writer.secretidfile": "/run/secrets/writer-secret-id",
+		"automation.secrets.openbao.reader.method":       "kubernetes",
+		"automation.secrets.openbao.reader.role":         "iota-reader",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg automationconfig.Config
+	if err := src.Unmarshal("automation", &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	backend, ok, err := cfg.SecretBackend()
+	if err != nil || !ok || backend.Writer == nil || backend.Reader == nil || backend.Metadata == nil {
+		t.Fatalf("backend %+v, %v", backend, err)
+	}
+	// The parts are separate: the writer cannot be used to read.
+	if _, ok := backend.Writer.(secrets.Reader); ok {
+		t.Fatal("the writer is a reader")
+	}
+	loc, _ := cfg.SecretLocator()
+	tenant := uuid.New()
+	if root := loc.Root(tenant); root.Path != "prod/tenants/"+tenant.String()+"/automation/secrets/" {
+		t.Fatalf("root %q", root.Path)
+	}
+}
+
+func TestSecretsConfigErrorsNameNoCredential(t *testing.T) {
+	t.Parallel()
+	for name, s := range map[string]automationconfig.SecretsConfig{
+		"unknown store": {Store: "env"},
+		"no address": {Store: "openbao", OpenBao: automationconfig.OpenBaoConfig{
+			Writer: automationconfig.OpenBaoAuthConfig{Method: "token", Token: "hvs.the-writer-token"},
+			Reader: automationconfig.OpenBaoAuthConfig{Method: "token", Token: "hvs.the-reader-token"}}},
+		"no reader": {Store: "openbao", OpenBao: automationconfig.OpenBaoConfig{Address: "http://bao:8200",
+			Writer: automationconfig.OpenBaoAuthConfig{Method: "token", Token: "hvs.the-writer-token"}}},
+		"token twice": {Store: "openbao", OpenBao: automationconfig.OpenBaoConfig{Address: "http://bao:8200",
+			Writer: automationconfig.OpenBaoAuthConfig{Method: "token", Token: "hvs.the-writer-token", TokenFile: "/x"},
+			Reader: automationconfig.OpenBaoAuthConfig{Method: "token", Token: "hvs.the-reader-token"}}},
+		"approle without role": {Store: "openbao", OpenBao: automationconfig.OpenBaoConfig{Address: "http://bao:8200",
+			Writer: automationconfig.OpenBaoAuthConfig{Method: "approle", SecretID: "the-secret-id"},
+			Reader: automationconfig.OpenBaoAuthConfig{Method: "token", Token: "hvs.the-reader-token"}}},
+		"bad prefix": {Prefix: "prod/../other"},
+	} {
+		cfg := automationconfig.Config{Secrets: s}
+		err := cfg.Validate()
+		if err == nil {
+			t.Errorf("%s: accepted", name)
+			continue
+		}
+		for _, v := range []string{"the-writer-token", "the-reader-token", "the-secret-id"} {
+			if strings.Contains(err.Error(), v) {
+				t.Errorf("%s: the error quotes a credential: %v", name, err)
+			}
+		}
 	}
 }

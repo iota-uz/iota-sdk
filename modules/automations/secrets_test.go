@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/automation/catalog"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors"
 	"github.com/iota-uz/iota-sdk/pkg/automation/connectors/httpapi"
+	"github.com/iota-uz/iota-sdk/pkg/automation/secrets"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
@@ -102,4 +105,37 @@ func TestCodeNodesNeverReadAnHTTPAPIToken(t *testing.T) {
 	raw, err := json.Marshal(res.Output)
 	require.NoError(t, err)
 	assert.NotContains(t, string(raw), token)
+}
+
+// With secrets.store = openbao the module composes the writer and the reader as two OpenBao parts: the
+// manager's writer cannot read, and nothing falls back to the sealed store.
+func TestSecretsComposeOverOpenBao(t *testing.T) {
+	src, err := config.Build(static.New(map[string]any{
+		"automation.connections.keys":              "k1:" + string(bytes.Repeat([]byte("ab"), 32)),
+		"automation.secrets.store":                 "openbao",
+		"automation.secrets.prefix":                "test",
+		"automation.secrets.openbao.address":       "http://127.0.0.1:1",
+		"automation.secrets.openbao.writer.method": "token",
+		"automation.secrets.openbao.writer.token":  "writer-token",
+		"automation.secrets.openbao.reader.method": "token",
+		"automation.secrets.openbao.reader.token":  "reader-token",
+	}))
+	require.NoError(t, err)
+	f := itf.Setup(t, itf.WithComponents(modules.Components()...), itf.WithUser(itf.User()), itf.WithSource(src))
+	w, err := composition.Resolve[secrets.Writer](f.Container)
+	require.NoError(t, err)
+	_, isReader := w.(secrets.Reader)
+	assert.False(t, isReader, "the writer is a reader")
+	assert.True(t, strings.HasPrefix(reflect.TypeOf(w).PkgPath(), "github.com/iota-uz/iota-sdk/pkg/automation/secrets/openbao"))
+	r, err := composition.Resolve[secrets.Reader](f.Container)
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(reflect.TypeOf(r).PkgPath(), "github.com/iota-uz/iota-sdk/pkg/automation/secrets/openbao"))
+	loc, err := composition.Resolve[secrets.Locator](f.Container)
+	require.NoError(t, err)
+	tenant := uuid.New()
+	assert.Equal(t, "test/tenants/"+tenant.String()+"/automation/secrets/", loc.Root(tenant).Path)
+	// OpenBao is unreachable: the resolver's read is a controlled ErrUnavailable.
+	_, err = r.Read(context.Background(), loc.Locate(tenant, uuid.New()))
+	require.ErrorIs(t, err, secrets.ErrUnavailable)
+	assert.NotContains(t, err.Error(), "reader-token")
 }

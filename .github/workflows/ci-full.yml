@@ -557,6 +557,15 @@ jobs:
           - 6379:6379
         options: >-
           --tmpfs /data:rw,size=6g
+      # The OpenBao KV v2 adapter's tests (pkg/automation/secrets/openbao) run against a dev server.
+      openbao:
+        image: quay.io/openbao/openbao:2.4.3
+        ports:
+          - 8200:8200
+        env:
+          BAO_DEV_ROOT_TOKEN_ID: root
+        options: >-
+          --cap-add=IPC_LOCK
 
     steps:
       - name: Checkout repository
@@ -651,6 +660,8 @@ jobs:
           DB_NAME: iota_erp
           DB_USER: postgres
           DB_PASSWORD: postgres
+          OPENBAO_TEST_ADDR: http://localhost:8200
+          OPENBAO_TEST_TOKEN: root
         # Every DB test package migrates its own databases against one shared Postgres, so a package's
         # wall time depends on the runner's load: core/services took 393 s in one release verify and
         # over 600 s in the next with no test hung. Go's default 10 m package timeout is too tight.

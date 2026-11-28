@@ -17,7 +17,9 @@
 // (set, code, http, start_automation, run_automation and the actions modules contribute through
 // pkg/automation/builtin/actions), the encrypted ConnectionStore
 // (keys from AUTOMATION_CONNECTIONS_KEYS, platform credentials from AUTOMATION_PLATFORM_CREDENTIALS),
-// the OAuth2 helper and the host.SecretResolver the extension runtime serves secrets.get with.
+// the OAuth2 helper and the host.SecretResolver the extension runtime serves secrets.get with. The values of
+// the tenants' secrets live in the sealed store, or in OpenBao KV v2 with AUTOMATION_SECRETS_STORE=openbao
+// (automationconfig.SecretsConfig: a writer and a reader identity of their own).
 package automations
 
 import (
@@ -408,8 +410,18 @@ func (c *component) Build(b *composition.Builder) error {
 		connectors.BindStore(dir, st)
 		return st, nil
 	})
-	// The built-in «Secret» connector: values behind the storage port (an application replaces the Store with
-	// an OpenBao adapter), records and resolution over it.
+	// The built-in «Secret» connector: values behind the storage port, records and resolution over it. The
+	// manager gets only the Writer and the resolver only the Reader: with secrets.store = openbao they are
+	// two OpenBao identities (the writer's policy does not read values). Otherwise both are parts of the
+	// sealed Store (an application may replace the Store, or a part, with its own adapter).
+	backend, openBao, err := cfg.automation.SecretBackend()
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
+	locator, err := cfg.automation.SecretLocator()
+	if err != nil {
+		return serrors.Wrap(op, err)
+	}
 	composition.ProvideDefault[secrets.Store](b, func(container *composition.Container) (secrets.Store, error) {
 		db, err := composition.Resolve[*pgxpool.Pool](container)
 		if err != nil {
@@ -417,15 +429,33 @@ func (c *component) Build(b *composition.Builder) error {
 		}
 		return connectors.NewSealedSecrets(db, keys), nil
 	})
+	composition.ProvideDefault[secrets.Writer](b, func(container *composition.Container) (secrets.Writer, error) {
+		if openBao {
+			return backend.Writer, nil
+		}
+		return composition.Resolve[secrets.Store](container)
+	})
+	composition.ProvideDefault[secrets.Reader](b, func(container *composition.Container) (secrets.Reader, error) {
+		if openBao {
+			return backend.Reader, nil
+		}
+		return composition.Resolve[secrets.Store](container)
+	})
+	composition.ProvideDefault[secrets.MetadataReader](b, func(container *composition.Container) (secrets.MetadataReader, error) {
+		if openBao {
+			return backend.Metadata, nil
+		}
+		return composition.Resolve[secrets.Store](container)
+	})
 	composition.ProvideDefault[secrets.Locator](b, func(*composition.Container) (secrets.Locator, error) {
-		return secrets.DefaultLocator(""), nil
+		return locator, nil
 	})
 	composition.ProvideDefault[secrets.Manager](b, func(container *composition.Container) (secrets.Manager, error) {
 		db, err := composition.Resolve[*pgxpool.Pool](container)
 		if err != nil {
 			return nil, err
 		}
-		store, err := composition.Resolve[secrets.Store](container)
+		writer, err := composition.Resolve[secrets.Writer](container)
 		if err != nil {
 			return nil, err
 		}
@@ -433,18 +463,18 @@ func (c *component) Build(b *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
-		return secrets.NewManager(db, store, locator), nil
+		return secrets.NewManager(db, writer, locator), nil
 	})
 	composition.ProvideDefault[secrets.Resolver](b, func(container *composition.Container) (secrets.Resolver, error) {
 		db, err := composition.Resolve[*pgxpool.Pool](container)
 		if err != nil {
 			return nil, err
 		}
-		store, err := composition.Resolve[secrets.Store](container)
+		reader, err := composition.Resolve[secrets.Reader](container)
 		if err != nil {
 			return nil, err
 		}
-		return secrets.NewResolver(db, store), nil
+		return secrets.NewResolver(db, reader), nil
 	})
 	composition.Provide[connectors.ConnectionStore](b, func(container *composition.Container) (connectors.ConnectionStore, error) {
 		return composition.Resolve[connectors.Store](container)

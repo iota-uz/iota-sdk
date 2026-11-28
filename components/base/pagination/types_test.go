@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewWithQueryKeepsConditionsOnEveryPage(t *testing.T) {
@@ -36,9 +37,7 @@ func TestNewWithQueryLargePageCount(t *testing.T) {
 	assertLink := func(link string, page string) {
 		t.Helper()
 		parsed, err := url.Parse(link)
-		if !assert.NoError(t, err) {
-			return
-		}
+		require.NoError(t, err)
 		want := url.Values{"f": {"project:is:p1", "factual_end:empty:"}, "limit": {"1"}}
 		if page != "" {
 			want.Set("page", page)
