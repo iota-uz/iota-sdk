@@ -917,6 +917,7 @@ func TestTemperatureNeedsASupportingModel(t *testing.T) {
 		{"prompt": "x", "model": "gpt-6-luna", "temperature": 0.5},
 		{"prompt": "x", "model": "o3-2025-04-16", "temperature": 0.2},
 		{"prompt": "x", "model": "gpt-5-2025-08-07", "temperature": 0.0},
+		{"prompt": "x", "model": "gpt-5.2-pro-2025-12-11", "temperature": 0.3},
 	} {
 		_, issues := n.Spec().Params.Parse(raw)
 		require.Len(t, issues, 1, raw)
@@ -927,6 +928,8 @@ func TestTemperatureNeedsASupportingModel(t *testing.T) {
 		{"prompt": "x"},
 		{"prompt": "x", "model": "gpt-6-luna"},
 		{"prompt": "x", "model": "gpt-4o-2024-08-06", "temperature": 0.5},
+		{"prompt": "x", "model": "gpt-5.1-2025-11-13", "temperature": 0.5},
+		{"prompt": "x", "model": "gpt-5.4-mini-2026-03-17", "temperature": 0.5},
 	} {
 		_, issues := n.Spec().Params.Parse(raw)
 		assert.Empty(t, issues, raw)
@@ -940,6 +943,13 @@ func TestTemperatureNeedsASupportingModel(t *testing.T) {
 	_, err := nn.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, p, nil))
 	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, err).Code)
 	assert.Empty(t, srv.Requests())
+
+	// A GPT-5.1+ snapshot that defaults to reasoning effort none forwards explicit temperature.
+	p51 := parsed(t, nn, map[string]any{"prompt": "x", "model": "gpt-5.1-2025-11-13", "temperature": 0.4})
+	_, err = nn.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, p51, nil))
+	require.NoError(t, err)
+	require.Len(t, srv.Requests(), 1)
+	assert.InDelta(t, 0.4, srv.Requests()[0].JSON(t)["temperature"], 1e-9)
 }
 
 // A malformed field of an answer does not hide the usage it reports, and is not repeated.

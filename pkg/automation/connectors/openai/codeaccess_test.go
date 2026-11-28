@@ -117,6 +117,14 @@ func TestCodeCompleteInvalidArgs(t *testing.T) {
 		assert.Equal(t, "invalid_args", codeRefusal(t, err).Code, name)
 	}
 	assert.Empty(t, srv.Requests())
+
+	// GPT-5.1 defaults to reasoning effort none and accepts an explicit temperature.
+	out, err := c.(connectors.CodeOperator).CallCodeOperation(context.Background(),
+		completeCall(srv, `{"prompt":"x","model":"gpt-5.1-2025-11-13","temperature":0.4}`, nil))
+	require.NoError(t, err)
+	assert.Equal(t, "x", out.(map[string]any)["text"])
+	require.Len(t, srv.Requests(), 1)
+	assert.InDelta(t, 0.4, srv.Requests()[0].JSON(t)["temperature"], 1e-9)
 }
 
 func TestCodeCompleteProviderFailures(t *testing.T) {

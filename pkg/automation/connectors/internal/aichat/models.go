@@ -94,12 +94,21 @@ func VisionModel(id string) bool {
 	return vision.MatchString(l)
 }
 
-// TakesTemperature reports whether the model accepts a temperature other than the default: the
-// reasoning models (o1, o3, o4, gpt-5, gpt-6) refuse an explicit one.
+// gpt5DefaultNone is GPT-5.1+ non-pro, non-codex models that default to reasoning effort "none" and
+// therefore accept an explicit temperature when reasoning_effort is omitted.
+var gpt5DefaultNone = regexp.MustCompile(`^gpt-5\.[1-9][0-9]*(?:-(?:mini|nano))?(?:-\d{4}-\d{2}-\d{2})?$`)
+
+// TakesTemperature reports whether the model accepts a temperature other than the default when
+// reasoning_effort is omitted: reasoning models with reasoning enabled by default (o1, o3, o4, gpt-5
+// 5.0/pro/codex, gpt-6) refuse an explicit one, whereas GPT-5.1+ chat models default to reasoning
+// effort "none" and accept it.
 func TakesTemperature(id string) bool {
 	name := strings.ToLower(id)
 	if i := strings.LastIndex(name, "/"); i >= 0 {
 		name = name[i+1:]
+	}
+	if gpt5DefaultNone.MatchString(name) {
+		return true
 	}
 	for _, p := range []string{"o1", "o3", "o4", "gpt-5", "gpt-6"} {
 		if strings.HasPrefix(name, p) {

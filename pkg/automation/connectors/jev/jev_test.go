@@ -634,13 +634,15 @@ func TestReasoningModelsGetNoTemperature(t *testing.T) {
 			assert.NotContains(t, srv.Requests()[0].JSON(t), "temperature")
 		})
 	}
-	t.Run("non-reasoning gets zero temperature", func(t *testing.T) {
-		srv := aitest.New(t, aitest.Reply{Body: decision("other", map[string]float64{"refund": 0, "exchange": 0, "other": 1})})
-		n := openaiNode(t, srv)
-		_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, map[string]any{"model": "gpt-4o-2024-08-06"}), nil))
-		require.NoError(t, err)
-		assert.EqualValues(t, 0, srv.Requests()[0].JSON(t)["temperature"])
-	})
+	for _, model := range []string{"gpt-4o-2024-08-06", "gpt-5.1-2025-11-13"} {
+		t.Run("temperature supported/"+model, func(t *testing.T) {
+			srv := aitest.New(t, aitest.Reply{Body: decision("other", map[string]float64{"refund": 0, "exchange": 0, "other": 1})})
+			n := openaiNode(t, srv)
+			_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, map[string]any{"model": model}), nil))
+			require.NoError(t, err)
+			assert.EqualValues(t, 0, srv.Requests()[0].JSON(t)["temperature"])
+		})
+	}
 }
 
 func TestOpenAIAnswersOutsideTheChoicesAreOneInvalidRequest(t *testing.T) {
