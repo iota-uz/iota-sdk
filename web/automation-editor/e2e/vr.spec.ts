@@ -108,6 +108,11 @@ for (const theme of ['light', 'dark'] as const) {
       // The canvas layers are composited (will-change) for drag performance; tiled software raster of a
       // composited layer anti-aliases edges differently run to run. Screenshots paint them in place.
       await page.addStyleTag({ content: '.ae-viewport, .ae-grid { will-change: auto !important; }' })
+      // The path a run took lights up with a finite opacity animation on its edges and arrowheads. A layer that
+      // has just stopped animating is re-rasterised on a later frame, and an arrowhead or a line pixel lands on
+      // either side of an anti-aliasing step from one CI run to the next. The settled look is the shot, so
+      // the entrance is dropped: the elements are already at their resting opacity.
+      await page.addStyleTag({ content: '.ae-edge--taken, .ae-arrowhead--taken, .ae-edge--flash, .ae-arrowhead--flash { animation: none !important; }' })
       await page.mouse.move(0, 0)
       // A clicked button keeps focus and its hover transition; the shot is of the resting state.
       await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.())
