@@ -176,6 +176,14 @@ function lanesIn(from: number, to: number, head: number, tail: number): number[]
 }
 
 function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preference: number): Route {
+  const probe = { relaxable: false }
+  const route = routeWith(link, obstacles, trunk, preference, false, probe)
+  if (!route.blocked || !probe.relaxable) return route
+  const relaxed = routeWith(link, obstacles, trunk, preference, true, probe)
+  return relaxed.blocked ? route : relaxed
+}
+
+function routeWith(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preference: number, relax: boolean, probe: { relaxable: boolean }): Route {
   const s = link.port
   // Ends less than SNAP apart across are one column: a straight edge, never a jog of a pixel.
   const t = Math.abs(link.entry.x - s.x) < SNAP ? { x: s.x, y: link.entry.y } : link.entry
@@ -190,10 +198,18 @@ function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferenc
   const hi = Math.max(s.x, t.x)
   const spans = (r: Rect) => r.x < hi + 1 && r.x + r.width > lo - 1
   let floor = t.y > s.y ? t.y : s.y + ROW_REACH
-  // A card that leaves no room for a stub under the source only closes the lanes when it is over the
-  // source column; off it, the stub runs down the free column and the card stays an obstacle for the search.
+  // A card in the span that leaves no room for a stub under the source and is not over the source column
+  // closes the lanes only as the first try; when that finds no route (`relax`), the card stays an obstacle
+  // for the search alone and the lanes reach down the free source column.
   const overSource = (r: Rect) => s.x > r.x && s.x < r.x + r.width
-  for (const r of first) if (r.y >= s.y - 0.5 && r.y < floor && (overSource(r) ? true : spans(r) && r.y - s.y >= MIN_STUB)) floor = r.y
+  let floorCard: Rect | undefined
+  for (const r of first) {
+    if (r.y < s.y - 0.5 || r.y >= floor || !(spans(r) || overSource(r))) continue
+    if (relax && !overSource(r) && r.y - s.y < MIN_STUB) continue
+    floor = r.y
+    floorCard = r
+  }
+  if (floorCard && !overSource(floorCard) && floorCard.y - s.y < MIN_STUB) probe.relaxable = true
   let ceiling = t.y > s.y ? s.y : t.y - ROW_REACH
   for (const r of first) {
     const bottom = r.y + r.height
