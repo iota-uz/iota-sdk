@@ -1057,3 +1057,286 @@ func TestHost_FacetOptionsResolvesDateRangeUntilAndNamedDrillParams(t *testing.T
 	require.True(t, hasOwnDimKey, "facet dimension param key should be explicitly bound")
 	require.Nil(t, namedCaptured.Params["f_product"], "facet's own dimension param should bind nil so unselected options remain visible")
 }
+
+func TestHost_ResolveCacheKey_SkipsResolveCubeOnCacheHitFacetsDrillsAndAdmission(t *testing.T) {
+	t.Parallel()
+
+	// Would be falsely green if ResolveCube still ran on ReportCache hits, repeated
+	// /facet-options calls, shared-cube drills, or saturated BuildLimiter rejections.
+	rt := lensruntime.New(lensruntime.Options{})
+	exec := &countingExecutor{base: engine.New(rt).Executor()}
+	limiter := serve.NewReportBuildLimiter(1, 0)
+	var resolveCalls atomic.Int32
+
+	host, err := serve.NewHost(serve.HostConfig{
+		BasePath: "/analytics/cached-cube/lens",
+		Executor: exec,
+		Cache: serve.CacheOptions{
+			TTL:          10 * time.Minute,
+			MaxEntries:   16,
+			BuildLimiter: limiter,
+		},
+		ResolveCacheKey: func(_ context.Context, r *http.Request) (serve.RequestCacheKey, error) {
+			scope := r.Header.Get("X-Tenant")
+			if scope == "" {
+				scope = "tenant-1"
+			}
+			q := r.URL.Query()
+			// Dataset-mode cube depends only on the date range, so share one cached
+			// ResolvedCube across drill levels (_f) and facet dropdown queries.
+			cubeKey := "range=" + q.Get("range-start") + ".." + q.Get("range-end")
+			return serve.RequestCacheKey{
+				Request: lensruntime.Request{
+					DataScope: scope,
+					Locale:    "ru",
+				},
+				CubeKey: cubeKey,
+			}, nil
+		},
+		ResolveCube: func(_ context.Context, r *http.Request, _ cube.DrillContext) (serve.ResolvedCube, error) {
+			resolveCalls.Add(1)
+			scope := r.Header.Get("X-Tenant")
+			if scope == "" {
+				scope = "tenant-1"
+			}
+			spec := buildTestCubeSpec(t)
+			spec.Title = "Agent Program (" + scope + ")"
+			return serve.ResolvedCube{
+				Spec: spec,
+				Request: lensruntime.Request{
+					DataScope: scope,
+					Locale:    "ru",
+				},
+			}, nil
+		},
+	})
+	require.NoError(t, err)
+	defer host.Close()
+
+	handler := host.Handler()
+
+	// 1. First /document loads the cube once.
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, httptest.NewRequest(http.MethodGet, "/analytics/cached-cube/lens/document?range-start=2026-01-01&range-end=2026-03-31", nil))
+	require.Equal(t, http.StatusOK, rec1.Code, rec1.Body.String())
+	var doc1 document.DashboardDocument
+	require.NoError(t, json.Unmarshal(rec1.Body.Bytes(), &doc1))
+	require.Equal(t, int32(1), resolveCalls.Load())
+	require.Equal(t, int32(1), exec.calls.Load())
+
+	// 2. Second /document with reordered query hits ReportCache without calling ResolveCube.
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/analytics/cached-cube/lens/document?range-end=2026-03-31&range-start=2026-01-01", nil))
+	require.Equal(t, http.StatusOK, rec2.Code)
+	var doc2 document.DashboardDocument
+	require.NoError(t, json.Unmarshal(rec2.Body.Bytes(), &doc2))
+	require.Equal(t, doc1.SnapshotID, doc2.SnapshotID)
+	require.Equal(t, int32(1), resolveCalls.Load(), "ReportCache hit must not invoke ResolveCube")
+	require.Equal(t, int32(1), exec.calls.Load())
+
+	// 3. Repeated /facet-options calls (different dimensions & search terms) reuse cached cube.
+	for _, rawURL := range []string{
+		"/analytics/cached-cube/lens/facet-options?_facet=agent_type&range-start=2026-01-01&range-end=2026-03-31",
+		"/analytics/cached-cube/lens/facet-options?_facet=agent_type&_facet_search=Юр&range-start=2026-01-01&range-end=2026-03-31",
+		"/analytics/cached-cube/lens/facet-options?_facet=agency&range-start=2026-01-01&range-end=2026-03-31",
+	} {
+		recFacet := httptest.NewRecorder()
+		handler.ServeHTTP(recFacet, httptest.NewRequest(http.MethodGet, rawURL, nil))
+		require.Equal(t, http.StatusOK, recFacet.Code, recFacet.Body.String())
+		var resp document.FacetOptionsResponse
+		require.NoError(t, json.Unmarshal(recFacet.Body.Bytes(), &resp))
+		require.NotEmpty(t, resp.Options)
+	}
+	require.Equal(t, int32(1), resolveCalls.Load(), "facet-options must reuse cached ResolvedCube")
+
+	// 4. Drilling into _f=agent_type:legal builds a new document while reusing the cached ResolvedCube.
+	recDrill := httptest.NewRecorder()
+	handler.ServeHTTP(recDrill, httptest.NewRequest(http.MethodGet, "/analytics/cached-cube/lens/document?range-start=2026-01-01&range-end=2026-03-31&_f=agent_type:legal", nil))
+	require.Equal(t, http.StatusOK, recDrill.Code, recDrill.Body.String())
+	require.Equal(t, int32(1), resolveCalls.Load(), "drill sharing CubeKey must reuse cached ResolvedCube")
+	require.Equal(t, int32(2), exec.calls.Load())
+
+	// 5. Different tenant is strictly isolated and invokes ResolveCube for tenant-2.
+	reqTenant2 := httptest.NewRequest(http.MethodGet, "/analytics/cached-cube/lens/document?range-start=2026-01-01&range-end=2026-03-31", nil)
+	reqTenant2.Header.Set("X-Tenant", "tenant-2")
+	recTenant2 := httptest.NewRecorder()
+	handler.ServeHTTP(recTenant2, reqTenant2)
+	require.Equal(t, http.StatusOK, recTenant2.Code)
+	var docTenant2 document.DashboardDocument
+	require.NoError(t, json.Unmarshal(recTenant2.Body.Bytes(), &docTenant2))
+	require.Equal(t, "Agent Program (tenant-2)", docTenant2.Meta.Title)
+	require.Equal(t, int32(2), resolveCalls.Load())
+
+	// 6. Saturating BuildLimiter rejects cache misses BEFORE calling ResolveCube,
+	// while cache hits still succeed.
+	release, err := limiter.Acquire(context.Background())
+	require.NoError(t, err)
+
+	recHitDoc := httptest.NewRecorder()
+	handler.ServeHTTP(recHitDoc, httptest.NewRequest(http.MethodGet, "/analytics/cached-cube/lens/document?range-start=2026-01-01&range-end=2026-03-31", nil))
+	require.Equal(t, http.StatusOK, recHitDoc.Code, "document cache hit must succeed when BuildLimiter is saturated")
+
+	recHitFacet := httptest.NewRecorder()
+	handler.ServeHTTP(recHitFacet, httptest.NewRequest(http.MethodGet, "/analytics/cached-cube/lens/facet-options?_facet=agent_type&range-start=2026-01-01&range-end=2026-03-31", nil))
+	require.Equal(t, http.StatusOK, recHitFacet.Code, "facet-options cache hit must succeed when BuildLimiter is saturated")
+
+	recMissDoc := httptest.NewRecorder()
+	handler.ServeHTTP(recMissDoc, httptest.NewRequest(http.MethodGet, "/analytics/cached-cube/lens/document?range-start=2026-04-01&range-end=2026-06-30", nil))
+	require.Equal(t, http.StatusServiceUnavailable, recMissDoc.Code)
+
+	recMissFacet := httptest.NewRecorder()
+	handler.ServeHTTP(recMissFacet, httptest.NewRequest(http.MethodGet, "/analytics/cached-cube/lens/facet-options?_facet=agent_type&range-start=2026-04-01&range-end=2026-06-30", nil))
+	require.Equal(t, http.StatusServiceUnavailable, recMissFacet.Code)
+
+	release()
+	require.Equal(t, int32(2), resolveCalls.Load(), "rejected misses must never invoke ResolveCube")
+
+	// 7. Concurrent identical /facet-options cache misses coalesce via singleflight.
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/analytics/cached-cube/lens/facet-options?_facet=agent_type&range-start=2026-07-01&range-end=2026-09-30", nil))
+			require.Equal(t, http.StatusOK, rec.Code)
+		}()
+	}
+	close(start)
+	wg.Wait()
+	require.Equal(t, int32(3), resolveCalls.Load(), "concurrent identical facet-options misses must coalesce into one ResolveCube call")
+}
+
+func TestHost_LoadSpec_DefersAndCachesAcrossDocumentAndFacetOptions(t *testing.T) {
+	t.Parallel()
+
+	// Would be falsely green if LoadSpec ran on ReportCache hits, repeated
+	// /facet-options requests, or when BuildLimiter rejected admission.
+	rt := lensruntime.New(lensruntime.Options{})
+	exec := &countingExecutor{base: engine.New(rt).Executor()}
+	limiter := serve.NewReportBuildLimiter(1, 0)
+	var loadCalls atomic.Int32
+
+	host, err := serve.NewHost(serve.HostConfig{
+		BasePath: "/analytics/lazy-cube/lens",
+		Executor: exec,
+		Cache: serve.CacheOptions{
+			TTL:          10 * time.Minute,
+			BuildLimiter: limiter,
+		},
+		ResolveCube: func(_ context.Context, r *http.Request, _ cube.DrillContext) (serve.ResolvedCube, error) {
+			q := r.URL.Query()
+			return serve.ResolvedCube{
+				CubeCacheKey: "range=" + q.Get("range-start") + ".." + q.Get("range-end"),
+				Request: lensruntime.Request{
+					DataScope: "tenant-1",
+					Locale:    "ru",
+				},
+				LoadSpec: func(context.Context) (cube.CubeSpec, error) {
+					loadCalls.Add(1)
+					return buildTestCubeSpec(t), nil
+				},
+			}, nil
+		},
+	})
+	require.NoError(t, err)
+	defer host.Close()
+
+	handler := host.Handler()
+
+	// 1. /document loads spec once; second /document hits ReportCache without calling LoadSpec.
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, httptest.NewRequest(http.MethodGet, "/analytics/lazy-cube/lens/document?range-start=2026-01-01&range-end=2026-03-31", nil))
+	require.Equal(t, http.StatusOK, rec1.Code, rec1.Body.String())
+	require.Equal(t, int32(1), loadCalls.Load())
+
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/analytics/lazy-cube/lens/document?range-end=2026-03-31&range-start=2026-01-01", nil))
+	require.Equal(t, http.StatusOK, rec2.Code)
+	require.Equal(t, int32(1), loadCalls.Load(), "ReportCache hit must not invoke LoadSpec")
+
+	// 2. Repeated /facet-options reuse the cached spec without calling LoadSpec.
+	recFacet1 := httptest.NewRecorder()
+	handler.ServeHTTP(recFacet1, httptest.NewRequest(http.MethodGet, "/analytics/lazy-cube/lens/facet-options?_facet=agent_type&range-start=2026-01-01&range-end=2026-03-31", nil))
+	require.Equal(t, http.StatusOK, recFacet1.Code)
+	recFacet2 := httptest.NewRecorder()
+	handler.ServeHTTP(recFacet2, httptest.NewRequest(http.MethodGet, "/analytics/lazy-cube/lens/facet-options?_facet=agency&range-start=2026-01-01&range-end=2026-03-31", nil))
+	require.Equal(t, http.StatusOK, recFacet2.Code)
+	require.Equal(t, int32(1), loadCalls.Load(), "repeated facet-options must reuse cached LoadSpec result")
+
+	// 3. Saturated BuildLimiter rejects cache miss BEFORE invoking LoadSpec.
+	release, err := limiter.Acquire(context.Background())
+	require.NoError(t, err)
+	recBusy := httptest.NewRecorder()
+	handler.ServeHTTP(recBusy, httptest.NewRequest(http.MethodGet, "/analytics/lazy-cube/lens/document?range-start=2026-04-01&range-end=2026-06-30", nil))
+	release()
+	require.Equal(t, http.StatusServiceUnavailable, recBusy.Code)
+	require.Equal(t, int32(1), loadCalls.Load(), "rejected miss must not invoke LoadSpec")
+}
+
+func TestHost_ResolveCacheKey_DashboardModeSkipsResolverOnCacheHitAndAdmission(t *testing.T) {
+	t.Parallel()
+
+	// Would be falsely green if ResolveDashboard still ran on cache hits or saturated admission.
+	rt := lensruntime.New(lensruntime.Options{})
+	exec := &countingExecutor{base: engine.New(rt).Executor()}
+	limiter := serve.NewReportBuildLimiter(1, 0)
+	var resolveCalls atomic.Int32
+
+	frames, err := frame.FromRows("root", frame.Row{"value": 42.0})
+	require.NoError(t, err)
+	dashSpec := lens.DashboardSpec{
+		ID:    "dash_cached",
+		Title: "Cached Dashboard",
+		Datasets: []lens.DatasetSpec{
+			{Name: "root_ds", Kind: lens.DatasetKindStatic, Static: frames},
+		},
+		Rows: []lens.RowSpec{{
+			Panels: []panel.Spec{panel.Stat("kpi", "KPI", "root_ds").ValueField("value").Terminal().Build()},
+		}},
+	}
+
+	host, err := serve.NewHost(serve.HostConfig{
+		BasePath: "/analytics/cached-dash/lens",
+		Executor: exec,
+		Cache:    serve.CacheOptions{BuildLimiter: limiter},
+		Observer: serve.ObserverFunc(func(_ context.Context, op string, err error) {
+			t.Logf("observed error op=%s err=%v", op, err)
+		}),
+		ResolveCacheKey: func(_ context.Context, _ *http.Request) (serve.RequestCacheKey, error) {
+			return serve.RequestCacheKey{
+				Request: lensruntime.Request{DataScope: "tenant-1", Locale: "en"},
+			}, nil
+		},
+		ResolveDashboard: func(_ context.Context, _ *http.Request) (serve.ResolvedDashboard, error) {
+			resolveCalls.Add(1)
+			return serve.ResolvedDashboard{
+				Spec:    dashSpec,
+				Request: lensruntime.Request{DataScope: "tenant-1", Locale: "en"},
+			}, nil
+		},
+	})
+	require.NoError(t, err)
+	defer host.Close()
+
+	handler := host.Handler()
+	rec1 := httptest.NewRecorder()
+	handler.ServeHTTP(rec1, httptest.NewRequest(http.MethodGet, "/analytics/cached-dash/lens/document?tab=a", nil))
+	require.Equal(t, http.StatusOK, rec1.Code, rec1.Body.String())
+	require.Equal(t, int32(1), resolveCalls.Load())
+
+	rec2 := httptest.NewRecorder()
+	handler.ServeHTTP(rec2, httptest.NewRequest(http.MethodGet, "/analytics/cached-dash/lens/document?tab=a", nil))
+	require.Equal(t, http.StatusOK, rec2.Code)
+	require.Equal(t, int32(1), resolveCalls.Load(), "dashboard cache hit must not re-invoke ResolveDashboard")
+
+	release, err := limiter.Acquire(context.Background())
+	require.NoError(t, err)
+	recBusy := httptest.NewRecorder()
+	handler.ServeHTTP(recBusy, httptest.NewRequest(http.MethodGet, "/analytics/cached-dash/lens/document?tab=b", nil))
+	release()
+	require.Equal(t, http.StatusServiceUnavailable, recBusy.Code)
+	require.Equal(t, int32(1), resolveCalls.Load(), "rejected dashboard miss must not invoke ResolveDashboard")
+}

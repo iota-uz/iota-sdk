@@ -88,13 +88,46 @@ type CacheOptions struct {
 	RecomputeCooldown time.Duration
 }
 
+// RequestCacheKey supplies the lightweight cache identity for one HTTP request
+// before ResolveCube or ResolveDashboard executes.
+type RequestCacheKey struct {
+	// Request supplies the runtime scope (DataScope, Namespace, Locale,
+	// Timezone, DataSources) used to partition cached entries.
+	Request lensruntime.Request
+	// CacheKey overrides the canonical query-string params portion of ReportKey.
+	// When empty, Host derives it from the normalized URL query.
+	CacheKey string
+	// Variant optionally partitions cached reports and cubes (for example by
+	// permission variant).
+	Variant string
+	// CubeKey optionally identifies a reusable ResolvedCube across /document
+	// drill levels and /facet-options requests (for example, date range only
+	// without _f). When empty in cube mode, Host derives the cube cache key
+	// from the normalized URL query without _facet and _facet_search.
+	CubeKey string
+}
+
+// CacheKeyResolver computes the lightweight cache identity for an HTTP request
+// so Host can check ReportCache, coalesce concurrent builds, and enforce
+// BuildLimiter admission before invoking ResolveCube or ResolveDashboard.
+type CacheKeyResolver func(ctx context.Context, r *http.Request) (RequestCacheKey, error)
+
 // ResolvedCube supplies the cube specification and per-request runtime context
 // for one HTTP request served in cube mode.
 type ResolvedCube struct {
-	Spec            cube.CubeSpec
-	Request         lensruntime.Request
-	CacheKey        string
-	Variant         string
+	Spec cube.CubeSpec
+	// LoadSpec, when non-nil, defers expensive cube construction (such as
+	// loading database facts into a Dataset-mode FrameSet) until ReportCache
+	// misses and BuildLimiter admits the build, or until /facet-options misses
+	// the host's cube cache.
+	LoadSpec func(ctx context.Context) (cube.CubeSpec, error)
+	Request  lensruntime.Request
+	CacheKey string
+	Variant  string
+	// CubeCacheKey optionally identifies the reusable CubeSpec across /document
+	// drill levels and /facet-options requests when LoadSpec is set. When empty,
+	// Host derives it from the normalized URL query without _facet and _facet_search.
+	CubeCacheKey    string
 	DocumentOptions document.BuildOptions
 	Prepare         func(*document.DashboardDocument) error
 	// PagePath is the browser-facing page URL used as target for drill and facet
@@ -146,8 +179,14 @@ type HostConfig struct {
 	// Request optionally supplies per-request runtime scope (DataScope,
 	// Namespace, DataSources, Locale, Timezone) for follow-up snapshot routes
 	// (/query, /panel, /export, /release, /drawer). When nil, Host falls back
-	// to ResolveCube / ResolveDashboard to obtain runtime scope.
-	Request           RequestResolver
+	// to ResolveCacheKey, ResolveCube, or ResolveDashboard to obtain runtime scope.
+	Request RequestResolver
+	// ResolveCacheKey optionally computes lightweight cache identity before
+	// ResolveCube or ResolveDashboard executes. When configured, ReportCache
+	// lookup, singleflight coalescing, and BuildLimiter admission run before
+	// ResolveCube/ResolveDashboard, and resolved cubes are cached across
+	// /document and /facet-options requests.
+	ResolveCacheKey   CacheKeyResolver
 	DrawerResolver    DrawerResolver
 	Exploration       ExplorationExecutor
 	ResolveLoader     ExplorationLoaderResolver
@@ -169,6 +208,7 @@ type Host struct {
 	executor          engine.Executor
 	snapshots         document.SnapshotStore
 	cache             *ReportCache[*hostEntry]
+	cubeCache         *hostCubeCache
 	budget            *resource.Budget
 	buildLimiter      *ReportBuildLimiter
 	cacheVersion      string
@@ -180,6 +220,7 @@ type Host struct {
 	pageSize          int
 	progressive       bool
 	request           RequestResolver
+	resolveCacheKey   CacheKeyResolver
 	drawerResolver    DrawerResolver
 	exploration       ExplorationExecutor
 	resolveLoader     ExplorationLoaderResolver
@@ -305,6 +346,7 @@ func NewHost(cfg HostConfig) (*Host, error) {
 		executor:          cfg.Executor,
 		snapshots:         snapshots,
 		cache:             cache,
+		cubeCache:         newHostCubeCache(ttl, maxEntries, execTimeout, limiter),
 		budget:            budget,
 		buildLimiter:      limiter,
 		cacheVersion:      cacheVersion,
@@ -316,6 +358,7 @@ func NewHost(cfg HostConfig) (*Host, error) {
 		pageSize:          cfg.PageSize,
 		progressive:       cfg.Progressive,
 		request:           cfg.Request,
+		resolveCacheKey:   cfg.ResolveCacheKey,
 		drawerResolver:    cfg.DrawerResolver,
 		exploration:       cfg.Exploration,
 		resolveLoader:     cfg.ResolveLoader,
@@ -372,6 +415,7 @@ func (h *Host) Stats() ReportCacheStats {
 
 // Close cancels in-flight builds and releases cached entries.
 func (h *Host) Close() {
+	h.cubeCache.Close()
 	h.cache.Close()
 }
 
@@ -400,37 +444,85 @@ func (h *Host) Document(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Host) serveCubeDocument(w http.ResponseWriter, r *http.Request) {
-	drillCtx := cube.ParseDrillContextNormalized(r.URL.Query(), h.emptyDrillValue)
+	rawQuery := cloneValues(r.URL.Query())
+	drillCtx := cube.ParseDrillContextNormalized(rawQuery, h.emptyDrillValue)
+
+	if h.resolveCacheKey != nil {
+		keyID, err := h.resolveCacheKey(r.Context(), r)
+		if err != nil {
+			h.writeInternalError(r.Context(), w, "lens/serve.Host.Document", "cache key resolution failed", err)
+			return
+		}
+		baseReq := h.normalizeRuntimeRequest(r, keyID.Request)
+		cacheParams := strings.TrimSpace(keyID.CacheKey)
+		if cacheParams == "" {
+			cacheParams = canonicalQueryKey(drillCtx.WithValues(rawQuery))
+		}
+		key := h.reportKey(baseReq, keyID.Variant, cacheParams)
+		cubeKey := h.cubeCacheKey(baseReq, keyID.Variant, keyID.CubeKey, drillCtx, rawQuery)
+		reqSnapshot := r.Clone(r.Context())
+
+		h.materializeReportAndWrite(w, r, key, func(buildCtx context.Context) (ReportDefinition[*hostEntry], error) {
+			resolved, err := h.resolveCubeCached(buildCtx, reqSnapshot, drillCtx, cubeKey, false)
+			if err != nil {
+				return ReportDefinition[*hostEntry]{}, err
+			}
+			runtimeReq := h.normalizeRuntimeRequest(reqSnapshot, mergeRuntimeRequest(baseReq, resolved.Request))
+			return h.buildCubeReportDefinition(buildCtx, resolved, drillCtx, rawQuery, runtimeReq)
+		})
+		return
+	}
+
 	resolved, err := h.resolveCube(r.Context(), r, drillCtx)
 	if err != nil {
 		h.writeInternalError(r.Context(), w, "lens/serve.Host.Document", "cube resolution failed", err)
 		return
 	}
+	runtimeReq := h.normalizeRuntimeRequest(r, resolved.Request)
+	cacheParams := strings.TrimSpace(resolved.CacheKey)
+	if cacheParams == "" {
+		cacheParams = canonicalQueryKey(drillCtx.WithValues(rawQuery))
+	}
+	key := h.reportKey(runtimeReq, resolved.Variant, cacheParams)
+	cubeKey := h.cubeCacheKey(runtimeReq, resolved.Variant, resolved.CubeCacheKey, drillCtx, rawQuery)
+
+	h.materializeReportAndWrite(w, r, key, func(buildCtx context.Context) (ReportDefinition[*hostEntry], error) {
+		active := resolved
+		if active.LoadSpec != nil {
+			loaded, err := h.loadCubeSpecCached(buildCtx, active, cubeKey, false)
+			if err != nil {
+				return ReportDefinition[*hostEntry]{}, err
+			}
+			active = loaded
+		}
+		return h.buildCubeReportDefinition(buildCtx, active, drillCtx, rawQuery, runtimeReq)
+	})
+}
+
+func (h *Host) buildCubeReportDefinition(
+	ctx context.Context,
+	resolved ResolvedCube,
+	drillCtx cube.DrillContext,
+	rawQuery url.Values,
+	runtimeReq lensruntime.Request,
+) (ReportDefinition[*hostEntry], error) {
 	pagePath := strings.TrimSpace(resolved.PagePath)
 	if pagePath == "" {
 		pagePath = h.pagePath
 	}
-	spec, err := cube.ResolveWithContext(r.Context(), resolved.Spec, drillCtx, pagePath)
+	spec, err := cube.ResolveWithContext(ctx, resolved.Spec, drillCtx, pagePath)
 	if err != nil {
-		h.writeInternalError(r.Context(), w, "lens/serve.Host.Document", "cube compilation failed", err)
-		return
+		return ReportDefinition[*hostEntry]{}, err
 	}
-	runtimeReq := h.normalizeRuntimeRequest(r, resolved.Request)
 	// Resolve human-readable labels for active drill filters (LabelMap / Dataset / SQL).
 	if spec.Drill != nil && drillCtx.HasFilters() {
-		if filters, labelErr := h.resolveCubeFilterLabels(r.Context(), resolved, drillCtx, runtimeReq); labelErr == nil {
+		if filters, labelErr := h.resolveCubeFilterLabels(ctx, resolved, drillCtx, runtimeReq); labelErr == nil {
 			spec.Drill.Filters = filters
 		}
 	}
 
-	facetFilters := h.buildCubeFacetFilters(resolved.Spec, spec.Drill, drillCtx, pagePath, r.URL.Query())
-	cacheParams := strings.TrimSpace(resolved.CacheKey)
-	if cacheParams == "" {
-		cacheParams = canonicalQueryKey(drillCtx.WithValues(r.URL.Query()))
-	}
-	key := h.reportKey(runtimeReq, resolved.Variant, cacheParams)
+	facetFilters := h.buildCubeFacetFilters(resolved.Spec, spec.Drill, drillCtx, pagePath, rawQuery)
 	docOpts := h.mergeDocumentOptions(resolved.DocumentOptions)
-
 	prepare := func(built *document.DashboardDocument) error {
 		if resolved.DocumentOptions.Filters == nil && len(facetFilters) > 0 {
 			built.Filters = append(built.Filters, facetFilters...)
@@ -442,11 +534,45 @@ func (h *Host) serveCubeDocument(w http.ResponseWriter, r *http.Request) {
 		}
 		return built.Validate()
 	}
-
-	h.materializeAndWriteDocument(w, r, key, spec, runtimeReq, docOpts, prepare)
+	return h.newReportDefinition(spec, runtimeReq, docOpts, prepare), nil
 }
 
 func (h *Host) serveDashboardDocument(w http.ResponseWriter, r *http.Request) {
+	if h.resolveCacheKey != nil {
+		rawQuery := cloneValues(r.URL.Query())
+		keyID, err := h.resolveCacheKey(r.Context(), r)
+		if err != nil {
+			h.writeInternalError(r.Context(), w, "lens/serve.Host.Document", "cache key resolution failed", err)
+			return
+		}
+		baseReq := h.normalizeRuntimeRequest(r, keyID.Request)
+		cacheParams := strings.TrimSpace(keyID.CacheKey)
+		if cacheParams == "" {
+			cacheParams = canonicalQueryKey(rawQuery)
+		}
+		key := h.reportKey(baseReq, keyID.Variant, cacheParams)
+		reqSnapshot := r.Clone(r.Context())
+
+		h.materializeReportAndWrite(w, r, key, func(buildCtx context.Context) (ReportDefinition[*hostEntry], error) {
+			resolved, err := h.resolveDashboard(buildCtx, reqSnapshot.Clone(buildCtx))
+			if err != nil {
+				return ReportDefinition[*hostEntry]{}, err
+			}
+			runtimeReq := h.normalizeRuntimeRequest(reqSnapshot, mergeRuntimeRequest(baseReq, resolved.Request))
+			docOpts := h.mergeDocumentOptions(resolved.DocumentOptions)
+			prepare := func(built *document.DashboardDocument) error {
+				if resolved.Prepare != nil {
+					if err := resolved.Prepare(built); err != nil {
+						return err
+					}
+				}
+				return built.Validate()
+			}
+			return h.newReportDefinition(resolved.Spec, runtimeReq, docOpts, prepare), nil
+		})
+		return
+	}
+
 	resolved, err := h.resolveDashboard(r.Context(), r)
 	if err != nil {
 		h.writeInternalError(r.Context(), w, "lens/serve.Host.Document", "dashboard resolution failed", err)
@@ -469,50 +595,56 @@ func (h *Host) serveDashboardDocument(w http.ResponseWriter, r *http.Request) {
 		return built.Validate()
 	}
 
-	h.materializeAndWriteDocument(w, r, key, resolved.Spec, runtimeReq, docOpts, prepare)
+	h.materializeReportAndWrite(w, r, key, func(context.Context) (ReportDefinition[*hostEntry], error) {
+		return h.newReportDefinition(resolved.Spec, runtimeReq, docOpts, prepare), nil
+	})
 }
 
-func (h *Host) materializeAndWriteDocument(
-	w http.ResponseWriter,
-	r *http.Request,
-	key ReportKey,
+func (h *Host) newReportDefinition(
 	spec lens.DashboardSpec,
 	runtimeReq lensruntime.Request,
 	docOpts document.BuildOptions,
 	prepare func(*document.DashboardDocument) error,
-) {
-	report, err := h.cache.Materialize(r.Context(), key, func(context.Context) (ReportDefinition[*hostEntry], error) {
-		return ReportDefinition[*hostEntry]{
-			Config: Config{
-				Spec:              spec,
-				Engine:            h.executor,
-				Snapshots:         h.snapshots,
-				BasePath:          h.basePath,
-				InlineDepth:       h.inlineDepth,
-				PageSize:          h.pageSize,
-				WorkTimeout:       h.executionTimeout,
-				RecomputeCooldown: h.recomputeCooldown,
-				Progressive:       h.progressive,
-				Observer:          h.observer,
-				DrawerResolver:    h.drawerResolver,
-				Exploration:       h.exploration,
-				ResolveLoader:     h.resolveLoader,
-				Request: func(req *http.Request) lensruntime.Request {
-					if injected, ok := req.Context().Value(hostRuntimeRequestContextKey{}).(lensruntime.Request); ok {
-						return injected
-					}
-					if resolved, resolveErr := h.resolveRuntimeRequest(req); resolveErr == nil {
-						return resolved
-					}
-					return runtimeReq
-				},
+) ReportDefinition[*hostEntry] {
+	return ReportDefinition[*hostEntry]{
+		Config: Config{
+			Spec:              spec,
+			Engine:            h.executor,
+			Snapshots:         h.snapshots,
+			BasePath:          h.basePath,
+			InlineDepth:       h.inlineDepth,
+			PageSize:          h.pageSize,
+			WorkTimeout:       h.executionTimeout,
+			RecomputeCooldown: h.recomputeCooldown,
+			Progressive:       h.progressive,
+			Observer:          h.observer,
+			DrawerResolver:    h.drawerResolver,
+			Exploration:       h.exploration,
+			ResolveLoader:     h.resolveLoader,
+			Request: func(req *http.Request) lensruntime.Request {
+				if injected, ok := req.Context().Value(hostRuntimeRequestContextKey{}).(lensruntime.Request); ok {
+					return injected
+				}
+				if resolved, resolveErr := h.resolveRuntimeRequest(req); resolveErr == nil {
+					return resolved
+				}
+				return runtimeReq
 			},
-			Request: runtimeReq,
-			Options: docOpts,
-			Prepare: prepare,
-			State:   &hostEntry{progressive: h.progressive},
-		}, nil
-	})
+		},
+		Request: runtimeReq,
+		Options: docOpts,
+		Prepare: prepare,
+		State:   &hostEntry{progressive: h.progressive},
+	}
+}
+
+func (h *Host) materializeReportAndWrite(
+	w http.ResponseWriter,
+	r *http.Request,
+	key ReportKey,
+	build func(context.Context) (ReportDefinition[*hostEntry], error),
+) {
+	report, err := h.cache.Materialize(r.Context(), key, build)
 	if err != nil {
 		h.writeInternalError(r.Context(), w, "lens/serve.Host.Document", "lens execution failed", err)
 		return
@@ -732,11 +864,42 @@ func (h *Host) FacetOptions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "facet search cannot exceed 200 characters")
 		return
 	}
-	drillCtx := cube.ParseDrillContextNormalized(r.URL.Query(), h.emptyDrillValue)
-	resolved, err := h.resolveCube(r.Context(), r, drillCtx)
-	if err != nil {
-		h.writeInternalError(r.Context(), w, "lens/serve.Host.FacetOptions", "cube resolution failed", err)
-		return
+	rawQuery := cloneValues(r.URL.Query())
+	drillCtx := cube.ParseDrillContextNormalized(rawQuery, h.emptyDrillValue)
+	var (
+		resolved   ResolvedCube
+		runtimeReq lensruntime.Request
+		err        error
+	)
+	if h.resolveCacheKey != nil {
+		keyID, keyErr := h.resolveCacheKey(r.Context(), r)
+		if keyErr != nil {
+			h.writeInternalError(r.Context(), w, "lens/serve.Host.FacetOptions", "cache key resolution failed", keyErr)
+			return
+		}
+		baseReq := h.normalizeRuntimeRequest(r, keyID.Request)
+		cubeKey := h.cubeCacheKey(baseReq, keyID.Variant, keyID.CubeKey, drillCtx, rawQuery)
+		resolved, err = h.resolveCubeCached(r.Context(), r, drillCtx, cubeKey, true)
+		if err != nil {
+			h.writeInternalError(r.Context(), w, "lens/serve.Host.FacetOptions", "cube resolution failed", err)
+			return
+		}
+		runtimeReq = h.normalizeRuntimeRequest(r, mergeRuntimeRequest(baseReq, resolved.Request))
+	} else {
+		resolved, err = h.resolveCube(r.Context(), r, drillCtx)
+		if err != nil {
+			h.writeInternalError(r.Context(), w, "lens/serve.Host.FacetOptions", "cube resolution failed", err)
+			return
+		}
+		runtimeReq = h.normalizeRuntimeRequest(r, resolved.Request)
+		if resolved.LoadSpec != nil {
+			cubeKey := h.cubeCacheKey(runtimeReq, resolved.Variant, resolved.CubeCacheKey, drillCtx, rawQuery)
+			resolved, err = h.loadCubeSpecCached(r.Context(), resolved, cubeKey, true)
+			if err != nil {
+				h.writeInternalError(r.Context(), w, "lens/serve.Host.FacetOptions", "cube resolution failed", err)
+				return
+			}
+		}
 	}
 	dim, ok := resolved.Spec.Dimension(dimension)
 	if !ok {
@@ -747,7 +910,6 @@ func (h *Host) FacetOptions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "dimension is not configured as a facet")
 		return
 	}
-	runtimeReq := h.normalizeRuntimeRequest(r, resolved.Request)
 	options, err := h.resolveCubeFacetOptions(r.Context(), resolved, drillCtx, dim, search, runtimeReq)
 	if err != nil {
 		h.writeInternalError(r.Context(), w, "lens/serve.Host.FacetOptions", "facet options failed", err)
@@ -1090,6 +1252,13 @@ func (h *Host) resolveRuntimeRequest(r *http.Request) (lensruntime.Request, erro
 	if h.request != nil {
 		return h.normalizeRuntimeRequest(r, h.request(r)), nil
 	}
+	if h.resolveCacheKey != nil {
+		keyID, err := h.resolveCacheKey(r.Context(), r)
+		if err != nil {
+			return lensruntime.Request{}, err
+		}
+		return h.normalizeRuntimeRequest(r, keyID.Request), nil
+	}
 	if h.resolveCube != nil {
 		drillCtx := cube.ParseDrillContextNormalized(r.URL.Query(), h.emptyDrillValue)
 		resolved, err := h.resolveCube(r.Context(), r, drillCtx)
@@ -1106,6 +1275,106 @@ func (h *Host) resolveRuntimeRequest(r *http.Request) (lensruntime.Request, erro
 		return h.normalizeRuntimeRequest(r, resolved.Request), nil
 	}
 	return h.normalizeRuntimeRequest(r, lensruntime.Request{}), nil
+}
+
+func (h *Host) cubeCacheKey(
+	req lensruntime.Request,
+	variant string,
+	explicitCubeKey string,
+	drillCtx cube.DrillContext,
+	rawQuery url.Values,
+) ReportKey {
+	params := strings.TrimSpace(explicitCubeKey)
+	if params == "" {
+		cleaned := cloneValues(drillCtx.WithValues(rawQuery))
+		cleaned.Del(cube.QueryFacet)
+		cleaned.Del(cube.QueryFacetSearch)
+		params = canonicalQueryKey(cleaned)
+	}
+	return h.reportKey(req, variant, params)
+}
+
+func (h *Host) resolveCubeCached(
+	ctx context.Context,
+	r *http.Request,
+	drillCtx cube.DrillContext,
+	cubeKey ReportKey,
+	admit bool,
+) (ResolvedCube, error) {
+	baseReq := r.Clone(ctx)
+	return h.cubeCache.getOrLoad(ctx, cubeKey, admit, func(loadCtx context.Context) (ResolvedCube, error) {
+		resolved, err := h.resolveCube(loadCtx, baseReq.Clone(loadCtx), drillCtx)
+		if err != nil {
+			return ResolvedCube{}, err
+		}
+		if resolved.LoadSpec != nil {
+			spec, err := resolved.LoadSpec(loadCtx)
+			if err != nil {
+				return ResolvedCube{}, err
+			}
+			resolved.Spec = spec
+			resolved.LoadSpec = nil
+		}
+		return resolved, nil
+	})
+}
+
+func (h *Host) loadCubeSpecCached(
+	ctx context.Context,
+	resolved ResolvedCube,
+	cubeKey ReportKey,
+	admit bool,
+) (ResolvedCube, error) {
+	if resolved.LoadSpec == nil {
+		return resolved, nil
+	}
+	loadFn := resolved.LoadSpec
+	cached, err := h.cubeCache.getOrLoad(ctx, cubeKey, admit, func(loadCtx context.Context) (ResolvedCube, error) {
+		spec, err := loadFn(loadCtx)
+		if err != nil {
+			return ResolvedCube{}, err
+		}
+		out := resolved
+		out.Spec = spec
+		out.LoadSpec = nil
+		return out, nil
+	})
+	if err != nil {
+		return ResolvedCube{}, err
+	}
+	out := resolved
+	out.Spec = cached.Spec
+	out.LoadSpec = nil
+	return out, nil
+}
+
+func mergeRuntimeRequest(base, override lensruntime.Request) lensruntime.Request {
+	out := base
+	if override.DataScope != "" {
+		out.DataScope = override.DataScope
+	}
+	if override.Namespace != "" {
+		out.Namespace = override.Namespace
+	}
+	if override.Locale != "" {
+		out.Locale = override.Locale
+	}
+	if override.Timezone != "" {
+		out.Timezone = override.Timezone
+	}
+	if override.Path != "" {
+		out.Path = override.Path
+	}
+	if override.Request != nil {
+		out.Request = override.Request
+	}
+	if override.DataSources != nil {
+		out.DataSources = override.DataSources
+	}
+	if override.Overrides != nil {
+		out.Overrides = override.Overrides
+	}
+	return out
 }
 
 func (h *Host) normalizeRuntimeRequest(r *http.Request, req lensruntime.Request) lensruntime.Request {

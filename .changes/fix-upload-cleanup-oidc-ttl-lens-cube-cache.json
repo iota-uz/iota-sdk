@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Clean up spilled multipart temp files in upload and onboarding controllers, honor per-client OIDC access and refresh token lifetimes, and support cache-key-first resolution and cube caching in pkg/lens/serve.Host across document and facet-options requests."}

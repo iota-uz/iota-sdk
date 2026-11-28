@@ -153,6 +153,11 @@ func (c *OnboardingController) Post(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	defer func() {
+		if r.MultipartForm != nil {
+			_ = r.MultipartForm.RemoveAll()
+		}
+	}()
 	r.Body = http.MaxBytesReader(w, r.Body, onboardingMaxBodyBytes)
 	if err := r.ParseMultipartForm(onboardingMaxFormMemory); err != nil && !errors.Is(err, http.ErrNotMultipart) {
 		var tooLarge *http.MaxBytesError
