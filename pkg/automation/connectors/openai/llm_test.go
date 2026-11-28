@@ -910,6 +910,38 @@ func TestStructuredOutputNeedsASupportingModel(t *testing.T) {
 	assert.Empty(t, srv.Requests())
 }
 
+func TestTemperatureNeedsASupportingModel(t *testing.T) {
+	n, _ := newNode(t)
+	for _, raw := range []map[string]any{
+		{"prompt": "x", "temperature": 0.5},
+		{"prompt": "x", "model": "gpt-6-luna", "temperature": 0.5},
+		{"prompt": "x", "model": "o3-2025-04-16", "temperature": 0.2},
+		{"prompt": "x", "model": "gpt-5-2025-08-07", "temperature": 0.0},
+	} {
+		_, issues := n.Spec().Params.Parse(raw)
+		require.Len(t, issues, 1, raw)
+		assert.Equal(t, openai.ErrorModelNoTemperature, issues[0].Code, raw)
+		assert.Equal(t, []any{"temperature"}, issues[0].Path, raw)
+	}
+	for _, raw := range []map[string]any{
+		{"prompt": "x"},
+		{"prompt": "x", "model": "gpt-6-luna"},
+		{"prompt": "x", "model": "gpt-4o-2024-08-06", "temperature": 0.5},
+	} {
+		_, issues := n.Spec().Params.Parse(raw)
+		assert.Empty(t, issues, raw)
+	}
+
+	// A call saved before this check is refused before any request.
+	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("ok", 1, 1)})
+	nn, _ := newNode(t, openai.WithTransport(srv.Transport()))
+	p := parsed(t, nn, map[string]any{"prompt": "x"})
+	p["temperature"] = 0.5
+	_, err := nn.Execute(context.Background(), aitest.Input(openai.Kind, srv, nil, p, nil))
+	assert.Equal(t, catalog.CallInvalidRequest, callCode(t, err).Code)
+	assert.Empty(t, srv.Requests())
+}
+
 // A malformed field of an answer does not hide the usage it reports, and is not repeated.
 func TestMalformedChatAnswerKeepsItsUsage(t *testing.T) {
 	for name, body := range map[string]string{

@@ -31,10 +31,12 @@ const (
 )
 
 // ErrorModelNoVision is the graph error code of a node that sends images to a model without vision;
-// ErrorModelNoStructuredOutput that of a JSON answer from a model that has no strict structured output.
+// ErrorModelNoStructuredOutput that of a JSON answer from a model that has no strict structured output;
+// ErrorModelNoTemperature that of an explicit temperature for a model that takes none.
 const (
 	ErrorModelNoVision           = "model_no_vision"
 	ErrorModelNoStructuredOutput = "model_no_structured_output"
+	ErrorModelNoTemperature      = "model_no_temperature"
 )
 
 // Limits of the params.
@@ -147,6 +149,15 @@ func (n *llmNode) check(p map[string]any) []graph.Issue {
 		}
 		if aichat.NoStructuredOutput(model) {
 			issues = append(issues, aichat.Issue("model", ErrorModelNoStructuredOutput, "the model %s cannot answer in strict structured output; choose a newer model or format text", model))
+		}
+	}
+	if v, ok := p["temperature"]; ok && v != nil {
+		model, _ := p["model"].(string)
+		if model == "" {
+			model = n.o.defaultModel
+		}
+		if !aichat.TakesTemperature(model) {
+			issues = append(issues, aichat.Issue("temperature", ErrorModelNoTemperature, "the model %s takes no temperature; remove temperature or choose another model", model))
 		}
 	}
 	if hasImages(p) {
@@ -391,6 +402,9 @@ func (n *llmNode) Execute(ctx context.Context, in catalog.CallInput) (catalog.Ca
 	}
 	if r.format == FormatJSON && aichat.NoStructuredOutput(r.model) {
 		return catalog.CallResult{}, invalid(fmt.Sprintf("the model %s cannot answer in strict structured output", r.model))
+	}
+	if r.temperature != nil && !aichat.TakesTemperature(r.model) {
+		return catalog.CallResult{}, invalid(fmt.Sprintf("the model %s takes no temperature", r.model))
 	}
 	images, err := loadImages(ctx, n.o.images, in.TenantID, r.images)
 	if err != nil {

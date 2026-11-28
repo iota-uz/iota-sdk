@@ -101,16 +101,17 @@ func TestCodeCompleteInvalidArgs(t *testing.T) {
 	srv := aitest.New(t, aitest.Reply{Body: aitest.Chat("x", 1, 1)})
 	_, c := newNode(t, openai.WithTransport(srv.Transport()))
 	for name, args := range map[string]string{
-		"no prompt":      `{}`,
-		"null":           `null`,
-		"blank prompt":   `{"prompt":"  "}`,
-		"temperature":    `{"prompt":"x","temperature":3}`,
-		"max tokens":     `{"prompt":"x","max_tokens":0}`,
-		"unknown field":  `{"prompt":"x","api_key":"k"}`,
-		"bad model":      `{"prompt":"x","model":"a b"}`,
-		"json a string":  `{"prompt":"x","json":"yes"}`,
-		"bad schema":     `{"prompt":"x","json":{"type":"nope"}}`,
-		"old model json": `{"prompt":"x","model":"gpt-3.5-turbo","json":{"type":"object","properties":{"a":{"type":"string"}}}}`,
+		"no prompt":             `{}`,
+		"null":                  `null`,
+		"blank prompt":          `{"prompt":"  "}`,
+		"temperature":           `{"prompt":"x","temperature":3}`,
+		"max tokens":            `{"prompt":"x","max_tokens":0}`,
+		"unknown field":         `{"prompt":"x","api_key":"k"}`,
+		"bad model":             `{"prompt":"x","model":"a b"}`,
+		"json a string":         `{"prompt":"x","json":"yes"}`,
+		"bad schema":            `{"prompt":"x","json":{"type":"nope"}}`,
+		"old model json":        `{"prompt":"x","model":"gpt-3.5-turbo","json":{"type":"object","properties":{"a":{"type":"string"}}}}`,
+		"reasoning temperature": `{"prompt":"x","temperature":0.5}`,
 	} {
 		_, err := c.(connectors.CodeOperator).CallCodeOperation(context.Background(), completeCall(srv, args, nil))
 		assert.Equal(t, "invalid_args", codeRefusal(t, err).Code, name)
