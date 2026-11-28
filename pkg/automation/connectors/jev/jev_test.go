@@ -625,7 +625,7 @@ func TestOpenAIOutcomes(t *testing.T) {
 }
 
 func TestReasoningModelsGetNoTemperature(t *testing.T) {
-	for _, model := range []string{"o3-2025-04-16", "gpt-5-2025-08-07", "gpt-6-luna", "gpt-6.2-sol"} {
+	for _, model := range []string{"o3-2025-04-16", "gpt-5-2025-08-07", "gpt-5.5-2026-04-23", "gpt-6-luna", "gpt-6.2-sol"} {
 		t.Run(model, func(t *testing.T) {
 			srv := aitest.New(t, aitest.Reply{Body: decision("other", map[string]float64{"refund": 0, "exchange": 0, "other": 1})})
 			n := openaiNode(t, srv)

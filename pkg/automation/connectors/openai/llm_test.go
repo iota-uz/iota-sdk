@@ -918,6 +918,7 @@ func TestTemperatureNeedsASupportingModel(t *testing.T) {
 		{"prompt": "x", "model": "o3-2025-04-16", "temperature": 0.2},
 		{"prompt": "x", "model": "gpt-5-2025-08-07", "temperature": 0.0},
 		{"prompt": "x", "model": "gpt-5.2-pro-2025-12-11", "temperature": 0.3},
+		{"prompt": "x", "model": "gpt-5.5-2026-04-23", "temperature": 0.3},
 	} {
 		_, issues := n.Spec().Params.Parse(raw)
 		require.Len(t, issues, 1, raw)
