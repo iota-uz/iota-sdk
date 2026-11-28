@@ -211,6 +211,9 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 	if err != nil {
 		return nil, err
 	}
+	if err := data.ValidateType.Check(entity); err != nil {
+		return nil, err
+	}
 	if len(requiredPath) > 0 && !pathWithin(requiredPath[0], entity.Path()) {
 		return nil, serrors.Wrap(op, ErrPrivateUploadPathInvalid)
 	}
@@ -227,6 +230,11 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 		}
 	}
 	if up != nil {
+		if up.Hash() == entity.Hash() {
+			if err := data.ValidateType.Check(up); err != nil {
+				return nil, err
+			}
+		}
 		if len(requiredPath) > 0 && !pathWithin(requiredPath[0], up.Path()) {
 			return nil, serrors.Wrap(op, fmt.Errorf("%w: %s", ErrUploadSlugConflict, entity.Slug()))
 		}
@@ -239,6 +247,9 @@ func (s *UploadService) create(ctx context.Context, data *upload.CreateDTO, dedu
 				return nil, err
 			}
 			if existing != nil {
+				if err := data.ValidateType.Check(existing); err != nil {
+					return nil, err
+				}
 				if err := s.moveSlugToExisting(ctx, up, existing, entity.Slug()); err != nil {
 					return nil, err
 				}

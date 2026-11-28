@@ -3,6 +3,9 @@ package services_test
 import (
 	"bytes"
 	"context"
+	"image"
+	"image/png"
+	"io"
 	"path/filepath"
 	"testing"
 	"time"
@@ -109,4 +112,27 @@ func TestUploadServiceCreatePrivate_RejectsInvalidRequests(t *testing.T) {
 			storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything, mock.Anything)
 		})
 	}
+}
+
+func TestUploadService_AvatarPolicyChecksStoredSuffixOnReuse(t *testing.T) {
+	ctx := context.Background()
+	var photo bytes.Buffer
+	require.NoError(t, png.Encode(&photo, image.NewRGBA(image.Rect(0, 0, 1, 1))))
+	dto := &upload.CreateDTO{
+		File: bytes.NewReader(photo.Bytes()), Name: "portrait.png", Size: photo.Len(),
+		ValidateType: upload.ValidateAvatarType,
+	}
+	entity, _, err := dto.ToEntity()
+	require.NoError(t, err)
+	_, err = dto.File.Seek(0, io.SeekStart)
+	require.NoError(t, err)
+	existing := upload.New(entity.Hash(), "static/photo.dat", "photo.dat", entity.Slug(), photo.Len(), entity.Mimetype())
+	repo := new(MockUploadRepository)
+	repo.On("GetBySlug", ctx, entity.Slug()).Return(existing, nil).Once()
+	storage := new(MockUploadStorage)
+	service := services.NewUploadService(repo, storage, nil)
+	_, err = service.Create(ctx, dto)
+	require.ErrorIs(t, err, upload.ErrAvatarType)
+	repo.AssertExpectations(t)
+	storage.AssertNotCalled(t, "Save", mock.Anything, mock.Anything, mock.Anything)
 }

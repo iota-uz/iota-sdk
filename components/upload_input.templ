@@ -15,6 +15,7 @@ import (
 
 // UploadInputProps defines the properties for the UploadInput component.
 type UploadInputProps struct {
+	UploadURL   string
 	ID          string
 	Label       string
 	Placeholder string
@@ -47,6 +48,9 @@ type UploadInputLabels struct {
 }
 
 func newUploadInput(props *UploadInputProps) *UploadInputProps {
+	if props.UploadURL == "" {
+		props.UploadURL = "/uploads"
+	}
 	if props.ID == "" {
 		props.ID = random.String(12, random.LowerCharSet)
 	}
@@ -192,7 +196,7 @@ templ (p *UploadInputProps) render() {
 					hx-trigger="change"
 					hx-target={ fmt.Sprintf("#target-%s", p.ID) }
 					hx-indicator={ fmt.Sprintf("#spinner-%s", p.ID) }
-					hx-post="/uploads"
+					hx-post={ p.UploadURL }
 					hx-encoding="multipart/form-data"
 					hx-vals={ fmt.Sprintf(`{"_id": "%s", "_formName": "%s", "_name": "%s", "_multiple": "%t"}`, p.ID, p.Form, p.Name, p.Multiple) }
 					hx-sync="this:drop"
