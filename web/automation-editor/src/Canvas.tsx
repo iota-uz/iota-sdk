@@ -1092,6 +1092,8 @@ export function Canvas(props: CanvasProps): JSX.Element {
       const tip = t[t.length - 1]!
       return { d: fit ? routePath(t, 10, found?.clear) : directPath(a, tip), head: arrowHead(t[t.length - 2]!, tip) }
     })
+    // The hit area keeps its line while cards glide (it takes no pointer then): 500 paths are not rewritten per frame.
+    const hitD = createMemo<string>((last) => (tidying() ? last : shape().d), '')
     const taken = () => props.overlay?.taken.has(source) ?? false
     const active = () => taken() && props.overlay?.states.get(to()) === 'waiting'
     const chosen = () => selectedEdge() === source
@@ -1130,7 +1132,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
         <path
           // Not nopan: a drag or a pinch that starts on an edge still pans and zooms the canvas.
           class="ae-edge-hit"
-          d={shape().d}
+          d={hitD()}
           onPointerEnter={() => setHoveredEdge(source)}
           onPointerLeave={() => setHoveredEdge((current) => (current === source ? null : current))}
           onClick={(event) => {

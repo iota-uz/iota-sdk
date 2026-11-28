@@ -168,16 +168,16 @@
 }
 .ae-viewport { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 .ae-edges { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; }
-.ae-edge { fill: none; stroke: oklch(var(--ae-edge-tone)); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; --ae-edge-tone: var(--ae-tone-neutral); }
-.ae-edge--ok { --ae-edge-tone: var(--ae-tone-ok); }
-.ae-edge--warn { --ae-edge-tone: var(--ae-tone-warn); }
-.ae-edge--bad { --ae-edge-tone: var(--ae-tone-bad); }
+.ae-edge { fill: none; stroke: oklch(var(--ae-tone-neutral)); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.ae-edge--ok { stroke: oklch(var(--ae-tone-ok)); }
+.ae-edge--warn { stroke: oklch(var(--ae-tone-warn)); }
+.ae-edge--bad { stroke: oklch(var(--ae-tone-bad)); }
 .ae-edge--loop { stroke-dasharray: 6 4; }
 /* The hit area: a 20 px transparent stroke over the line (hover, click to select, Delete removes). */
 .ae-edge-hit { fill: none; stroke: none; stroke-width: 20; pointer-events: stroke; cursor: pointer; }
 .ae-canvas--readonly .ae-edge-hit, .ae-canvas--connecting .ae-edge-hit, .ae-canvas--tidying .ae-edge-hit { pointer-events: none; }
 .ae-edge--hover, .ae-edge--lit { stroke-width: 2.25; }
-.ae-edge--selected { --ae-edge-tone: var(--ae-tone-active); stroke-width: 2.5; }
+.ae-edge--selected { stroke: oklch(var(--ae-tone-active)); stroke-width: 2.5; }
 .ae-arrowhead { stroke-width: 1.2; stroke-linejoin: round; pointer-events: none; }
 .ae-arrowhead--neutral { fill: oklch(var(--ae-tone-neutral)); stroke: oklch(var(--ae-tone-neutral)); }
 .ae-arrowhead--ok { fill: oklch(var(--ae-tone-ok)); stroke: oklch(var(--ae-tone-ok)); }
@@ -188,9 +188,9 @@
 .ae-arrowhead--flash { animation: ae-edge-flash var(--motion-slow) var(--ease-out); }
 .ae-arrowhead--taken { animation: ae-edge-flash var(--motion-slow) var(--ease-out) backwards; animation-delay: calc(var(--ae-step, 0) * var(--motion-fast)); }
 .ae-edge--hidden { display: none; }
-.ae-edge--draft { --ae-edge-tone: var(--ae-tone-active); stroke-dasharray: 4 4; stroke-width: 2; }
+.ae-edge--draft { stroke: oklch(var(--ae-tone-active)); stroke-dasharray: 4 4; stroke-width: 2; }
 .ae-edge--valid { stroke-dasharray: none; }
-.ae-edge--taken { --ae-edge-tone: var(--ae-tone-active); stroke-width: 2.5; }
+.ae-edge--taken { stroke: oklch(var(--ae-tone-active)); stroke-width: 2.5; }
 .ae-dim { opacity: 0.35; }
 /* Edges carry no transition: a drop or a selection changes the dim of hundreds of them at once, and an
    opacity transition on each made a long task (canvas benchmark, #1331). */
@@ -198,7 +198,7 @@
 .ae-edge--rewiring { opacity: 0.3; animation: ae-dim-in var(--motion-fast) var(--ease-standard); }
 @keyframes ae-dim-in { from { opacity: 1; } }
 /* A connection made: the new edge flashes once. */
-.ae-edge--flash { --ae-edge-tone: var(--ae-tone-active); stroke-width: 2.5; animation: ae-edge-flash var(--motion-slow) var(--ease-out); }
+.ae-edge--flash { stroke: oklch(var(--ae-tone-active)); stroke-width: 2.5; animation: ae-edge-flash var(--motion-slow) var(--ease-out); }
 @keyframes ae-edge-flash { from { opacity: 0.2; } 40% { opacity: 1; } }
 /* Released off a target: the draft line pulls back into its handle. */
 .ae-edge--retract { transform-box: view-box; animation: ae-retract var(--motion-fast) var(--ease-in) both; }
