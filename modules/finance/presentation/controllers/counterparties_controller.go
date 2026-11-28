@@ -112,7 +112,7 @@ func (c *CounterpartiesController) List(w http.ResponseWriter, r *http.Request) 
 
 	props := &counterpartiesui.IndexPageProps{
 		Counterparties:  mapping.MapViewModels(entities, mappers.CounterpartyToViewModel),
-		PaginationState: pagination.New(c.basePath, params.Page, int(total), params.Limit),
+		PaginationState: pagination.NewWithQuery(c.basePath, r.URL.Query(), params.Page, int(total), params.Limit),
 	}
 
 	if htmx.IsHxRequest(r) {

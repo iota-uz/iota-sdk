@@ -430,7 +430,7 @@ func (g *PgUserRepository) Create(ctx context.Context, data user.User) (user.Use
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get tenant from context")
 	}
-	if err := g.validateUserRelations(ctx, data, tenantID); err != nil {
+	if err := g.validateUserRelations(ctx, data, tenantID, 0); err != nil {
 		return nil, err
 	}
 
@@ -530,7 +530,7 @@ func (g *PgUserRepository) Update(ctx context.Context, data user.User) error {
 	if data.TenantID() != tenantID {
 		return errors.New("user tenant does not match context tenant")
 	}
-	if err := g.validateUserRelations(ctx, data, tenantID); err != nil {
+	if err := g.validateUserRelations(ctx, data, tenantID, data.ID()); err != nil {
 		return err
 	}
 
@@ -1156,7 +1156,7 @@ func (g *PgUserRepository) updateUserPermissions(ctx context.Context, userID uin
 	return nil
 }
 
-func (g *PgUserRepository) validateUserRelations(ctx context.Context, entity user.User, tenantID uuid.UUID) error {
+func (g *PgUserRepository) validateUserRelations(ctx context.Context, entity user.User, tenantID uuid.UUID, existingUserID uint) error {
 	if err := validateUniqueRoles(entity.Roles(), tenantID); err != nil {
 		return err
 	}
@@ -1170,6 +1170,28 @@ func (g *PgUserRepository) validateUserRelations(ctx context.Context, entity use
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
 		return err
+	}
+	if id := entity.AvatarID(); id != 0 {
+		files, err := g.uploadRepo.GetByIDs(ctx, []uint{id})
+		if err != nil {
+			return err
+		}
+		if len(files) != 1 {
+			return upload.ErrAvatarType
+		}
+		if err := upload.TypePolicy(upload.ValidateAvatarType).Check(files[0]); err != nil {
+			if existingUserID == 0 {
+				return err
+			}
+			// Keep legacy avatars usable while unrelated profile fields are edited.
+			var unchanged bool
+			if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE tenant_id = $1 AND id = $2 AND avatar_id = $3)", tenantID, existingUserID, id).Scan(&unchanged); err != nil {
+				return err
+			}
+			if !unchanged {
+				return upload.ErrAvatarType
+			}
+		}
 	}
 	roleIDs := make([]int32, 0, len(entity.Roles()))
 	for _, candidate := range entity.Roles() {
