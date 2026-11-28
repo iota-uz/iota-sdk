@@ -1,0 +1,4 @@
+{
+  "bump": "patch",
+  "summary": "Generate pagination links only for the displayed pages and navigation arrows, preserving list filters and page size."
+}
