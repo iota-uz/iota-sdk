@@ -96,6 +96,15 @@ type CatalogNode struct {
 	Idempotent *bool `json:"idempotent,omitempty"`
 	// DryRun is what a dry run does with the node: execute, capture or forbid.
 	DryRun string `json:"dry_run,omitempty"`
+	// Dispatch is set for a front type (the generic "action"): its param names the type it runs, `prefix`
+	// plus the param's value (`action.` + `core.user.block`).
+	Dispatch *CatalogDispatch `json:"dispatch,omitempty"`
+}
+
+// CatalogDispatch is the rule of a front node type: the param that names the type it stands for.
+type CatalogDispatch struct {
+	Param  string `json:"param"`
+	Prefix string `json:"prefix"`
 }
 
 // groupKey is the locale key of a palette group; groupFallback its title without one.
@@ -137,10 +146,25 @@ func nodeGroup(n graph.NodeView) string {
 	if len(n.Requires) > 0 {
 		return n.Requires[0]
 	}
+	// A registered action (action.<module>.…) is grouped by the module it belongs to.
+	if rest, ok := strings.CutPrefix(n.Type, "action."); ok {
+		if i := strings.Index(rest, "."); i > 0 {
+			return rest[:i]
+		}
+	}
 	if i := strings.Index(n.Type, "."); i > 0 {
 		return n.Type[:i]
 	}
 	return "other"
+}
+
+// eventGroup is the palette group of an event: its module (core.users → core), so the events of one
+// module sit together under the module's localized name.
+func eventGroup(group string) string {
+	if i := strings.Index(group, "."); i > 0 {
+		return group[:i]
+	}
+	return group
 }
 
 func schemaMap(raw json.RawMessage) map[string]any {
@@ -173,7 +197,7 @@ func editorCatalog(ctx context.Context, view catalog.View, b *graph.Behaviors, r
 			continue
 		}
 		ev := CatalogEvent{
-			Key: e.Key, Title: e.Title, Group: groupTitle(ctx, e.Group), Subject: e.Subject,
+			Key: e.Key, Title: e.Title, Group: groupTitle(ctx, eventGroup(e.Group)), Subject: e.Subject,
 			Payload: schemaMap(e.Payload), TriggerParams: optionalSchema(e.TriggerParams), Connected: true,
 			Manual: e.Key == engine.EventManual, Schedule: e.Key == engine.EventSchedule,
 		}
@@ -212,6 +236,13 @@ func editorCatalog(ctx context.Context, view catalog.View, b *graph.Behaviors, r
 		}
 		for _, x := range n.Expressions {
 			node.Expressions = append(node.Expressions, ExpressionParam{Param: x.Param, Type: exprType(string(x.Type))})
+		}
+		// Value params (an action's CEL args) are CEL to the editor too.
+		for _, v := range n.Values {
+			node.Expressions = append(node.Expressions, ExpressionParam{Param: v, Type: ExprDyn})
+		}
+		if n.Dispatch != nil {
+			node.Dispatch = &CatalogDispatch{Param: n.Dispatch.Param, Prefix: n.Dispatch.Prefix}
 		}
 		if len(n.Requires) > 0 {
 			node.Connector = n.Requires[0]

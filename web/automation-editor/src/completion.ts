@@ -2,6 +2,7 @@
 // pkg/automation/graph (ExprScope): the subject's context variables at the top level, `event` (the
 // trigger kind's payload plus `kind`; a map of dyn when triggers differ), `nodes.<id>.output`,
 // `tenant` (a map of dyn) and `now` (the step's time).
+import { nodeSpec } from './graph'
 import type { AutomationGraph, EditorCatalog, JsonSchema } from './types'
 
 export type CompletionPath = { path: string; type: string; description?: string; source: 'context' | 'trigger' | 'node' }
@@ -84,7 +85,7 @@ export function contextPaths(input: { catalog: EditorCatalog; graph: AutomationG
     const upstream = ancestors(graph, nodeId!)
     for (const node of graph.nodes) {
       if (!upstream.has(node.id)) continue
-      const spec = catalog.nodes.find((n) => n.type === node.type)
+      const spec = nodeSpec(catalog, node)
       if (spec?.output) out.push(...outputPaths(node.id, spec.output))
     }
   }

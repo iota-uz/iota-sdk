@@ -116,7 +116,7 @@ func Avatar(props Props) templ.Component {
 		if props.ImageURL != "" {
 			var templ_7745c5c3_Var5 = []any{
 				twmerge.Merge(
-					"w-9 h-9 object-cover",
+					"size-full object-cover",
 				),
 				templ.KV("rounded-full", props.Variant != Square),
 				templ.KV("rounded-lg", props.Variant == Square),

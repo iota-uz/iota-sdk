@@ -4,12 +4,14 @@
 import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, Show, untrack, type Accessor, type JSX } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import { cardGeometry, GRID, HANDLE_SIZE, normalizeRect, OUTCOME_ROW_Y, rectsOverlap, snap, TARGET_HANDLE, type CardGeometry, type Rect } from './geometry'
-import { connect, edgeKey, FIRED, findItem, IGNORE, nodeOutcomes, parentOf, pathOf, removeItems } from './graph'
+import { connect, disconnect, dispatchedType, edgeKey, FIRED, findItem, IGNORE, nodeOutcomes, parentOf, pathOf, removeItems } from './graph'
 import { Icon } from './icons'
 import { backEdges, ensureLayout, unmarked } from './layout'
 import { isMac } from './locale'
 import { describeAll, type ItemName } from './names'
-import { createRouter, directPath, routePath, type RouteLink, type Router } from './route'
+import { createRouter, directPath, routePath, type Point, type RouteLink, type Router } from './route'
+import { ARROW_GAP, arrowHead, fitRoute, trimEnd } from './edgefit'
+import { toneOf, type Tone } from './tone'
 import { motionMs } from './motion'
 import { keyLabel, strings } from './strings'
 import type { AutomationLayout, CanvasApi, CanvasItem, CanvasProps, ItemState, XY } from './types'
@@ -79,6 +81,9 @@ export function Canvas(props: CanvasProps): JSX.Element {
   const [dragging, setDragging] = createSignal(false)
   const [box, setBox] = createSignal<Box | null>(null)
   const [hovered, setHovered] = createSignal<string | null>(null)
+  // An edge picked by a click (Delete removes it) and the edge under the pointer, by `node.outcome`.
+  const [selectedEdge, setSelectedEdge] = createSignal<string | null>(null)
+  const [hoveredEdge, setHoveredEdge] = createSignal<string | null>(null)
   const [press, setPress] = createSignal<XY | null>(null)
   const [altSnapOff, setAltSnapOff] = createSignal(false)
   const [tidying, setTidying] = createSignal(false)
@@ -113,7 +118,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
 
   // The routes found so far: the ends they join and the path; and which router found each. `routeTick`
   // moves once per slice of routing.
-  const [routed, setRouted] = createStore<Record<string, { ax: number; ay: number; bx: number; by: number; d: string }>>({})
+  const [routed, setRouted] = createStore<Record<string, { points: Point[]; clear?: number }>>({})
   const routeOwner = new Map<string, object>()
   // The box of every route in `routed`, read plainly by the visibility check (`routeTick` says when it changed).
   const routeBoxes = new Map<string, Rect>()
@@ -257,7 +262,11 @@ export function Canvas(props: CanvasProps): JSX.Element {
       map.set(id, { id, kind, type, outs, state: states?.get(id), error: errors.get(id), warning: warnings.get(id) })
     }
     for (const trigger of graph.triggers) add(trigger.id, 'trigger', trigger.event, [FIRED])
-    for (const node of graph.nodes) add(node.id, 'node', node.type, nodeOutcomes(node, specs.get(node.type)))
+    for (const node of graph.nodes) {
+      const own = specs.get(node.type)
+      const target = dispatchedType(own, node.params)
+      add(node.id, 'node', node.type, nodeOutcomes(node, (target ? specs.get(target) : undefined) ?? own))
+    }
     return map
   })
 
@@ -337,6 +346,10 @@ export function Canvas(props: CanvasProps): JSX.Element {
         return built
       },
     }
+  })
+  createEffect(() => {
+    const key = selectedEdge()
+    if (key && !edgeTargets().has(key)) setSelectedEdge(null)
   })
   const edgeList = createMemo<string[]>((previous) => {
     const next = [...edgeTargets().keys()]
@@ -430,15 +443,13 @@ export function Canvas(props: CanvasProps): JSX.Element {
           const route = router.route(key)
           routeOwner.set(key, current)
           if (!route || route.points.length === 0) continue
-          const first = route.points[0]!
-          const last = route.points[route.points.length - 1]!
           const xs = route.points.map((point) => point.x)
           const ys = route.points.map((point) => point.y)
           const x = Math.min(...xs)
           const y = Math.min(...ys)
           stale.delete(key)
           routeBoxes.set(key, { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y })
-          setRouted(key, { ax: first.x, ay: first.y, bx: last.x, by: last.y, d: routePath(route.points, 10, route.clear) })
+          setRouted(key, { points: route.points.map((point) => ({ x: point.x, y: point.y })), clear: route.clear })
         }
         // One note per slice, so visibility looks at the boxes just published once.
         setRouteTick((n) => n + 1)
@@ -457,6 +468,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
   }
 
   createEffect(on(() => props.selected, (id) => {
+    if (id) setSelectedEdge(null)
     if (id && !multi().has(id)) setMulti(new Set([id]))
     if (!id && multi().size <= 1) setMulti(new Set<string>())
   }))
@@ -645,7 +657,10 @@ export function Canvas(props: CanvasProps): JSX.Element {
     zoomIn: () => panZoom?.scaleBy(1.2),
     zoomOut: () => panZoom?.scaleBy(1 / 1.2),
     zoomReset: () => panZoom?.scaleTo(1),
-    selectAll: () => setMulti(new Set(ids())),
+    selectAll: () => {
+      setSelectedEdge(null)
+      setMulti(new Set(ids()))
+    },
     selection,
     focus: focusItem,
     toBox: (flow) => toBox(flow, viewport()),
@@ -814,11 +829,20 @@ export function Canvas(props: CanvasProps): JSX.Element {
     props.onSelect(hit.length === 1 ? hit[0]! : next.size > 0 ? (props.selected && next.has(props.selected) ? props.selected : null) : null)
   }
 
+  // Selecting an edge replaces any node selection and takes focus, so Delete acts on the edge (click and context-click alike).
+  const selectEdge = (key: string) => {
+    setSelectedEdge(key)
+    setMulti(new Set<string>())
+    props.onSelect(null)
+    container?.focus({ preventScroll: true })
+  }
+
   const onPaneClick = (event: MouseEvent) => {
     if (downAt && Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y) > 4) return
     const target = event.target as Element
     if (target.closest(`.${NODE_CLASS}, .${NOPAN}`)) return
     setMulti(new Set<string>())
+    setSelectedEdge(null)
     props.onSelect(null)
   }
 
@@ -939,6 +963,19 @@ export function Canvas(props: CanvasProps): JSX.Element {
   }
 
   const onRootKeyDown = (event: KeyboardEvent) => {
+    const edge = selectedEdge()
+    if (edge && (event.key === 'Delete' || event.key === 'Backspace') && editable() && event.target === container) {
+      event.preventDefault()
+      const dot = edge.lastIndexOf('.')
+      setSelectedEdge(null)
+      props.onChange?.(disconnect(props.graph, { node: edge.slice(0, dot), outcome: edge.slice(dot + 1) }))
+      return
+    }
+    if (event.key === 'Escape' && edge) {
+      event.preventDefault()
+      setSelectedEdge(null)
+      return
+    }
     if (event.key === 'Escape') {
       if (props.onEscape?.()) {
         event.preventDefault()
@@ -1045,35 +1082,48 @@ export function Canvas(props: CanvasProps): JSX.Element {
     const outcome = source.slice(dot + 1)
     const to = () => edgeTargets().get(source) ?? ''
     const loop = () => back().has(`${node}->${to()}`)
-    const path = createMemo(() => {
+    const tone: Tone = toneOf(outcome)
+    // The route found for the committed layout, fitted onto the handles where the cards stand now; while a
+    // card is dragged further than that, a rounded step (directPath) until it lands and is routed again.
+    // The line and its arrowhead: the head is a filled path of its own at the line's end, pointing along its
+    // last stretch (a marker per edge rasterised several times slower, #1352 bench).
+    const shape = createMemo<{ d: string; head: string }>(() => {
       const target = to()
       const p = positions[node]
       const q = positions[target]
       const g = geometryMap().get(node)
       const slot = g?.outcomes.find((o) => o.outcome === outcome)
       const handle = geometryMap().get(target)?.target
-      if (!p || !q || !slot || !handle) return ''
-      const settled = committed[node]?.x === p.x && committed[node]?.y === p.y && committed[target]?.x === q.x && committed[target]?.y === q.y
+      if (!p || !q || !slot || !handle) return { d: '', head: '' }
       const a = { x: p.x + slot.handle.x, y: p.y + slot.handle.y }
       const b = { x: q.x + handle.x, y: q.y + handle.y }
-      if (settled) {
-        const found = routed[source]
-        if (found && found.ax === a.x && found.ay === a.y && found.bx === b.x && found.by === b.y) return found.d
-      }
-      return directPath(a, b)
+      const found = routed[source]
+      const fit = found ? fitRoute(found.points, a, b) : null
+      const t = fit ? trimEnd(fit) : [{ x: b.x, y: b.y - ARROW_GAP - 1 }, { x: b.x, y: b.y - ARROW_GAP }]
+      const tip = t[t.length - 1]!
+      return { d: fit ? routePath(t, 10, found?.clear) : directPath(a, tip), head: arrowHead(t[t.length - 2]!, tip) }
     })
+    // The hit area keeps its line while cards glide (it takes no pointer then): 500 paths are not rewritten per frame.
+    const hitD = createMemo<string>((last) => (tidying() ? last : shape().d), '')
+    const taken = () => props.overlay?.taken.has(source) ?? false
+    const active = () => taken() && props.overlay?.states.get(to()) === 'waiting'
+    const chosen = () => selectedEdge() === source
+    const dim = () => (props.overlay ? !taken() : (highlight() ? !highlight()!.edges.has(source) : false))
     const className = createMemo(() => {
-      let c = 'ae-edge'
-      const taken = props.overlay?.taken.has(source) ?? false
+      let c = `ae-edge ae-edge--${tone}`
       if (connectingKey() === source) c += ' ae-edge--rewiring'
       if (flashEdge() === source) c += ' ae-edge--flash'
-      if (taken) c += ' ae-edge--taken'
-      if (taken && props.overlay?.states.get(to()) === 'waiting') c += ' ae-edge--waiting'
+      if (taken()) c += ' ae-edge--taken'
+      if (active()) c += ' ae-edge--waiting'
       if (loop()) c += ' ae-edge--loop'
-      const h = highlight()
-      if (props.overlay ? !taken : h ? !h.edges.has(source) : false) c += ' ae-dim'
+      if (chosen()) c += ' ae-edge--selected'
+      if (hoveredEdge() === source) c += ' ae-edge--hover'
+      if (dim()) c += ' ae-dim'
+      else if (highlight() && !props.overlay) c += ' ae-edge--lit'
       return c
     })
+    // The head wears its edge's classes (ae-edge-- becomes ae-arrowhead--): its colour and opacity states.
+    const headClass = () => className().replace(/ae-edge/g, 'ae-arrowhead')
     // The run's path lights up edge by edge in the order of its steps.
     const step = () => {
       const taken = props.overlay?.taken
@@ -1085,7 +1135,29 @@ export function Canvas(props: CanvasProps): JSX.Element {
       }
       return undefined
     }
-    return <path class={className()} d={path()} style={step()} data-edge={source} data-to={to()} />
+    return (
+      <g>
+        <path class={className()} d={shape().d} style={step()} data-edge={source} data-to={to()} />
+        <path class={headClass()} d={shape().head} style={step()} />
+        {/* A wide transparent stroke over the line: hover and click on it, as on the reference editor's edges. */}
+        <path
+          // Not nopan: a drag or a pinch that starts on an edge still pans and zooms the canvas.
+          class="ae-edge-hit"
+          d={hitD()}
+          onPointerEnter={() => setHoveredEdge(source)}
+          onPointerLeave={() => setHoveredEdge((current) => (current === source ? null : current))}
+          onClick={(event) => {
+            event.stopPropagation()
+            selectEdge(source)
+          }}
+          onContextMenu={(event) => {
+            event.stopPropagation()
+            event.preventDefault()
+            selectEdge(source)
+          }}
+        />
+      </g>
+    )
   }
 
   const NodeCard = (cardProps: { id: string }) => {
@@ -1176,9 +1248,9 @@ export function Canvas(props: CanvasProps): JSX.Element {
           )}
         </Show>
         <Show when={props.renderNode} fallback={
-          <div class="ae-card__body">
+          <div class="ae-card__body ae-card__body--std">
+            <span class="ae-card__icon"><Icon name={icon()} /></span>
             <div class="ae-card__head">
-              <span class="ae-card__icon"><Icon name={icon()} /></span>
               <span class="ae-card__title" title={name().title}>{name().title}</span>
               <Show when={item()?.state}>
                 {(state) => (
@@ -1218,7 +1290,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
             const out = () => item()?.outs.find((o) => o.outcome === slot.outcome)
             const open = () => !out()?.to && !out()?.ignore
             const chipClass = () => {
-              let c = `${HANDLE_CLASS} source ${NOPAN} ${NODRAG} ae-out`
+              let c = `${HANDLE_CLASS} source ${NOPAN} ${NODRAG} ae-out ae-out--${toneOf(slot.outcome)}`
               if (editable()) c += ' connectable'
               if (open()) c += ' ae-out--open'
               if (out()?.ignore) c += ' ae-out--ignore'
@@ -1239,11 +1311,11 @@ export function Canvas(props: CanvasProps): JSX.Element {
                   onMouseDown={(event) => onHandleDown(id, slot.outcome, event)}
                   onTouchStart={(event) => onHandleDown(id, slot.outcome, event)}
                 >
-                  <span class="ae-out__label">{slot.outcome === FIRED && item()?.kind === 'trigger' ? '→' : slot.outcome}</span>
+                  <span class="ae-out__label" classList={{ 'ae-out__label--arrow': slot.outcome === FIRED && item()?.kind === 'trigger' }}>{slot.outcome === FIRED && item()?.kind === 'trigger' ? '→' : slot.outcome}</span>
                 </div>
                 <Show when={!out()?.to && notes().length === 1}>
                   <span class="ae-out-note" style={`left:${slot.handle.x}px;top:${slot.handle.y + 10}px`}>
-                    {out()?.ignore ? `× ${t().canvas.ignored}` : t().canvas.notConnected}
+                    {out()?.ignore ? t().canvas.ignored : t().canvas.notConnected}
                   </span>
                 </Show>
               </>
@@ -1376,8 +1448,8 @@ export function Canvas(props: CanvasProps): JSX.Element {
         <svg
           ref={minimapEl}
           class={`ae-minimap ${NOPAN} ${NOWHEEL}`}
-          width="200"
-          height="140"
+          width="176"
+          height="120"
           viewBox={minimapView() ? `${minimapView()!.x} ${minimapView()!.y} ${minimapView()!.width} ${minimapView()!.height}` : '0 0 200 140'}
           preserveAspectRatio="xMidYMid meet"
           onPointerDown={onMinimapPointer}

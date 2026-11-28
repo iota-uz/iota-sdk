@@ -582,31 +582,32 @@ function EditorBody(props: EditorProps): JSX.Element {
       const id = m.item
       const ids = selection().includes(id) ? selection() : [id]
       const many = ids.length > 1
-      if (!many) items.push({ key: 'open', label: t().menu.open, shortcut: 'Enter', run: () => openPanelFocus(id) })
+      if (!many) items.push({ key: 'open', icon: 'open', label: t().menu.open, shortcut: 'Enter', run: () => openPanelFocus(id) })
       if (editable && !many) {
         for (const outcome of itemOutcomes(draft(), props.catalog, id)) {
-          items.push({ key: `connect:${outcome}`, label: t().menu.connectTo(outcome), run: () => setPalette({ kind: 'connect', from: { node: id, outcome }, anchor: { x: m.x, y: m.y } }) })
+          items.push({ key: `connect:${outcome}`, icon: 'connect', separator: items.length > 0 && outcome === itemOutcomes(draft(), props.catalog, id)[0], label: t().menu.connectTo(outcome), run: () => setPalette({ kind: 'connect', from: { node: id, outcome }, anchor: { x: m.x, y: m.y } }) })
           const ignored = edgeOf(draft(), id, outcome)?.to === IGNORE
           items.push({
             key: `ignore:${outcome}`,
+            icon: ignored ? 'unignore' : 'ignore',
             label: ignored ? t().menu.unignore(outcome) : t().menu.ignore(outcome),
             run: () => commitGraph(setIgnore(draft(), { node: id, outcome }, !ignored)),
           })
         }
       }
-      if (editable) items.push({ key: 'duplicate', label: t().menu.duplicate, shortcut: '⌘D', run: () => duplicate(ids) })
-      items.push({ key: 'copy', label: t().menu.copy, shortcut: '⌘C', run: () => writeClipboard(copy(ids)) })
-      if (editable) items.push({ key: 'delete', label: many ? t().menu.deleteMany(ids.length) : t().menu.delete, shortcut: 'Delete', danger: true, run: () => deleteItems(ids) })
+      if (editable) items.push({ key: 'duplicate', icon: 'duplicate', separator: items.length > 0, label: t().menu.duplicate, shortcut: '⌘D', run: () => duplicate(ids) })
+      items.push({ key: 'copy', icon: 'copy', separator: !editable && items.length > 0, label: t().menu.copy, shortcut: '⌘C', run: () => writeClipboard(copy(ids)) })
+      if (editable) items.push({ key: 'delete', icon: 'trash', separator: true, label: many ? t().menu.deleteMany(ids.length) : t().menu.delete, shortcut: 'Delete', danger: true, run: () => deleteItems(ids) })
       return items
     }
     if (editable) {
-      items.push({ key: 'add', label: t().menu.addHere, run: () => setPalette({ kind: 'add', anchor: { x: m.x, y: m.y }, flow: m.flow }) })
-      items.push({ key: 'paste', label: t().menu.paste, shortcut: '⌘V', run: () => void readClipboard().then((clip) => paste(clip, m.flow)) })
+      items.push({ key: 'add', icon: 'plus', label: t().menu.addHere, run: () => setPalette({ kind: 'add', anchor: { x: m.x, y: m.y }, flow: m.flow }) })
+      items.push({ key: 'paste', icon: 'paste', label: t().menu.paste, shortcut: '⌘V', run: () => void readClipboard().then((clip) => paste(clip, m.flow)) })
     }
-    items.push({ key: 'select-all', label: t().menu.selectAll, shortcut: '⌘A', run: () => canvasApi?.selectAll() })
-    items.push({ key: 'fit', label: t().canvas.fit, shortcut: '⇧1', run: () => canvasApi?.fit() })
-    if (editable) items.push({ key: 'tidy', label: t().canvas.tidy, shortcut: '⇧⌘L', run: tidy })
-    if (editable && coarse()) items.push({ key: 'snap', label: t().menu.snap, checked: snapOn(), run: () => setSnapOn((v) => !v) })
+    items.push({ key: 'select-all', icon: 'select', separator: items.length > 0, label: t().menu.selectAll, shortcut: '⌘A', run: () => canvasApi?.selectAll() })
+    items.push({ key: 'fit', icon: 'fit', label: t().canvas.fit, shortcut: '⇧1', run: () => canvasApi?.fit() })
+    if (editable) items.push({ key: 'tidy', icon: 'broom', label: t().canvas.tidy, shortcut: '⇧⌘L', run: tidy })
+    if (editable && coarse()) items.push({ key: 'snap', icon: 'grid', label: t().menu.snap, checked: snapOn(), run: () => setSnapOn((v) => !v) })
     return items
   })
 
@@ -629,6 +630,11 @@ function EditorBody(props: EditorProps): JSX.Element {
     if (target === document.body || target === document.documentElement || target === null) return true
     return target instanceof Node && root.contains(target)
   }
+  const claimedShortcuts = () => {
+    if (mobile() || tab() === 'runs') return undefined
+    const keys = ['mod+s', 'mod+z', 'mod+shift+z', 'mod+shift+l', 'mod+enter', 'mod+d', 'mod+a']
+    return (readOnly() ? keys : ['mod+k', ...keys]).join(' ')
+  }
   const layerOpen = () => palette() !== null || menu() !== null || versionsMenu() !== null || settingsOpen() || keymapOpen() || confirmReload()
 
   const onKeyDown = (event: KeyboardEvent) => {
@@ -642,11 +648,16 @@ function EditorBody(props: EditorProps): JSX.Element {
       void save()
       return
     }
-    if (isEditableTarget(event.target) || layerOpen()) return
-    if (mod && key === 'k') {
+    // ⌘K adds a step; read only, it stays the page's (global search). In a field it does nothing (K6), and
+    // over an open layer it opens nothing more: the editor's claim keeps the page's search from opening too.
+    if (mod && key === 'k' && !event.shiftKey && !event.altKey) {
+      if (readOnly()) return
       event.preventDefault()
-      if (!readOnly()) setPalette({ kind: 'add' })
-    } else if (mod && event.shiftKey && key === 'l') {
+      if (!layerOpen() && !isEditableTarget(event.target)) setPalette({ kind: 'add' })
+      return
+    }
+    if (isEditableTarget(event.target) || layerOpen()) return
+    if (mod && event.shiftKey && key === 'l') {
       event.preventDefault()
       tidy()
     } else if (mod && key === 'z') {
@@ -727,10 +738,12 @@ function EditorBody(props: EditorProps): JSX.Element {
     document.addEventListener('keydown', onKeyDown)
     document.addEventListener('copy', onCopy)
     document.addEventListener('paste', onPaste)
-    const observer = new ResizeObserver(() => {
+    const observer = new ResizeObserver((entries) => {
       if (area) setAreaSize({ width: area.clientWidth, height: area.clientHeight })
+      if (entries.some((e) => e.target === toolbarEl)) fitToolbar()
     })
     if (area) observer.observe(area)
+    if (toolbarEl) observer.observe(toolbarEl)
     onCleanup(() => {
       phone.removeEventListener('change', update)
       pointer.removeEventListener('change', update)
@@ -767,19 +780,42 @@ function EditorBody(props: EditorProps): JSX.Element {
   const empty = () => draft().triggers.length === 0 && draft().nodes.length === 0
   const saveLabel = () => (saveState().status === 'saving' ? t().toolbar.saving : overwrite() ? t().save.saveOver(overwrite()!) : t().toolbar.save)
 
+  // The toolbar never spills into the page: labels give way step by step (data-compact) until the actions
+  // fit beside a title of a readable width. Measured, so any language and any host actions fit.
+  let toolbarEl: HTMLElement | undefined
+  const TITLE_ROOM = 200
+  const fitToolbar = () => {
+    const bar = toolbarEl
+    const actions = bar?.querySelector<HTMLElement>('.ae-toolbar__actions')
+    const path = bar?.querySelector<HTMLElement>('.ae-toolbar__path')
+    if (!bar || !actions || !path) return
+    const right = bar.getBoundingClientRect().right - parseFloat(getComputedStyle(bar).paddingRight || '0')
+    for (let level = 0; level <= 3; level += 1) {
+      bar.dataset.compact = String(level)
+      const fits = actions.getBoundingClientRect().right <= right + 1
+      const titleShort = path.scrollWidth > path.clientWidth + 1 && path.clientWidth < TITLE_ROOM
+      if (fits && !titleShort) return
+    }
+  }
+  // What changes the width of the actions without resizing the toolbar.
+  createEffect(on(() => [t(), tab(), mobile(), validation().status, issueCount(), saveLabel(), props.runsCount, draft().name], () => queueMicrotask(fitToolbar), { defer: true }))
+
   const toolbar = () => (
-    <header class="ae-toolbar" role="toolbar" aria-label={t().toolbar.label}>
+    <header ref={toolbarEl} class="ae-toolbar" role="toolbar" aria-label={t().toolbar.label}>
       <div class="ae-toolbar__path">
+        {/* Two lines, as the reference editor: the crumb small above, the name under it with its tags. */}
         <Show when={props.crumb}><span class="ae-toolbar__crumb">{props.crumb}</span></Show>
-        <button type="button" class="ae-toolbar__name" title={draft().name || t().toolbar.newGraph} onClick={() => setSettingsOpen(true)} disabled={mobile()}>
-          {draft().name || t().toolbar.newGraph}
-        </button>
-        <Show when={base() > 0}>
-          <span class="ae-tag">v{base()}</span>
-        </Show>
-        <Show when={dirty() && !readOnly()}>
-          <span class="ae-tag ae-tag--dirty" title={t().toolbar.unsaved}><Icon name="dot" size={12} /><span class="ae-sr">{t().toolbar.unsaved}</span></span>
-        </Show>
+        <div class="ae-toolbar__title">
+          <button type="button" class="ae-toolbar__name" title={draft().name || t().toolbar.newGraph} onClick={() => setSettingsOpen(true)} disabled={mobile()}>
+            {draft().name || t().toolbar.newGraph}
+          </button>
+          <Show when={base() > 0}>
+            <span class="ae-tag">v{base()}</span>
+          </Show>
+          <Show when={dirty() && !readOnly()}>
+            <span class="ae-tag ae-tag--dirty" title={t().toolbar.unsaved}><Icon name="dot" size={12} /><span class="ae-sr">{t().toolbar.unsaved}</span></span>
+          </Show>
+        </div>
       </div>
       <Show when={props.onTab || runsAvailable()}>
         <div class="ae-toolbar__tabs" role="tablist" aria-label={t().toolbar.label}>
@@ -792,27 +828,34 @@ function EditorBody(props: EditorProps): JSX.Element {
       </Show>
       <div class="ae-toolbar__actions">
         <Show when={!mobile()}>
-          <Show when={tab() === 'edit'}>
-          <button type="button" class="ae-btn ae-btn--ghost" onClick={() => { setValidationOpen(true); void validate() }} aria-keyshortcuts={mac ? 'Meta+Enter' : 'Control+Enter'}>
+          {/* The edit tools keep their place on the Runs tab, hidden and inert, so the tabs, the title and the
+              tools to the right never move when the tab changes. */}
+          <span class="ae-toolbar__edit" classList={{ 'ae-toolbar__edit--off': tab() !== 'edit' }} inert={tab() !== 'edit' || undefined}>
+          <span class="ae-toolbar__sep" aria-hidden="true" />
+          <button type="button" class="ae-btn ae-btn--secondary ae-btn--sm" classList={{ 'ae-btn--bad': allErrors().length > 0 }} onClick={() => { setValidationOpen(true); void validate() }} aria-keyshortcuts={mac ? 'Meta+Enter' : 'Control+Enter'}>
             <Show when={validation().status === 'checking'} fallback={<Icon name={allErrors().length > 0 ? 'error' : 'check'} />}><span class="ae-spinner" aria-hidden="true" /></Show>
-            <span>{validation().status === 'checking' ? t().toolbar.validating : t().toolbar.validate}</span>
+            <span class="ae-btn__label">{validation().status === 'checking' ? t().toolbar.validating : t().toolbar.validate}</span>
             <Show when={issueCount() > 0}><span class="ae-count ae-count--danger">{issueCount()}</span></Show>
           </button>
+          <Show when={canAuthor()}>
+            <button type="button" class="ae-btn ae-btn--secondary ae-btn--sm" aria-pressed={dock()?.kind === 'dry'} onClick={() => setDock((d) => (d?.kind === 'dry' ? null : { kind: 'dry' }))} data-testid="open-dry-run">
+              <Icon name="running" /><span class="ae-btn__label">{t().toolbar.dryRun}</span>
+            </button>
+          </Show>
+          <span class="ae-toolbar__group">
           <button type="button" class="ae-iconbtn" aria-label={t().toolbar.undo} title={`${t().toolbar.undo} (${keyLabel('⌘Z', mac)})`} disabled={editingBlocked() || !canUndo(history())} onClick={doUndo}><Icon name="undo" /></button>
           <button type="button" class="ae-iconbtn" aria-label={t().toolbar.redo} title={`${t().toolbar.redo} (${keyLabel('⇧⌘Z', mac)})`} disabled={editingBlocked() || !canRedo(history())} onClick={doRedo}><Icon name="redo" /></button>
+          </span>
+          <span class="ae-toolbar__sep" aria-hidden="true" />
           <Show when={!readOnly()}>
             <button type="button" class="ae-btn ae-btn--ghost" onClick={() => setPalette({ kind: 'add' })} aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'}>
-              <Icon name="plus" /><span>{t().toolbar.add}</span><Show when={!coarse()}><kbd class="ae-kbd">{keyLabel('⌘K', mac)}</kbd></Show>
+              <Icon name="plus" /><span class="ae-btn__label">{t().toolbar.add}</span><Show when={!coarse()}><kbd class="ae-kbd ae-btn__kbd">{keyLabel('⌘K', mac)}</kbd></Show>
             </button>
           </Show>
           <button type="button" class="ae-iconbtn" aria-label={t().toolbar.settings} title={t().toolbar.settings} onClick={() => setSettingsOpen(true)}><Icon name="settings" /></button>
           <button type="button" class="ae-iconbtn" aria-label={t().toolbar.keys} title={t().toolbar.keys} onClick={() => setKeymapOpen(true)}><Icon name="keys" /></button>
-          <Show when={canAuthor()}>
-            <button type="button" class="ae-btn ae-btn--ghost" aria-pressed={dock()?.kind === 'dry'} onClick={() => setDock((d) => (d?.kind === 'dry' ? null : { kind: 'dry' }))} data-testid="open-dry-run">
-              <Icon name="running" /><span>{t().toolbar.dryRun}</span>
-            </button>
-          </Show>
-          </Show>
+          </span>
+          <span class="ae-toolbar__fill" aria-hidden="true" />
           <Show when={props.versions && props.versions.length > 0 && props.onOpenVersion}>
             <button
               type="button"
@@ -824,11 +867,12 @@ function EditorBody(props: EditorProps): JSX.Element {
                 setVersionsMenu({ x: r.left, y: r.bottom + 4 })
               }}
             >
-              {t().toolbar.versions}
+              <Icon name="history" /><span class="ae-btn__label ae-btn__label--first">{t().toolbar.versions}</span>
             </button>
           </Show>
           {props.actions}
           <Show when={!readOnly()}>
+            <span class="ae-toolbar__edit" classList={{ 'ae-toolbar__edit--off': tab() !== 'edit' }} inert={tab() !== 'edit' || undefined}>
             <button
               type="button"
               class="btn btn-primary btn-normal ae-save"
@@ -840,10 +884,12 @@ function EditorBody(props: EditorProps): JSX.Element {
               <Show when={saveState().status === 'saving'}><span class="ae-spinner" aria-hidden="true" /></Show>
               {saveLabel()}
             </button>
+            </span>
           </Show>
         </Show>
         <Show when={props.toggleEnabled}>
-          <Toggle checked={props.enabled} label={t().toolbar.enabled} onChange={(event) => { event.currentTarget.checked = props.enabled; props.toggleEnabled?.() }} />
+          <span class="ae-toolbar__sep" aria-hidden="true" />
+          <Toggle labelClass="ae-toolbar__toggle" checked={props.enabled} label={t().toolbar.enabled} onChange={(event) => { event.currentTarget.checked = props.enabled; props.toggleEnabled?.() }} />
         </Show>
       </div>
     </header>
@@ -886,7 +932,15 @@ function EditorBody(props: EditorProps): JSX.Element {
   )
 
   return (
-    <div ref={root} class="ae-editor" classList={{ 'ae-editor--mobile': mobile(), 'ae-editor--coarse': coarse() }} lang={props.locale}>
+    <div
+      ref={root}
+      class="ae-editor"
+      classList={{ 'ae-editor--mobile': mobile(), 'ae-editor--coarse': coarse() }}
+      lang={props.locale}
+      // The shortcuts the editor owns while it edits (see solid-ui isShortcutClaimed): page-wide listeners
+      // such as the shell's global search leave them alone. Read only or on the Runs tab ⌘K stays the page's.
+      data-claim-shortcuts={claimedShortcuts()}
+    >
       {toolbar()}
       {banners()}
       <Show when={mobile() && !(tab() === 'runs' && !props.runsBody && runsAvailable())}>

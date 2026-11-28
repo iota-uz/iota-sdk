@@ -47,7 +47,8 @@
     }
   },
   "Account": {
-      "Notifications": {
+    "Tabs": {"Label": "Account sections", "Profile": "Profile", "Notifications": "Notifications", "Password": "Password", "Sessions": "Sessions"}, "Profile": {"Photo": {"Title": "Profile photo", "DescText": "Shown next to your name across the app."}, "Personal": {"Title": "Personal information", "DescText": "Your name as colleagues see it."}, "Contact": {"Title": "Contact details", "DescText": "Where you can be reached.", "Locked": "Ask an administrator to change your email or phone."}, "Preferences": {"Title": "Preferences", "DescText": "The language of the interface."}, "Unsaved": "You have unsaved changes.", "FixErrors": "Fix the highlighted fields and save again.", "Saved": "Profile saved"},
+      "Notifications": {"NoChannels": "No notification channels are available.", "Accounts": {"Title": "Connected accounts", "DescText": "Accounts that deliver notifications outside the app."},
         "Retry": "Retry",
         "Title": "Notifications",
         "Intro": "Choose where you receive notifications.",
@@ -127,7 +128,7 @@
       "Placeholder": "Enter phone number"
     },
     "Password": "Password",
-    "ChangePassword": {"Title":"Change password","DescText":"Changing your password signs you out on every device.","CurrentPassword":"Current password","NewPassword":"New password","ConfirmPassword":"Confirm new password","Submit":"Change password","Errors":{"CurrentRequired":"Enter your current password.","CurrentIncorrect":"The current password is incorrect.","NewTooShort":"The new password must contain at least 8 characters.","ConfirmationMismatch":"The password confirmation does not match."}},
+    "ChangePassword": {"Requirements": {"Title": "Password requirements", "MinLength": "At least 8 characters", "Match": "Both new password fields match"}, "Success": "Your password has been changed. Sign in with the new password.", "Strength": {"Weak": "Weak", "Fair": "Fair", "Good": "Good", "Strong": "Strong"},"Title":"Change password","DescText":"Changing your password signs you out on every device.","CurrentPassword":"Current password","NewPassword":"New password","ConfirmPassword":"Confirm new password","Submit":"Change password","Errors":{"CurrentRequired":"Enter your current password.","CurrentIncorrect":"The current password is incorrect.","NewTooShort":"The new password must contain at least 8 characters.","ConfirmationMismatch":"The password confirmation does not match."}},
     "Save": "Save",
     "Logo": {
       "FullLogo": "Full Logo",
@@ -145,7 +146,7 @@
       "Email": "Email Address",
       "EmailPlaceholder": "Enter email address"
     },
-    "Sessions": {
+    "Sessions": {"SignedIn": "Signed in",
       "Title": "Active Sessions",
       "DescText": "Manage your active sessions across devices",
       "CurrentDevice": "Current",

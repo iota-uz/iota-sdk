@@ -59,6 +59,8 @@ const shots: Shot[] = [
   // Tidy v2 (#1391): a column per trigger, a failure lane, orthogonal links; a parallel with its join and a for each.
   { name: 'tidy-multi', query: 'graph=multi', width: 1440, height: 900 },
   { name: 'tidy-foreach', query: 'graph=foreach', width: 1440, height: 900 },
+  // Router: a card touching the source row off the source column does not close the source's lanes; the edge goes around it.
+  { name: 'router-offcolumn', query: 'graph=offcolumn', width: 1440, height: 900 },
   // Runs (#1347): a failed run with its node's drawer, a run of an older version, a waiting parallel,
   // the empty and filtered states, a run not found, the phone list and run, Dry run and Test node.
   { name: 'runs', query: 'tab=runs&run=00000000-0000-4000-8000-0000000000r2&node=send_email', width: 1440, height: 900, ready: '.ae-runview .ae-canvas', prepare: async (page) => { await expect(page.getByTestId('run-node')).toBeVisible() } },
@@ -108,6 +110,11 @@ for (const theme of ['light', 'dark'] as const) {
       // The canvas layers are composited (will-change) for drag performance; tiled software raster of a
       // composited layer anti-aliases edges differently run to run. Screenshots paint them in place.
       await page.addStyleTag({ content: '.ae-viewport, .ae-grid { will-change: auto !important; }' })
+      // The path a run took lights up with a finite opacity animation on its edges and arrowheads. A layer that
+      // has just stopped animating is re-rasterised on a later frame, and an arrowhead or a line pixel lands on
+      // either side of an anti-aliasing step from one CI run to the next. The settled look is the shot, so
+      // the entrance is dropped: the elements are already at their resting opacity.
+      await page.addStyleTag({ content: '.ae-edge--taken, .ae-arrowhead--taken, .ae-edge--flash, .ae-arrowhead--flash { animation: none !important; }' })
       await page.mouse.move(0, 0)
       // A clicked button keeps focus and its hover transition; the shot is of the resting state.
       await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.())

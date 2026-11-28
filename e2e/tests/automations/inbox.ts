@@ -76,6 +76,31 @@ export async function startTask(page: Page, title: string, params: Record<string
 	}, { title, params });
 }
 
+/** Saves a one-node graph through the automations RPC (a signed-in page); returns its id. */
+export async function createGraph(page: Page, name: string): Promise<string> {
+	return page.evaluate(async (name) => {
+		const r = await fetch('/automations/rpc', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				jsonrpc: '2.0', id: 1, method: 'automations.create',
+				params: {
+					graph: {
+						name, run_as: 'owner',
+						triggers: [{ id: 'start', event: 'automation.manual.v1' }],
+						nodes: [{ id: 'fin', type: 'end', params: {} }],
+						edges: [{ from: { node: 'start', outcome: 'fired' }, to: 'fin' }],
+					},
+					layout: {},
+				},
+			}),
+		});
+		const body = await r.json();
+		if (body.error || !body.result?.ok) throw new Error(`automations.create: ${JSON.stringify(body)}`);
+		return body.result.id as string;
+	}, name);
+}
+
 export async function sessionOf(browser: Browser, baseURL: string | undefined, who: Person, viewport = { width: 1440, height: 900 }, options: Parameters<Browser['newContext']>[0] = {}): Promise<{ context: BrowserContext; page: Page }> {
 	const context = await browser.newContext({ baseURL, viewport, ...options });
 	const page = await context.newPage();

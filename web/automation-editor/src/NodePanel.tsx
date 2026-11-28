@@ -1,13 +1,14 @@
 // The panel of the selected item: Configure (the params form from the catalog, the trigger's event,
 // filter and params, or the schedule editor) and Data (the output schema and copyable paths).
 import { Combobox, CopyButton, type ComboboxOption } from '@iota-uz/sdk/solid-ui'
-import { createMemo, createSignal, For, Match, Show, Switch, type JSX } from 'solid-js'
+import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch, type JSX } from 'solid-js'
 import { contextPaths, outputPaths, schemaPaths, type CompletionPath } from './completion'
-import { catalogEvent, catalogNode, findItem, updateNode, updateTrigger } from './graph'
+import { catalogEvent, catalogNode, findItem, nodeSpec, updateNode, updateTrigger } from './graph'
 import { Icon } from './icons'
 import { describeItem } from './names'
 import { ScheduleEditor } from './ScheduleEditor'
 import { SchemaForm } from './SchemaForm'
+import { pick as pickLocale } from './locale'
 import { strings } from './strings'
 import type { AutomationGraph, EditorApi, EditorCatalog, EditorLocale, FieldSlot, GraphError, JsonSchema } from './types'
 import { errorTarget } from './validation'
@@ -25,6 +26,14 @@ export interface NodePanelProps {
   /** `key` groups keystrokes of one field into one history step. */
   onChange(graph: AutomationGraph, key: string): void
   onClose(): void
+}
+
+// The action picker's words: only this lazy panel uses them, so they stay out of the package entry.
+const ACTION_STRINGS: Record<EditorLocale, { action: string; placeholder: string; missing(key: string): string; pick: string }> = {
+  en: { action: 'Action', placeholder: 'Choose an action', missing: (key) => `The action “${key}” is not available: its module may be off or you lack the permission.`, pick: 'Choose the action this step runs; its fields appear here.' },
+  ru: { action: 'Действие', placeholder: 'Выберите действие', missing: (key) => `Действие «${key}» недоступно: возможно, модуль выключен или нет прав.`, pick: 'Выберите действие, которое выполняет шаг; его поля появятся здесь.' },
+  uz: { action: 'Amal', placeholder: 'Amalni tanlang', missing: (key) => `«${key}» amali mavjud emas: modul oʻchirilgan yoki ruxsat yoʻq boʻlishi mumkin.`, pick: 'Qadam bajaradigan amalni tanlang; uning maydonlari shu yerda chiqadi.' },
+  'uz-Cyrl': { action: 'Амал', placeholder: 'Амални танланг', missing: (key) => `«${key}» амали мавжуд эмас: модул ўчирилган ёки рухсат йўқ бўлиши мумкин.`, pick: 'Қадам бажарадиган амални танланг; унинг майдонлари шу ерда чиқади.' },
 }
 
 const FILTER_SCHEMA = (title: string, description: string): JsonSchema => ({
@@ -66,7 +75,7 @@ export function NodePanel(props: NodePanelProps): JSX.Element {
   const outputList = createMemo<CompletionPath[]>(() => {
     const r = ref()
     if (!r) return []
-    if (r.kind === 'node') return outputPaths(props.id, catalogNode(props.catalog, r.item.type)?.output ?? null)
+    if (r.kind === 'node') return outputPaths(props.id, nodeSpec(props.catalog, r.item)?.output ?? null)
     return schemaPaths('event', catalogEvent(props.catalog, r.item.event)?.payload ?? null, 'trigger')
   })
 
@@ -115,17 +124,99 @@ export function NodePanel(props: NodePanelProps): JSX.Element {
             <Match when={ref()?.kind === 'node' && ref()}>
               {(r) => {
                 const node = () => r().item as AutomationGraph['nodes'][number]
-                const spec = () => catalogNode(props.catalog, node().type)
+                const own = () => catalogNode(props.catalog, node().type)
+                // A front type (the generic "action"): a picker over the types it can name, then the named
+                // type's own form. The node keeps its type and `{action, args}`.
+                const front = () => own()?.dispatch
+                const picked = () => {
+                  const rule = front()
+                  const key = rule ? node().params[rule.param] : undefined
+                  return typeof key === 'string' ? key : ''
+                }
+                const target = () => (front() ? (picked() ? catalogNode(props.catalog, front()!.prefix + picked()) : undefined) : own())
+                const actionOptions = createMemo<ComboboxOption[]>(() => {
+                  const rule = front()
+                  if (!rule) return []
+                  const groups = new Map<string, ComboboxOption[]>()
+                  for (const n of props.catalog.nodes) {
+                    if (n === own() || !n.type.startsWith(rule.prefix)) continue
+                    const key = n.type.slice(rule.prefix.length)
+                    const list = groups.get(n.group) ?? []
+                    list.push({ value: key, label: `${n.title} · ${key}`, disabled: n.connected === false })
+                    groups.set(n.group, list)
+                  }
+                  const out: ComboboxOption[] = []
+                  for (const [group, options] of groups) out.push({ value: `group:${group}`, label: group, groupHeader: true }, ...options)
+                  return out
+                })
+                const pick = (key: string) => {
+                  const rule = front()
+                  if (!rule || key === picked()) return
+                  if (!key) {
+                    // The picker's Remove button: the action is unset and its args go with it.
+                    const { [rule.param]: _removed, ...rest } = node().params
+                    props.onChange(updateNode(props.graph, props.id, { ...rest, args: {} }), `${rule.param}:${props.id}`)
+                    return
+                  }
+                  // Args the new action also takes are kept; the others go.
+                  const next = catalogNode(props.catalog, rule.prefix + key)
+                  const argsSchema = (next?.params.properties as Record<string, JsonSchema> | undefined)?.args
+                  const known = new Set(Object.keys((argsSchema?.properties as Record<string, unknown> | undefined) ?? {}))
+                  const old = (node().params.args ?? {}) as Record<string, unknown>
+                  const args = Object.fromEntries(Object.entries(old).filter(([name]) => known.has(name)))
+                  props.onChange(updateNode(props.graph, props.id, { ...node().params, [rule.param]: key, args }), `${rule.param}:${props.id}`)
+                }
+                const spec = () => target() ?? (front() ? undefined : own())
+                // The picker owns the front type's field: its error and a request to focus it come here, whether or not a form is mounted.
+                const actionError = () => { const rule = front(); return rule ? fieldErrors().find((e) => e.path === rule.param)?.message : undefined }
+                let actionField: HTMLDivElement | undefined
+                createEffect(on(() => props.focusField, (path) => {
+                  const rule = front()
+                  if (!rule || path !== rule.param) return
+                  queueMicrotask(() => {
+                    actionField?.scrollIntoView?.({ block: 'center' })
+                    actionField?.querySelector<HTMLElement>('input:not([type=hidden]),button,[tabindex="0"]')?.focus()
+                  })
+                }))
                 return (
-                  <Show when={spec()} fallback={<p class="ae-panel__note" role="alert">{t().panel.unknownType(node().type)}</p>}>
+                  <div class="ae-panel__stack">
+                  <Show when={front()}>
+                    {(rule) => (
+                      <div class="ae-field" data-param={rule().param} ref={actionField}>
+                        <Combobox
+                          label={pickLocale(ACTION_STRINGS, props.locale).action}
+                          options={actionOptions()}
+                          value={picked() || undefined}
+                          searchable
+                          readOnly={props.readOnly}
+                          placeholder={pickLocale(ACTION_STRINGS, props.locale).placeholder}
+                          labels={{ notFound: t().palette.nothing('') }}
+                          onValueChange={(value) => pick(Array.isArray(value) ? value[0] ?? '' : value)}
+                        />
+                        <Show when={actionError()}>{(message) => <p class="ae-form-error" role="alert">{message()}</p>}</Show>
+                        <Show when={picked() && !target()}>
+                          <p class="ae-panel__note" role="alert">{pickLocale(ACTION_STRINGS, props.locale).missing(picked())}</p>
+                        </Show>
+                        <Show when={!picked()}>
+                          <p class="ae-panel__note">{pickLocale(ACTION_STRINGS, props.locale).pick}</p>
+                        </Show>
+                      </div>
+                    )}
+                  </Show>
+                  <Show when={spec()} fallback={<Show when={!front()}><p class="ae-panel__note" role="alert">{t().panel.unknownType(node().type)}</p></Show>}>
                     {(s) => (
                       <SchemaForm
                         schema={s().params}
                         value={node().params}
-                        onChange={(params) => props.onChange(updateNode(props.graph, props.id, params), `params:${props.id}`)}
+                        onChange={(params) => {
+                          const rule = front()
+                          // The named type's form has no `action` field: the picked key stays on the node.
+                          const next = rule ? { ...params, [rule.param]: picked() } : params
+                          props.onChange(updateNode(props.graph, props.id, next), `params:${props.id}`)
+                        }}
                         readOnly={props.readOnly}
                         locale={props.locale}
-                        nodeType={node().type}
+                        nodeType={s().type}
                         nodeId={props.id}
                         graph={props.graph}
                         events={props.catalog.events}
@@ -139,6 +230,7 @@ export function NodePanel(props: NodePanelProps): JSX.Element {
                       />
                     )}
                   </Show>
+                  </div>
                 )
               }}
             </Match>

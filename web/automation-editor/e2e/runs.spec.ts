@@ -236,3 +236,41 @@ test.describe('dry run and test node', () => {
     await expect(page.getByTestId('test-result')).toContainText('token ***')
   })
 })
+
+test.describe('tab switch keeps the layout', () => {
+  const boxes = (page: Page) => page.evaluate(() => {
+    const box = (sel: string) => { const r = document.querySelector(sel)!.getBoundingClientRect(); return [r.x, r.y, r.width, r.height] }
+    const doc = document.documentElement
+    return { toolbar: box('.ae-toolbar'), title: box('.ae-toolbar__name'), tabs: box('.ae-toolbar__tabs'), toggle: box('.ae-toolbar__toggle'), overflow: doc.scrollWidth - doc.clientWidth }
+  })
+  const same = (a: number[], b: number[]) => a.forEach((v, i) => expect(Math.abs(v - b[i]!), `${a} vs ${b}`).toBeLessThanOrEqual(1))
+
+  for (const [width, locale] of [[1440, 'en'], [1160, 'ru'], [960, 'ru']] as const) {
+    test(`the title, tabs and toolbar stand still between Edit and Runs; nothing spills sideways (${width} px, ${locale})`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 })
+      await open(page, `locale=${locale}`)
+      const edit = await boxes(page)
+      await page.getByTestId('tab-runs').click()
+      await expect(page.locator('.ae-runs-tab')).toBeVisible()
+      const runs = await boxes(page)
+      same(edit.toolbar, runs.toolbar)
+      same(edit.title, runs.title)
+      same(edit.tabs, runs.tabs)
+      same(edit.toggle, runs.toggle)
+      expect(edit.overflow).toBe(0)
+      expect(runs.overflow).toBe(0)
+      // Every action fits: the last one (the switch) ends inside the toolbar, not clipped.
+      expect(edit.toggle[0]! + edit.toggle[2]!).toBeLessThanOrEqual(edit.toolbar[0]! + edit.toolbar[2]!)
+      // The edit tools are kept in place but out of reach on Runs: Save among them.
+      await expect(page.locator('.ae-save')).not.toBeVisible()
+      await page.getByTestId('tab-edit').click()
+      same((await boxes(page)).tabs, edit.tabs)
+    })
+  }
+
+  test('with no runs the pane beside the list shows the graph and how to see a run, not a blank', async ({ page }) => {
+    await open(page, 'tab=runs&runs=empty', '.ae-runs-tab')
+    await expect(page.locator('.ae-runs-idle__hint')).toHaveText(/Select a run/)
+    await expect(page.locator('.ae-runs-idle .iota-flow__node').first()).toBeVisible()
+  })
+})

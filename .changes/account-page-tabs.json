@@ -1,0 +1,4 @@
+{
+  "bump": "minor",
+  "summary": "Redesign the account page as deep-linkable Profile, Notifications, Password and Sessions tabs with sectioned cards, inline validation, password requirement hints and a sign-in notice after a password change."
+}

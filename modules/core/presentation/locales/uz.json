@@ -47,7 +47,8 @@
     }
   },
   "Account": {
-      "Notifications": {
+    "Tabs": {"Label": "Akkaunt bo‘limlari", "Profile": "Profil", "Notifications": "Bildirishnomalar", "Password": "Parol", "Sessions": "Sessiyalar"}, "Profile": {"Photo": {"Title": "Profil rasmi", "DescText": "Ilova bo‘ylab ismingiz yonida ko‘rsatiladi."}, "Personal": {"Title": "Shaxsiy ma’lumotlar", "DescText": "Hamkasblaringiz ko‘radigan ismingiz."}, "Contact": {"Title": "Aloqa ma’lumotlari", "DescText": "Siz bilan qanday bog‘lanish mumkin.", "Locked": "Email yoki telefonni o‘zgartirish uchun administratorga murojaat qiling."}, "Preferences": {"Title": "Sozlamalar", "DescText": "Interfeys tili."}, "Unsaved": "Saqlanmagan o‘zgarishlar bor.", "FixErrors": "Belgilangan maydonlarni to‘g‘rilab, qayta saqlang.", "Saved": "Profil saqlandi"},
+      "Notifications": {"NoChannels": "Bildirishnoma kanallari mavjud emas.", "Accounts": {"Title": "Ulangan akkauntlar", "DescText": "Ilovadan tashqarida bildirishnomalar keladigan akkauntlar."},
         "Retry": "Qayta urinish",
         "Title": "Bildirishnomalar",
         "Intro": "Bildirishnomalar qayerga kelishini tanlang.",
@@ -127,7 +128,7 @@
       "Placeholder": "Telefon raqamingizni kiriting"
     },
     "Password": "Parol",
-    "ChangePassword": {"Title":"Parolni o‘zgartirish","DescText":"Parol o‘zgartirilgach, barcha faol seanslar yakunlanadi.","CurrentPassword":"Joriy parol","NewPassword":"Yangi parol","ConfirmPassword":"Yangi parolni tasdiqlash","Submit":"Parolni o‘zgartirish","Errors":{"CurrentRequired":"Joriy parolni kiriting.","CurrentIncorrect":"Joriy parol noto‘g‘ri.","NewTooShort":"Yangi parol kamida 8 ta belgidan iborat bo‘lishi kerak.","ConfirmationMismatch":"Parol tasdig‘i yangi parolga mos kelmaydi."}},
+    "ChangePassword": {"Requirements": {"Title": "Parolga talablar", "MinLength": "Kamida 8 ta belgi", "Match": "Yangi parolning ikkala maydoni mos keladi"}, "Success": "Parol o‘zgartirildi. Yangi parol bilan kiring.", "Strength": {"Weak": "Zaif", "Fair": "O‘rtacha", "Good": "Yaxshi", "Strong": "Kuchli"},"Title":"Parolni o‘zgartirish","DescText":"Parol o‘zgartirilgach, barcha faol seanslar yakunlanadi.","CurrentPassword":"Joriy parol","NewPassword":"Yangi parol","ConfirmPassword":"Yangi parolni tasdiqlash","Submit":"Parolni o‘zgartirish","Errors":{"CurrentRequired":"Joriy parolni kiriting.","CurrentIncorrect":"Joriy parol noto‘g‘ri.","NewTooShort":"Yangi parol kamida 8 ta belgidan iborat bo‘lishi kerak.","ConfirmationMismatch":"Parol tasdig‘i yangi parolga mos kelmaydi."}},
     "Save": "Saqlash",
     "Logo": {
       "FullLogo": "To'liq logo",
@@ -145,7 +146,7 @@
       "Email": "Elektron pochta manzili",
       "EmailPlaceholder": "Elektron pochta manzilini kiriting"
     },
-    "Sessions": {
+    "Sessions": {"SignedIn": "Kirish",
       "Title": "Faol sessiyalar",
       "DescText": "Turli qurilmalardagi faol sessiyalarni boshqarish",
       "CurrentDevice": "Joriy",

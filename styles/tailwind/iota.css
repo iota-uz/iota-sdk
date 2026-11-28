@@ -247,12 +247,18 @@
     --clr-canvas-edge: var(--gray-400);
     --clr-canvas-edge-active: var(--primary-500);
 
-    /* Toast: a light surface in both themes (not overridden under html.dark). */
+    /* Toast: an elevated surface that follows the theme (dark values under html.dark).
+       Variant icons and the action keep >= 3:1 (icons) and >= 4.5:1 (action text) on the surface. */
     --clr-toast-surface: var(--white);
     --clr-toast-text: var(--black);
     --clr-toast-text-muted: var(--gray-600);
     --clr-toast-icon-muted: var(--gray-500);
     --clr-toast-border: var(--gray-200);
+    --clr-toast-success: 50% 0.12 168.27;
+    --clr-toast-error: 59.16% 0.218 0.58;
+    --clr-toast-warning: 53% 0.13 73.41;
+    --clr-toast-info: 52% 0.099 240.98;
+    --clr-toast-action: var(--primary-500);
 
     /* Badges */
     --clr-badge-pink: var(--pink-500) / 8%;
@@ -322,6 +328,17 @@
     --clr-canvas-dot: 55.1% 0.027 264.364 / 45%;
     --clr-canvas-edge: var(--gray-500);
     --clr-canvas-edge-active: var(--primary-400);
+    /* Toast: raised above the page, top bar and panels (black-800 over black/black-950). */
+    --clr-toast-surface: var(--black-800);
+    --clr-toast-text: var(--white);
+    --clr-toast-text-muted: var(--gray-300);
+    --clr-toast-icon-muted: var(--gray-400);
+    --clr-toast-border: var(--gray-700);
+    --clr-toast-success: var(--green-500);
+    --clr-toast-error: 68% 0.2 0.58;
+    --clr-toast-warning: var(--yellow-500);
+    --clr-toast-info: var(--blue-500);
+    --clr-toast-action: var(--primary-300);
     /* Red text (errors, danger buttons) needs a lighter shade on dark surfaces. */
     --red-500: 68% 0.2 0.58;
     --clr-danger-btn-text: var(--red-500);

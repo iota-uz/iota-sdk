@@ -5,7 +5,7 @@ import { GRID, rectsOverlap } from './geometry'
 import { createHistory, record, undo } from './history'
 import { ensureLayout, FAILURE_OUTCOMES, itemRect, layoutGroups, isTidied, placeNew, SHARED_GROUP, tidyLayout, unmarked } from './layout'
 import { edgeCrossings, layoutMetrics, mixedGroups, overlappingNodes } from './quality'
-import { createRouter, linksOf, routeEdges, routePath, type Point, type Route } from './route'
+import { createRouter, linksOf, routeEdges, routePath, SNAP, type Point, type Route } from './route'
 import { legacyTidyLayout } from './test/legacyTidy'
 import type { AutomationGraph, AutomationLayout } from './types'
 
@@ -168,7 +168,9 @@ describe('routes', () => {
       expect(route.blocked).toBe(false)
       const points = route.points
       expect(points[0]).toEqual(link.port)
-      expect(points[points.length - 1]).toEqual(link.entry)
+      // Ends less than SNAP apart across are one straight column: the route ends right above the handle.
+      expect(points[points.length - 1]!.y).toBe(link.entry.y)
+      expect(Math.abs(points[points.length - 1]!.x - link.entry.x)).toBeLessThan(SNAP)
       expect(points[1]!.x).toBe(link.port.x)
       expect(points[1]!.y).toBeGreaterThan(link.port.y)
       for (let i = 1; i < points.length; i += 1) expect(points[i]!.x === points[i - 1]!.x || points[i]!.y === points[i - 1]!.y).toBe(true)
@@ -369,6 +371,24 @@ describe('review round', () => {
         if (id === 's' || id === 't') continue
         expect(Math.max(a.x, b.x) > r.x && Math.min(a.x, b.x) < r.x + r.width && Math.max(a.y, b.y) > r.y && Math.min(a.y, b.y) < r.y + r.height).toBe(false)
       }
+    }
+  })
+
+  it('keeps usable source lanes when the card below the source row is off the source column', () => {
+    // The obstacle touches the source row (no lane room under it) but is not over the source column:
+    // the edge goes straight down the source column to the free gap above the target.
+    const rects = new Map([
+      ['s', { x: 0, y: 0, width: 224, height: 96 }],
+      ['t', { x: 400, y: 250, width: 224, height: 96 }],
+      ['o', { x: 260, y: 96, width: 100, height: 96 }],
+    ])
+    const route = createRouter(rects, [{ key: 's.done', from: 's', to: 't', port: { x: 112, y: 96 }, entry: { x: 512, y: 250 } }]).route('s.done')!
+    expect(route.blocked).toBe(false)
+    const o = rects.get('o')!
+    for (let i = 1; i < route.points.length; i += 1) {
+      const a = route.points[i - 1]!
+      const b = route.points[i]!
+      expect(Math.max(a.x, b.x) > o.x && Math.min(a.x, b.x) < o.x + o.width && Math.max(a.y, b.y) > o.y && Math.min(a.y, b.y) < o.y + o.height).toBe(false)
     }
   })
 

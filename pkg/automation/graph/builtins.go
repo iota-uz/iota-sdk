@@ -39,7 +39,7 @@ func waitSchema(events []string) string {
 		panic(err)
 	}
 	return `{"type": "object", "properties": {
-		"event": {"enum": ` + string(ev) + `},
+		"event": {"enum": ` + string(ev) + `, "x-ref": "event"},
 		"filter": ` + expressionSchema + `,
 		"timeout": ` + durationSchema + `
 	}, "required": ["event"], "additionalProperties": false}`

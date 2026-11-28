@@ -81,6 +81,11 @@ export type CatalogNode = {
   idempotent?: boolean
   /** What a dry run does with the node. */
   dry_run?: 'execute' | 'capture' | 'forbid'
+  /**
+   * A front type (the generic "action"): the param that names the type it runs, `prefix` + its value. The
+   * editor shows such a node as the type it names and offers the named types in the palette instead.
+   */
+  dispatch?: { param: string; prefix: string }
 }
 
 export type GraphError = {

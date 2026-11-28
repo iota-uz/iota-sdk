@@ -1,8 +1,85 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 import { expectNoA11yViolations } from '@iota-uz/sdk/testing'
 import { card, center, drag, edge, handle, mod, open, settled } from './helpers'
 
 test.describe('canvas', () => {
+  test('an edge is picked by a click on its line and Delete takes it off; Esc lets it go', async ({ page }) => {
+    await open(page, 'graph=connected')
+    const line = edge(page, 'check', 'true')
+    const at = await line.evaluate((el) => {
+      const path = el as SVGPathElement
+      const p = path.getPointAtLength(path.getTotalLength() / 2)
+      const q = new DOMPoint(p.x, p.y).matrixTransform(path.getScreenCTM()!)
+      return { x: q.x, y: q.y }
+    })
+    await page.mouse.move(at.x, at.y)
+    await expect(line).toHaveClass(/ae-edge--hover/)
+    await page.mouse.click(at.x, at.y)
+    await expect(line).toHaveClass(/ae-edge--selected/)
+    await page.keyboard.press('Escape')
+    await expect(line).not.toHaveClass(/ae-edge--selected/)
+    await page.mouse.click(at.x, at.y)
+    await page.keyboard.press('Delete')
+    await expect(line).toHaveCount(0)
+    await page.keyboard.press(`${mod}+z`)
+    await expect(line).toHaveAttribute('data-to', 'yes')
+  })
+
+  test('an edge leaves the centre of its handle dot on the card bottom and ends on the target input, at 100% and zoomed', async ({ page }) => {
+    await open(page, 'graph=connected')
+    const measure = () => page.evaluate(() => {
+      const out: { key: string; dx: number; dy: number; tx: number; ty: number }[] = []
+      for (const path of document.querySelectorAll<SVGPathElement>('path.ae-edge[data-edge]')) {
+        const key = path.dataset.edge!
+        const dot = key.lastIndexOf('.')
+        const node = key.slice(0, dot)
+        const outcome = key.slice(dot + 1)
+        const source = document.querySelector<HTMLElement>(`.iota-flow__node[data-id="${node}"]`)
+        const chip = source?.querySelector<HTMLElement>(`.iota-flow__handle.source[data-handleid="${outcome}"]`)
+        const target = document.querySelector<HTMLElement>(`.iota-flow__node[data-id="${path.dataset.to}"]`)
+        const matrix = path.getScreenCTM()
+        // A missing end is a failure of its own: the row stays and fails every bound below, naming the edge.
+        if (!source || !chip || !target || !matrix) {
+          out.push({ key, dx: Infinity, dy: Infinity, tx: Infinity, ty: Infinity })
+          continue
+        }
+        const zoom = matrix.a
+        const start = new DOMPoint(path.getPointAtLength(0).x, path.getPointAtLength(0).y).matrixTransform(matrix)
+        const end = path.getPointAtLength(path.getTotalLength())
+        const tip = new DOMPoint(end.x, end.y).matrixTransform(matrix)
+        const ball = getComputedStyle(chip, '::after')
+        const chipBox = chip.getBoundingClientRect()
+        const sourceBox = source.getBoundingClientRect()
+        const targetBox = target.getBoundingClientRect()
+        // The dot's centre: its own box inside the chip (computed, so a CSS offset shows up here).
+        const dotX = chipBox.left + (chip.clientLeft + parseFloat(ball.left) + parseFloat(ball.marginLeft) + parseFloat(ball.width) / 2) * zoom
+        const dotY = chipBox.top + (chip.clientTop + parseFloat(ball.top) + parseFloat(ball.height) / 2) * zoom
+        out.push({
+          key,
+          dx: Math.abs(start.x - dotX) + Math.abs(start.x - (chipBox.left + chipBox.width / 2)),
+          dy: Math.abs(start.y - dotY) + Math.abs(start.y - sourceBox.bottom),
+          tx: Math.abs(tip.x - (targetBox.left + targetBox.width / 2)),
+          ty: Math.abs(tip.y + 6 * zoom - targetBox.top),
+        })
+      }
+      return out
+    })
+    for (const zoomed of [false, true]) {
+      if (zoomed) {
+        await page.locator('.ae-controls button').first().click()
+        await page.waitForTimeout(400)
+      }
+      const rows = await measure()
+      expect(rows.length).toBeGreaterThan(0)
+      for (const row of rows) {
+        expect(row.dx, `${row.key} x`).toBeLessThan(1)
+        expect(row.dy, `${row.key} y`).toBeLessThan(1)
+        expect(row.tx, `${row.key} target x`).toBeLessThan(1)
+        expect(row.ty, `${row.key} target y`).toBeLessThan(1)
+      }
+    }
+  })
+
   test('connecting an occupied outcome replaces its edge; undo brings the old one back (ED3)', async ({ page }) => {
     await open(page, 'graph=connected')
     await expect(edge(page, 'check', 'true')).toHaveAttribute('data-to', 'yes')
@@ -733,5 +810,48 @@ test.describe('motion', () => {
     const start = await center(card(page, 'delay').locator('.ae-card__title'))
     await drag(page, start, { x: start.x + 60, y: start.y + 40 })
     expect(await moving()).toEqual([])
+  })
+})
+
+test.describe('list item rows', () => {
+  /** For each item row: the vertical centre of its first control and of its first button, and their heights. */
+  const rows = (page: Page) => page.$$eval('.ae-side .ae-form-list-item:not(.ae-form-list-item--block)', (items) => items.map((li) => {
+    const control = li.querySelector('.ae-form-list-body :is(input:not([type=hidden]), textarea, [role=combobox], .ae-form-segmented)')!.getBoundingClientRect()
+    const button = li.querySelector('.ae-form-list-actions .ae-form-icon')!.getBoundingClientRect()
+    return { control: [control.top + control.height / 2, control.height], button: [button.top + button.height / 2, button.height, button.width] }
+  }))
+
+  for (const theme of ['light', 'dark']) {
+    test(`a one-value item's buttons are square, as high as its control and level with it, also under an error (${theme})`, async ({ page }) => {
+      await open(page, `graph=notify&catalog=notify${theme === 'dark' ? '&theme=dark' : ''}`)
+      await card(page, 'ping').click()
+      const roles = page.locator('.ae-side [data-param="recipients.roles"]')
+      await roles.getByRole('button', { name: 'Add' }).click()
+      await expect(page.locator('.ae-side .ae-form-list-item')).toHaveCount(2)
+      const check = async () => {
+        const found = await rows(page)
+        expect(found.length).toBeGreaterThan(0)
+        for (const r of found) {
+          expect(Math.abs(r.control[0]! - r.button[0]!), JSON.stringify(r)).toBeLessThanOrEqual(1)
+          expect(Math.abs(r.control[1]! - r.button[1]!), JSON.stringify(r)).toBeLessThanOrEqual(1)
+          expect(r.button[1]).toBe(r.button[2])
+        }
+      }
+      await check()
+      // A message under the control grows the row downwards; the buttons stay with the control.
+      await page.locator('.ae-side .ae-form-list-item .ae-form-field').first().evaluate((field) => {
+        const p = document.createElement('p'); p.className = 'ae-form-error'; p.textContent = 'This value is required and must be a role of this tenant.'; field.append(p)
+      })
+      await check()
+    })
+  }
+
+  test('an item of several fields keeps its buttons on its legend line', async ({ page }) => {
+    await open(page, 'graph=bench')
+    await card(page, 'n0').click()
+    const item = page.locator('.ae-side .ae-form-list-item--block').first()
+    await expect(item).toBeVisible()
+    const [legend, button] = await item.evaluate((li) => [li.querySelector('legend')!.getBoundingClientRect(), li.querySelector('.ae-form-icon')!.getBoundingClientRect()].map((r) => r.top + r.height / 2))
+    expect(Math.abs(legend! - button!)).toBeLessThanOrEqual(1)
   })
 })

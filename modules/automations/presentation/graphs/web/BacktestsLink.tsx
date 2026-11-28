@@ -1,5 +1,5 @@
 import { createSignal, onMount, type JSX } from 'solid-js'
-import { backtestsPath } from './backtests'
+import { backtestsPath } from './backtestsModel'
 import { useApp } from './context'
 import { Icon } from './Icon'
 

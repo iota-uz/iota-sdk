@@ -5,7 +5,7 @@ import { jevNode, routeGraph } from './fixtures/automations/backtests'
 import {
   active, backtestErrorText, classifiersOf, eventSummary, filterMismatches, nodeTitles, percent, progress, readBacktestsView, writeBacktestsView,
   type ReportResult,
-} from './backtests'
+} from './backtestsModel'
 import { translator } from './model'
 
 const t = translator((k) => ({

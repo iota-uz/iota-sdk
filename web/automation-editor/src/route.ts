@@ -43,6 +43,14 @@ export type Router = {
 export const STUB = 12
 export const LANE = 12
 const LANES = 5
+/** The shortest stub (from the port down to the first channel, from the last one into the target): room for two full corners. */
+const MIN_STUB = 22
+/** The stretch the arrow takes off the end of an edge (`ARROW_GAP` in edgefit). */
+const ARROW_ROOM = 6
+/** How far below a card a channel is looked for when nothing is below it (a row gap). */
+const ROW_REACH = 90
+/** Ends closer than this across are drawn as one straight line. */
+export const SNAP = 2
 const CLEAR = 4
 const BEND_COST = 24
 const TRUNK_REWARD = 0.85
@@ -110,12 +118,12 @@ class Obstacles {
 
 const same = (a: number, b: number) => Math.abs(a - b) < 0.5
 
-/** Drops repeated points and the middle point of three collinear ones. */
-export function simplify(points: Point[]): Point[] {
+/** Drops repeated points (closer than `eps` on both axes) and the middle point of three collinear ones. */
+export function simplify(points: Point[], eps = 0.5): Point[] {
   const out: Point[] = []
   for (const p of points) {
     const last = out[out.length - 1]
-    if (last && same(last.x, p.x) && same(last.y, p.y)) continue
+    if (last && Math.abs(last.x - p.x) < eps && Math.abs(last.y - p.y) < eps) continue
     out.push(p)
   }
   for (let i = out.length - 2; i > 0; i -= 1) {
@@ -141,7 +149,7 @@ export function directRoute(port: Point, entry: Point): Route {
 /** The path of `directRoute` for the common case, a target below, built without the arrays: what an edge shows until its route is found. */
 export function directPath(a: Point, b: Point, radius = 10): string {
   if (b.y - STUB * 2 <= a.y) return routePath(directRoute(a, b).points)
-  if (same(a.x, b.x)) return `M${a.x},${a.y}L${b.x},${b.y}`
+  if (Math.abs(a.x - b.x) < SNAP) return `M${a.x},${a.y}L${a.x},${b.y}`
   const y = Math.round((a.y + b.y) / 2)
   const r = Math.min(radius, (y - a.y) / 2, Math.abs(b.x - a.x) / 2, (b.y - y) / 2)
   const dx = b.x > a.x ? r : -r
@@ -152,18 +160,50 @@ type Trunk = { h: { y: number; lo: number; hi: number }[]; v: { x: number; lo: n
 
 const overlap = (a1: number, a2: number, b1: number, b2: number) => Math.max(0, Math.min(Math.max(a1, a2), Math.max(b1, b2)) - Math.max(Math.min(a1, a2), Math.min(b1, b2)))
 
-function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preference: number): Route {
-  const { port: s, entry: t } = link
-  // The horizontal channels under the source and above the target, nearest first.
-  const below: number[] = []
-  const above: number[] = []
-  for (let k = 0; k < LANES; k += 1) {
-    below.push(s.y + STUB + k * LANE)
-    above.push(t.y - STUB - k * LANE)
+/** Lanes in a free gap between `from` and `to` (from < to): the balanced middle first, then alternately either side by LANE, each keeping `head` from `from` and `tail` from `to`; the middle alone when none fits. */
+function lanesIn(from: number, to: number, head: number, tail: number): number[] {
+  // The middle of what is left once each end keeps its own extra (the arrow's stretch at the target), so
+  // both stubs come out equal; whole pixels where there is room, exact in a narrow gap.
+  const gap = to - from
+  const centre = gap >= head * 2 ? from + (gap - (tail - head)) / 2 : from + gap / 2
+  const mid = gap >= head * 2 ? Math.round(centre) : centre
+  const out: number[] = []
+  for (let k = 0; out.length < LANES && k <= LANES * 2; k += 1) {
+    const y = mid + (k === 0 ? 0 : (k % 2 ? -1 : 1) * Math.ceil(k / 2) * LANE)
+    if (y - from >= head && to - y >= tail) out.push(y)
   }
-  const bandTop = Math.min(s.y, t.y - LANES * LANE) - 96
-  const bandBottom = Math.max(t.y, s.y + LANES * LANE) + 96
+  return out.length ? out : [mid]
+}
+
+function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preference: number, relax?: number): Route {
+  const s = link.port
+  // Ends less than SNAP apart across are one column: a straight edge, never a jog of a pixel.
+  const t = Math.abs(link.entry.x - s.x) < SNAP ? { x: s.x, y: link.entry.y } : link.entry
+  // Straight down, when nothing stands between the handles.
+  if (s.x === t.x && t.y > s.y && !obstacles.blocked(s.x, s.y, s.x, t.y, 0)) return { points: [s, t], blocked: false }
+  const bandTop = Math.min(s.y, t.y) - ROW_REACH - 96
+  const bandBottom = Math.max(t.y, s.y) + ROW_REACH + 96
   const first = obstacles.near(Math.min(s.x, t.x) - 96, bandTop, Math.max(s.x, t.x) + 96, bandBottom)
+  // The horizontal channels run through the middle of the free gap under the source and over the target
+  // (the gap between the rows), lanes spread around it, so both corners of a stub keep their full radius.
+  const lo = Math.min(s.x, t.x)
+  const hi = Math.max(s.x, t.x)
+  const spans = (r: Rect) => r.x < hi + 1 && r.x + r.width > lo - 1
+  let floor = t.y > s.y ? t.y : s.y + ROW_REACH
+  // A card off the source column that leaves no room for a stub under the source closes the lanes at first;
+  // when no route is found, the search is repeated (`relax`, which keeps `narrow` off) with it an obstacle alone.
+  let narrow: boolean | 0 = 0
+  for (const r of first) {
+    const off = r.y < s.y + MIN_STUB && !(s.x > r.x && s.x < r.x + r.width)
+    if (r.y >= s.y - 0.5 && r.y < floor && (spans(r) || (s.x > r.x && s.x < r.x + r.width)) && !(relax && off)) floor = r.y, narrow = off
+  }
+  let ceiling = t.y > s.y ? s.y : t.y - ROW_REACH
+  for (const r of first) {
+    const bottom = r.y + r.height
+    if (bottom <= t.y + 0.5 && bottom > ceiling && (spans(r) || (t.x > r.x && t.x < r.x + r.width))) ceiling = bottom
+  }
+  const below = lanesIn(s.y, floor, MIN_STUB, MIN_STUB + ARROW_ROOM)
+  const above = lanesIn(ceiling, t.y, MIN_STUB, MIN_STUB + ARROW_ROOM)
   const stubFree = (ys: number[], x: number, from: number) =>
     ys.filter((y) => {
       const lo = Math.min(from, y)
@@ -172,6 +212,8 @@ function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferenc
       return true
     })
   let clear = CLEAR
+  // A gap too narrow for two full corners keeps a margin that fits it, so the middle channel is usable.
+  for (const gap of [floor - s.y, t.y - ceiling]) if (gap > 0 && gap < MIN_STUB * 2 + ARROW_ROOM) clear = Math.min(clear, gap * 0.375)
   let y1s = stubFree(below, s.x, s.y)
   let y2s = stubFree(above, t.x, t.y)
   if (y1s.length === 0 || y2s.length === 0) {
@@ -206,7 +248,7 @@ function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferenc
     const found = search(reach)
     if (found) return clear < CLEAR ? { points: found, blocked: false, clear } : { points: found, blocked: false }
   }
-  return { ...directRoute(s, t), blocked: true }
+  return narrow ? routeOne(link, obstacles, trunk, preference, 1) : { ...directRoute(s, t), blocked: true }
 
   function search(reach: number): Point[] | null {
   const x0 = Math.min(s.x, t.x) - reach
@@ -434,6 +476,7 @@ export function routePath(points: Point[], radius = 10, clear = CLEAR): string {
   if (points.length === 0) return ''
   // A rounded corner cuts in by a quarter of its radius on each axis: keep that inside the distance the route keeps from cards.
   radius = Math.min(radius, clear * 3.5)
+  const len = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y)
   let d = `M${points[0]!.x},${points[0]!.y}`
   for (let i = 1; i < points.length; i += 1) {
     const prev = points[i - 1]!
@@ -443,9 +486,27 @@ export function routePath(points: Point[], radius = 10, clear = CLEAR): string {
       d += `L${here.x},${here.y}`
       continue
     }
-    const before = Math.hypot(here.x - prev.x, here.y - prev.y)
-    const after = Math.hypot(next.x - here.x, next.y - here.y)
+    // A step across shorter than two corners between two vertical runs that go on the same way (a lane
+    // change of a few px): one smooth S over a radius above and below, not two kinks.
+    const after2 = points[i + 2]
+    const sway = radius
+    if (
+      after2 && same(prev.x, here.x) && same(here.y, next.y) && same(next.x, after2.x) &&
+      len(here, next) < radius * 2 && Math.sign(here.y - prev.y) === Math.sign(after2.y - next.y) &&
+      len(prev, here) >= sway && len(next, after2) >= sway && (i === 1 || len(prev, here) >= sway * 2) && (i + 2 === points.length - 1 || len(next, after2) >= sway * 2)
+    ) {
+      const dir = Math.sign(after2.y - next.y)
+      d += `L${here.x},${here.y - dir * sway}C${here.x},${here.y} ${next.x},${next.y} ${next.x},${next.y + dir * sway}`
+      i += 1
+      continue
+    }
+    const before = len(prev, here)
+    const after = len(here, next)
     const r = Math.min(radius, before / 2, after / 2)
+    if (r < 1) {
+      d += `L${here.x},${here.y}`
+      continue
+    }
     const a = { x: here.x - ((here.x - prev.x) / before) * r, y: here.y - ((here.y - prev.y) / before) * r }
     const b = { x: here.x + ((next.x - here.x) / after) * r, y: here.y + ((next.y - here.y) / after) * r }
     d += `L${a.x},${a.y}Q${here.x},${here.y} ${b.x},${b.y}`

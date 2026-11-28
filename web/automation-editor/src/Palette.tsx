@@ -106,8 +106,12 @@ export function Palette(props: PaletteProps): JSX.Element {
     }
     if (mode.kind === 'add') {
       for (const node of props.catalog.nodes) {
+        // A front type (the generic "action") is not offered: each type it can name is its own entry
+        // ("Block user" under its module), so nobody has to type a key.
+        if (node.dispatch && props.catalog.nodes.some((n) => n !== node && n.type.startsWith(node.dispatch!.prefix))) continue
         out.push({
           key: `n:${node.type}`,
+          hidden: node.type,
           group: node.group,
           section: 'steps',
           title: node.title,

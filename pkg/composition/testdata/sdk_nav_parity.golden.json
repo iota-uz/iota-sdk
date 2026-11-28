@@ -328,6 +328,18 @@
   ],
   "quick_links": [
     {
+      "tr_key": "Account.ChangePassword.Title",
+      "link": "/account/password",
+      "access": {
+        "visibility": "public",
+        "owner_id": "",
+        "allowed_users": null,
+        "allowed_roles": null,
+        "allowed_permissions": null,
+        "permission_logic": ""
+      }
+    },
+    {
       "tr_key": "Account.Meta.Index.Title",
       "link": "/account",
       "access": {

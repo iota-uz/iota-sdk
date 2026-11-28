@@ -26,7 +26,7 @@ const (
 		"max-[480px]:top-auto max-[480px]:bottom-[var(--iota-toast-offset-bottom,0px)] max-[480px]:max-w-none max-[480px]:flex-col-reverse " +
 		"max-[480px]:pt-3 max-[480px]:pl-[max(0.75rem,env(safe-area-inset-left))] max-[480px]:pr-[max(0.75rem,env(safe-area-inset-right))] max-[480px]:pb-[max(0.75rem,env(safe-area-inset-bottom))]"
 	surfaceClass = "flex items-start gap-3 w-full p-4 bg-toast text-toast rounded-lg shadow-lg border border-toast"
-	actionClass  = "flex-shrink-0 self-center -my-1 inline-flex items-center min-h-9 [@media(pointer:coarse)]:min-h-11 px-2 rounded-md text-sm font-semibold text-primary-500 hover:bg-primary-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 cursor-pointer"
+	actionClass  = "flex-shrink-0 self-center -my-1 inline-flex items-center min-h-9 [@media(pointer:coarse)]:min-h-11 px-2 rounded-md text-sm font-semibold text-toast-action hover:bg-primary-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 cursor-pointer"
 	closeClass   = "flex-shrink-0 rounded-md text-toast-icon hover:text-toast transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
 )
 
@@ -48,7 +48,7 @@ func toastItemData() string {
 	},
 	get polite() { return this.variant === 'success' || this.variant === 'info'; },
 	get iconClass() {
-		return { success: 'text-green-500', error: 'text-red-500', danger: 'text-red-500', warning: 'text-yellow-500', info: 'text-blue-500' }[this.variant];
+		return { success: 'text-toast-success', error: 'text-toast-error', danger: 'text-toast-error', warning: 'text-toast-warning', info: 'text-toast-info' }[this.variant];
 	},
 	get action() {
 		const action = notification.action;

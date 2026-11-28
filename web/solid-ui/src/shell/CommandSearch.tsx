@@ -1,5 +1,6 @@
 import { createEffect, createSignal, createUniqueId, For, onCleanup, onMount, Show, splitProps, type JSX } from 'solid-js'
 import { classes } from '../internal/classes'
+import { isShortcutClaimed } from '../internal/shortcuts'
 import { Loader } from '../data/Loader'
 
 function SearchIcon(props: { size?: number }) { return <svg aria-hidden="true" width={props.size ?? 18} height={props.size ?? 18} viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="16"><circle cx="112" cy="112" r="72" /><line x1="163" y1="163" x2="216" y2="216" /></svg> }
@@ -35,7 +36,7 @@ export function CommandSearch(props: CommandSearchProps) {
   const activeResults = () => local.results.filter((result) => !result.disabled)
   const move = (delta: number) => { const count = activeResults().length; if (count > 0) setHighlighted((highlighted() + delta + count) % count) }
   const select = (event: KeyboardEvent) => { const result = activeResults()[highlighted()]; if (result) local.onSelect?.(result, event) }
-  const shortcut = (event: KeyboardEvent) => { if (!event.defaultPrevented && (local.shortcut ?? true) && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setOpen(!expanded()) } }
+  const shortcut = (event: KeyboardEvent) => { if (!isShortcutClaimed(event, 'mod+k') && (local.shortcut ?? true) && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setOpen(!expanded()) } }
   onMount(() => trigger.ownerDocument.addEventListener('keydown', shortcut))
   onCleanup(() => trigger?.ownerDocument.removeEventListener('keydown', shortcut))
   createEffect(() => { if (highlighted() >= activeResults().length) setHighlighted(Math.max(0, activeResults().length - 1)) })

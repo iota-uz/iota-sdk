@@ -2,6 +2,7 @@
 package controllers
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -64,12 +65,20 @@ func (c *AccountController) Descriptor() application.ControllerDescriptor {
 		"core.account",
 		0,
 		application.Route("", c.basePath),
+		application.Route("", c.basePath+"/password"),
 		application.Route("", c.basePath+"/sessions"),
 	).WithNav(
 		application.NavNode{
 			ID:       "core.account",
 			TitleKey: "Account.Meta.Index.Title",
 			Path:     c.basePath,
+			Surfaces: spotlightOnlySurface(),
+		},
+		application.NavNode{
+			ID:       "core.account.password",
+			Parent:   "core.account",
+			TitleKey: "Account.ChangePassword.Title",
+			Path:     c.basePath + "/password",
 			Surfaces: spotlightOnlySurface(),
 		},
 		application.NavNode{
@@ -94,6 +103,7 @@ func (c *AccountController) Register(r *mux.Router) {
 	getRouter := r.PathPrefix(c.basePath).Subrouter()
 	getRouter.Use(commonMiddleware...)
 	getRouter.HandleFunc("", c.Get).Methods(http.MethodGet)
+	getRouter.HandleFunc("/password", c.GetPassword).Methods(http.MethodGet)
 	getRouter.HandleFunc("/sessions", c.GetSessions).Methods(http.MethodGet)
 
 	setRouter := r.PathPrefix(c.basePath).Subrouter()
@@ -132,6 +142,13 @@ func (c *AccountController) ChangePassword(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Every session is gone now, so the confirmation waits on the login page.
+	// The flash is set for "/": by default the cookie would stay under
+	// /account and the login page would never see it.
+	http.SetCookie(w, &http.Cookie{
+		Name: "notice", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode,
+		Value: base64.URLEncoding.EncodeToString([]byte(composables.UsePageCtx(r.Context()).T("Account.ChangePassword.Success"))),
+	})
 	http.SetCookie(w, &http.Cookie{
 		Name: c.cfg.SID, Value: "", Path: "/", Domain: c.cfg.Domain,
 		MaxAge: -1, Expires: time.Unix(0, 0), HttpOnly: true, SameSite: http.SameSiteLaxMode,
@@ -144,37 +161,70 @@ func (c *AccountController) ChangePassword(w http.ResponseWriter, r *http.Reques
 }
 
 func (c *AccountController) defaultProps(r *http.Request, errors map[string]string) (*account.ProfilePageProps, error) {
-	nonNilErrors := make(map[string]string)
-	if errors != nil {
-		nonNilErrors = errors
-	}
 	u, err := composables.UseUser(r.Context())
 	if err != nil {
 		return nil, err
 	}
-
-	// Get supported languages from application config
-	supportedLanguages := c.app.GetSupportedLanguages()
-	languages := intl.GetSupportedLanguages(supportedLanguages)
-
-	props := &account.ProfilePageProps{
-		PostPath:  c.basePath,
-		User:      mappers.UserToViewModel(u),
-		Errors:    nonNilErrors,
-		Languages: languages,
-	}
-	return props, nil
+	return c.profileProps(mappers.UserToViewModel(u), errors), nil
 }
 
+func (c *AccountController) profileProps(u *viewmodels.User, errors map[string]string) *account.ProfilePageProps {
+	if errors == nil {
+		errors = map[string]string{}
+	}
+	return &account.ProfilePageProps{
+		PostPath: c.basePath,
+		User:     u,
+		Errors:   errors,
+		// What is stored: the contact fields lock on it, whatever a failed save echoes back in User.
+		StoredEmail: u.Email,
+		StoredPhone: u.Phone,
+		Languages:   intl.GetSupportedLanguages(c.app.GetSupportedLanguages()),
+	}
+}
+
+// Get serves the «Profile» tab. The ?tab= links of the single page it used to
+// be go to the tab's own address.
 func (c *AccountController) Get(w http.ResponseWriter, r *http.Request) {
+	if name := r.URL.Query().Get("tab"); name != "" {
+		if t, ok := account.TabByName(name); ok && t.Tab != account.TabProfile {
+			http.Redirect(w, r, t.Path, http.StatusFound)
+			return
+		}
+	}
 	props, err := c.defaultProps(r, nil)
 	if err != nil {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
-	props.ShowNotifications = true
+	renderAccountTab(w, r, props.User, account.TabProfile, account.ProfileForm(props))
+}
 
-	templ.Handler(account.Index(props)).ServeHTTP(w, r)
+// GetPassword serves the «Password» tab.
+func (c *AccountController) GetPassword(w http.ResponseWriter, r *http.Request) {
+	u, err := composables.UseUser(r.Context())
+	if err != nil {
+		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
+		return
+	}
+	renderAccountTab(w, r, mappers.UserToViewModel(u), account.TabPassword, account.PasswordForm(account.PasswordPath, map[string]string{}))
+}
+
+// isAccountTabSwitch reports whether the request is a tab switch: htmx aims it
+// at the tab panel. Other htmx requests of the same URLs (a section's own
+// refresh, a filter change) keep their own answers.
+func isAccountTabSwitch(r *http.Request) bool {
+	return htmx.IsHxRequest(r) && !htmx.IsHistoryRestoreRequest(r) && htmx.Target(r) == account.TabPanelID
+}
+
+// renderAccountTab answers with the tab alone on a tab switch and with the
+// whole account page otherwise.
+func renderAccountTab(w http.ResponseWriter, r *http.Request, u *viewmodels.User, tab account.Tab, content templ.Component) {
+	if isAccountTabSwitch(r) {
+		templ.Handler(account.TabContent(tab, content)).ServeHTTP(w, r)
+		return
+	}
+	templ.Handler(account.Page(account.ShellProps{User: u, Active: tab}, content)).ServeHTTP(w, r)
 }
 
 func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
@@ -184,19 +234,21 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusBadRequest, nil)
 		return
 	}
-	if errors, ok := dto.Ok(r.Context()); !ok {
-		props, err := c.defaultProps(r, errors)
-		if err != nil {
-			serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
-			return
-		}
-		logger.WithField("errors", errors).Debug("validation failed")
-		templ.Handler(account.ProfileForm(props)).ServeHTTP(w, r)
-		return
-	}
 	u, err := composables.UseUser(r.Context())
 	if err != nil {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
+		return
+	}
+	if errors, ok := dto.Ok(r.Context()); !ok {
+		logger.WithField("errors", errors).Debug("validation failed")
+		// Keep what the person typed next to the errors.
+		vm := mappers.UserToViewModel(u)
+		vm.FirstName, vm.LastName, vm.MiddleName = dto.FirstName, dto.LastName, dto.MiddleName
+		vm.Email, vm.Phone, vm.Language = dto.Email, dto.Phone, dto.Language
+		props := c.profileProps(vm, errors)
+		saved := mappers.UserToViewModel(u)
+		props.StoredEmail, props.StoredPhone = saved.Email, saved.Phone
+		templ.Handler(account.ProfileForm(props)).ServeHTTP(w, r)
 		return
 	}
 	entity, err := dto.Apply(u)
@@ -219,22 +271,26 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if _, err := c.userService.UpdateSelf(r.Context(), entity); err != nil {
+	updated, err := c.userService.UpdateSelf(r.Context(), entity)
+	if err != nil {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return
 	}
+	if updated == nil {
+		updated = entity
+	}
 
-	w.Header().Set("Hx-Refresh", "true")
+	// A new language changes every string on the page, a new photo the navbar
+	// avatar too: both need the whole page again.
+	if u.UILanguage() != updated.UILanguage() || u.AvatarID() != updated.AvatarID() {
+		htmx.Refresh(w)
+		return
+	}
 
-	// Get supported languages for the response
-	supportedLanguages := c.app.GetSupportedLanguages()
-	languages := intl.GetSupportedLanguages(supportedLanguages)
-
-	templ.Handler(account.ProfileForm(&account.ProfilePageProps{
-		User:      mappers.UserToViewModel(entity),
-		Errors:    map[string]string{},
-		Languages: languages,
-	})).ServeHTTP(w, r)
+	pageCtx := composables.UsePageCtx(r.Context())
+	htmx.ToastSuccess(w, pageCtx.T("Account.Profile.Saved"), "")
+	vm := mappers.UserToViewModel(updated)
+	templ.Handler(account.ProfileSaved(c.profileProps(vm, nil))).ServeHTTP(w, r)
 }
 
 func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) {
@@ -296,12 +352,13 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 		},
 	}
 
-	// A history restore (cache miss on Back) needs the whole document.
-	if !htmx.WantsFullPage(r) {
+	// A chip change re-renders the list; a tab switch, a page load or a history
+	// restore (cache miss on Back) get the tab.
+	if !htmx.WantsFullPage(r) && !isAccountTabSwitch(r) {
 		templ.Handler(account.SessionsListWithChips(props)).ServeHTTP(w, r)
 		return
 	}
-	templ.Handler(account.SessionsPage(props)).ServeHTTP(w, r)
+	renderAccountTab(w, r, mappers.UserToViewModel(user), account.TabSessions, account.Sessions(props))
 }
 
 // Filter chip field keys of the account sessions list.

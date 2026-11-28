@@ -60,7 +60,7 @@ templ Avatar(props Props) {
 				alt="Avatar"
 				class={
 					twmerge.Merge(
-						"w-9 h-9 object-cover",
+						"size-full object-cover",
 					),
 					templ.KV("rounded-full", props.Variant != Square),
 					templ.KV("rounded-lg", props.Variant == Square),

@@ -8,7 +8,7 @@ A flexible toast notification system for IOTA SDK using Alpine.js and HTMX.
 - One optional action ("Undo", "Retry") with the same markup as the Solid toast
 - Auto-dismiss after 8 seconds (`duration` in ms, `0` keeps the toast); a toast with an action stays at least 8 seconds
 - Pause while hovered or focused
-- Light SDK surface in both themes; on phones (≤ 480 px) nearly full width at the bottom, above a bottom action bar whose height the page sets in `--iota-toast-offset-bottom`, with `safe-area-inset` padding
+- Theme-aware SDK surface (`--clr-toast-*` tokens: light surface in the light theme, raised dark surface under `html.dark`); on phones (≤ 480 px) nearly full width at the bottom, above a bottom action bar whose height the page sets in `--iota-toast-offset-bottom`, with `safe-area-inset` padding
 - Smooth animations
 - Up to 20 notifications in stack
 - Dark mode support

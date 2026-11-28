@@ -80,6 +80,7 @@ export type Strings = {
     saving: string
     enabled: string
     keys: string
+    more: string
     unsaved: string
     versions: string
     version(v: number): string
@@ -256,6 +257,7 @@ const en: Strings = {
     saving: 'Saving…',
     enabled: 'Enabled',
     keys: 'Keys',
+    more: 'More',
     unsaved: 'Unsaved changes',
     versions: 'Versions',
     version: (v) => `Version ${v}`,
@@ -453,6 +455,7 @@ const ru: Strings = {
     saving: 'Сохраняем…',
     enabled: 'Включена',
     keys: 'Клавиши',
+    more: 'Ещё',
     unsaved: 'Есть несохранённые правки',
     versions: 'Версии',
     version: (v) => `Версия ${v}`,
@@ -650,6 +653,7 @@ const uz: Strings = {
     saving: 'Saqlanmoqda…',
     enabled: 'Yoqilgan',
     keys: 'Tugmalar',
+    more: 'Yana',
     unsaved: 'Saqlanmagan oʻzgarishlar bor',
     versions: 'Versiyalar',
     version: (v) => `${v}-versiya`,
@@ -847,6 +851,7 @@ const uzCyrl: Strings = {
     saving: 'Сақланмоқда…',
     enabled: 'Ёқилган',
     keys: 'Тугмалар',
+    more: 'Яна',
     unsaved: 'Сақланмаган ўзгаришлар бор',
     versions: 'Версиялар',
     version: (v) => `${v}-версия`,

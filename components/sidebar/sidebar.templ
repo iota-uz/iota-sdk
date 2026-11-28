@@ -258,9 +258,7 @@ templ SidebarLinkNode(node NavNode, mode SidebarRenderMode) {
 					Href:  node.Href,
 					Class: className,
 				}) {
-					if node.Icon != nil {
-						@node.Icon
-					}
+					@sidebarIconSlot(node)
 					{ node.Text }
 					if node.IsBeta {
 						@SidebarBetaBadge("ml-auto", false)
@@ -281,9 +279,7 @@ templ SidebarLinkNode(node NavNode, mode SidebarRenderMode) {
 					"@click": "closeCollapsedMenus()",
 				},
 			}) {
-				if node.Icon != nil {
-					@node.Icon
-				}
+				@sidebarIconSlot(node)
 				{ node.Text }
 				if node.IsBeta {
 					@SidebarBetaBadge("ml-auto", false)
@@ -331,9 +327,7 @@ templ SidebarGroupNode(node NavNode, mode SidebarRenderMode, depth int, navID st
 			</button>
 			<details x-show="!isCollapsed" class="group" open?={ node.IsActive }>
 				<summary class="btn btn-sidebar btn-md gap-2 w-full cursor-pointer">
-					if node.Icon != nil {
-						@node.Icon
-					}
+					@sidebarIconSlot(node)
 					{ node.Text }
 					if node.IsBeta {
 						@SidebarBetaBadge("ml-auto", node.IsActive)
@@ -360,9 +354,7 @@ templ SidebarGroupNode(node NavNode, mode SidebarRenderMode, depth int, navID st
 				data-depth={ depthAttr(depth) }
 				class={ buttonClass }
 			>
-				if node.Icon != nil {
-					@node.Icon
-				}
+				@sidebarIconSlot(node)
 				<span class="truncate">{ node.Text }</span>
 				if node.IsBeta {
 					@SidebarBetaBadge("ml-auto", node.IsActive)
@@ -419,4 +411,14 @@ templ SidebarBetaBadge(className string, active bool) {
 			Beta
 		</span>
 	}
+}
+
+// sidebarIconSlot gives every expanded row the same 20 px icon box, centred on the label's line, so the
+// labels start at one x whatever the icon's own size (or when a row has no icon).
+templ sidebarIconSlot(node NavNode) {
+	<span class="inline-flex size-5 shrink-0 items-center justify-center [&>svg]:size-5" aria-hidden="true">
+		if node.Icon != nil {
+			@node.Icon
+		}
+	</span>
 }

@@ -2,6 +2,7 @@
 // multi selection it acts on the whole selection ("Delete 3 steps"). Shortcuts are shown only for a
 // mouse (T3).
 import { createSignal, For, onCleanup, onMount, Show, type JSX } from 'solid-js'
+import { Icon } from './icons'
 import { createFocusReturn, isCoarse, useDismiss, useLeaving } from './layer'
 import { isMac } from './locale'
 import { keyLabel, strings } from './strings'
@@ -10,6 +11,10 @@ import type { EditorLocale } from './types'
 export type MenuItem = {
   key: string
   label: string
+  /** An icon name (./icons); every row keeps the same 16 px icon slot, with or without one. */
+  icon?: string
+  /** A divider line above this row: starts a new group of actions. */
+  separator?: boolean
   shortcut?: string
   danger?: boolean
   checked?: boolean
@@ -34,10 +39,13 @@ export function ContextMenu(props: ContextMenuProps): JSX.Element {
   const mac = isMac()
   let root: HTMLDivElement | undefined
   const [active, setActive] = createSignal(0)
+  // The rendered height once mounted (coarse pointers have taller rows, separators take room); an estimate before.
+  const [measured, setMeasured] = createSignal(0)
   const enabled = () => props.items.filter((i) => !i.disabled)
   useDismiss(() => root, () => props.onClose(), { leaving: () => props.leaving })
 
   onMount(() => {
+    setMeasured(root?.offsetHeight ?? 0)
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const restore = createFocusReturn(() => root, opener)
     useLeaving(() => root, () => props.leaving, restore)
@@ -76,7 +84,7 @@ export function ContextMenu(props: ContextMenuProps): JSX.Element {
 
   const style = (): JSX.CSSProperties => {
     const width = 260
-    const height = Math.min(48 * props.items.length + 16, 480)
+    const height = measured() || Math.min(36 * props.items.length + 16, 480)
     const left = Math.max(8, Math.min(props.x, props.bounds.width - width - 8))
     const top = Math.max(8, Math.min(props.y, props.bounds.height - height - 8))
     return { left: `${left}px`, top: `${top}px` }
@@ -86,6 +94,8 @@ export function ContextMenu(props: ContextMenuProps): JSX.Element {
     <div ref={root} class="ae-menu nopan nowheel" style={style()} role="menu" aria-label={t().menu.label} tabindex="-1" onKeyDown={onKeyDown}>
       <For each={props.items}>
         {(item) => (
+          <>
+          <Show when={item.separator}><div class="ae-menu__sep" role="separator" /></Show>
           <button
             type="button"
             data-menu-item
@@ -102,6 +112,7 @@ export function ContextMenu(props: ContextMenuProps): JSX.Element {
               item.run()
             }}
           >
+            <span class="ae-menu__icon" aria-hidden="true"><Show when={item.icon}><Icon name={item.icon!} /></Show></span>
             <span class="ae-menu__label">{item.label}</span>
             <Show when={item.checked !== undefined}>
               <span class="ae-menu__check" aria-hidden="true">{item.checked ? '✓' : ''}</span>
@@ -110,6 +121,7 @@ export function ContextMenu(props: ContextMenuProps): JSX.Element {
               <kbd class="ae-kbd">{keyLabel(item.shortcut!, mac)}</kbd>
             </Show>
           </button>
+          </>
         )}
       </For>
     </div>
