@@ -67,6 +67,34 @@ func TestCounterpartiesController_List_Success(t *testing.T) {
 		Contains("Test Vendor")
 }
 
+func TestCounterpartiesController_List_PaginationPreservesQuery(t *testing.T) {
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithComponents(core.NewComponent(&core.ModuleOptions{
+			PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+		}), finance.NewComponent()).
+		AsAdmin().
+		Build()
+
+	service := itf.GetService[services.CounterpartyService](suite.Env())
+	suite.Register(controllers.NewCounterpartiesController(service))
+
+	for _, name := range []string{"Acme North", "Acme South"} {
+		_, err := service.Create(suite.Env().Ctx, counterparty.New(
+			name, counterparty.Customer, counterparty.Individual,
+			counterparty.WithTenantID(suite.Env().Tenant.ID),
+		))
+		require.NoError(t, err)
+	}
+
+	suite.GET(CounterpartyBasePath + "?Search=Acme&limit=1").
+		HTMX().
+		Expect(t).
+		Status(200).
+		Contains("Search=Acme&amp;limit=1&amp;page=2")
+}
+
 func TestCounterpartiesController_List_HTMX_Request(t *testing.T) {
 	t.Parallel()
 
