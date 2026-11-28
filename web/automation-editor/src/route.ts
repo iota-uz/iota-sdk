@@ -175,15 +175,7 @@ function lanesIn(from: number, to: number, head: number, tail: number): number[]
   return out.length ? out : [mid]
 }
 
-function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preference: number): Route {
-  const probe = { relaxable: false }
-  const route = routeWith(link, obstacles, trunk, preference, false, probe)
-  if (!route.blocked || !probe.relaxable) return route
-  const relaxed = routeWith(link, obstacles, trunk, preference, true, probe)
-  return relaxed.blocked ? route : relaxed
-}
-
-function routeWith(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preference: number, relax: boolean, probe: { relaxable: boolean }): Route {
+function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preference: number, relax?: number): Route {
   const s = link.port
   // Ends less than SNAP apart across are one column: a straight edge, never a jog of a pixel.
   const t = Math.abs(link.entry.x - s.x) < SNAP ? { x: s.x, y: link.entry.y } : link.entry
@@ -198,18 +190,13 @@ function routeWith(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferen
   const hi = Math.max(s.x, t.x)
   const spans = (r: Rect) => r.x < hi + 1 && r.x + r.width > lo - 1
   let floor = t.y > s.y ? t.y : s.y + ROW_REACH
-  // A card in the span that leaves no room for a stub under the source and is not over the source column
-  // closes the lanes only as the first try; when that finds no route (`relax`), the card stays an obstacle
-  // for the search alone and the lanes reach down the free source column.
-  const overSource = (r: Rect) => s.x > r.x && s.x < r.x + r.width
-  let floorCard: Rect | undefined
+  // A card off the source column that leaves no room for a stub under the source closes the lanes at first;
+  // when no route is found, the search is repeated (`relax`, which keeps `narrow` off) with it an obstacle alone.
+  let narrow: boolean | 0 = 0
   for (const r of first) {
-    if (r.y < s.y - 0.5 || r.y >= floor || !(spans(r) || overSource(r))) continue
-    if (relax && !overSource(r) && r.y - s.y < MIN_STUB) continue
-    floor = r.y
-    floorCard = r
+    const off = r.y < s.y + MIN_STUB && !(s.x > r.x && s.x < r.x + r.width)
+    if (r.y >= s.y - 0.5 && r.y < floor && (spans(r) || (s.x > r.x && s.x < r.x + r.width)) && !(relax && off)) floor = r.y, narrow = off
   }
-  if (floorCard && !overSource(floorCard) && floorCard.y - s.y < MIN_STUB) probe.relaxable = true
   let ceiling = t.y > s.y ? s.y : t.y - ROW_REACH
   for (const r of first) {
     const bottom = r.y + r.height
@@ -261,7 +248,7 @@ function routeWith(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferen
     const found = search(reach)
     if (found) return clear < CLEAR ? { points: found, blocked: false, clear } : { points: found, blocked: false }
   }
-  return { ...directRoute(s, t), blocked: true }
+  return narrow ? routeOne(link, obstacles, trunk, preference, 1) : { ...directRoute(s, t), blocked: true }
 
   function search(reach: number): Point[] | null {
   const x0 = Math.min(s.x, t.x) - reach
