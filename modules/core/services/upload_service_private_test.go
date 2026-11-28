@@ -126,7 +126,7 @@ func TestUploadService_AvatarPolicyChecksStoredSuffixOnReuse(t *testing.T) {
 	require.NoError(t, err)
 	_, err = dto.File.Seek(0, io.SeekStart)
 	require.NoError(t, err)
-	existing := upload.New(entity.Hash(), "static/photo.dat", "photo.dat", entity.Slug(), photo.Len(), entity.Mimetype())
+	existing := upload.New(entity.Hash(), "static/photo.dat", "portrait.png", entity.Slug(), photo.Len(), entity.Mimetype())
 	repo := new(MockUploadRepository)
 	repo.On("GetBySlug", ctx, entity.Slug()).Return(existing, nil).Once()
 	storage := new(MockUploadStorage)

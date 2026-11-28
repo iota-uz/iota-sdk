@@ -8,7 +8,7 @@ import (
 	"github.com/gabriel-vasile/mimetype"
 )
 
-const AvatarAccept = "image/jpeg,image/png,image/apng,image/gif,image/webp,image/avif,image/bmp,image/x-icon"
+const AvatarAccept = "image/jpeg,image/png,image/apng,image/gif,image/webp,image/avif,image/bmp,image/x-icon,image/vnd.microsoft.icon"
 
 var ErrAvatarType = errors.New("unsupported profile image type")
 

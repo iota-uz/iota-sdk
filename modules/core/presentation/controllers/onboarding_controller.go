@@ -297,6 +297,9 @@ func (c *OnboardingController) saveAvatar(ctx context.Context, r *http.Request) 
 }
 
 func (c *OnboardingController) onboardingErrors(ctx context.Context, err error) (map[string]string, bool) {
+	if errors.Is(err, upload.ErrAvatarType) {
+		return map[string]string{"Avatar": intl.MustT(ctx, "Onboarding.Errors.AvatarNotImage")}, true
+	}
 	var validationErr *validators.ValidationError
 	if errors.As(err, &validationErr) {
 		return validationErr.Fields, true
