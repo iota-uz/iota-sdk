@@ -14,6 +14,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
@@ -272,6 +273,10 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	updated, err := c.userService.UpdateSelf(r.Context(), entity)
+	if errors.Is(err, upload.ErrAvatarType) {
+		http.Error(w, intl.MustT(r.Context(), "Onboarding.Errors.AvatarNotImage"), http.StatusUnsupportedMediaType)
+		return
+	}
 	if err != nil {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return

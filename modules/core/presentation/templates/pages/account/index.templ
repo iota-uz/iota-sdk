@@ -2,6 +2,7 @@ package account
 
 import (
 	"context"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"strings"
 
 	icons "github.com/iota-uz/icons/phosphor"
@@ -68,12 +69,13 @@ templ ProfileForm(props *ProfilePageProps) {
 				Class:    templ.Classes("!size-20 shrink-0 cursor-default text-2xl"),
 			})
 			@components.UploadInput(&components.UploadInputProps{
-				Label:   pageCtx.T("Account.BrowseFilesystem"),
-				Name:    "AvatarID",
-				Accept:  "image/*",
-				Class:   "min-w-0 flex-1",
-				Uploads: uploads,
-				Error:   props.Errors["AvatarID"],
+				Label:     pageCtx.T("Account.BrowseFilesystem"),
+				Name:      "AvatarID",
+				UploadURL: "/uploads/avatar",
+				Accept:    upload.AvatarAccept,
+				Class:     "min-w-0 flex-1",
+				Uploads:   uploads,
+				Error:     props.Errors["AvatarID"],
 			})
 		}
 		@Section(SectionProps{

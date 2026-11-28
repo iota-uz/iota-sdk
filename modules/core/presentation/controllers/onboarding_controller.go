@@ -246,11 +246,6 @@ func onboardingEndedMessageID(err error) (string, bool) {
 	return "", false
 }
 
-var errAvatarNotImage = errors.New("avatar must be a raster image")
-
-// avatarMimeTypes excludes SVG: uploads are served publicly and SVG can carry script.
-var avatarMimeTypes = []string{"image/png", "image/jpeg", "image/gif", "image/webp"}
-
 func avatarFile(r *http.Request) *multipart.FileHeader {
 	if r.MultipartForm == nil {
 		return nil
@@ -268,6 +263,10 @@ func validateAvatar(r *http.Request) error {
 	if header == nil {
 		return nil
 	}
+	return validateAvatarFile(header)
+}
+
+func validateAvatarFile(header *multipart.FileHeader) error {
 	file, err := header.Open()
 	if err != nil {
 		return err
@@ -277,12 +276,7 @@ func validateAvatar(r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	for _, allowed := range avatarMimeTypes {
-		if detected.Is(allowed) {
-			return nil
-		}
-	}
-	return errAvatarNotImage
+	return upload.ValidateAvatarType(header.Filename, detected)
 }
 
 func (c *OnboardingController) saveAvatar(ctx context.Context, r *http.Request) (uint, error) {
@@ -296,9 +290,10 @@ func (c *OnboardingController) saveAvatar(ctx context.Context, r *http.Request) 
 	}
 	defer func() { _ = file.Close() }()
 	created, err := c.uploadService.Create(ctx, &upload.CreateDTO{
-		File: file,
-		Name: header.Filename,
-		Size: int(header.Size),
+		ValidateType: upload.ValidateAvatarType,
+		File:         file,
+		Name:         header.Filename,
+		Size:         int(header.Size),
 	})
 	if err != nil {
 		return 0, err
@@ -307,6 +302,9 @@ func (c *OnboardingController) saveAvatar(ctx context.Context, r *http.Request) 
 }
 
 func (c *OnboardingController) onboardingErrors(ctx context.Context, err error) (map[string]string, bool) {
+	if errors.Is(err, upload.ErrAvatarType) {
+		return map[string]string{"Avatar": intl.MustT(ctx, "Onboarding.Errors.AvatarNotImage")}, true
+	}
 	var validationErr *validators.ValidationError
 	if errors.As(err, &validationErr) {
 		return validationErr.Fields, true

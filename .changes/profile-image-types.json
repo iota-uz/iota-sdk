@@ -1,0 +1,1 @@
+{"bump":"patch","summary":"Validate profile image content and filename before upload and verify the tenant's stored image when assigning an avatar."}

@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	usercomponents "github.com/iota-uz/iota-sdk/components/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/roles"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -122,7 +123,8 @@ templ CreateForm(props *CreateFormProps) {
 					Label:       pageCtx.T("Users.Single.ChooseAvatar"),
 					Placeholder: "PNG, JPG",
 					Name:        "AvatarID",
-					Accept:      "image/*",
+					UploadURL:   "/uploads/avatar",
+					Accept:      upload.AvatarAccept,
 					Error:       props.Errors["AvatarID"],
 				})
 			}

@@ -55,6 +55,7 @@ func (c *UploadController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(middleware.Authorize())
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
+	router.HandleFunc("/avatar", c.createAvatar).Methods(http.MethodPost)
 
 	download := r.PathPrefix(c.basePath).Subrouter()
 	download.Use(middleware.Authorize(), middleware.ProvideUser())
@@ -82,6 +83,14 @@ func (c *UploadController) Register(r *mux.Router) {
 }
 
 func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
+	c.create(w, r, false)
+}
+
+func (c *UploadController) createAvatar(w http.ResponseWriter, r *http.Request) {
+	c.create(w, r, true)
+}
+
+func (c *UploadController) create(w http.ResponseWriter, r *http.Request, avatar bool) {
 	defer func() {
 		if r.MultipartForm != nil {
 			_ = r.MultipartForm.RemoveAll()
@@ -102,6 +111,16 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 	formName := r.FormValue("_formName")
 	multiple := r.FormValue("_multiple") == "true"
 
+	avatar = avatar || name == "AvatarID" // Older profile forms post to the shared route.
+	if avatar {
+		for _, header := range files {
+			if err := validateAvatarFile(header); err != nil {
+				http.Error(w, http.StatusText(http.StatusUnsupportedMediaType), http.StatusUnsupportedMediaType)
+				return
+			}
+		}
+	}
+
 	dtos := make([]*upload.CreateDTO, 0, len(files))
 	for _, header := range files {
 		file, err := header.Open()
@@ -119,6 +138,10 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 			File: file,
 			Name: header.Filename,
 			Size: int(header.Size),
+		}
+
+		if avatar {
+			dto.ValidateType = upload.ValidateAvatarType
 		}
 
 		// TODO: proper error handling
@@ -148,6 +171,10 @@ func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
 		uploadEntities, err = c.uploadService.CreateMany(txCtx, dtos)
 		return err
 	})
+	if errors.Is(err, upload.ErrAvatarType) {
+		http.Error(w, http.StatusText(http.StatusUnsupportedMediaType), http.StatusUnsupportedMediaType)
+		return
+	}
 	if err != nil {
 		serrorhttp.WriteTextContext(r.Context(), w, err, http.StatusInternalServerError, nil)
 		return

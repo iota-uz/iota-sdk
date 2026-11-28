@@ -18,6 +18,18 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
+type TypePolicy func(name string, detected *mimetype.MIME) error
+
+func (policy TypePolicy) Check(file Upload) error {
+	if policy == nil {
+		return nil
+	}
+	if err := policy(file.Name(), file.Mimetype()); err != nil {
+		return err
+	}
+	return policy(file.Path(), file.Mimetype())
+}
+
 type GeoPoint struct {
 	Lat float64
 	Lng float64
@@ -28,14 +40,15 @@ type GeoPoint struct {
 // uploadsconfig.Config and httpconfig.Config respectively. A zero UploadsPath
 // defaults to "static"; a zero Domain leaves URL host-relative.
 type CreateDTO struct {
-	File        io.ReadSeeker `validate:"required"`
-	Name        string        `validate:"required"`
-	Size        int           `validate:"required"`
-	Slug        string        `validate:"omitempty,alphanum"`
-	GeoPoint    *GeoPoint
-	UploadsPath string // populated by service from uploadsconfig.Config.Path
-	Domain      string // populated by service from httpconfig.Config.Domain
-	Scheme      string // populated by service from httpconfig.Config.Scheme()
+	ValidateType TypePolicy    `json:"-" form:"-" validate:"-"`
+	File         io.ReadSeeker `validate:"required"`
+	Name         string        `validate:"required"`
+	Size         int           `validate:"required"`
+	Slug         string        `validate:"omitempty,alphanum"`
+	GeoPoint     *GeoPoint
+	UploadsPath  string // populated by service from uploadsconfig.Config.Path
+	Domain       string // populated by service from httpconfig.Config.Domain
+	Scheme       string // populated by service from httpconfig.Config.Scheme()
 	// StorageLocation is set by the service from the primary storage backend
 	// ("" for the filesystem, "s3://<bucket>" for S3).
 	StorageLocation string

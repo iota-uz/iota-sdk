@@ -1,9 +1,9 @@
 package pagination
 
 import (
-	"fmt"
-	"math"
+	"maps"
 	"net/url"
+	"slices"
 	"strconv"
 )
 
@@ -25,9 +25,11 @@ func (p *Page) Classes() string {
 }
 
 type State struct {
-	Total   int
-	Current int
-	pages   []Page
+	Total     int
+	Current   int
+	pageCount int
+	baseLink  string
+	query     url.Values
 }
 
 func (s *State) TotalStr() string {
@@ -35,45 +37,74 @@ func (s *State) TotalStr() string {
 }
 
 func (s *State) Pages() []Page {
+	if s.pageCount == 0 {
+		return nil
+	}
+
+	pages := make([]Page, 0, min(s.pageCount, 14))
+	appendRange := func(start, end int) {
+		for i := start; i < end; i++ {
+			pages = append(pages, Page{
+				Num:    i + 1,
+				Link:   s.pageLink(i),
+				Active: i == s.Current,
+			})
+		}
+	}
+
 	filler := Page{Filler: true}
-	if len(s.pages) < 10 {
-		return s.pages
+	switch {
+	case s.pageCount < 10:
+		appendRange(0, s.pageCount)
+	case s.Current < 5:
+		appendRange(0, 10)
+		pages = append(pages, filler)
+		appendRange(s.pageCount-1, s.pageCount)
+	case s.Current > s.pageCount-5:
+		appendRange(0, 1)
+		pages = append(pages, filler)
+		appendRange(s.pageCount-10, s.pageCount)
+	default:
+		appendRange(0, 1)
+		pages = append(pages, filler)
+		appendRange(s.Current-5, s.Current+5)
+		pages = append(pages, filler)
+		appendRange(s.pageCount-1, s.pageCount)
 	}
-	if s.Current < 5 {
-		// Copy so we don't mutate s.pages' backing array.
-		base := make([]Page, 0, 12)
-		base = append(base, s.pages[:10]...)
-		return append(base, filler, s.pages[len(s.pages)-1])
+	return pages
+}
+
+func (s *State) pageLink(index int) string {
+	if len(s.query) == 0 {
+		if index == 0 {
+			return s.baseLink
+		}
+		return s.baseLink + "?page=" + strconv.Itoa(index+1)
 	}
-	if s.Current > len(s.pages)-5 {
-		data := make([]Page, 0, 14)
-		data = append(data, s.pages[0], filler)
-		return append(data, s.pages[len(s.pages)-10:]...)
+
+	query := s.query
+	if index > 0 {
+		query = maps.Clone(query)
+		query.Set("page", strconv.Itoa(index+1))
 	}
-	data := make([]Page, 0, 14)
-	data = append(data, s.pages[0], filler)
-	data = append(data, s.pages[s.Current-5:s.Current+5]...)
-	return append(data, filler, s.pages[len(s.pages)-1])
+	if encoded := query.Encode(); encoded != "" {
+		return s.baseLink + "?" + encoded
+	}
+	return s.baseLink
 }
 
 func (s *State) PrevLink() string {
-	if len(s.pages) == 0 {
+	if s.Current <= 0 || s.Current > s.pageCount {
 		return ""
 	}
-	if s.Current-1 < 0 {
-		return ""
-	}
-	return s.pages[s.Current-1].Link
+	return s.pageLink(s.Current - 1)
 }
 
 func (s *State) NextLink() string {
-	if len(s.pages) == 0 {
+	if s.Current < 0 || s.Current >= s.pageCount-1 {
 		return ""
 	}
-	if s.Current+1 >= len(s.pages) {
-		return ""
-	}
-	return s.pages[s.Current+1].Link
+	return s.pageLink(s.Current + 1)
 }
 
 func (s *State) PrevLinkClasses() string {
@@ -91,47 +122,25 @@ func (s *State) NextLinkClasses() string {
 }
 
 func New(baseLink string, page, total, limit int) *State {
-	p := &State{
-		Total:   total,
-		Current: max(page-1, 0),
+	s := &State{
+		Total:    total,
+		Current:  max(page, 1) - 1,
+		baseLink: baseLink,
 	}
-	if total == 0 {
-		return p
+	if total > 0 && limit > 0 {
+		s.pageCount = (total-1)/limit + 1
 	}
-	pages := int(math.Ceil(float64(total) / float64(limit)))
-	for i := 0; i < pages; i++ {
-		link := baseLink
-		if i > 0 {
-			link += fmt.Sprintf("?page=%d", i+1)
-		}
-		p.pages = append(p.pages, Page{
-			Num:    i + 1,
-			Link:   link,
-			Active: i == max(page-1, 0),
-		})
-	}
-	return p
+	return s
 }
 
-// NewWithQuery is New for a list narrowed by query parameters (search, filter
-// chips, page size): every page link keeps them, so moving to the next page
-// does not drop the conditions. Only "page" is replaced.
+// NewWithQuery preserves the query parameters other than "page" in pagination links.
 func NewWithQuery(baseLink string, query url.Values, page, total, limit int) *State {
-	p := New(baseLink, page, total, limit)
-	for i := range p.pages {
-		q := url.Values{}
-		for k, v := range query {
-			if k != "page" {
-				q[k] = append([]string(nil), v...)
-			}
-		}
-		if i > 0 {
-			q.Set("page", strconv.Itoa(i+1))
-		}
-		p.pages[i].Link = baseLink
-		if encoded := q.Encode(); encoded != "" {
-			p.pages[i].Link += "?" + encoded
+	s := New(baseLink, page, total, limit)
+	s.query = make(url.Values, len(query))
+	for key, values := range query {
+		if key != "page" {
+			s.query[key] = slices.Clone(values)
 		}
 	}
-	return p
+	return s
 }
