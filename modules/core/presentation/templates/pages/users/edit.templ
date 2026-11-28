@@ -2,6 +2,7 @@ package users
 
 import (
 	"fmt"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
 	"strconv"
 
 	icons "github.com/iota-uz/icons/phosphor"
@@ -212,7 +213,8 @@ templ EditFormInner(props *EditFormProps) {
 							Label:       pageCtx.T("Users.Single.ChooseAvatar"),
 							Placeholder: "PNG, JPG",
 							Name:        "AvatarID",
-							Accept:      "image/*",
+							UploadURL:   "/uploads/avatar",
+							Accept:      upload.AvatarAccept,
 							Error:       props.Errors["AvatarID"],
 							Uploads:     uploads,
 						})

@@ -1,6 +1,9 @@
 package controllers_test
 
 import (
+	"bytes"
+	"image"
+	"image/png"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -8,6 +11,10 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/modules/core"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
@@ -221,4 +228,54 @@ func TestUploadController_NonExistentFile_Returns404(t *testing.T) {
 	// Test that non-existent file returns 404
 	urlPath := "/" + uploadsPath + "/" + testSubDir + "/nonexistent.txt"
 	suite.GET(urlPath).Expect(t).Status(http.StatusNotFound)
+}
+
+func TestUploadController_ProfileImage(t *testing.T) {
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: defaults.PermissionSchema(),
+	})).Build()
+	env := suite.Environment()
+	email, err := internet.NewEmail("profile-image@example.test")
+	require.NoError(t, err)
+	person, err := persistence.NewUserRepository(persistence.NewUploadRepository()).Create(env.Ctx, user.New("Profile", "Image", email, user.UILanguageEN, user.WithTenantID(env.Tenant.ID)))
+	require.NoError(t, err)
+	suite.AsUser(person)
+	uploads := itf.GetService[services.UploadService](env)
+	cfg := itf.GetService[uploadsconfig.Config](env)
+	suite.Register(controllers.NewUploadController(uploads, cfg))
+
+	var photo bytes.Buffer
+	require.NoError(t, png.Encode(&photo, image.NewRGBA(image.Rect(0, 0, 2, 2))))
+	note := []byte("An ordinary text attachment.")
+	post := func(path string, data *itf.MultipartData, field string, status int) {
+		t.Helper()
+		suite.POST(path).MultipartData(data.AddField("_name", field)).Expect(t).Status(status)
+	}
+	post("/uploads", itf.NewMultipart().AddFile("file", "photo.png", photo.Bytes()).AddFile("file", "note.png", note), "AvatarID", http.StatusUnsupportedMediaType)
+	post("/uploads/avatar", itf.NewMultipart().AddFile("file", "note.txt", note), "AttachmentID", http.StatusUnsupportedMediaType)
+	stored, err := uploads.GetAll(env.Ctx)
+	require.NoError(t, err)
+	require.Empty(t, stored)
+
+	post("/uploads", itf.NewMultipart().AddFile("file", "notes.txt", note), "AttachmentID", http.StatusOK)
+	stored, err = uploads.GetAll(env.Ctx)
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	users := itf.GetService[services.UserService](env)
+	_, err = users.UpdateSelf(env.Ctx, env.User.SetAvatarID(stored[0].ID()))
+	require.ErrorIs(t, err, upload.ErrAvatarType)
+
+	post("/uploads/avatar", itf.NewMultipart().AddFile("file", "photo.PNG", photo.Bytes()), "AvatarID", http.StatusOK)
+	stored, err = uploads.GetAll(env.Ctx)
+	require.NoError(t, err)
+	require.Len(t, stored, 2)
+	for _, file := range stored {
+		if file.Name() == "photo.PNG" {
+			u, err := users.UpdateSelf(env.Ctx, env.User.SetAvatarID(file.ID()))
+			require.NoError(t, err)
+			require.Equal(t, file.ID(), u.AvatarID())
+			return
+		}
+	}
+	t.Fatal("profile image was not stored")
 }
