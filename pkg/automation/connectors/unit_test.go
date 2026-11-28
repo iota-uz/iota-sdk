@@ -4,12 +4,10 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -95,109 +93,15 @@ func TestDirectoryChecksDescriptors(t *testing.T) {
 	require.NoError(t, dir.Register(leaky))
 }
 
-// The migration applies and rolls back: its Down then its Up run on a migrated database.
-func TestMigrationRollsBackAndApplies(t *testing.T) {
+// The connections table refuses a name that is not a slug.
+func TestConnectionNameMustBeASlug(t *testing.T) {
 	e := newEnv(t)
-	const name = "changes-1795256615.sql"
-	up, down := migrationSections(t, name)
-	// Later migrations may depend on these tables: they are rolled back first, newest first, and
-	// applied again after.
-	later := laterMigrations(t, name)
-	for i := len(later) - 1; i >= 0; i-- {
-		_, d := migrationSections(t, later[i])
-		require.NoError(t, execSection(e, d), later[i])
-	}
-
-	tables := func() int {
-		var n int
-		require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM information_schema.tables WHERE table_schema = 'automation'`).Scan(&n))
-		return n
-	}
-	assert.Equal(t, 3, tables())
-	require.NoError(t, execSection(e, down))
-	assert.Equal(t, 0, tables())
-	var schema int
-	require.NoError(t, e.db.QueryRow(e.ctx, `SELECT count(*) FROM information_schema.schemata WHERE schema_name = 'automation'`).Scan(&schema))
-	assert.Zero(t, schema)
-	require.NoError(t, execSection(e, up))
-	assert.Equal(t, 3, tables())
-	for _, m := range later {
-		u, _ := migrationSections(t, m)
-		require.NoError(t, execSection(e, u), m)
-	}
-
-	// Constraints of the table.
 	_, err := e.db.Exec(e.ctx, `INSERT INTO automation.connections (tenant_id, id, kind, name, display_name, status, key_id, nonce, secret, version)
 		VALUES ($1, gen_random_uuid(), 'smtp', 'Bad', 'x', 'connected', 'k', '\x00', '\x00', 1)`, e.tenant)
-	require.Error(t, err, "a name that is not a slug")
-}
-
-// migrationSections are the Up and Down SQL of a migration file, each starting with the rest of its
-// "-- +migrate" line (" notransaction" for a section sql-migrate runs outside a transaction).
-func migrationSections(t *testing.T, name string) (string, string) {
-	t.Helper()
-	body, err := os.ReadFile(filepath.Join("migrations", name))
-	require.NoError(t, err)
-	up, down, ok := strings.Cut(string(body), "-- +migrate Down")
-	require.True(t, ok, name)
-	_, up, ok = strings.Cut(up, "-- +migrate Up")
-	require.True(t, ok, name)
-	return up, down
-}
-
-// execSection runs a migration section as sql-migrate would. A notransaction section (CREATE INDEX
-// CONCURRENTLY) cannot run as one multi-statement request, which is an implicit transaction, so its
-// statements run one by one.
-func execSection(e *env, section string) error {
-	directive, sql, _ := strings.Cut(section, "\n")
-	if strings.TrimSpace(directive) != "notransaction" {
-		_, err := e.db.Exec(e.ctx, section)
-		return err
-	}
-	for _, statement := range strings.Split(sql, ";") {
-		if strings.TrimSpace(stripComments(statement)) == "" {
-			continue
-		}
-		if _, err := e.db.Exec(e.ctx, statement); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// stripComments drops "--" comment lines, so a chunk holding only comments is not sent.
-func stripComments(sql string) string {
-	var b strings.Builder
-	for _, line := range strings.Split(sql, "\n") {
-		if !strings.HasPrefix(strings.TrimSpace(line), "--") {
-			b.WriteString(line)
-			b.WriteByte('\n')
-		}
-	}
-	return b.String()
-}
-
-// laterMigrations are the migration files applied after name that use the automation schema (the
-// ones that can depend on its tables), oldest first. Others are left alone: a notransaction
-// migration cannot run as one statement batch.
-func laterMigrations(t *testing.T, name string) []string {
-	t.Helper()
-	entries, err := os.ReadDir("migrations")
-	require.NoError(t, err)
-	var out []string
-	for _, entry := range entries {
-		n := entry.Name()
-		if !strings.HasSuffix(n, ".sql") || n <= name {
-			continue
-		}
-		body, err := os.ReadFile(filepath.Join("migrations", n))
-		require.NoError(t, err)
-		if strings.Contains(string(body), "automation.") {
-			out = append(out, n)
-		}
-	}
-	sort.Strings(out)
-	return out
+	var pgErr *pgconn.PgError
+	require.ErrorAs(t, err, &pgErr, "a name that is not a slug")
+	require.Equal(t, "23514", pgErr.Code, "a check violation")
+	require.Equal(t, "connections_name_check", pgErr.ConstraintName)
 }
 
 // A fingerprint stays verifiable with the key that made it after the active key rotates, and only

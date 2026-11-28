@@ -324,6 +324,10 @@ func (m *migrationManager) migrate(ctx context.Context, dir migrationDirection, 
 	if err != nil {
 		return 0, fmt.Errorf("failed to find migrations: %w", err)
 	}
+	baselines, err := readSquashedBaselines(m.migrationsDir, source)
+	if err != nil {
+		return 0, err
+	}
 
 	conn, err := m.connect(ctx)
 	if err != nil {
@@ -340,8 +344,16 @@ func (m *migrationManager) migrate(ctx context.Context, dir migrationDirection, 
 	if err != nil {
 		return 0, err
 	}
+	// A database built from squashed migrations is refused before its
+	// history is read as unknown ids, with an error that says what to do.
+	if err := checkSquashedHistory(baselines, applied); err != nil {
+		return 0, err
+	}
 	plan, err := planMigrations(source, applied, dir, limit)
 	if err != nil {
+		return 0, err
+	}
+	if err := checkBaselineBoundary(plan, baselines, dir, limit); err != nil {
 		return 0, err
 	}
 	for i, mig := range plan {

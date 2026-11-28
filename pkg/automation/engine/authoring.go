@@ -2,9 +2,12 @@ package engine
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -82,6 +85,82 @@ type DryRunInput struct {
 	Vars json.RawMessage
 	// Now is the time the context's now reads (a backtest's event time); zero: the current time.
 	Now time.Time
+	// Fence, when set, guards the real calls of a dry run made on behalf of a lease holder (a backtest
+	// worker): see CallFence. nil: every call gets a fresh idempotency key and nothing is rechecked.
+	Fence CallFence
+}
+
+// CallFence guards the real provider calls of a dry run that a worker makes while it holds a lease on
+// the work, and that the next holder repeats when the lease passes to it.
+//
+// A lease check followed by a provider call is not atomic: a worker that stalls past its lease while a
+// call is in flight still makes that call. The fence keeps such a repeat from being paid twice where the
+// provider can deduplicate it, and bounds it where the provider cannot:
+//
+//   - every real call carries the idempotency key Scope:node@token#visit:digest (where the call is in
+//     the graph: the token that makes it, a branch or a foreach item, and how many times that token
+//     reached the node; and a digest of the request it sends: requestDigest), the same for every holder
+//     that makes the same call of the same occurrence, whatever other tokens did, and that sends
+//     the same request whatever else of the step changed, so a provider that deduplicates by key
+//     (catalog.SupportsIdempotencyKey) makes a repeated call once; a repeat that sends a different
+//     request (the automation's memory changed in between) gets another key, never the first answer; a
+//     request with no stable form gets a key of its own, and Strict refuses it (ErrUnfenced);
+//   - Hold is asked right before each real call; once it fails the dry run makes no further call and
+//     DryRun returns its error;
+//   - Strict refuses (ErrUnfenced) a real call of a node that cannot deduplicate.
+//
+// Residual risk without Strict: the next holder replays the unit of work from its start, so a node whose
+// provider cannot deduplicate may be paid again for every call the superseded holder made in it (the
+// completed ones and the one in flight or past its Hold when the lease passed): at most the calls of one
+// unit (a dry run's MaxCalls) per unit the superseded holder was running. Hold only keeps the superseded
+// holder from making the calls after those. A check followed by a call is not atomic: a holder that pauses
+// after its Hold passed and before the call starts still makes that one call once the lease has passed;
+// it counts among the calls above (it is the one "in flight").
+type CallFence interface {
+	// Scope is the stable part of the calls' idempotency keys: what identifies the unit of work (a
+	// backtest and an example), never the holder or its lease.
+	Scope() string
+	// Hold is nil while the caller may still make a real call.
+	Hold(ctx context.Context) error
+	// Strict refuses a real call of a node whose provider cannot deduplicate a repeat of it.
+	Strict() bool
+}
+
+// fencedKey is the idempotency key of a call of a node under a fence: where it is in the graph (the
+// token and its visit of the node, so another token's call skipped or added in a replay does not move
+// it) and the digest of the request it sends (requestDigest).
+func fencedKey(scope, node string, site graph.CallSite, digest string) string {
+	return scope + ":" + node + "@" + site.Token + "#" + strconv.Itoa(site.Visit) + ":" + digest
+}
+
+// requestDigest is the stable form of the request a call sends: the node's own canonical request
+// (catalog.RequestKeyer), else a decision's cache key (DecisionNode.DecisionKey: what shapes the answer),
+// else the params and the step context as JSON with sorted keys. ok false: the request has no stable form
+// (a value with no JSON encoding, a decision its node cannot key), so no repeat of it can be recognised.
+func requestDigest(cn catalog.CallNode, in catalog.CallInput) (string, bool) {
+	var src string
+	switch n := cn.(type) {
+	case catalog.RequestKeyer:
+		k, ok := n.RequestKey(in)
+		if !ok {
+			return "", false
+		}
+		src = "request:" + k
+	case DecisionNode:
+		k, ok := n.DecisionKey(in)
+		if !ok {
+			return "", false
+		}
+		src = "decision:" + k
+	default:
+		b, err := json.Marshal([]any{in.Params, in.Context})
+		if err != nil {
+			return "", false
+		}
+		src = "params:" + string(b)
+	}
+	sum := sha256.Sum256([]byte(src))
+	return hex.EncodeToString(sum[:12]), true
 }
 
 // DryRunResult is the trace of a dry run.
@@ -294,8 +373,13 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 	// node come in the same order, so a cached one is reported as such and not as a live call.
 	cachedBy := map[string][]bool{}
 	live := 0
+	// stopped is the fence's error that ended the dry run's real calls.
+	var stopped error
 	if mode != DecisionsScripted {
-		opts.Execute = func(node graph.Node, effects []graph.Effect) graph.ExecAnswer {
+		opts.ExecuteAt = func(node graph.Node, effects []graph.Effect, site graph.CallSite) graph.ExecAnswer {
+			if stopped != nil {
+				return graph.ExecAnswer{Code: CodeCancelled, Message: "the dry run stopped"}
+			}
 			params := map[string]any{}
 			var stepCtx map[string]any
 			var templated []string
@@ -303,7 +387,11 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 				params, stepCtx, templated = effects[0].Params, effects[0].Context, effects[0].Templated
 			}
 			res := au.r.execDirect(ctx, directCall{tenant: a.TenantID, as: sub, view: v.view, node: node, params: params, context: stepCtx, templated: templated,
-				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode, budget: budget, realCalls: in.RealCalls})
+				subject: normSubject(in.Subject), key: "dry-run:" + uuid.NewString(), decisions: mode, budget: budget, realCalls: in.RealCalls, fence: in.Fence, site: site})
+			if res.stop != nil {
+				stopped = res.stop
+				return graph.ExecAnswer{Code: CodeCancelled, Message: "the dry run stopped"}
+			}
 			cachedBy[node.ID] = append(cachedBy[node.ID], res.cached)
 			if res.called {
 				live++
@@ -327,6 +415,9 @@ func (au *authoring) DryRun(ctx context.Context, a Actor, in DryRunInput) (DryRu
 		return au.r.previewEffects(ctx, a.TenantID, sub, normSubject(in.Subject), trigger, node, effects, in.RealCalls != RealCallsAll)
 	}
 	steps := interp.DryRun(normSubject(in.Subject), gctx, inputs, opts)
+	if stopped != nil {
+		return DryRunResult{LiveCalls: live}, stopped
+	}
 	if budget.wasExceeded() {
 		return DryRunResult{}, fmt.Errorf("%w: a dry run makes at most %d real calls", ErrLimitExceeded, in.MaxCalls)
 	}
@@ -814,6 +905,10 @@ type directCall struct {
 	budget *callBudget
 	// realCalls narrows the nodes called for real (DryRunInput.RealCalls).
 	realCalls string
+	// fence, when set, is asked before the real call (DryRunInput.Fence); site is where the call is in
+	// the graph (its key names it).
+	fence CallFence
+	site  graph.CallSite
 }
 
 // callBudget is how many real calls a dry run may still make.
@@ -855,6 +950,9 @@ type directResult struct {
 	masker  Masker // the connection's: what the node logged is masked with it
 	// script: the dry run may not make this call; the node is answered from the context.
 	script bool
+	// stop: the fence refused the call (its holder lost the work, or a strict fence met a node that
+	// cannot deduplicate); no call was made and the dry run ends with this error.
+	stop error
 }
 
 // execDirect runs a call node once, as the actor, with the connection the actor may use; the output and
@@ -934,6 +1032,25 @@ func (r *Runtime) execDirect(ctx context.Context, c directCall) directResult {
 	if c.realCalls == RealCallsNone {
 		// Offline: only the cache answers; a miss is answered from the context.
 		return directResult{script: true}
+	}
+	if c.fence != nil {
+		if c.fence.Strict() && !catalog.SupportsIdempotencyKey(cn) {
+			return directResult{stop: fmt.Errorf("%w: the provider of %s cannot deduplicate a repeated call, so a strict backtest does not call it", ErrUnfenced, c.node.Type)}
+		}
+		digest, ok := requestDigest(cn, in)
+		if !ok {
+			if c.fence.Strict() {
+				// A key of its own would not match the next holder's repeat: strict makes no such call.
+				return directResult{stop: fmt.Errorf("%w: the request of %s has no stable form to key its repeats by, so a strict backtest does not call it", ErrUnfenced, c.node.ID)}
+			}
+			digest = uuid.NewString() // never deduplicated: the residual risk of CallFence
+		}
+		in.IdempotencyKey = fencedKey(c.fence.Scope(), c.node.ID, c.site, digest)
+		// The last check before the call: a holder that lost the work makes no further call. The call
+		// itself may still outlive the lease; its key lets the next holder's repeat be made once.
+		if err := c.fence.Hold(ctx); err != nil {
+			return directResult{stop: err}
+		}
 	}
 	if !c.budget.take() {
 		return directResult{masker: masker, outcome: nt.Spec().FailedOutcome, err: &StepError{Code: CodeLimitExceeded, Message: "the dry run reached its limit of real calls"}}

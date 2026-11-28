@@ -88,6 +88,17 @@ const (
 // autovacuum.
 const TemplateDBEnv = "ITF_TEMPLATE_DB"
 
+// AutoTemplateEnv turns the automatic migrated template off when set to "0",
+// "false" or "off".
+//
+// With MigrationApplyOnce and no explicit template, a harness by default
+// migrates one template database per migration set (named after the hash of
+// the migration files, shared by every test binary on the cluster and kept
+// between runs) and clones each test database from it with CREATE DATABASE ...
+// TEMPLATE. Turning it off restores a full migration replay into every test
+// database.
+const AutoTemplateEnv = "ITF_AUTO_TEMPLATE"
+
 type IsolationMode string
 
 const (
@@ -493,7 +504,17 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 	db := LoadDBConfigFromEnv()
 
 	dbName := buildDBName(cfg.Name, key, isPerTest)
-	if err := CreateDBFromTemplateE(dbName, cfg.Migration.TemplateDB, db); err != nil {
+	template := cfg.Migration.TemplateDB
+	autoTemplate := false
+	var autoTemplateIDs []string
+	if template == "" && cfg.Migration.Policy == MigrationApplyOnce && autoTemplateEnabled() {
+		name, ids, err := ensureAutoTemplate(context.Background(), db, cfg.Source)
+		if err != nil {
+			return nil, serrors.WrapContext(opCreateDB, err, "build migrated template")
+		}
+		template, autoTemplate, autoTemplateIDs = name, name != "", ids
+	}
+	if err := CreateDBFromTemplateE(dbName, template, db); err != nil {
 		return nil, serrors.WrapContext(opCreateDB, err, "create database")
 	}
 
@@ -508,13 +529,23 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 	// The migration policy runs before the start hooks, not after them: a hook
 	// that reads its tables at start must find them (see setupApplicationWithSource).
 	migrate := func(ctx context.Context, app application.Application) error {
-		if cfg.Migration.Policy == MigrationApplyOnce {
+		if cfg.Migration.Policy == MigrationApplyOnce && !autoTemplate {
 			// Serialize concurrent migration runs across all parallel harnesses
 			// by holding an advisory lock on the shared "postgres" admin DB for
 			// the whole run; the per-test pool below applies the migrations.
 			return withMigrationAdvisoryLock(db, func() error {
 				return runMigrationPolicy(ctx, pool, app, cfg.Migration)
 			})
+		}
+		if autoTemplate {
+			// A clone of the auto template already carries exactly this
+			// migration set (the template is named after its hash), so its
+			// history is checked, not migrated again. Running the migrator here
+			// would also be wrong, not just slow: the clone gets the template's
+			// database settings, and a migration that changed search_path
+			// would send the migrator's unqualified ledger lookup to another
+			// schema, where it would replay everything.
+			return verifyAutoClone(ctx, pool, autoTemplateIDs)
 		}
 		return runMigrationPolicy(ctx, pool, app, cfg.Migration)
 	}

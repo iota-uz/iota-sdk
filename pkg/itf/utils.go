@@ -188,6 +188,27 @@ func withMigrationAdvisoryLock(db dbconfig.Config, fn func() error) error {
 	return testdb.WithMigrationAdvisoryLock(db, fn)
 }
 
+// resolveApplicationSource returns the config source a test application is
+// built from (src, or the default env files when src is nil) and the database
+// config registered from it, which drives the application's migrator. dbCfg is
+// nil when the source carries no usable database config.
+func resolveApplicationSource(src config.Source) (config.Source, *dbconfig.Config, error) {
+	if src == nil {
+		fallback, err := config.Build(envprov.New(".env", ".env.local", ".env.testing"))
+		if err != nil {
+			return nil, nil, err
+		}
+		src = fallback
+	}
+	reg := config.NewRegistry(src)
+	// A source without a usable database config is not an error: the
+	// application then gets the no-op migrator.
+	if cfg, err := config.Register[dbconfig.Config](reg); err == nil {
+		return src, cfg, nil
+	}
+	return src, nil, nil
+}
+
 // setupApplicationWithSource bootstraps an application and composition container for tests.
 // When src is non-nil it is forwarded to the build context for ProvideConfig[T].
 // A *dbconfig.Config is also pulled from the source and passed to ApplicationOptions
@@ -218,20 +239,9 @@ func setupApplicationWithSource(
 
 	// Resolve the config source up front so it can feed both the
 	// composition build context and ApplicationOptions.DBConfig.
-	if src == nil {
-		fallback, err := config.Build(envprov.New(".env", ".env.local", ".env.testing"))
-		if err != nil {
-			return nil, nil, serrors.WrapContext(serrors.Op("itf.SetupApplication"), err, "build fallback config source")
-		}
-		src = fallback
-	}
-
-	var dbCfg *dbconfig.Config
-	if src != nil {
-		reg := config.NewRegistry(src)
-		if cfg, err := config.Register[dbconfig.Config](reg); err == nil {
-			dbCfg = cfg
-		}
+	src, dbCfg, err := resolveApplicationSource(src)
+	if err != nil {
+		return nil, nil, serrors.WrapContext(serrors.Op("itf.SetupApplication"), err, "build fallback config source")
 	}
 
 	bundle := application.LoadBundle()

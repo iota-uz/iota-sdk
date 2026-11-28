@@ -681,7 +681,12 @@ jobs:
           DB_NAME: iota_erp
           DB_USER: postgres
           DB_PASSWORD: postgres
-        run: just db migrate down
+        # With only the squashed baseline applied, a bounded "migrate down" is
+        # refused by design (its down drops the whole schema); the disposable
+        # database is reset with an explicit full rollback and migrated again.
+        run: |
+          go run cmd/command/main.go migrate down --all
+          go run cmd/command/main.go migrate up
 
   test-e2e:
     runs-on: blacksmith-8vcpu-ubuntu-2404

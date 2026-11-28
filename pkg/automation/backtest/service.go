@@ -54,7 +54,15 @@ type Config struct {
 	PollInterval time.Duration
 	LeaseTTL     time.Duration
 	Parallel     int
-	Logger       *slog.Logger
+	// StrictFencing refuses a backtest that would pay a decision whose provider cannot deduplicate a
+	// repeated call (catalog.SupportsIdempotencyKey): a worker that stalls past LeaseTTL in the middle of
+	// an example may have that example's calls paid again by the worker that takes the backtest over and
+	// replays it. Off (the default), the backtest runs and that risk is bounded to the calls the superseded
+	// worker made in the examples it had not finished: at most one example's calls (callsPerExample) in a
+	// live backtest, which runs one example at a time; up to Parallel examples' in a person's cached one
+	// (see engine.CallFence).
+	StrictFencing bool
+	Logger        *slog.Logger
 	// Now is the clock (default time.Now).
 	Now func() time.Time
 }
@@ -1068,6 +1076,13 @@ func (s *Svc) Run(ctx context.Context, a Actor, in RunInput) (BacktestID, error)
 	v, err := s.versionOf(ctx, a, d.AutomationID, in.Version)
 	if err != nil {
 		return uuid.Nil, err
+	}
+	// A backtest that pays its decisions (live, or a person's cached one) is refused up front when strict
+	// fencing meets a provider that cannot deduplicate.
+	if mode == DecisionsLive || a.Origin == engine.OriginHuman {
+		if err := s.unfenced(v.Graph); err != nil {
+			return uuid.Nil, err
+		}
 	}
 	id := uuid.New()
 	err = pgx.BeginFunc(ctx, s.cfg.DB, func(tx pgx.Tx) error {

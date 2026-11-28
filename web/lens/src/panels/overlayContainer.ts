@@ -10,6 +10,35 @@ import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js'
  */
 export const hoverBridgeDelay = 140
 
+/**
+ * Calls `reposition` whenever an open, fixed-position overlay can have drifted
+ * from its anchor: a viewport resize, a scroll in any container, a size change
+ * of the observed elements, or a web font finishing loading. The last one
+ * matters on first paint: an anchor measured in a fallback face (KaTeX glyphs,
+ * the dashboard's own font) moves once the real face arrives, and a one-shot
+ * measurement would leave the overlay pointing at where the anchor used to be.
+ * Call it inside an effect that runs while the overlay is open; it registers
+ * its own cleanup.
+ */
+export function followAnchorLayout(reposition: () => void, observed: ReadonlyArray<Element | null | undefined> = []): void {
+  if (typeof globalThis.addEventListener !== 'function') return
+  const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(() => reposition())
+  for (const element of observed) if (element) observer?.observe(element)
+  const fonts = typeof document === 'undefined' ? undefined : document.fonts as FontFaceSet | undefined
+  const onFonts = () => reposition()
+  globalThis.addEventListener('resize', reposition)
+  // Capture scrolls from the dashboard's own scroll container as well as the
+  // document; a fixed portal must continue to follow its trigger.
+  globalThis.addEventListener('scroll', reposition, true)
+  fonts?.addEventListener?.('loadingdone', onFonts)
+  onCleanup(() => {
+    observer?.disconnect()
+    globalThis.removeEventListener('resize', reposition)
+    globalThis.removeEventListener('scroll', reposition, true)
+    fonts?.removeEventListener?.('loadingdone', onFonts)
+  })
+}
+
 interface OverlayThemeFallback {
   dark?: boolean
   theme?: string

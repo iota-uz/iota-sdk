@@ -60,6 +60,51 @@ interrupted or failed run is not rolled back. Before retrying:
   `INSERT INTO gorp_migrations (id, applied_at) VALUES ('<file>.sql', now());` and rerun `migrate up`.
 - Prefer re-runnable statements, e.g. `CREATE INDEX CONCURRENTLY IF NOT EXISTS`, so a retry does not fail.
 
+### Squashed baselines
+
+`migrations/changes-0001-baseline.sql` replaces all 78 earlier SDK migrations.
+Their files are kept in `migrations/squashed/history/` only for
+`TestSquashedBaselineMatchesHistory`; the migrator never reads subdirectories.
+
+- The baseline names each replaced file in its header with `-- +squashes <id>`,
+  one id per line (before `-- +migrate Up`; sql-migrate ignores the line).
+- A new database runs the baseline like any other migration.
+- A database whose `gorp_migrations` lists **any** replaced id was built from
+  the old history and is refused with `SquashedHistoryError`, before anything is
+  written. It is not upgraded: recreate it (owner decision for this squash; the
+  release notes say so).
+- A bounded `Rollback(ctx, n)` / `migrate down` that would reach the baseline is
+  refused; only `RollbackAll` / `migrate down --all` runs its Down, which drops
+  its objects with `RESTRICT` in a dependency order found at run time, then its
+  schemas with `RESTRICT`: anything
+  else depending on them (inheritance, foreign keys, views, tables in SDK
+  schemas) fails the rollback instead of being dropped (roles stay: they are
+  cluster-wide). Going down past the baseline is not supported.
+- Never edit the baseline.
+
+#### Squashing again
+
+The next squash **replaces** the current baseline: the new baseline squashes
+`changes-0001-baseline.sql` together with the migrations after it, so there is
+only ever one baseline. Databases built before it are refused like the ones
+before this one, so the release notes must say they have to be recreated.
+
+1. Create a new archive, `migrations/squashed/<name>/`, holding
+   `changes-0001-baseline.sql` and every migration after it, and delete
+   `migrations/squashed/history/` (its content is inside the old baseline). The
+   archive replays on an empty database because the old baseline sorts first
+   and carries the schema the later files alter.
+2. Migrate a fresh database with `DB_MIGRATIONSDIR=<archive>` and dump it with a
+   `pg_dump` of the server's major version:
+   `pg_dump --no-owner --inserts --exclude-table=public.gorp_migrations DB > dump.sql`.
+3. Generate the new baseline, under a name that sorts before every remaining
+   migration (`changes-0002-baseline.sql`):
+   `scripts/migrations-baseline.py dump.sql <archive> migrations/changes-0002-baseline.sql`
+   (the file is replaced only when generation succeeds).
+   The script refuses objects its Down cannot drop (extensions and the like).
+4. Point `squashedHistoryDir` and the baseline file name in
+   `pkg/application/migrations_baseline_test.go` at the new archive and file.
+
 ### PL/pgSQL Functions
 
 Use `StatementBegin/End` for functions containing semicolons:

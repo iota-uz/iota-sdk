@@ -415,6 +415,9 @@ var (
 	ErrLimitExceeded         = errors.New("automation: limit_exceeded")
 	ErrRunFinished           = errors.New("automation: run_finished") // cancel of a finished run is a no-op error
 	ErrInvalidInput          = errors.New("automation: invalid_input")
+	// ErrUnfenced: a strict CallFence refused a real call of a node whose provider cannot deduplicate a
+	// repeat of it (catalog.SupportsIdempotencyKey).
+	ErrUnfenced = errors.New("automation: unfenced_call")
 )
 
 // ValidationError is VALIDATION_FAILED: the graph does not validate against the author's catalog.

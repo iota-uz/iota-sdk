@@ -1,0 +1,261 @@
+package testdb
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"testing/fstest"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+)
+
+func TestMigrationsFingerprintTracksTopLevelSQL(t *testing.T) {
+	base := fstest.MapFS{
+		"changes-1.sql":          {Data: []byte("-- +migrate Up\nSELECT 1;\n")},
+		"README.md":              {Data: []byte("ignored")},
+		"squashed/changes-0.sql": {Data: []byte("ignored too")},
+	}
+	fp, err := migrationsFingerprintFS(base)
+	require.NoError(t, err)
+
+	same := fstest.MapFS{"changes-1.sql": base["changes-1.sql"], "README.md": {Data: []byte("other")}}
+	fpSame, err := migrationsFingerprintFS(same)
+	require.NoError(t, err)
+	require.Equal(t, fp, fpSame, "only top-level *.sql files count")
+
+	edited := fstest.MapFS{"changes-1.sql": {Data: []byte("-- +migrate Up\nSELECT 2;\n")}}
+	fpEdited, err := migrationsFingerprintFS(edited)
+	require.NoError(t, err)
+	require.NotEqual(t, fp, fpEdited)
+
+	_, err = migrationsFingerprintFS(fstest.MapFS{"README.md": {Data: []byte("x")}})
+	require.Error(t, err)
+}
+
+func templateTestFingerprint() string {
+	return "test" + strings.ReplaceAll(uuid.NewString(), "-", "")
+}
+
+func dropTestTemplate(t *testing.T, conn *sql.DB, name string) {
+	t.Helper()
+	t.Cleanup(func() {
+		require.NoError(t, dropTemplate(context.Background(), conn, name))
+	})
+}
+
+func markerBuilder(t *testing.T, builds *atomic.Int32) TemplateBuilder {
+	t.Helper()
+	db := testConfig(t)
+	return func(ctx context.Context, name string) error {
+		builds.Add(1)
+		conn, err := sql.Open("postgres", DBOpts(name, db))
+		if err != nil {
+			return err
+		}
+		defer func() { _ = conn.Close() }()
+		_, err = conn.ExecContext(ctx, "CREATE TABLE template_marker (id int); INSERT INTO template_marker VALUES (7)")
+		return err
+	}
+}
+
+// Falsely green if concurrent builders each build their own copy, or if the
+// template is left connectable (clones would then race autovacuum). The
+// goroutines call ensureTemplate, not EnsureMigratedTemplate, so the
+// in-process cache cannot hide a broken advisory lock or ready check: they
+// stand in for separate test binaries.
+func TestEnsureMigratedTemplateBuildsOnceAndSeals(t *testing.T) {
+	db := testConfig(t)
+	ctx := context.Background()
+	admin, err := sql.Open("postgres", AdminConnectionString(db))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = admin.Close() })
+	fp := templateTestFingerprint()
+	dropTestTemplate(t, admin, MigratedTemplateName(fp, db.User))
+
+	var builds atomic.Int32
+	build := markerBuilder(t, &builds)
+	names := make([]string, 4)
+	errs := make([]error, 4)
+	var wg sync.WaitGroup
+	for i := range names {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			names[i] = MigratedTemplateName(fp, db.User)
+			errs[i] = ensureTemplate(ctx, db, names[i], build)
+		}()
+	}
+	wg.Wait()
+	for i := range names {
+		require.NoError(t, errs[i])
+	}
+	require.Equal(t, int32(1), builds.Load(), "one builder; the others find the ready template")
+
+	// The first call through the entry point finds the ready template and
+	// reuses it without rebuilding (and fills the in-process cache).
+	name, err := EnsureMigratedTemplate(ctx, db, fp, build)
+	require.NoError(t, err)
+	require.Equal(t, names[0], name)
+	require.Equal(t, int32(1), builds.Load())
+
+	ready, exists, err := templateState(ctx, admin, names[0])
+	require.NoError(t, err)
+	require.True(t, exists)
+	require.True(t, ready)
+
+	clone := Name("tpl_clone_" + uuid.NewString()[:8])
+	require.NoError(t, createDatabase(ctx, clone, names[0], db, false, true))
+	t.Cleanup(func() { _ = DropDB(clone, db) })
+	conn, err := sql.Open("postgres", DBOpts(clone, db))
+	require.NoError(t, err)
+	defer func() { _ = conn.Close() }()
+	var marker int
+	require.NoError(t, conn.QueryRowContext(ctx, "SELECT id FROM template_marker").Scan(&marker))
+	require.Equal(t, 7, marker)
+
+	// A later call in the same process is a cache hit: it never reaches the
+	// cluster. With the template gone, anything but a hit would rebuild it.
+	require.NoError(t, dropTemplate(ctx, admin, names[0]))
+	name, err = EnsureMigratedTemplate(ctx, db, fp, build)
+	require.NoError(t, err)
+	require.Equal(t, names[0], name)
+	require.Equal(t, int32(1), builds.Load())
+	_, exists, err = templateState(ctx, admin, names[0])
+	require.NoError(t, err)
+	require.False(t, exists, "the cached call did not touch the cluster")
+}
+
+// Falsely green if a database left behind by a killed builder is reused.
+func TestEnsureMigratedTemplateRebuildsUnfinishedTemplate(t *testing.T) {
+	db := testConfig(t)
+	ctx := context.Background()
+	admin, err := sql.Open("postgres", AdminConnectionString(db))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = admin.Close() })
+	fp := templateTestFingerprint()
+	name := MigratedTemplateName(fp, db.User)
+	dropTestTemplate(t, admin, name)
+	_, err = admin.ExecContext(ctx, fmt.Sprintf(`CREATE DATABASE "%s"`, name))
+	require.NoError(t, err)
+
+	var builds atomic.Int32
+	got, err := EnsureMigratedTemplate(ctx, db, fp, markerBuilder(t, &builds))
+	require.NoError(t, err)
+	require.Equal(t, name, got)
+	require.Equal(t, int32(1), builds.Load())
+}
+
+// Falsely green if a failed build is cached for the process or leaves the
+// half-built database behind.
+func TestEnsureMigratedTemplateRetriesAfterFailure(t *testing.T) {
+	db := testConfig(t)
+	ctx := context.Background()
+	admin, err := sql.Open("postgres", AdminConnectionString(db))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = admin.Close() })
+	fp := templateTestFingerprint()
+	name := MigratedTemplateName(fp, db.User)
+	dropTestTemplate(t, admin, name)
+
+	boom := errors.New("boom")
+	_, err = EnsureMigratedTemplate(ctx, db, fp, func(context.Context, string) error { return boom })
+	require.ErrorIs(t, err, boom)
+	_, exists, err := templateState(ctx, admin, name)
+	require.NoError(t, err)
+	require.False(t, exists, "a failed build is dropped")
+
+	var builds atomic.Int32
+	_, err = EnsureMigratedTemplate(ctx, db, fp, markerBuilder(t, &builds))
+	require.NoError(t, err)
+	require.Equal(t, int32(1), builds.Load())
+}
+
+// Falsely green if CREATE DATABASE ... TEMPLATE is trusted to carry settings:
+// it does not copy ALTER DATABASE ... SET values, which a replayed database
+// keeps.
+func TestCloneKeepsDatabaseSettings(t *testing.T) {
+	db := testConfig(t)
+	ctx := context.Background()
+	admin, err := sql.Open("postgres", AdminConnectionString(db))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = admin.Close() })
+	fp := templateTestFingerprint()
+	name := MigratedTemplateName(fp, db.User)
+	dropTestTemplate(t, admin, name)
+
+	_, err = EnsureMigratedTemplate(ctx, db, fp, func(ctx context.Context, name string) error {
+		if _, err := admin.ExecContext(ctx, fmt.Sprintf(`ALTER DATABASE "%s" SET timezone = 'Asia/Tashkent'`, name)); err != nil {
+			return err
+		}
+		if _, err := admin.ExecContext(ctx, fmt.Sprintf(`ALTER DATABASE "%s" SET search_path = public, "my schema"`, name)); err != nil {
+			return err
+		}
+		// An empty list value has no unquoted form.
+		_, err := admin.ExecContext(ctx, fmt.Sprintf(`ALTER DATABASE "%s" SET temp_tablespaces = ''`, name))
+		return err
+	})
+	require.NoError(t, err)
+
+	clone := Name("tpl_settings_" + uuid.NewString()[:8])
+	require.NoError(t, createDatabase(ctx, clone, name, db, false, true))
+	t.Cleanup(func() { _ = DropDB(clone, db) })
+	conn, err := sql.Open("postgres", DBOpts(clone, db))
+	require.NoError(t, err)
+	defer func() { _ = conn.Close() }()
+	var tz, path string
+	require.NoError(t, conn.QueryRowContext(ctx, "SHOW timezone").Scan(&tz))
+	require.NoError(t, conn.QueryRowContext(ctx, "SHOW search_path").Scan(&path))
+	require.Equal(t, "Asia/Tashkent", tz)
+	require.Equal(t, `public, "my schema"`, path)
+	var temp string
+	require.NoError(t, conn.QueryRowContext(ctx, "SHOW temp_tablespaces").Scan(&temp))
+	require.Equal(t, `""`, temp, "what a database set directly to an empty list reports")
+	var copied int
+	require.NoError(t, admin.QueryRowContext(ctx, `SELECT count(*) FROM pg_db_role_setting s JOIN pg_database d ON d.oid = s.setdatabase,
+		unnest(s.setconfig) c WHERE d.datname = $1 AND c LIKE 'temp_tablespaces=%'`, clone).Scan(&copied))
+	require.Equal(t, 1, copied, "the empty list is copied, not skipped")
+}
+
+// Falsely green if two roles share one template: a non-superuser cannot clone
+// or seal a database another role owns ("must be owner of database").
+func TestTemplatesAreScopedToRole(t *testing.T) {
+	db := testConfig(t)
+	ctx := context.Background()
+	admin, err := sql.Open("postgres", AdminConnectionString(db))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = admin.Close() })
+	fp := templateTestFingerprint()
+
+	names := map[string]bool{}
+	for range 2 {
+		role := Name("tpl_role_" + uuid.NewString()[:8])
+		_, err := admin.ExecContext(ctx, fmt.Sprintf(`CREATE ROLE "%s" LOGIN CREATEDB PASSWORD 'pw'`, role))
+		require.NoError(t, err)
+		roleDB := db
+		roleDB.User, roleDB.Password = role, "pw"
+		name := MigratedTemplateName(fp, role)
+		t.Cleanup(func() {
+			require.NoError(t, dropTemplate(context.Background(), admin, name))
+			_, err := admin.ExecContext(context.Background(), fmt.Sprintf(`DROP ROLE "%s"`, role))
+			require.NoError(t, err)
+		})
+
+		var builds atomic.Int32
+		got, err := EnsureMigratedTemplate(ctx, roleDB, fp, markerBuilder(t, &builds))
+		require.NoError(t, err)
+		require.Equal(t, name, got)
+		require.Equal(t, int32(1), builds.Load(), "each role builds its own template")
+		names[got] = true
+
+		clone := Name("tpl_rc_" + uuid.NewString()[:8])
+		require.NoError(t, createDatabase(ctx, clone, got, roleDB, false, true), "the role can clone its template")
+		require.NoError(t, DropDB(clone, roleDB))
+	}
+	require.Len(t, names, 2)
+}

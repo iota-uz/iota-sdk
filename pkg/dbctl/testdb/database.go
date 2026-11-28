@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"regexp"
@@ -165,8 +166,20 @@ func createDatabase(ctx context.Context, name, template string, db dbconfig.Conf
 					return err
 				}
 			}
-			_, err := conn.ExecContext(ctx, create)
-			return err
+			if _, err := conn.ExecContext(ctx, create); err != nil {
+				return err
+			}
+			if sanitizedTemplate != "" {
+				if err := copyDatabaseSettings(ctx, conn, sanitizedTemplate, sanitizedName); err != nil {
+					// A clone without its settings is not the database asked
+					// for; do not leave it behind for the next run to find.
+					if _, dropErr := conn.ExecContext(context.WithoutCancel(ctx), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName)); dropErr != nil {
+						return errors.Join(err, fmt.Errorf("drop clone %s: %w", sanitizedName, dropErr))
+					}
+					return err
+				}
+			}
+			return nil
 		})
 	})
 	if err != nil {
@@ -425,4 +438,71 @@ func DBOpts(name string, db dbconfig.Config) string {
 		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
 		db.Host, db.Port, db.User, strings.ToLower(Name(name)), db.Password,
 	)
+}
+
+// listSettings are the settings whose value is a list: ALTER ... SET takes
+// their stored text unquoted, while every other value is written as one
+// string literal. An empty list has no text to write unquoted, so it is
+// written as the empty literal ”.
+var listSettings = map[string]bool{
+	"search_path": true, "temp_tablespaces": true, "session_preload_libraries": true,
+	"local_preload_libraries": true, "shared_preload_libraries": true,
+}
+
+// copyDatabaseSettings gives clone the database-level settings of template:
+// ALTER DATABASE ... SET and ALTER ROLE ... IN DATABASE ... SET values live in
+// the cluster-wide pg_db_role_setting, keyed by database, and CREATE DATABASE
+// ... TEMPLATE does not copy them. Without this a migration that sets one
+// (a time zone, a search_path) would hold in a replayed database and silently
+// not in a clone.
+type databaseSetting struct{ role, name, value string }
+
+func copyDatabaseSettings(ctx context.Context, conn *sql.DB, template, clone string) error {
+	settings, err := readDatabaseSettings(ctx, conn, template)
+	if err != nil {
+		return fmt.Errorf("read settings of template %s: %w", template, err)
+	}
+	for _, st := range settings {
+		value := "'" + strings.ReplaceAll(st.value, "'", "''") + "'"
+		if listSettings[st.name] {
+			value = st.value
+			// Postgres stores an empty list as "" (an empty quoted
+			// identifier), which is not valid unquoted; '' sets the same
+			// empty list.
+			if value == "" || value == `""` {
+				value = "''"
+			}
+		}
+		target := fmt.Sprintf(`DATABASE "%s"`, clone)
+		if st.role != "" {
+			target = fmt.Sprintf(`ROLE "%s" IN DATABASE "%s"`, strings.ReplaceAll(st.role, `"`, `""`), clone)
+		}
+		if _, err := conn.ExecContext(ctx, fmt.Sprintf(`ALTER %s SET "%s" = %s`, target, st.name, value)); err != nil {
+			return fmt.Errorf("copy setting %s of template %s: %w", st.name, template, err)
+		}
+	}
+	return nil
+}
+
+func readDatabaseSettings(ctx context.Context, conn *sql.DB, database string) ([]databaseSetting, error) {
+	rows, err := conn.QueryContext(ctx, `
+		SELECT coalesce(r.rolname, ''), unnest(s.setconfig)
+		FROM pg_db_role_setting s
+		JOIN pg_database d ON d.oid = s.setdatabase
+		LEFT JOIN pg_roles r ON r.oid = s.setrole
+		WHERE d.datname = $1`, database)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var settings []databaseSetting
+	for rows.Next() {
+		var role, config string
+		if err := rows.Scan(&role, &config); err != nil {
+			return nil, err
+		}
+		name, value, _ := strings.Cut(config, "=")
+		settings = append(settings, databaseSetting{role: role, name: name, value: value})
+	}
+	return settings, rows.Err()
 }
