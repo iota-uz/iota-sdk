@@ -175,13 +175,16 @@ type Store interface{ Writer; Reader; MetadataReader }
 
 ## Заменить адаптер
 
+Менеджер получает `secrets.Writer`, резолвер — `secrets.Reader`, страница метаданных — `secrets.MetadataReader`.
+По умолчанию все три — части `secrets.Store` (встроенный адаптер). Приложение может заменить `Store` целиком
+или каждую часть отдельно:
+
 ```go
-composition.Provide[secrets.Store](b, func(c *composition.Container) (secrets.Store, error) {
-    return myopenbao.New(...), nil // Writer + Reader + MetadataReader
-})
+composition.Provide[secrets.Writer](b, func(c *composition.Container) (secrets.Writer, error) { ... })
+composition.Provide[secrets.Reader](b, func(c *composition.Container) (secrets.Reader, error) { ... })
 ```
 
-Менеджер, резолвер и Locator собираются поверх `secrets.Store`, записи остаются в PostgreSQL.
+Менеджер, резолвер и Locator собираются поверх этих частей, записи остаются в PostgreSQL.
 
 **Так можно поставить новую установку.** Замена адаптера значения не переносит: запись в PostgreSQL ссылается на
 путь и версию (`ref_path`, `value_version`), и если у нового адаптера их нет, `Resolve` вернёт `ErrUnavailable`.
@@ -189,42 +192,70 @@ composition.Provide[secrets.Store](b, func(c *composition.Container) (secrets.St
 отдавал его по тому же пути и той же опубликованной версии, либо переносить значения и обновлять ссылки в
 записях вместе (в окне, когда управление секретами закрыто), и только потом переключать композицию.
 
-## Следующий шаг: адаптер OpenBao KV v2 (#1382)
+## Адаптер OpenBao KV v2 (#1382)
+
+`pkg/automation/secrets/openbao`: `openbao.New(Config{Address, Mount, Namespace, Auth})` — одна сервисная
+учётная запись. `Client.Writer()`, `Client.Reader()`, `Client.MetadataReader()` — отдельные типы, каждый
+реализует только свою часть порта (`Writer` нельзя привести к `Reader`). Модуль `automations` собирает две
+учётные записи: роль записи (менеджер, метаданные) и роль чтения (резолвер в нодах).
+
+### Конфигурация
+
+| Переменная | Значение |
+| --- | --- |
+| `AUTOMATION_SECRETS_STORE` | `sealed` (по умолчанию) или `openbao` |
+| `AUTOMATION_SECRETS_PREFIX` | окружение в начале пути (`prod` → `prod/tenants/<tenant>/automation/secrets/<secret>`) |
+| `AUTOMATION_SECRETS_OPENBAO_ADDRESS` | `https://openbao.internal:8200` |
+| `AUTOMATION_SECRETS_OPENBAO_MOUNT` | KV v2 mount (по умолчанию `secret`) |
+| `AUTOMATION_SECRETS_OPENBAO_NAMESPACE` | `X-Vault-Namespace`, если нужен |
+| `AUTOMATION_SECRETS_OPENBAO_{WRITER,READER}_METHOD` | `approle`, `kubernetes`, `jwt` или `token` |
+| `…_AUTHMOUNT` | mount метода входа (по умолчанию имя метода) |
+| `…_ROLEID`, `…_SECRETID` / `…_SECRETIDFILE` | AppRole |
+| `…_ROLE`, `…_JWTFILE` | Kubernetes (файл по умолчанию — токен service account пода) и JWT |
+| `…_TOKEN` / `…_TOKENFILE` | готовый токен (например, sink OpenBao Agent) |
+
+Ошибка конфигурации останавливает запуск и не цитирует учётные данные. С `store = openbao` встроенный адаптер
+для секретов не используется: при недоступности OpenBao ничего не подставляется из PostgreSQL или env.
+
+### Обновляемая аутентификация
+
+Клиент входит при первом запросе, продлевает токен (`auth/token/renew-self`) после 2/3 его TTL и входит заново,
+когда токен продлить нельзя (истёк, достиг `max_ttl`) или OpenBao отказал ему (403 — один повторный вход, затем
+ответ политики). Учётные данные из файла (`secret_id`, JWT, токен агента) читаются при каждом входе, поэтому их
+ротация применяется без перезапуска. Кеша значений нет: ротация видна следующему `Read` любого процесса.
+
+### Отображение порта
 
 | Порт | KV v2 (mount `secret`) |
 | --- | --- |
-| `Put(ref, data)` | `POST /v1/secret/data/<ref.Path>`, тело `{"data": {...}, "options": {"cas": <current_version>}}`: `current_version` читается из `GET /v1/secret/metadata/<ref.Path>` (0, если пути нет); при конфликте CAS — перечитать и повторить, ограниченное число раз (как встроенный адаптер — 8), затем `ErrUnavailable`. Версия из ответа — `Metadata.Version`. `ref.NotAfter`: не отправлять запрос после срока (запоздавшую запись, которую уже не отменить, уберёт подметание). Хранение версий — см. ниже «Хранение версий в KV v2» |
+| `Put(ref, data)` | `GET /v1/secret/metadata/<path>` (404 — новый путь: сначала `POST /v1/secret/metadata/<path>` с `max_versions = 100`, `delete_version_after = 0s`), затем `POST /v1/secret/data/<path>` с `{"data": {...}, "options": {"cas": <current_version>}}`; при конфликте CAS — заново, до 8 раз, затем `ErrUnavailable`. Версия из ответа — `Metadata.Version`. `ref.NotAfter`: после срока запрос не отправляется, запрос получает его как дедлайн |
 | `List(root)` | `LIST /v1/secret/metadata/<root.Path>` (рекурсивно по подпапкам) |
-| `Read(ref)` | `GET /v1/secret/data/<ref.Path>?version=<ref.Version>` (без параметра при 0) - версия целиком (`data.data`, `data.metadata.version`); 404 - `ErrNotFound` |
-| `Metadata(ref)` | `GET /v1/secret/metadata/<ref.Path>` - `current_version`, `created_time`, `updated_time` |
-| `Delete(ref)` | `DELETE /v1/secret/metadata/<ref.Path>` - все версии; 404 не ошибка |
-| `Prune(ref, keepFrom)` | `POST /v1/secret/destroy/<ref.Path>` с `{"versions": [1..keepFrom-1]}` |
+| `Read(ref)` | `GET /v1/secret/data/<path>?version=<ref.Version>` (без параметра при 0) - версия целиком (`data.data`, `data.metadata.version`) одним запросом; 404, удалённая или уничтоженная версия - `ErrNotFound`; другая версия в ответе - `ErrUnavailable` |
+| `Metadata(ref)` | `GET /v1/secret/metadata/<path>` - `current_version`, `created_time`, время текущей версии |
+| `Delete(ref)` | `DELETE /v1/secret/metadata/<path>` - все версии; 404 не ошибка |
+| `Prune(ref, keepFrom)` | `POST /v1/secret/destroy/<path>` с неуничтоженными версиями ниже `keepFrom` (по `versions` метаданных) |
+
+Путь, в котором нет сегментов `tenants/<ref.TenantID>` (`openbao.Config.Owns` меняет правило под свой
+Locator), не отправляется: для `Read`/`Metadata` это `ErrNotFound` (не выдаём, что путь есть у другого
+арендатора), для записи, удаления и `List` — `ErrForbidden`. `Ref` без арендатора и путь с `..`, `//`, `?`,
+`%` — `ErrForbidden`.
 
 ### Хранение версий в KV v2
 
 Опубликованная версия (и предыдущая, которую `Prune` оставляет читателям) не должна пропасть ни от вытеснения,
 ни от истечения, в том числе при сбоях публикации и параллельных записях.
 
-- **Вытеснение.** KV v2 держит не больше `max_versions` версий (`0` или не задано — значение по умолчанию, 10,
-  а не «без предела») и при записи сверх предела удаляет самую старую. `destroy` (наш `Prune`) помечает версии
-  уничтоженными, но `oldest_version` не сдвигает, поэтому считать от `oldest_version` нельзя. Адаптер в том же
-  чтении `GET /v1/secret/metadata/<path>`, что даёт `current_version` для CAS, берёт из `versions` самую старую
-  **не уничтоженную** версию `oldest_live` и отказывает (`ErrUnavailable`, ничего не записано), если запись
-  вытеснила бы её: `current_version + 1 − oldest_live + 1 > max_versions`. Вытесняются тогда только уже
-  уничтоженные версии, что безвредно. После 100 и более успешных ротаций `oldest_live` — это предыдущая
-  опубликованная версия, и проверка проходит; около предела её заполняют только подряд идущие неопубликованные
-  записи (сбои публикации) — тогда ротация отказывает, пока публикация или `Prune` не освободят место, а
-  опубликованная версия остаётся читаемой. CAS делает проверку и запись одним шагом и для параллельных записей.
-  Предел — явный `max_versions = 100` в метаданных пути (адаптер ставит его при первой записи пути).
-- **Истечение.** Действует наименьшая ненулевая из `delete_version_after` mount и пути, поэтому `0` на пути не
-  отключает срок mount. Нужно `delete_version_after = 0` **и** в конфигурации mount (`secret/config`), **и** в
-  метаданных пути (адаптер ставит при первой записи).
-- **Защита настроек.** CAS не защищает настройки хранения. `secret/config` mount не может менять ни одна из
-  ролей приложения (только оператор); настройки метаданных пути (`max_versions`, `delete_version_after`) пишет
-  только адаптер под ролью записи при создании пути, роль чтения их менять не может. Кроме того, адаптер перед
-  каждой записью сверяет их по тому же чтению метаданных пути, а `delete_version_after` mount — по
-  `GET secret/config` (при старте и периодически); при расхождении он отказывает в записи (`ErrUnavailable`)
-  вместо того, чтобы писать в хранилище, которое может удалить опубликованную версию.
+- **Вытеснение.** KV v2 держит не больше `max_versions` версий и при записи сверх предела удаляет самую старую.
+  `destroy` (наш `Prune`) помечает версии уничтоженными, но `oldest_version` не сдвигает. Адаптер в том же
+  чтении метаданных, что даёт `current_version` для CAS, берёт самую старую **не уничтоженную** версию
+  `oldest_live` и отказывает (`ErrUnavailable`, ничего не записано), если запись вытеснила бы её:
+  `current_version + 1 − oldest_live + 1 > 100`. CAS делает проверку и запись одним шагом.
+- **Истечение.** Действует наименьшая ненулевая из `delete_version_after` mount и пути. Адаптер ставит `0s` на
+  пути при его создании и не реже раза в минуту перед записью сверяет `GET secret/config` mount.
+- **Защита настроек.** Перед каждой записью адаптер сверяет `max_versions = 100` и `delete_version_after = 0s`
+  пути; при расхождении (кто-то изменил их вне адаптера) или ненулевом сроке mount запись отказывает
+  (`ErrUnavailable`), а не пишет в хранилище, которое может удалить опубликованную версию. `secret/config`
+  меняет только оператор.
 
 Политики разделены. В OpenBao `*` допустим только в конце пути, `+` — один сегмент; если в `ref.Path` есть
 префикс окружения (`DefaultLocator("prod/")`), он входит в путь политики:
@@ -244,5 +275,16 @@ path "secret/data/prod/tenants/+/automation/secrets/*"     { capabilities = ["re
 `read` на `secret/metadata/...` отдаёт версии и времена, но не значения (они только в `secret/data/...`). Для роли
 одного арендатора вместо `+` пишется его id. Без `list` подметание получит 403, примет его за недоступность
 хранилища и не выполнится.
-Сетевые сбои, 5xx, sealed/standby Vault - `ErrUnavailable`; 403 по токену процесса - тоже, не `ErrForbidden`
-(последний - только для чужого арендатора). Префикс окружения задаётся `DefaultLocator("prod/")`.
+Сетевые сбои, 5xx, sealed/standby, вход, который не удался, - `ErrUnavailable`; 403 по токену процесса - тоже
+(причина `openbao.ErrPermissionDenied`: роль записи, читающая значение, или роль одного арендатора, читающая
+чужой путь), не `ErrForbidden`. Ошибки адаптера называют операцию и статус, но не тело ответа OpenBao, не
+токен и не значение; адаптер ничего не пишет в лог. Префикс окружения — `AUTOMATION_SECRETS_PREFIX`
+(`DefaultLocator("prod/")`).
+
+### Проверка
+
+Тесты `pkg/automation/secrets/openbao` против настоящего OpenBao запускаются, когда заданы
+`OPENBAO_TEST_ADDR` и `OPENBAO_TEST_TOKEN` (корневой токен dev-сервера; в CI — сервис `openbao`):
+ротация видна работающему процессу, роль записи получает отказ при чтении, роль одного арендатора — при
+чтении чужой записи, повторный вход после истечения токена, CAS при параллельных записях, отказ записи в mount
+с истечением версий.

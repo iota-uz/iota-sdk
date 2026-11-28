@@ -6,10 +6,10 @@
 //   - its record (Secret): name (API_KEY), description, the reference to its value (Ref) and safe metadata
 //     — created, rotated, last used. The integrations page, the nodes and the module see only this;
 //   - its value, behind the storage port: Writer (put a new version, delete), Reader (read the current
-//     version whole) and MetadataReader (versions and times, never a value). The first adapter is the
+//     version whole) and MetadataReader (versions and times, never a value). The default adapter is the
 //     encrypted per-tenant store of connections (connectors.NewSealedSecrets: AES-256-GCM with the
-//     connections' keyring); an OpenBao KV v2 adapter (#1382) replaces it without changing the records,
-//     the page or the nodes.
+//     connections' keyring); the OpenBao KV v2 adapter (package openbao, AUTOMATION_SECRETS_STORE=openbao)
+//     replaces it without changing the records, the page or the nodes.
 //
 // The contract every adapter keeps:
 //
