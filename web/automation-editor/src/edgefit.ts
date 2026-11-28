@@ -56,3 +56,14 @@ export function trimEnd(points: readonly Point[], gap = ARROW_GAP): Point[] {
   out[out.length - 1] = { x: b.x - ((b.x - a.x) / length) * cut, y: b.y - ((b.y - a.y) / length) * cut }
   return out
 }
+
+/**
+ * The arrowhead at the end of a line that runs from `from` to `tip`: a triangle 6 px deep and 9.6 px wide
+ * (the former marker, 20 units scaled by 1.2), as one path.
+ */
+export function arrowHead(from: Point, tip: Point): string {
+  const l = Math.hypot(tip.x - from.x, tip.y - from.y) / 6 || 1
+  const x = (tip.x - from.x) / l
+  const y = (tip.y - from.y) / l
+  return `M${tip.x - x - y * 0.8},${tip.y - y + x * 0.8}L${tip.x},${tip.y}L${tip.x - x + y * 0.8},${tip.y - y - x * 0.8}Z`
+}

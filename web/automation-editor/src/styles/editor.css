@@ -174,16 +174,19 @@
 .ae-edge--bad { --ae-edge-tone: var(--ae-tone-bad); }
 .ae-edge--loop { stroke-dasharray: 6 4; }
 /* The hit area: a 20 px transparent stroke over the line (hover, click to select, Delete removes). */
-.ae-edge-hit { fill: none; stroke: oklch(var(--transparent)); stroke-width: 20; pointer-events: stroke; cursor: pointer; }
+.ae-edge-hit { fill: none; stroke: none; stroke-width: 20; pointer-events: stroke; cursor: pointer; }
 .ae-canvas--readonly .ae-edge-hit, .ae-canvas--connecting .ae-edge-hit, .ae-canvas--tidying .ae-edge-hit { pointer-events: none; }
 .ae-edge--hover, .ae-edge--lit { stroke-width: 2.25; }
 .ae-edge--selected { --ae-edge-tone: var(--ae-tone-active); stroke-width: 2.5; }
-.ae-arrow polyline { stroke-width: 1; stroke-linejoin: round; }
-.ae-arrow--neutral polyline { fill: oklch(var(--ae-tone-neutral)); stroke: oklch(var(--ae-tone-neutral)); }
-.ae-arrow--ok polyline { fill: oklch(var(--ae-tone-ok)); stroke: oklch(var(--ae-tone-ok)); }
-.ae-arrow--warn polyline { fill: oklch(var(--ae-tone-warn)); stroke: oklch(var(--ae-tone-warn)); }
-.ae-arrow--bad polyline { fill: oklch(var(--ae-tone-bad)); stroke: oklch(var(--ae-tone-bad)); }
-.ae-arrow--active polyline { fill: oklch(var(--ae-tone-active)); stroke: oklch(var(--ae-tone-active)); }
+.ae-arrowhead { stroke-width: 1.2; stroke-linejoin: round; pointer-events: none; }
+.ae-arrowhead--neutral { fill: oklch(var(--ae-tone-neutral)); stroke: oklch(var(--ae-tone-neutral)); }
+.ae-arrowhead--ok { fill: oklch(var(--ae-tone-ok)); stroke: oklch(var(--ae-tone-ok)); }
+.ae-arrowhead--warn { fill: oklch(var(--ae-tone-warn)); stroke: oklch(var(--ae-tone-warn)); }
+.ae-arrowhead--bad { fill: oklch(var(--ae-tone-bad)); stroke: oklch(var(--ae-tone-bad)); }
+.ae-arrowhead--selected, .ae-arrowhead--flash, .ae-arrowhead--taken { fill: oklch(var(--ae-tone-active)); stroke: oklch(var(--ae-tone-active)); }
+.ae-arrowhead--rewiring { opacity: 0.3; animation: ae-dim-in var(--motion-fast) var(--ease-standard); }
+.ae-arrowhead--flash { animation: ae-edge-flash var(--motion-slow) var(--ease-out); }
+.ae-arrowhead--taken { animation: ae-edge-flash var(--motion-slow) var(--ease-out) backwards; animation-delay: calc(var(--ae-step, 0) * var(--motion-fast)); }
 .ae-edge--hidden { display: none; }
 .ae-edge--draft { --ae-edge-tone: var(--ae-tone-active); stroke-dasharray: 4 4; stroke-width: 2; }
 .ae-edge--valid { stroke-dasharray: none; }

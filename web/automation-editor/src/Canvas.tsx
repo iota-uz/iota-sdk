@@ -10,7 +10,7 @@ import { backEdges, ensureLayout, unmarked } from './layout'
 import { isMac } from './locale'
 import { describeAll, type ItemName } from './names'
 import { createRouter, directPath, routePath, type Point, type RouteLink, type Router } from './route'
-import { ARROW_GAP, fitRoute, trimEnd } from './edgefit'
+import { ARROW_GAP, arrowHead, fitRoute, trimEnd } from './edgefit'
 import { toneOf, type Tone } from './tone'
 import { motionMs } from './motion'
 import { keyLabel, strings } from './strings'
@@ -1074,24 +1074,28 @@ export function Canvas(props: CanvasProps): JSX.Element {
     const tone: Tone = toneOf(outcome)
     // The route found for the committed layout, fitted onto the handles where the cards stand now; while a
     // card is dragged further than that, a rounded step (directPath) until it lands and is routed again.
-    const path = createMemo(() => {
+    // The line and its arrowhead: the head is a filled path of its own at the line's end, pointing along its
+    // last stretch (a marker per edge rasterised several times slower, #1352 bench).
+    const shape = createMemo<{ d: string; head: string }>(() => {
       const target = to()
       const p = positions[node]
       const q = positions[target]
       const g = geometryMap().get(node)
       const slot = g?.outcomes.find((o) => o.outcome === outcome)
       const handle = geometryMap().get(target)?.target
-      if (!p || !q || !slot || !handle) return ''
+      if (!p || !q || !slot || !handle) return { d: '', head: '' }
       const a = { x: p.x + slot.handle.x, y: p.y + slot.handle.y }
       const b = { x: q.x + handle.x, y: q.y + handle.y }
       const found = routed[source]
       const fit = found ? fitRoute(found.points, a, b) : null
-      if (fit) return routePath(trimEnd(fit), 10, found?.clear)
-      return directPath(a, { x: b.x, y: b.y - ARROW_GAP })
+      const t = fit ? trimEnd(fit) : [{ x: b.x, y: 0 }, { x: b.x, y: b.y - ARROW_GAP }]
+      const tip = t[t.length - 1]!
+      return { d: fit ? routePath(t, 10, found?.clear) : directPath(a, tip), head: arrowHead(t[t.length - 2]!, tip) }
     })
     const taken = () => props.overlay?.taken.has(source) ?? false
     const active = () => taken() && props.overlay?.states.get(to()) === 'waiting'
     const chosen = () => selectedEdge() === source
+    const dim = () => (props.overlay ? !taken() : (highlight() ? !highlight()!.edges.has(source) : false))
     const className = createMemo(() => {
       let c = `ae-edge ae-edge--${tone}`
       if (connectingKey() === source) c += ' ae-edge--rewiring'
@@ -1101,13 +1105,12 @@ export function Canvas(props: CanvasProps): JSX.Element {
       if (loop()) c += ' ae-edge--loop'
       if (chosen()) c += ' ae-edge--selected'
       if (hoveredEdge() === source) c += ' ae-edge--hover'
-      const h = highlight()
-      if (props.overlay ? !taken() : h ? !h.edges.has(source) : false) c += ' ae-dim'
-      else if (h && !props.overlay) c += ' ae-edge--lit'
+      if (dim()) c += ' ae-dim'
+      else if (highlight() && !props.overlay) c += ' ae-edge--lit'
       return c
     })
-    // The arrow takes the edge's colour: one marker per tone and state, drawn once per canvas.
-    const marker = () => `url(#${flowId}-arrow-${chosen() || flashEdge() === source ? 'active' : taken() ? 'active' : tone})`
+    // The head wears its edge's classes (ae-edge-- becomes ae-arrowhead--): its colour and opacity states.
+    const headClass = () => className().replace(/ae-edge/g, 'ae-arrowhead')
     // The run's path lights up edge by edge in the order of its steps.
     const step = () => {
       const taken = props.overlay?.taken
@@ -1120,13 +1123,14 @@ export function Canvas(props: CanvasProps): JSX.Element {
       return undefined
     }
     return (
-      <g class="ae-edge-group">
-        <path class={className()} d={path()} style={step()} marker-end={marker()} data-edge={source} data-to={to()} />
+      <g>
+        <path class={className()} d={shape().d} style={step()} data-edge={source} data-to={to()} />
+        <path class={headClass()} d={shape().head} style={step()} />
         {/* A wide transparent stroke over the line: hover and click on it, as on the reference editor's edges. */}
         <path
           // Not nopan: a drag or a pinch that starts on an edge still pans and zooms the canvas.
           class="ae-edge-hit"
-          d={path()}
+          d={shape().d}
           onPointerEnter={() => setHoveredEdge(source)}
           onPointerLeave={() => setHoveredEdge((current) => (current === source ? null : current))}
           onClick={(event) => {
@@ -1385,15 +1389,6 @@ export function Canvas(props: CanvasProps): JSX.Element {
       <div class={`${PANE_CLASS} ae-pane`} />
       <div ref={viewportEl} class="ae-viewport">
         <svg class="ae-edges" aria-hidden="true">
-          <defs>
-            <For each={['neutral', 'ok', 'warn', 'bad', 'active'] as const}>
-              {(name) => (
-                <marker id={`${flowId}-arrow-${name}`} class={`ae-arrow ae-arrow--${name}`} viewBox="-10 -10 20 20" markerWidth="24" markerHeight="24" markerUnits="userSpaceOnUse" orient="auto-start-reverse" refX="0" refY="0">
-                  <polyline points="-5,-4 0,0 -5,4 -5,-4" />
-                </marker>
-              )}
-            </For>
-          </defs>
           <For each={visibleEdges()}>{(key) => edgeView(key)}</For>
           <Show when={connection()}>
             <path class="ae-edge ae-edge--draft" classList={{ 'ae-edge--valid': connection()?.valid === true }} d={connectionPath()} />
