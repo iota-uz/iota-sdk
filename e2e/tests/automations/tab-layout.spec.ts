@@ -38,7 +38,8 @@ test.describe('automations: Edit and Runs share one layout', () => {
 			await expect(page.locator('.ae-toolbar__name')).toBeVisible();
 			const edit = await boxes(page);
 			await page.getByTestId('tab-runs').click();
-			await expect(page.locator('.ae-runs-tab')).toBeVisible();
+			// The Suspense placeholder shares the class and carries aria-busy; the loaded view does not.
+			await expect(page.locator('.ae-runs-tab:not([aria-busy])')).toBeVisible();
 			const runs = await boxes(page);
 			for (const key of ['nav', 'avatar', 'title', 'tabs'] as const) {
 				const a = edit[key];

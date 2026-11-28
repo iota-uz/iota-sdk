@@ -21,6 +21,10 @@ type ProfilePageProps struct {
 	Errors    map[string]string
 	PostPath  string
 	Languages []intl.SupportedLanguage
+	// StoredEmail and StoredPhone are the saved values: a field locks when it has one, not when
+	// the draft in User (echoed back after a failed save) does.
+	StoredEmail string
+	StoredPhone string
 }
 
 // PasswordPath is where the password form posts.
@@ -35,8 +39,8 @@ templ ProfileForm(props *ProfilePageProps) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 		isUpdatable := composables.CanUser(ctx, permissions.UserUpdate) == nil
-		isEmailDisabled := props.User.Email != "" && !isUpdatable
-		isPhoneDisabled := props.User.Phone != "" && !isUpdatable
+		isEmailDisabled := props.StoredEmail != "" && !isUpdatable
+		isPhoneDisabled := props.StoredPhone != "" && !isUpdatable
 		uploads := []*viewmodels.Upload{}
 		if props.User.Avatar != nil {
 			uploads = []*viewmodels.Upload{props.User.Avatar}
@@ -115,13 +119,12 @@ templ ProfileForm(props *ProfilePageProps) {
 				Error: props.Errors["Email"],
 			})
 			<div class="flex flex-col gap-1">
-				@input.Text(&input.Props{
+				@input.Tel(&input.Props{
 					Label:       pageCtx.T("Account.Phone.Label"),
 					Placeholder: pageCtx.T("Account.Phone.Placeholder"),
 					Attrs: templ.Attributes{
 						"name":         "Phone",
 						"value":        props.User.Phone,
-						"type":         "tel",
 						"autocomplete": "tel",
 						"disabled":     isPhoneDisabled,
 						"readonly":     isPhoneDisabled,
@@ -185,7 +188,8 @@ templ ProfileSaved(props *ProfilePageProps) {
 // rules the server checks; the server decides.
 const passwordState = `{
 	pw: '', confirm: '',
-	get longEnough() { return this.pw.length >= 8 },
+	// The server counts UTF-8 bytes (len), so the hint does too.
+	get longEnough() { return new TextEncoder().encode(this.pw).length >= 8 },
 	get matches() { return this.confirm !== '' && this.pw === this.confirm },
 	get score() {
 		const p = this.pw; if (!p) return 0;

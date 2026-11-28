@@ -691,8 +691,11 @@ let spotlight = () => ({
 
   handleShortcut(event) {
     if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
-      // An embedded surface that claims ⌘K keeps it (same rule as solid-ui's isShortcutClaimed).
-      if (shortcutClaimed(event, 'mod+k')) return;
+      // An embedded surface that claims mod+k keeps it, but only for the modifier it handles: ⌘ on a Mac, Ctrl
+      // elsewhere. The other modifier is still the global search's (same rule as solid-ui's isShortcutClaimed).
+      const mac = /mac|iphone|ipad|ipod/i.test(navigator.userAgentData?.platform ?? navigator.platform ?? '');
+      const platformMod = mac ? event.metaKey : event.ctrlKey;
+      if (platformMod && shortcutClaimed(event, 'mod+k')) return;
       event.preventDefault();
       this.open();
     }

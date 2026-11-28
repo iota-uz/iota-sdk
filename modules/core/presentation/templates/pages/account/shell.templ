@@ -145,8 +145,8 @@ templ tabBar(active Tab) {
 						hx-target={ "#" + TabPanelID }
 						hx-swap="innerHTML show:none"
 						hx-push-url="true"
+						hx-sync="closest nav:replace"
 						data-testid={ "account-tab-" + string(t.Tab) }
-						x-on:click={ "path = '" + t.Path + "'" }
 						if t.Tab == active {
 							aria-current="page"
 						}

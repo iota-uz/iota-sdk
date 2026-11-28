@@ -657,7 +657,10 @@ export function Canvas(props: CanvasProps): JSX.Element {
     zoomIn: () => panZoom?.scaleBy(1.2),
     zoomOut: () => panZoom?.scaleBy(1 / 1.2),
     zoomReset: () => panZoom?.scaleTo(1),
-    selectAll: () => setMulti(new Set(ids())),
+    selectAll: () => {
+      setSelectedEdge(null)
+      setMulti(new Set(ids()))
+    },
     selection,
     focus: focusItem,
     toBox: (flow) => toBox(flow, viewport()),
@@ -824,6 +827,14 @@ export function Canvas(props: CanvasProps): JSX.Element {
     const next = new Set(event.shiftKey ? [...multi(), ...hit] : hit)
     setMulti(next)
     props.onSelect(hit.length === 1 ? hit[0]! : next.size > 0 ? (props.selected && next.has(props.selected) ? props.selected : null) : null)
+  }
+
+  // Selecting an edge replaces any node selection and takes focus, so Delete acts on the edge (click and context-click alike).
+  const selectEdge = (key: string) => {
+    setSelectedEdge(key)
+    setMulti(new Set<string>())
+    props.onSelect(null)
+    container?.focus({ preventScroll: true })
   }
 
   const onPaneClick = (event: MouseEvent) => {
@@ -1088,7 +1099,7 @@ export function Canvas(props: CanvasProps): JSX.Element {
       const b = { x: q.x + handle.x, y: q.y + handle.y }
       const found = routed[source]
       const fit = found ? fitRoute(found.points, a, b) : null
-      const t = fit ? trimEnd(fit) : [{ x: b.x, y: 0 }, { x: b.x, y: b.y - ARROW_GAP }]
+      const t = fit ? trimEnd(fit) : [{ x: b.x, y: b.y - ARROW_GAP - 1 }, { x: b.x, y: b.y - ARROW_GAP }]
       const tip = t[t.length - 1]!
       return { d: fit ? routePath(t, 10, found?.clear) : directPath(a, tip), head: arrowHead(t[t.length - 2]!, tip) }
     })
@@ -1137,15 +1148,12 @@ export function Canvas(props: CanvasProps): JSX.Element {
           onPointerLeave={() => setHoveredEdge((current) => (current === source ? null : current))}
           onClick={(event) => {
             event.stopPropagation()
-            setSelectedEdge(source)
-            setMulti(new Set<string>())
-            props.onSelect(null)
-            container?.focus({ preventScroll: true })
+            selectEdge(source)
           }}
           onContextMenu={(event) => {
             event.stopPropagation()
             event.preventDefault()
-            setSelectedEdge(source)
+            selectEdge(source)
           }}
         />
       </g>

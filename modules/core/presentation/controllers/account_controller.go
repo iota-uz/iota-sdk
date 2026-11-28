@@ -173,10 +173,13 @@ func (c *AccountController) profileProps(u *viewmodels.User, errors map[string]s
 		errors = map[string]string{}
 	}
 	return &account.ProfilePageProps{
-		PostPath:  c.basePath,
-		User:      u,
-		Errors:    errors,
-		Languages: intl.GetSupportedLanguages(c.app.GetSupportedLanguages()),
+		PostPath: c.basePath,
+		User:     u,
+		Errors:   errors,
+		// What is stored: the contact fields lock on it, whatever a failed save echoes back in User.
+		StoredEmail: u.Email,
+		StoredPhone: u.Phone,
+		Languages:   intl.GetSupportedLanguages(c.app.GetSupportedLanguages()),
 	}
 }
 
@@ -242,7 +245,10 @@ func (c *AccountController) Update(w http.ResponseWriter, r *http.Request) {
 		vm := mappers.UserToViewModel(u)
 		vm.FirstName, vm.LastName, vm.MiddleName = dto.FirstName, dto.LastName, dto.MiddleName
 		vm.Email, vm.Phone, vm.Language = dto.Email, dto.Phone, dto.Language
-		templ.Handler(account.ProfileForm(c.profileProps(vm, errors))).ServeHTTP(w, r)
+		props := c.profileProps(vm, errors)
+		saved := mappers.UserToViewModel(u)
+		props.StoredEmail, props.StoredPhone = saved.Email, saved.Phone
+		templ.Handler(account.ProfileForm(props)).ServeHTTP(w, r)
 		return
 	}
 	entity, err := dto.Apply(u)

@@ -1,7 +1,7 @@
 // The panel of the selected item: Configure (the params form from the catalog, the trigger's event,
 // filter and params, or the schedule editor) and Data (the output schema and copyable paths).
 import { Combobox, CopyButton, type ComboboxOption } from '@iota-uz/sdk/solid-ui'
-import { createMemo, createSignal, For, Match, Show, Switch, type JSX } from 'solid-js'
+import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch, type JSX } from 'solid-js'
 import { contextPaths, outputPaths, schemaPaths, type CompletionPath } from './completion'
 import { catalogEvent, catalogNode, findItem, nodeSpec, updateNode, updateTrigger } from './graph'
 import { Icon } from './icons'
@@ -151,7 +151,13 @@ export function NodePanel(props: NodePanelProps): JSX.Element {
                 })
                 const pick = (key: string) => {
                   const rule = front()
-                  if (!rule || !key || key === picked()) return
+                  if (!rule || key === picked()) return
+                  if (!key) {
+                    // The picker's Remove button: the action is unset and its args go with it.
+                    const { [rule.param]: _removed, ...rest } = node().params
+                    props.onChange(updateNode(props.graph, props.id, { ...rest, args: {} }), `${rule.param}:${props.id}`)
+                    return
+                  }
                   // Args the new action also takes are kept; the others go.
                   const next = catalogNode(props.catalog, rule.prefix + key)
                   const argsSchema = (next?.params.properties as Record<string, JsonSchema> | undefined)?.args
@@ -161,11 +167,22 @@ export function NodePanel(props: NodePanelProps): JSX.Element {
                   props.onChange(updateNode(props.graph, props.id, { ...node().params, [rule.param]: key, args }), `${rule.param}:${props.id}`)
                 }
                 const spec = () => target() ?? (front() ? undefined : own())
+                // The picker owns the front type's field: its error and a request to focus it come here, whether or not a form is mounted.
+                const actionError = () => { const rule = front(); return rule ? fieldErrors().find((e) => e.path === rule.param)?.message : undefined }
+                let actionField: HTMLDivElement | undefined
+                createEffect(on(() => props.focusField, (path) => {
+                  const rule = front()
+                  if (!rule || path !== rule.param) return
+                  queueMicrotask(() => {
+                    actionField?.scrollIntoView?.({ block: 'center' })
+                    actionField?.querySelector<HTMLElement>('input:not([type=hidden]),button,[tabindex="0"]')?.focus()
+                  })
+                }))
                 return (
                   <div class="ae-panel__stack">
                   <Show when={front()}>
                     {(rule) => (
-                      <div class="ae-field" data-param={rule().param}>
+                      <div class="ae-field" data-param={rule().param} ref={actionField}>
                         <Combobox
                           label={pickLocale(ACTION_STRINGS, props.locale).action}
                           options={actionOptions()}
@@ -176,6 +193,7 @@ export function NodePanel(props: NodePanelProps): JSX.Element {
                           labels={{ notFound: t().palette.nothing('') }}
                           onValueChange={(value) => pick(Array.isArray(value) ? value[0] ?? '' : value)}
                         />
+                        <Show when={actionError()}>{(message) => <p class="ae-form-error" role="alert">{message()}</p>}</Show>
                         <Show when={picked() && !target()}>
                           <p class="ae-panel__note" role="alert">{pickLocale(ACTION_STRINGS, props.locale).missing(picked())}</p>
                         </Show>

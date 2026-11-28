@@ -51,6 +51,21 @@ templ (p *Props) render() {
 			<label for={ p.id } class="form-control-label mb-2">{ p.Label }</label>
 		}
 		{{
+			// A rejected value is marked invalid and points at its message.
+			inputAttrs := p.Attrs
+			errorID := p.id + "-error"
+			if p.Error != "" {
+				inputAttrs = templ.Attributes{}
+				for k, v := range p.Attrs {
+					inputAttrs[k] = v
+				}
+				inputAttrs["aria-invalid"] = "true"
+				if described, ok := inputAttrs["aria-describedby"].(string); ok && described != "" {
+					inputAttrs["aria-describedby"] = described + " " + errorID
+				} else {
+					inputAttrs["aria-describedby"] = errorID
+				}
+			}
 			wrapperPropsClass := ""
 			if p.WrapperProps != nil {
 				switch v := p.WrapperProps["class"].(type) {
@@ -74,7 +89,7 @@ templ (p *Props) render() {
 				class={ twmerge.Merge("form-control-input outline-none w-full", p.Class) }
 				type={ p.typ }
 				placeholder={ p.Placeholder }
-				{ p.Attrs... }
+				{ inputAttrs... }
 			/>
 			if p.AddonRight != nil {
 				<div class={ twmerge.Merge("flex pr-2.5", p.AddonRight.Class) } { p.AddonRight.Attrs... }>
@@ -88,6 +103,7 @@ templ (p *Props) render() {
 		</div>
 		if p.Error != "" {
 			<small
+				id={ errorID }
 				class="text-xs text-red-500 mt-1"
 				data-testid="field-error"
 				data-field-id={ p.id }

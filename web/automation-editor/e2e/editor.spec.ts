@@ -38,7 +38,11 @@ test.describe('canvas', () => {
         const chip = source?.querySelector<HTMLElement>(`.iota-flow__handle.source[data-handleid="${outcome}"]`)
         const target = document.querySelector<HTMLElement>(`.iota-flow__node[data-id="${path.dataset.to}"]`)
         const matrix = path.getScreenCTM()
-        if (!source || !chip || !target || !matrix) continue
+        // A missing end is a failure of its own: the row stays and fails every bound below, naming the edge.
+        if (!source || !chip || !target || !matrix) {
+          out.push({ key, dx: Infinity, dy: Infinity, tx: Infinity, ty: Infinity })
+          continue
+        }
         const zoom = matrix.a
         const start = new DOMPoint(path.getPointAtLength(0).x, path.getPointAtLength(0).y).matrixTransform(matrix)
         const end = path.getPointAtLength(path.getTotalLength())

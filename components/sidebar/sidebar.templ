@@ -354,9 +354,7 @@ templ SidebarGroupNode(node NavNode, mode SidebarRenderMode, depth int, navID st
 				data-depth={ depthAttr(depth) }
 				class={ buttonClass }
 			>
-				if node.Icon != nil {
-					@node.Icon
-				}
+				@sidebarIconSlot(node)
 				<span class="truncate">{ node.Text }</span>
 				if node.IsBeta {
 					@SidebarBetaBadge("ml-auto", node.IsActive)

@@ -39,10 +39,13 @@ export function ContextMenu(props: ContextMenuProps): JSX.Element {
   const mac = isMac()
   let root: HTMLDivElement | undefined
   const [active, setActive] = createSignal(0)
+  // The rendered height once mounted (coarse pointers have taller rows, separators take room); an estimate before.
+  const [measured, setMeasured] = createSignal(0)
   const enabled = () => props.items.filter((i) => !i.disabled)
   useDismiss(() => root, () => props.onClose(), { leaving: () => props.leaving })
 
   onMount(() => {
+    setMeasured(root?.offsetHeight ?? 0)
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const restore = createFocusReturn(() => root, opener)
     useLeaving(() => root, () => props.leaving, restore)
@@ -81,7 +84,7 @@ export function ContextMenu(props: ContextMenuProps): JSX.Element {
 
   const style = (): JSX.CSSProperties => {
     const width = 260
-    const height = Math.min(36 * props.items.length + 16, 480)
+    const height = measured() || Math.min(36 * props.items.length + 16, 480)
     const left = Math.max(8, Math.min(props.x, props.bounds.width - width - 8))
     const top = Math.max(8, Math.min(props.y, props.bounds.height - height - 8))
     return { left: `${left}px`, top: `${top}px` }
