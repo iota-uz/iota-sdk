@@ -10,7 +10,7 @@ import (
 
 // DefaultCodeModelOpenRouter is the model complete asks OpenRouter when the code names none: the typesafe/
 // model of the ai.jev node is a classifier, not a chat model.
-const DefaultCodeModelOpenRouter = "openai/gpt-4o-mini-2024-07-18"
+const DefaultCodeModelOpenRouter = "openai/gpt-6-luna"
 
 var (
 	_ connectors.CodeAccessor = (*connector)(nil)

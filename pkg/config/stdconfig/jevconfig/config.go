@@ -24,7 +24,7 @@ type Config struct {
 	// enabled it; empty, no platform credential exists.
 	APIKey string `koanf:"apikey" secret:"true"`
 	// DefaultModel is the exact model id written into a Jev node saved without a model; empty: the
-	// provider's default (typesafe/jev-1.14 for openrouter, a dated gpt-4o-mini snapshot for openai). An
+	// provider's default (typesafe/jev-1.14 for openrouter, gpt-6-luna for openai). An
 	// alias (latest) or a rolling id is refused.
 	DefaultModel string `koanf:"defaultmodel"`
 }

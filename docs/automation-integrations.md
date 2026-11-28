@@ -61,10 +61,10 @@ components = append(components, automations.NewComponent(
 | `AUTOMATION_PLATFORM_CREDENTIALS` | JSON `{"<kind или имя OAuth-клиента>": {"<поле>": "<значение>"}}`: ключи платформы и `client_id`/`client_secret` OAuth2-клиентов. |
 | `AUTOMATION_OPENAI_APIKEY` | Платформенный ключ OpenAI для ноды `ai.llm`: ключ задан — коннектор `openai` предлагается тенантам (только после включения администратором тенанта). Это не ключ BiChat (`BICHAT_OPENAI_*`): расход автоматизаций учитывается отдельно. |
 | `AUTOMATION_OPENAI_BASEURL` | OpenAI-совместимый endpoint платформенного ключа (только https); по умолчанию `https://api.openai.com/v1`. |
-| `AUTOMATION_OPENAI_DEFAULTMODEL` | Точный id модели, который записывается в версию графа, если в ноде `ai.llm` модель не указана (по умолчанию снапшот `gpt-4o-mini-2024-07-18`). |
+| `AUTOMATION_OPENAI_DEFAULTMODEL` | Точный id модели, который записывается в версию графа, если в ноде `ai.llm` модель не указана (по умолчанию `gpt-6-luna`). |
 | `AUTOMATION_JEV_APIKEY` | Платформенный ключ классификатора `ai.jev`. |
 | `AUTOMATION_JEV_PROVIDER` | Чей это ключ: `openrouter` (по умолчанию) или `openai`. |
-| `AUTOMATION_JEV_DEFAULTMODEL` | Точный id модели по умолчанию для `ai.jev`; по умолчанию `typesafe/jev-1.14` для `openrouter` и `gpt-4o-mini-2024-07-18` для `openai`. |
+| `AUTOMATION_JEV_DEFAULTMODEL` | Точный id модели по умолчанию для `ai.jev`; по умолчанию `typesafe/jev-1.14` для `openrouter` и `gpt-6-luna` для `openai`. |
 | `ESKIZ_EMAIL`, `ESKIZ_PASSWORD`, `ESKIZ_URL`, `ESKIZ_FROM` | Платформенный аккаунт Eskiz (`url` по умолчанию `https://notify.eskiz.uz`, `from` — sender id). Включается наличием `ESKIZ_EMAIL` и `ESKIZ_PASSWORD`. |
 | `TWILIO_ACCOUNTSID`, `TWILIO_AUTHTOKEN`, `TWILIO_PHONENUMBER` | Платформенный аккаунт Twilio для автоматизаций; включается наличием всех трёх. Запись `eskiz`/`twilio` в `AUTOMATION_PLATFORM_CREDENTIALS` приоритетнее. |
 | `AUTOMATIONS_ASSETS_DIR` | Разработка: каталог свежесобранного бандла экрана вместо встроенного. |
@@ -203,8 +203,8 @@ Identity показывается только с явным происхожд�
 (отказ или модерация), `unauthorized`, `rate_limited`, `unavailable`.
 
 Модель задаётся точным id. Алиасы (`latest`, `*-latest`, `~…`, `openrouter/auto`) и «плавающие» id OpenAI без даты
-(`gpt-4o`, `gpt-4o-mini`, `o3`) не сохраняются: OpenAI закрепляет модель датированным снапшотом
-(`gpt-4o-mini-2024-07-18`). Смена модели — это новая версия графа. Пустая модель при сохранении заменяется на `defaultmodel` коннектора (`catalog.CompletedNode`), так что
+(`gpt-4o`, `gpt-4o-mini`, `o3`) не сохраняются: для старых линеек OpenAI закрепляет модель датированным снапшотом
+(`gpt-4o-2024-08-06`), а модели GPT-6 без датированных снапшотов (`gpt-6-luna` и др.) принимаются как точный id. Смена модели — это новая версия графа. Пустая модель при сохранении заменяется на `defaultmodel` коннектора (`catalog.CompletedNode`), так что
 смена env не меняет модель уже сохранённой версии.
 
 ### `ai.llm`
@@ -230,7 +230,7 @@ Identity показывается только с явным происхожд�
 
 | Параметр | |
 | --- | --- |
-| `model` | Точный id модели провайдера подключения: для `openrouter` закреплённая версия TypeSafe Jev (`typesafe/jev-1.14`), для `openai` датированный снапшот чат-модели. Если модель не указана, при сохранении записывается умолчание провайдера выбранного подключения; модель другого провайдера не сохраняется (`model_provider_mismatch`). |
+| `model` | Точный id модели провайдера подключения: для `openrouter` закреплённая версия TypeSafe Jev (`typesafe/jev-1.14`), для `openai` точный id чат-модели (по умолчанию `gpt-6-luna`). Если модель не указана, при сохранении записывается умолчание провайдера выбранного подключения; модель другого провайдера не сохраняется (`model_provider_mismatch`). |
 | `timeout_ms` | Как у `ai.llm`. |
 | `input` | CEL: map с данными для решения. Значения любых типов — строка, число, bool, список, map; ключи сериализуются отсортированными. |
 | `prompt` | Шаблон инструкции; по умолчанию — инструкция с правилом «при сомнении выбирай безопасный вариант». |

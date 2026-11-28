@@ -214,15 +214,15 @@ func TestModelIsPinnedByTheProviderOfTheConnection(t *testing.T) {
 	assert.Equal(t, "typesafe/jev-1.14", got["model"])
 	got, issues = prepare("oa", raw)
 	assert.Empty(t, issues)
-	assert.Equal(t, "gpt-4o-mini-2024-07-18", got["model"])
+	assert.Equal(t, "gpt-6-luna", got["model"])
 	got, _ = prepare("platform:jev", raw)
-	assert.Equal(t, "gpt-4o-mini-2024-07-18", got["model"])
+	assert.Equal(t, "gpt-6-luna", got["model"])
 	assert.NotContains(t, raw, "model", "the argument is not changed")
 	got, issues = prepare("or", map[string]any{"model": "typesafe/jev-1.13"})
 	assert.Empty(t, issues)
 	assert.Equal(t, "typesafe/jev-1.13", got["model"])
 
-	for _, bad := range [][2]string{{"oa", "typesafe/jev-1.14"}, {"or", "gpt-4o-mini-2024-07-18"}, {"oa", "gpt-3.5-turbo-0125"}, {"oa", "gpt-4o-2024-05-13"}, {"oa", "anthropic/claude-3.5-sonnet"}, {"oa", "openai/gpt-4o-mini-2024-07-18"}} {
+	for _, bad := range [][2]string{{"oa", "typesafe/jev-1.14"}, {"or", "gpt-6-luna"}, {"oa", "gpt-3.5-turbo-0125"}, {"oa", "gpt-4o-2024-05-13"}, {"oa", "anthropic/claude-3.5-sonnet"}, {"oa", "openai/gpt-6-luna"}} {
 		_, issues := prepare(bad[0], map[string]any{"model": bad[1]})
 		require.Len(t, issues, 1, bad)
 		assert.Equal(t, jev.ErrorModelProvider, issues[0].Code)
@@ -271,10 +271,12 @@ func (f failingProviders) Provider(context.Context, uuid.UUID, string) (string, 
 }
 
 func TestShippedDefaultsArePinned(t *testing.T) {
-	for _, m := range []string{jev.DefaultModelOpenRouter, jev.DefaultModelOpenAI} {
+	for _, m := range []string{jev.DefaultModelOpenRouter, jev.DefaultModelOpenAI, jev.DefaultCodeModelOpenRouter} {
 		require.NoError(t, aichat.CheckModel(m), m)
 	}
 	assert.Equal(t, "typesafe/jev-1.14", jev.DefaultModelOpenRouter)
+	assert.Equal(t, "gpt-6-luna", jev.DefaultModelOpenAI)
+	assert.Equal(t, "openai/gpt-6-luna", jev.DefaultCodeModelOpenRouter)
 }
 
 func openrouterNode(t *testing.T, srv *aitest.Server, opts ...jev.Option) catalog.CallNode {
@@ -454,7 +456,7 @@ func TestMissingModelFallsBackToTheProvidersDefault(t *testing.T) {
 	n := openaiNode(t, srv)
 	_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, nil), nil))
 	require.NoError(t, err)
-	assert.Equal(t, "gpt-4o-mini-2024-07-18", srv.Requests()[0].JSON(t)["model"])
+	assert.Equal(t, "gpt-6-luna", srv.Requests()[0].JSON(t)["model"])
 }
 
 // OpenRouter takes a pinned TypeSafe Jev version; a chat model there, or a Jev version on OpenAI, is a
@@ -588,8 +590,8 @@ func TestOpenAIProvider(t *testing.T) {
 	req := srv.Requests()[0]
 	assert.Equal(t, "api.openai.com", req.Host())
 	body := req.JSON(t)
-	assert.Equal(t, "gpt-4o-mini-2024-07-18", body["model"])
-	assert.EqualValues(t, 0, body["temperature"])
+	assert.Equal(t, "gpt-6-luna", body["model"])
+	assert.NotContains(t, body, "temperature")
 	assert.Contains(t, body, "max_completion_tokens")
 	assert.NotContains(t, body, "usage")
 	assert.NotContains(t, body, "provider")
@@ -623,11 +625,22 @@ func TestOpenAIOutcomes(t *testing.T) {
 }
 
 func TestReasoningModelsGetNoTemperature(t *testing.T) {
-	srv := aitest.New(t, aitest.Reply{Body: decision("other", map[string]float64{"refund": 0, "exchange": 0, "other": 1})})
-	n := openaiNode(t, srv)
-	_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, map[string]any{"model": "o3-2025-04-16"}), nil))
-	require.NoError(t, err)
-	assert.NotContains(t, srv.Requests()[0].JSON(t), "temperature")
+	for _, model := range []string{"o3-2025-04-16", "gpt-5-2025-08-07", "gpt-6-luna", "gpt-6.2-sol"} {
+		t.Run(model, func(t *testing.T) {
+			srv := aitest.New(t, aitest.Reply{Body: decision("other", map[string]float64{"refund": 0, "exchange": 0, "other": 1})})
+			n := openaiNode(t, srv)
+			_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, map[string]any{"model": model}), nil))
+			require.NoError(t, err)
+			assert.NotContains(t, srv.Requests()[0].JSON(t), "temperature")
+		})
+	}
+	t.Run("non-reasoning gets zero temperature", func(t *testing.T) {
+		srv := aitest.New(t, aitest.Reply{Body: decision("other", map[string]float64{"refund": 0, "exchange": 0, "other": 1})})
+		n := openaiNode(t, srv)
+		_, err := n.Execute(context.Background(), aitest.Input(jev.Kind, srv, creds("openai"), base(t, n, map[string]any{"model": "gpt-4o-2024-08-06"}), nil))
+		require.NoError(t, err)
+		assert.EqualValues(t, 0, srv.Requests()[0].JSON(t)["temperature"])
+	})
 }
 
 func TestOpenAIAnswersOutsideTheChoicesAreOneInvalidRequest(t *testing.T) {
