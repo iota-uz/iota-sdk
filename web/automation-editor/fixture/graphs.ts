@@ -85,3 +85,22 @@ export function notifyGraph(event: 'acme.policy.created.v1' | 'acme.policy.delet
     ],
   }
 }
+
+/** A card that touches the source row without being over the source column (a router regression): the edge from the trigger to the branch must go around it, not through it. */
+export const offColumn: { graph: AutomationGraph; layout: AutomationLayout } = {
+  graph: {
+    name: 'Off-column obstacle',
+    run_as: 'owner',
+    triggers: [{ id: 'user_created', event: 'core.user.created.v1' }],
+    nodes: [
+      { id: 'has_email', type: 'branch', params: { expression: 'user.email != ""' } },
+      { id: 'wait', type: 'delay', params: { duration: '1d' } },
+      { id: 'end', type: 'end', params: {} },
+    ],
+    edges: [
+      { from: { node: 'user_created', outcome: 'fired' }, to: 'has_email' },
+      { from: { node: 'has_email', outcome: 'true' }, to: 'end' },
+    ],
+  },
+  layout: { user_created: { x: 0, y: 0 }, wait: { x: 260, y: 96 }, has_email: { x: 400, y: 250 }, end: { x: 400, y: 450 } },
+}

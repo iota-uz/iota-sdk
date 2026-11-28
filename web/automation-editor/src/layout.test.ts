@@ -374,6 +374,24 @@ describe('review round', () => {
     }
   })
 
+  it('keeps usable source lanes when the card below the source row is off the source column', () => {
+    // The obstacle touches the source row (no lane room under it) but is not over the source column:
+    // the edge goes straight down the source column to the free gap above the target.
+    const rects = new Map([
+      ['s', { x: 0, y: 0, width: 224, height: 96 }],
+      ['t', { x: 400, y: 250, width: 224, height: 96 }],
+      ['o', { x: 260, y: 96, width: 100, height: 96 }],
+    ])
+    const route = createRouter(rects, [{ key: 's.done', from: 's', to: 't', port: { x: 112, y: 96 }, entry: { x: 512, y: 250 } }]).route('s.done')!
+    expect(route.blocked).toBe(false)
+    const o = rects.get('o')!
+    for (let i = 1; i < route.points.length; i += 1) {
+      const a = route.points[i - 1]!
+      const b = route.points[i]!
+      expect(Math.max(a.x, b.x) > o.x && Math.min(a.x, b.x) < o.x + o.width && Math.max(a.y, b.y) > o.y && Math.min(a.y, b.y) < o.y + o.height).toBe(false)
+    }
+  })
+
   it('plans each link once, earlier ports of a source first', () => {
     const rects = new Map([['a', { x: 0, y: 0, width: 224, height: 96 }], ['b', { x: 0, y: 300, width: 224, height: 96 }], ['c', { x: 300, y: 300, width: 224, height: 96 }]])
     const router = createRouter(rects, [

@@ -1,5 +1,5 @@
 // Fixture host for the editor: a fake EditorApi with switches in the query string, for manual checks,
-// e2e and the benchmark. Query: graph=sample|connected|empty|bench|multi|foreach|notify|notify_plain, locale, theme=dark, readonly=1,
+// e2e and the benchmark. Query: graph=sample|connected|empty|bench|offcolumn|multi|foreach|notify|notify_plain, locale, theme=dark, readonly=1,
 // latency=<ms>, fail=save|validate|savelayout, conflict=1, pending=1, overlay=1, catalog=empty|notify,
 // mode=canvas (the Canvas alone, with counters), errors=1 (validate reports an error on has_email).
 // Runs (#1347): tab=runs, run=<id>, node=<id>, runs=empty|error|slowops|notfound|noop (no Operate methods),
@@ -13,7 +13,7 @@ import { resetMotionCache } from '../src/motion'
 import { ensureLayout, tidyLayout } from '../src/layout'
 import type { AutomationGraph, AutomationLayout, EditorApi, EditorLocale, GraphError, Overlay, RunData, RunsView, RunState, SaveResult } from '../src/types'
 import { actionsCatalog, catalog as fullCatalog, emptyCatalog, notifyCatalog } from './catalog'
-import { bench, connected, empty, notifyGraph, sample } from './graphs'
+import { bench, connected, empty, notifyGraph, offColumn, sample } from './graphs'
 import { foreachJoin, layoutCatalog, multiTrigger } from './layoutGraphs'
 import { approval, approvalWaiting, sampleRuns, sampleV2, toSummary } from './runs'
 import './solid-ui.generated.css'
@@ -39,6 +39,7 @@ const pick = (): { graph: AutomationGraph; layout: AutomationLayout } => {
     case 'multi': return { graph: multiTrigger, layout: {} }
     case 'foreach': return { graph: foreachJoin, layout: {} }
     case 'approval': return { graph: approval, layout: {} }
+    case 'offcolumn': return offColumn
     default: return { graph: sample, layout: {} }
   }
 }

@@ -190,7 +190,10 @@ function routeOne(link: RouteLink, obstacles: Obstacles, trunk: Trunk, preferenc
   const hi = Math.max(s.x, t.x)
   const spans = (r: Rect) => r.x < hi + 1 && r.x + r.width > lo - 1
   let floor = t.y > s.y ? t.y : s.y + ROW_REACH
-  for (const r of first) if (r.y >= s.y - 0.5 && r.y < floor && (spans(r) || (s.x > r.x && s.x < r.x + r.width))) floor = r.y
+  // A card that leaves no room for a stub under the source only closes the lanes when it is over the
+  // source column; off it, the stub runs down the free column and the card stays an obstacle for the search.
+  const overSource = (r: Rect) => s.x > r.x && s.x < r.x + r.width
+  for (const r of first) if (r.y >= s.y - 0.5 && r.y < floor && (overSource(r) ? true : spans(r) && r.y - s.y >= MIN_STUB)) floor = r.y
   let ceiling = t.y > s.y ? s.y : t.y - ROW_REACH
   for (const r of first) {
     const bottom = r.y + r.height

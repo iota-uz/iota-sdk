@@ -59,6 +59,8 @@ const shots: Shot[] = [
   // Tidy v2 (#1391): a column per trigger, a failure lane, orthogonal links; a parallel with its join and a for each.
   { name: 'tidy-multi', query: 'graph=multi', width: 1440, height: 900 },
   { name: 'tidy-foreach', query: 'graph=foreach', width: 1440, height: 900 },
+  // Router: a card touching the source row off the source column does not close the source's lanes; the edge goes around it.
+  { name: 'router-offcolumn', query: 'graph=offcolumn', width: 1440, height: 900 },
   // Runs (#1347): a failed run with its node's drawer, a run of an older version, a waiting parallel,
   // the empty and filtered states, a run not found, the phone list and run, Dry run and Test node.
   { name: 'runs', query: 'tab=runs&run=00000000-0000-4000-8000-0000000000r2&node=send_email', width: 1440, height: 900, ready: '.ae-runview .ae-canvas', prepare: async (page) => { await expect(page.getByTestId('run-node')).toBeVisible() } },
